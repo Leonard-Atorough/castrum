@@ -22,17 +22,17 @@ func TestEntityIndex_ComponentIndex(t *testing.T) {
 	idx.AddComponent(3, ctype)
 	idx.AddComponent(1, atype) // duplicate should not create a second entry
 
-	if got := idx.GetEntitiesWithComponent(atype); !idsMatchUnordered(got, []uint64{1, 2}) {
+	if got := idx.GetEntitiesWithComponent(atype); !idsMatchUnordered(got, []EntityID{1, 2}) {
 		t.Fatalf("unexpected A entities: %#v", got)
 	}
-	if got := idx.GetEntitiesWithComponent(btype); !idsMatchUnordered(got, []uint64{1}) {
+	if got := idx.GetEntitiesWithComponent(btype); !idsMatchUnordered(got, []EntityID{1}) {
 		t.Fatalf("unexpected B entities: %#v", got)
 	}
-	if got := idx.GetEntitiesWithComponent(ctype); !idsMatchUnordered(got, []uint64{3}) {
+	if got := idx.GetEntitiesWithComponent(ctype); !idsMatchUnordered(got, []EntityID{3}) {
 		t.Fatalf("unexpected C entities: %#v", got)
 	}
 
-	if got := idx.GetEntitiesWithComponents(atype, btype); !idsMatchUnordered(got, []uint64{1}) {
+	if got := idx.GetEntitiesWithComponents(atype, btype); !idsMatchUnordered(got, []EntityID{1}) {
 		t.Fatalf("expected intersection to be {1}, got %#v", got)
 	}
 	if got := idx.GetEntitiesWithComponents(atype, ctype); len(got) != 0 {
@@ -40,16 +40,16 @@ func TestEntityIndex_ComponentIndex(t *testing.T) {
 	}
 
 	idx.RemoveComponent(1, atype)
-	if got := idx.GetEntitiesWithComponent(atype); !idsMatchUnordered(got, []uint64{2}) {
+	if got := idx.GetEntitiesWithComponent(atype); !idsMatchUnordered(got, []EntityID{2}) {
 		t.Fatalf("after removal, A should only contain entity 2, got %#v", got)
 	}
 
 	idx.UpdateComponent(NewEntity(5, "x"), atype, true)
-	if got := idx.GetEntitiesWithComponent(atype); !idsMatchUnordered(got, []uint64{2, 5}) {
+	if got := idx.GetEntitiesWithComponent(atype); !idsMatchUnordered(got, []EntityID{2, 5}) {
 		t.Fatalf("after update add, A should contain 2 and 5, got %#v", got)
 	}
 	idx.UpdateComponent(NewEntity(5, "x"), atype, false)
-	if got := idx.GetEntitiesWithComponent(atype); !idsMatchUnordered(got, []uint64{2}) {
+	if got := idx.GetEntitiesWithComponent(atype); !idsMatchUnordered(got, []EntityID{2}) {
 		t.Fatalf("after update remove, A should contain only 2, got %#v", got)
 	}
 }
@@ -62,15 +62,15 @@ func TestEntityIndex_TagsAndTemplates(t *testing.T) {
 	idx.AddTag(2, "player")
 	idx.AddTag(3, "npc")
 
-	if got := idx.GetEntitiesWithTag("player"); !idsMatchUnordered(got, []uint64{1, 2}) {
+	if got := idx.GetEntitiesWithTag("player"); !idsMatchUnordered(got, []EntityID{1, 2}) {
 		t.Fatalf("unexpected player entities: %#v", got)
 	}
-	if got := idx.GetEntitiesWithTag("npc"); !idsMatchUnordered(got, []uint64{3}) {
+	if got := idx.GetEntitiesWithTag("npc"); !idsMatchUnordered(got, []EntityID{3}) {
 		t.Fatalf("unexpected npc entities: %#v", got)
 	}
 
 	idx.UpdateTag(NewEntity(1, "player"), "player", false)
-	if got := idx.GetEntitiesWithTag("player"); !idsMatchUnordered(got, []uint64{2}) {
+	if got := idx.GetEntitiesWithTag("player"); !idsMatchUnordered(got, []EntityID{2}) {
 		t.Fatalf("after removing tag from entity 1, player set should be {2}, got %#v", got)
 	}
 
@@ -78,10 +78,10 @@ func TestEntityIndex_TagsAndTemplates(t *testing.T) {
 	idx.AddTemplate(10, "enemy")
 	idx.AddTemplate(11, "enemy")
 	idx.UpdateTemplate(NewEntity(10, "enemy"), "enemy", "boss")
-	if got := idx.GetEntitiesWithTemplate("enemy"); !idsMatchUnordered(got, []uint64{11}) {
+	if got := idx.GetEntitiesWithTemplate("enemy"); !idsMatchUnordered(got, []EntityID{11}) {
 		t.Fatalf("expected enemy template to only contain entity 11, got %#v", got)
 	}
-	if got := idx.GetEntitiesWithTemplate("boss"); !idsMatchUnordered(got, []uint64{10}) {
+	if got := idx.GetEntitiesWithTemplate("boss"); !idsMatchUnordered(got, []EntityID{10}) {
 		t.Fatalf("expected boss template to contain entity 10, got %#v", got)
 	}
 }
@@ -102,7 +102,7 @@ func TestEntityIndex_EmptyQueries(t *testing.T) {
 	}
 }
 
-func idsMatchUnordered(a, b []uint64) bool {
+func idsMatchUnordered(a, b []EntityID) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -110,8 +110,8 @@ func idsMatchUnordered(a, b []uint64) bool {
 		return true
 	}
 
-	left := append([]uint64(nil), a...)
-	right := append([]uint64(nil), b...)
+	left := append([]EntityID(nil), a...)
+	right := append([]EntityID(nil), b...)
 	slices.Sort(left)
 	slices.Sort(right)
 

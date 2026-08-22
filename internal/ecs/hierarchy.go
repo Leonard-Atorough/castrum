@@ -4,20 +4,20 @@ package ecs
 // parentToChildren maps a parent entity ID to its children.
 // childToParent maps a child entity ID to its parent.
 type Hierarchy struct {
-	parentToChildren map[uint64][]uint64
-	childToParent    map[uint64]uint64
+	parentToChildren map[EntityID][]EntityID
+	childToParent    map[EntityID]EntityID
 }
 
 func NewHierarchy() *Hierarchy {
 	return &Hierarchy{
-		parentToChildren: make(map[uint64][]uint64),
-		childToParent:    make(map[uint64]uint64),
+		parentToChildren: make(map[EntityID][]EntityID),
+		childToParent:    make(map[EntityID]EntityID),
 	}
 }
 
 // Add attaches childID under parentID.
 // If childID already has a parent, it is first detached from that parent.
-func (h *Hierarchy) Add(parentID, childID uint64) {
+func (h *Hierarchy) Add(parentID, childID EntityID) {
 	if oldParent, exists := h.childToParent[childID]; exists && oldParent != parentID {
 		h.Remove(oldParent, childID)
 	}
@@ -37,7 +37,7 @@ func (h *Hierarchy) Add(parentID, childID uint64) {
 }
 
 // Remove detaches childID from parentID.
-func (h *Hierarchy) Remove(parentID, childID uint64) {
+func (h *Hierarchy) Remove(parentID, childID EntityID) {
 	children := h.parentToChildren[parentID]
 	for i, id := range children {
 		if id == childID {
@@ -52,33 +52,33 @@ func (h *Hierarchy) Remove(parentID, childID uint64) {
 }
 
 // Children returns all direct children of parentID.
-func (h *Hierarchy) Children(parentID uint64) []uint64 {
-	return append([]uint64(nil), h.parentToChildren[parentID]...)
+func (h *Hierarchy) Children(parentID EntityID) []EntityID {
+	return append([]EntityID(nil), h.parentToChildren[parentID]...)
 }
 
 // Parent returns the parent of childID, if any.
-func (h *Hierarchy) Parent(childID uint64) (uint64, bool) {
+func (h *Hierarchy) Parent(childID EntityID) (EntityID, bool) {
 	parent, ok := h.childToParent[childID]
 	return parent, ok
 }
 
 // IsParent returns true if entityID has any children.
-func (h *Hierarchy) IsParent(entityID uint64) bool {
+func (h *Hierarchy) IsParent(entityID EntityID) bool {
 	_, exists := h.parentToChildren[entityID]
 	return exists
 }
 
 // IsChild returns true if entityID has a parent.
-func (h *Hierarchy) IsChild(entityID uint64) bool {
+func (h *Hierarchy) IsChild(entityID EntityID) bool {
 	_, exists := h.childToParent[entityID]
 	return exists
 }
 
 // Descendants returns all descendants of parentID in depth-first order.
-func (h *Hierarchy) Descendants(parentID uint64) []uint64 {
-	result := make([]uint64, 0)
-	var walk func(uint64)
-	walk = func(id uint64) {
+func (h *Hierarchy) Descendants(parentID EntityID) []EntityID {
+	result := make([]EntityID, 0)
+	var walk func(EntityID)
+	walk = func(id EntityID) {
 		for _, childID := range h.parentToChildren[id] {
 			result = append(result, childID)
 			walk(childID)
@@ -90,7 +90,7 @@ func (h *Hierarchy) Descendants(parentID uint64) []uint64 {
 
 // Root walks up the chain and returns the root ancestor of entityID.
 // If entityID is not attached to a parent, it returns entityID itself.
-func (h *Hierarchy) Root(entityID uint64) uint64 {
+func (h *Hierarchy) Root(entityID EntityID) EntityID {
 	for {
 		parent, ok := h.childToParent[entityID]
 		if !ok {
