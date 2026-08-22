@@ -1,8 +1,15 @@
-package game
+package engine
 
 type Game struct {
 	accumulator float64
 	fixedDelta  float64
+}
+
+func NewGame(fixedDelta float64) *Game {
+	return &Game{
+		accumulator: 0,
+		fixedDelta:  fixedDelta,
+	}
 }
 
 func (g *Game) Update() error {
