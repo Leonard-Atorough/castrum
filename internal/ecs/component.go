@@ -31,7 +31,7 @@ func (cs *componentStore) GetAll(entityID uint64) []component.Component {
 func Get[T component.Component](cs *componentStore, entityID uint64) (*T, error) {
 	components, exists := cs.data[entityID]
 	if !exists || len(components) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("no components found for entity ID %d", entityID)
 	}
 
 	for _, c := range components {
