@@ -1,6 +1,7 @@
 package ecs
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/pkg/component"
@@ -29,11 +30,24 @@ func TestComponentStore_SetAndGetAll(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("expected 2 components, got %d", len(got))
 	}
-	if _, ok := got[0].(testComponentA); !ok {
-		t.Fatalf("expected first component to be testComponentA, got %#v", got[0])
+
+	// Check that both component types are present (map iteration order is non-deterministic)
+	hasA := false
+	hasB := false
+	for _, comp := range got {
+		if _, ok := comp.(testComponentA); ok {
+			hasA = true
+		}
+		if _, ok := comp.(testComponentB); ok {
+			hasB = true
+		}
 	}
-	if _, ok := got[1].(testComponentB); !ok {
-		t.Fatalf("expected second component to be testComponentB, got %#v", got[1])
+
+	if !hasA {
+		t.Fatalf("expected testComponentA to be in results, got %#v", got)
+	}
+	if !hasB {
+		t.Fatalf("expected testComponentB to be in results, got %#v", got)
 	}
 }
 
@@ -42,23 +56,49 @@ func TestComponentStore_GetTypedComponent(t *testing.T) {
 	store.Set(1, testComponentA{value: 99})
 	store.Set(1, testComponentB{value: 42})
 
-	got, err := Get[testComponentA](store, 1)
+	got, err := store.Get(1, reflect.TypeFor[testComponentA]())
 	if err != nil {
-		t.Fatalf("expected Get[testComponentA] to succeed: %v", err)
+		t.Fatalf("expected Get to succeed: %v", err)
 	}
 	if got == nil {
-		t.Fatal("expected non-nil component pointer")
+		t.Fatal("expected non-nil component")
 	}
-	if got.value != 99 {
-		t.Fatalf("expected value 99, got %d", got.value)
+	comp, ok := got.(testComponentA)
+	if !ok {
+		t.Fatalf("expected testComponentA, got %T", got)
+	}
+	if comp.value != 99 {
+		t.Fatalf("expected value 99, got %d", comp.value)
 	}
 
-	missing, err := Get[testComponentB](store, 2)
+	missing, err := store.Get(2, reflect.TypeFor[testComponentB]())
 	if err == nil {
-		t.Fatal("expected missing component type to return an error")
+		t.Fatal("expected missing component to return an error")
 	}
 	if missing != nil {
-		t.Fatalf("expected nil pointer when component type is missing, got %#v", missing)
+		t.Fatalf("expected nil component when not found, got %#v", missing)
+	}
+}
+
+func TestComponentStore_GetByName(t *testing.T) {
+	store := NewComponentStore()
+	store.Set(1, testComponentA{value: 5})
+	store.Set(1, testComponentB{value: 10})
+
+	got, err := store.GetByString(1, "testComponentB")
+	if err != nil {
+		t.Fatalf("expected GetByString to succeed: %v", err)
+	}
+
+	if got == nil {
+		t.Fatal("expected non-nil component")
+	}
+	comp, ok := got.(testComponentB)
+	if !ok {
+		t.Fatalf("expected testComponentB, got %T", got)
+	}
+	if comp.value != 10 {
+		t.Fatalf("expected value 10, got %d", comp.value)
 	}
 }
 
@@ -91,11 +131,11 @@ func TestComponentStore_MissingEntity(t *testing.T) {
 		t.Fatalf("missing entity should return no components, got %#v", got)
 	}
 
-	got, err := Get[testComponentA](store, 123)
+	got, err := store.Get(123, reflect.TypeFor[testComponentA]())
 	if err == nil {
 		t.Fatal("missing entity should return an error")
 	}
 	if got != nil {
-		t.Fatalf("missing entity should return nil pointer, got %#v", got)
+		t.Fatalf("missing entity should return nil, got %#v", got)
 	}
 }

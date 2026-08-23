@@ -26,6 +26,7 @@ func TestEntity_BasicLifecycle(t *testing.T) {
 
 func TestEntity_Clone(t *testing.T) {
 	src := NewEntity(5, "enemy")
+	src.AddTag("hostile")
 	src.Destroy()
 
 	clone := src.Clone(99)
@@ -40,6 +41,9 @@ func TestEntity_Clone(t *testing.T) {
 	}
 	if clone.Version() != src.Version() {
 		t.Fatalf("expected version %d, got %d", src.Version(), clone.Version())
+	}
+	if !clone.HasTag("hostile") {
+		t.Fatal("clone should have copied tags from source")
 	}
 }
 

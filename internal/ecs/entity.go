@@ -1,7 +1,11 @@
+// Package ecs provides a lightweight entity component system (ECS) implementation.
+// It manages entities, their components, tags, and hierarchical relationships.
 package ecs
 
 type EntityID uint64
 
+// entity represents a game entity with an ID, template, tags, and lifecycle state.
+// Entities are not directly exposed in the public API; they are accessed through World methods.
 type entity struct {
 	id       EntityID
 	template string

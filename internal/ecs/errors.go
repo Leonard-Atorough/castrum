@@ -5,16 +5,18 @@ import (
 	"fmt"
 )
 
-// Sentinel errors for common cases
+// Sentinel errors for common ECS operations.
 var (
+	// ErrEntityNotFound is returned when an operation references an entity that does not exist.
 	ErrEntityNotFound = errors.New("entity not found")
-	ErrInvalidEntity  = errors.New("invalid entity")
+	// ErrInvalidEntity is returned when an entity has invalid state or properties.
+	ErrInvalidEntity = errors.New("invalid entity")
 )
 
-// WorldError wraps errors at the world level.
+// WorldError wraps errors that occur at the world level.
 type WorldError struct {
-	Op  string
-	Err error
+	Op  string // operation that failed (e.g., "Spawn", "Destroy")
+	Err error  // underlying error
 }
 
 func (e *WorldError) Error() string {
@@ -27,9 +29,9 @@ func (e *WorldError) Unwrap() error {
 
 // EntityError wraps errors related to a specific entity.
 type EntityError struct {
-	EntityID EntityID
-	Op       string
-	Err      error
+	EntityID EntityID // ID of the entity that caused the error
+	Op       string   // operation that failed
+	Err      error    // underlying error
 }
 
 func (e *EntityError) Error() string {
@@ -42,10 +44,10 @@ func (e *EntityError) Unwrap() error {
 
 // IndexError wraps errors from the entity index (components, tags, templates).
 type IndexError struct {
-	EntityID EntityID
-	IndexKey string // component type, tag name, or template name
-	Op       string
-	Err      error
+	EntityID EntityID // ID of the entity involved
+	IndexKey string   // component type, tag name, or template name
+	Op       string   // operation that failed
+	Err      error    // underlying error
 }
 
 func (e *IndexError) Error() string {

@@ -1,96 +1,398 @@
 package ecs
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
-func TestWorld_SpawnAndDestroy(t *testing.T) {
+// TestWorld_ComponentLifecycle tests adding, removing, getting, and querying components.
+func TestWorld_ComponentLifecycle(t *testing.T) {
+	w := NewWorld()
+	id := w.Spawn("Generic")
+
+	// Test adding a component
+	compA := testComponentA{value: 42}
+	if err := w.AddComponent(id, compA); err != nil {
+		t.Fatalf("AddComponent failed: %v", err)
+	}
+
+	// Test HasComponent
+	if !w.HasComponent(id, reflect.TypeOf(compA)) {
+		t.Fatal("HasComponent should return true after adding component")
+	}
+
+	// Test GetComponent
+	got, err := w.GetComponent(id, reflect.TypeOf(compA))
+	if err != nil {
+		t.Fatalf("GetComponent failed: %v", err)
+	}
+	gotComp, ok := got.(testComponentA)
+	if !ok || gotComp.value != 42 {
+		t.Fatalf("GetComponent returned wrong component, got %#v", got)
+	}
+
+	// Test adding a second component
+	compB := testComponentB{value: 99}
+	if err := w.AddComponent(id, compB); err != nil {
+		t.Fatalf("AddComponent (second) failed: %v", err)
+	}
+
+	// Test GetAllComponents
+	all := w.GetAllComponents(id)
+	if len(all) != 2 {
+		t.Fatalf("expected 2 components, got %d", len(all))
+	}
+
+	// Test RemoveComponent
+	if err := w.RemoveComponent(id, reflect.TypeOf(compA)); err != nil {
+		t.Fatalf("RemoveComponent failed: %v", err)
+	}
+
+	if w.HasComponent(id, reflect.TypeOf(compA)) {
+		t.Fatal("HasComponent should return false after removing component")
+	}
+
+	// Component B should still exist
+	if !w.HasComponent(id, reflect.TypeOf(compB)) {
+		t.Fatal("HasComponent should return true for remaining component")
+	}
+
+	w.Destroy(id, false)
+	w.Cleanup()
+	if w.Exists(id) {
+		t.Fatalf("entity should be destroyed after cleanup")
+	}
+}
+
+// TestWorld_ComponentQueries tests querying entities by component type.
+func TestWorld_ComponentQueries(t *testing.T) {
 	w := NewWorld()
 
-	// Spawn a Province entity
+	// Create entities with different component combinations
+	id1 := w.Spawn("Generic")
+	id2 := w.Spawn("Generic")
+
+	compA := testComponentA{value: 1}
+	compB := testComponentB{value: 2}
+
+	// id1 has A and B
+	w.AddComponent(id1, compA)
+	w.AddComponent(id1, compB)
+
+	// id2 has only A
+	w.AddComponent(id2, compA)
+
+	// Query for A
+	queriedA := w.Query(reflect.TypeOf(compA))
+	if len(queriedA) != 2 {
+		t.Fatalf("expected 2 entities with A, got %d", len(queriedA))
+	}
+
+	// Query for B
+	queriedB := w.Query(reflect.TypeOf(compB))
+	if len(queriedB) != 1 {
+		t.Fatalf("expected 1 entity with B, got %d", len(queriedB))
+	}
+
+	// Query for both A and B
+	queriedAB := w.Query(reflect.TypeOf(compA), reflect.TypeOf(compB))
+	if len(queriedAB) != 1 {
+		t.Fatalf("expected 1 entity with both A and B, got %d", len(queriedAB))
+	}
+	if queriedAB[0] != id1 {
+		t.Fatalf("expected id1 in query result, got %d", queriedAB[0])
+	}
+}
+
+// TestWorld_TagManagement tests adding, removing, and querying by tags.
+func TestWorld_TagManagement(t *testing.T) {
+	w := NewWorld()
+	id := w.Spawn("Generic")
+
+	// Test adding a custom tag
+	if err := w.AddTag(id, "soldier"); err != nil {
+		t.Fatalf("AddTag failed: %v", err)
+	}
+
+	has, err := w.HasTag(id, "soldier")
+	if err != nil {
+		t.Fatalf("HasTag failed: %v", err)
+	}
+	if !has {
+		t.Fatal("HasTag should return true after adding tag")
+	}
+
+	// Test removing a tag
+	if err := w.RemoveTag(id, "soldier"); err != nil {
+		t.Fatalf("RemoveTag failed: %v", err)
+	}
+
+	has, err = w.HasTag(id, "soldier")
+	if err != nil {
+		t.Fatalf("HasTag failed: %v", err)
+	}
+	if has {
+		t.Fatal("HasTag should return false after removing tag")
+	}
+
+	// Test QueryByTag
+	id2 := w.Spawn("Generic")
+	w.AddTag(id, "archer")
+	w.AddTag(id2, "archer")
+
+	archers := w.QueryByTag("archer")
+	if len(archers) != 2 {
+		t.Fatalf("expected 2 archers, got %d", len(archers))
+	}
+
+	w.Destroy(id, false)
+	w.Destroy(id2, false)
+	w.Cleanup()
+}
+
+// TestWorld_TemplateQueries tests querying entities by template.
+func TestWorld_TemplateQueries(t *testing.T) {
+	w := NewWorld()
+
+	// The Spawn method applies template-based tags (Province, City, Generic)
 	provinceID := w.Spawn("Province")
-	provinceEntity, exists := w.entities[provinceID]
-	if !exists {
-		t.Fatalf("Province entity with ID %d not found in world", provinceID)
-	}
-	if provinceEntity.Template() != "Province" {
-		t.Fatalf("Expected template 'Province', got %q", provinceEntity.Template())
-	}
-	if !provinceEntity.HasTag("Province") {
-		t.Fatalf("Expected entity to have tag 'Province'")
-	}
-
-	// Spawn a City entity
 	cityID := w.Spawn("City")
-	cityEntity, exists := w.entities[cityID]
-	if !exists {
-		t.Fatalf("City entity with ID %d not found in world", cityID)
-	}
-	if cityEntity.Template() != "City" {
-		t.Fatalf("Expected template 'City', got %q", cityEntity.Template())
-	}
-	if !cityEntity.HasTag("City") {
-		t.Fatalf("Expected entity to have tag 'City'")
+	generic1ID := w.Spawn("Generic")
+	generic2ID := w.Spawn("Generic")
+
+	provinces := w.QueryByTemplate("Province")
+	if len(provinces) != 1 || provinces[0] != provinceID {
+		t.Fatalf("expected to find 1 Province, got %d", len(provinces))
 	}
 
-	// Destroy the Province entity
+	cities := w.QueryByTemplate("City")
+	if len(cities) != 1 || cities[0] != cityID {
+		t.Fatalf("expected to find 1 City, got %d", len(cities))
+	}
+
+	generics := w.QueryByTemplate("Generic")
+	if len(generics) != 2 {
+		t.Fatalf("expected to find 2 Generic templates, got %d: %v", len(generics), generics)
+	}
+
 	w.Destroy(provinceID, false)
+	w.Destroy(cityID, false)
+	w.Destroy(generic1ID, false)
+	w.Destroy(generic2ID, false)
+	w.Cleanup()
+}
+
+// TestWorld_HierarchyNavigation tests parent-child relationships and navigation.
+func TestWorld_HierarchyNavigation(t *testing.T) {
+	w := NewWorld()
+
+	root := w.Spawn("Generic")
+	child1 := w.Spawn("Generic")
+	child2 := w.Spawn("Generic")
+	grandchild := w.Spawn("Generic")
+
+	// Build hierarchy: root -> [child1, child2], child1 -> [grandchild]
+	w.SetParent(child1, root)
+	w.SetParent(child2, root)
+	w.SetParent(grandchild, child1)
+
+	// Test GetChildren
+	children := w.GetChildren(root)
+	if len(children) != 2 {
+		t.Fatalf("expected 2 children of root, got %d", len(children))
+	}
+
+	// Test GetParent
+	parent, hasParent := w.GetParent(child1)
+	if !hasParent || parent != root {
+		t.Fatalf("expected child1 to have root as parent, got %d", parent)
+	}
+
+	// Test Detach
+	w.Detach(child1)
+	parent, hasParent = w.GetParent(child1)
+	if hasParent {
+		t.Fatal("expected child1 to have no parent after detach")
+	}
+
+	// Grandchild should still have child1 as parent after child1 is detached from root
+	parent, hasParent = w.GetParent(grandchild)
+	if !hasParent || parent != child1 {
+		t.Fatalf("expected grandchild to still have child1 as parent")
+	}
+
+	w.Destroy(root, false)
+	w.Destroy(child1, false)
+	w.Destroy(child2, false)
+	w.Destroy(grandchild, false)
+	w.Cleanup()
+}
+
+// TestWorld_CompleteEntityLifecycle tests a complex scenario with components, tags, and hierarchy.
+func TestWorld_CompleteEntityLifecycle(t *testing.T) {
+	w := NewWorld()
+
+	// Create a parent entity with components and tags
+	parentID := w.Spawn("Generic")
+	w.AddComponent(parentID, testComponentA{value: 100})
+	w.AddTag(parentID, "warrior")
+	w.AddTag(parentID, "leader")
+
+	// Create child entities
+	child1ID := w.Spawn("Generic")
+	w.AddComponent(child1ID, testComponentA{value: 200})
+	w.SetParent(child1ID, parentID)
+
+	child2ID := w.Spawn("Generic")
+	w.AddComponent(child2ID, testComponentB{value: 300})
+	w.AddTag(child2ID, "warrior")
+	w.SetParent(child2ID, parentID)
+
+	// Verify initial state
+	if w.Count() != 3 {
+		t.Fatalf("expected 3 entities, got %d", w.Count())
+	}
+
+	// Query warriors
+	warriors := w.QueryByTag("warrior")
+	if len(warriors) != 2 {
+		t.Fatalf("expected 2 warriors, got %d", len(warriors))
+	}
+
+	// Query by component A
+	withA := w.Query(reflect.TypeOf(testComponentA{}))
+	if len(withA) != 2 {
+		t.Fatalf("expected 2 entities with component A, got %d", len(withA))
+	}
+
+	// Verify hierarchy
+	parentChildren := w.GetChildren(parentID)
+	if len(parentChildren) != 2 {
+		t.Fatalf("expected 2 children, got %d", len(parentChildren))
+	}
+
+	// Destroy parent with cascade
+	w.Destroy(parentID, true)
 	w.Cleanup()
 
-	if _, exists := w.entities[provinceID]; exists {
-		t.Fatalf("Province entity with ID %d should have been removed from world", provinceID)
+	if w.Count() != 0 {
+		t.Fatalf("expected 0 entities after cascade destroy, got %d", w.Count())
 	}
 }
 
-func TestWorld_DestroyNonExistentEntity(t *testing.T) {
+// TestWorld_CountAndReset tests entity counting and world reset.
+func TestWorld_CountAndReset(t *testing.T) {
 	w := NewWorld()
-	w.Destroy(999, false) // Attempt to destroy a non-existent entity
-	if len(w.destroyed) != 0 {
-		t.Fatalf("Expected no destroyed entities, got %d", len(w.destroyed))
+
+	if w.Count() != 0 {
+		t.Fatalf("expected 0 entities in new world, got %d", w.Count())
 	}
-	w.Cleanup() // Ensure cleanup doesn't panic or remove anything
+
+	id1 := w.Spawn("Generic")
+	w.AddComponent(id1, testComponentA{value: 1})
+	w.AddTag(id1, "test")
+
+	id2 := w.Spawn("Generic")
+	w.Spawn("Generic") // third entity for testing Count
+
+	if w.Count() != 3 {
+		t.Fatalf("expected 3 entities, got %d", w.Count())
+	}
+
+	// Set up a hierarchy
+	w.SetParent(id2, id1)
+
+	// Verify query still works
+	generics := w.QueryByTemplate("Generic")
+	if len(generics) != 3 {
+		t.Fatalf("expected 3 generic entities, got %d", len(generics))
+	}
+
+	// Reset the world
+	w.Reset()
+
+	if w.Count() != 0 {
+		t.Fatalf("expected 0 entities after reset, got %d", w.Count())
+	}
+
+	generics = w.QueryByTemplate("Generic")
+	if len(generics) != 0 {
+		t.Fatalf("expected no entities after reset, got %d", len(generics))
+	}
+
+	// Should be able to spawn again
+	newID := w.Spawn("Generic")
+	if !w.Exists(newID) {
+		t.Fatal("should be able to spawn new entity after reset")
+	}
+	if w.Count() != 1 {
+		t.Fatalf("expected 1 entity after new spawn, got %d", w.Count())
+	}
 }
 
-func TestWorld_DestroyWithCascade(t *testing.T) {
-	type ComponentA struct{}
-	
+// TestWorld_ComponentErrors tests error handling for non-existent entities.
+func TestWorld_ComponentErrors(t *testing.T) {
 	w := NewWorld()
+	nonExistent := EntityID(999)
 
-	// Spawn a Province entity
-	provinceID := w.Spawn("Province")
-
-	// Spawn a City entity and set its parent to the Province
-	cityID := w.Spawn("City")
-	w.SetParent(cityID, provinceID)
-
-	// Destroy the Province entity with cascade
-	w.Destroy(provinceID, true)
-	w.Cleanup()
-
-	if _, exists := w.entities[provinceID]; exists {
-		t.Fatalf("Province entity with ID %d should have been removed from world", provinceID)
+	// Test AddComponent with non-existent entity
+	if err := w.AddComponent(nonExistent, testComponentA{}); err == nil {
+		t.Fatal("expected error adding component to non-existent entity")
 	}
-	if _, exists := w.entities[cityID]; exists {
-		t.Fatalf("City entity with ID %d should have been removed from world due to cascade", cityID)
+
+	// Test GetComponent with non-existent entity
+	if _, err := w.GetComponent(nonExistent, reflect.TypeOf(testComponentA{})); err == nil {
+		t.Fatal("expected error getting component from non-existent entity")
+	}
+
+	// Test RemoveComponent with non-existent entity
+	if err := w.RemoveComponent(nonExistent, reflect.TypeOf(testComponentA{})); err == nil {
+		t.Fatal("expected error removing component from non-existent entity")
+	}
+
+	// Test AddTag with non-existent entity
+	if err := w.AddTag(nonExistent, "test"); err == nil {
+		t.Fatal("expected error adding tag to non-existent entity")
+	}
+
+	// Test HasTag with non-existent entity
+	if _, err := w.HasTag(nonExistent, "test"); err == nil {
+		t.Fatal("expected error checking tag on non-existent entity")
+	}
+
+	// Test RemoveTag with non-existent entity
+	if err := w.RemoveTag(nonExistent, "test"); err == nil {
+		t.Fatal("expected error removing tag from non-existent entity")
 	}
 }
 
-func TestWorld_DestroyWithoutCascade(t *testing.T) {
+// TestWorld_GetComponentByName tests retrieving components by their name.
+func TestWorld_GetComponentByName(t *testing.T) {
 	w := NewWorld()
+	id := w.Spawn("Generic")
 
-	// Spawn a Province entity
-	provinceID := w.Spawn("Province")
+	compA := testComponentA{value: 42}
+	compB := testComponentB{value: 99}
 
-	// Spawn a City entity and set its parent to the Province
-	cityID := w.Spawn("City")
-	w.SetParent(cityID, provinceID)
+	w.AddComponent(id, compA)
+	w.AddComponent(id, compB)
 
-	// Destroy the Province entity without cascade
-	w.Destroy(provinceID, false)
+	// Retrieve by name
+	got, err := w.GetComponentByName(id, "testComponentA")
+	if err != nil {
+		t.Fatalf("GetComponentByName failed: %v", err)
+	}
+
+	gotComp, ok := got.(testComponentA)
+	if !ok || gotComp.value != 42 {
+		t.Fatalf("expected testComponentA with value 42, got %#v", got)
+	}
+
+	// Non-existent component name
+	if _, err := w.GetComponentByName(id, "nonExistent"); err == nil {
+		t.Fatal("expected error for non-existent component name")
+	}
+
+	w.Destroy(id, false)
 	w.Cleanup()
-
-	if _, exists := w.entities[provinceID]; exists {
-		t.Fatalf("Province entity with ID %d should have been removed from world", provinceID)
-	}
-	if _, exists := w.entities[cityID]; !exists {
-		t.Fatalf("City entity with ID %d should still exist in world", cityID)
-	}
 }

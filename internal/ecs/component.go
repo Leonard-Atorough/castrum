@@ -2,46 +2,66 @@ package ecs
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/leonard-atorough/castrum/pkg/component"
 )
 
 type componentStore struct {
 	// data maps entity IDs to a slice of components associated with that entity.
-	data map[EntityID][]component.Component
+	data map[EntityID]map[reflect.Type]component.Component
 }
 
 func NewComponentStore() *componentStore {
 	return &componentStore{
-		data: make(map[EntityID][]component.Component),
+		data: make(map[EntityID]map[reflect.Type]component.Component),
 	}
 }
 
 // Set adds a component for a specific entity ID.
 func (cs *componentStore) Set(entityID EntityID, comp component.Component) {
-	cs.data[entityID] = append(cs.data[entityID], comp)
+	if cs.data[entityID] == nil {
+		cs.data[entityID] = make(map[reflect.Type]component.Component)
+	}
+	cs.data[entityID][reflect.TypeOf(comp)] = comp
 }
 
 // GetAll returns all components attached to an entity.
 func (cs *componentStore) GetAll(entityID EntityID) []component.Component {
-	return cs.data[entityID]
+	componentsMap := cs.data[entityID]
+	components := make([]component.Component, 0, len(componentsMap))
+	for _, comp := range componentsMap {
+		components = append(components, comp)
+	}
+	return components
 }
 
-// Get returns the first component of concrete type T for the entity.
-func Get[T component.Component](cs *componentStore, entityID EntityID) (*T, error) {
-	components, exists := cs.data[entityID]
-	if !exists || len(components) == 0 {
+// Get returns the first component of the specified type for the entity.
+func (cs *componentStore) Get(entityID EntityID, compType reflect.Type) (component.Component, error) {
+	componentsMap, exists := cs.data[entityID]
+	if !exists || len(componentsMap) == 0 {
 		return nil, fmt.Errorf("no components found for entity ID %d", entityID)
 	}
 
-	for _, c := range components {
-		if typed, ok := c.(T); ok {
-			return &typed, nil
-		}
+	comp, exists := componentsMap[compType]
+	if !exists {
+		return nil, fmt.Errorf("no component of type %v found for entity ID %d", compType, entityID)
+	}
+	return comp, nil
+}
+
+func (cs *componentStore) GetByString(entityID EntityID, compName string) (component.Component, error) {
+	componentsMap, exists := cs.data[entityID]
+	if !exists || len(componentsMap) == 0 {
+		return nil, fmt.Errorf("no components found for entity ID %d", entityID)
 	}
 
-	var zero T
-	return nil, fmt.Errorf("no component of type %T found for entity ID %d", zero, entityID)
+	for _, comp := range componentsMap {
+		if comp.Name() == compName {
+			return comp, nil
+		}
+	}
+	return nil, fmt.Errorf("no component with name %s found for entity ID %d", compName, entityID)
 }
 
 func (cs *componentStore) RemoveAll(entityID EntityID) {
@@ -54,10 +74,6 @@ func (cs *componentStore) Remove(entityID EntityID, comp component.Component) {
 		return
 	}
 
-	for i, c := range components {
-		if c == comp {
-			cs.data[entityID] = append(components[:i], components[i+1:]...)
-			break
-		}
-	}
+	compType := reflect.TypeOf(comp)
+	delete(components, compType)
 }
