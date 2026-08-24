@@ -90,6 +90,11 @@ func (w *World) Destroy(entityID ecs.EntityID, cascade bool) error {
 	return nil
 }
 
+func (w *World) GetEntity(entityID ecs.EntityID) (*entity, bool) {
+	entity, exists := w.entities[entityID]
+	return entity, exists
+}
+
 // Exists checks if an entity with the given ecs.EntityID exists in the world.
 func (w *World) Exists(entityID ecs.EntityID) bool {
 	_, exists := w.entities[entityID]

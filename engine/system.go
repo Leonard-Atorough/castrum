@@ -1,4 +1,4 @@
-package engine
+package castrum
 
 import (
 	"github.com/leonard-atorough/castrum/ecs"

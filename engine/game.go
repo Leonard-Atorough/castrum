@@ -1,4 +1,4 @@
-package engine
+package castrum
 
 import (
 	"github.com/leonard-atorough/castrum/ecs"
@@ -23,8 +23,6 @@ type Game struct {
 	accumulator float64
 	fixedDelta  float64
 }
-
-// PUBLIC API - The following methods are intended for public use and provide the main interface for interacting with the Game engine.
 
 func NewGame(fixedDelta float64) *Game {
 	return &Game{
