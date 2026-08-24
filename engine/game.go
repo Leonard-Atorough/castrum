@@ -36,7 +36,7 @@ func NewGame(fixedDelta float64) *Game {
 	}
 }
 
-func (g *Game) World() *core.World {
+func (g *Game) World() ecs.World {
 	if g.world == nil {
 		g.world = core.NewWorld()
 	}

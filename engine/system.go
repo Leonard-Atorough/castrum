@@ -2,13 +2,12 @@ package engine
 
 import (
 	"github.com/leonard-atorough/castrum/ecs"
-	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/system"
 )
 
 type SystemAPI struct {
 	mgr  *system.Manager
-	wrld *core.World
+	wrld ecs.World
 }
 
 func (s *SystemAPI) Register(name string, sys ecs.System) error {
