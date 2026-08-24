@@ -1,23 +1,22 @@
 package engine
 
 import (
-	"github.com/leonard-atorough/castrum/internal/ecs"
+	"github.com/leonard-atorough/castrum/ecs"
+	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/system"
 	"github.com/leonard-atorough/castrum/internal/timers"
 )
 
-// Alias for ecs.EntityID to simplify usage in the engine package.
-type EntityID = ecs.EntityID
-
-// Alias for system.Layer to simplify usage in the engine package.
 type Layer = system.Layer
 
-type System = system.System
+type EntityID = ecs.EntityID
+type Component = ecs.Component
+type System = ecs.System
 
 type TimerID = timers.TimerID
 
 type Game struct {
-	world   *ecs.World
+	world   *core.World
 	manager *system.Manager
 	timers  *timers.TimerManager
 
@@ -31,15 +30,15 @@ func NewGame(fixedDelta float64) *Game {
 	return &Game{
 		accumulator: 0,
 		fixedDelta:  fixedDelta,
-		world:       ecs.NewWorld(),
+		world:       core.NewWorld(),
 		manager:     system.NewSystemManager(),
 		timers:      timers.NewTimerManager(),
 	}
 }
 
-func (g *Game) World() *ecs.World {
+func (g *Game) World() *core.World {
 	if g.world == nil {
-		g.world = ecs.NewWorld()
+		g.world = core.NewWorld()
 	}
 	return g.world
 }
@@ -48,7 +47,7 @@ func (g *Game) Manager() *SystemAPI {
 	if g.manager == nil {
 		g.manager = system.NewSystemManager()
 	}
-	return &SystemAPI{mgr: g.manager, wrld: g.world}
+	return &SystemAPI{mgr: g.manager, wrld: g.World()}
 }
 
 func (g *Game) Timers() *TimersAPI {
@@ -65,7 +64,7 @@ func (g *Game) Update() error {
 
 	for g.accumulator >= g.fixedDelta {
 		g.accumulator -= g.fixedDelta
-		g.Manager().Update(g.World(), g.fixedDelta)
+		g.Manager().Update(g.fixedDelta)
 		g.timers.UpdateTimers(g.fixedDelta)
 	}
 
@@ -84,6 +83,6 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 // registerCoreSystem registers a system in the Core layer of the game.
 // This is typically used for essential systems that should always be active, such as rendering, physics, or input handling.
-func (g *Game) registerCoreSystem(name string, sys System) error {
+func (g *Game) registerCoreSystem(name string, sys ecs.System) error {
 	return g.Manager().mgr.Register(system.Core, name, sys, g.World())
 }

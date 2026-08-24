@@ -1,8 +1,10 @@
-package ecs
+package core
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // TestWorld_ComponentLifecycle tests adding, removing, getting, and querying components.
@@ -38,7 +40,7 @@ func TestWorld_ComponentLifecycle(t *testing.T) {
 	}
 
 	// Test GetAllComponents
-	all := w.GetAllComponents(id)
+	all := w.Components(id)
 	if len(all) != 2 {
 		t.Fatalf("expected 2 components, got %d", len(all))
 	}
@@ -197,26 +199,26 @@ func TestWorld_HierarchyNavigation(t *testing.T) {
 	w.SetParent(grandchild, child1)
 
 	// Test GetChildren
-	children := w.GetChildren(root)
+	children := w.ChildrenOf(root)
 	if len(children) != 2 {
 		t.Fatalf("expected 2 children of root, got %d", len(children))
 	}
 
 	// Test GetParent
-	parent, hasParent := w.GetParent(child1)
+	parent, hasParent := w.ParentOf(child1)
 	if !hasParent || parent != root {
 		t.Fatalf("expected child1 to have root as parent, got %d", parent)
 	}
 
 	// Test Detach
 	w.Detach(child1)
-	parent, hasParent = w.GetParent(child1)
+	parent, hasParent = w.ParentOf(child1)
 	if hasParent {
 		t.Fatal("expected child1 to have no parent after detach")
 	}
 
 	// Grandchild should still have child1 as parent after child1 is detached from root
-	parent, hasParent = w.GetParent(grandchild)
+	parent, hasParent = w.ParentOf(grandchild)
 	if !hasParent || parent != child1 {
 		t.Fatalf("expected grandchild to still have child1 as parent")
 	}
@@ -266,7 +268,7 @@ func TestWorld_CompleteEntityLifecycle(t *testing.T) {
 	}
 
 	// Verify hierarchy
-	parentChildren := w.GetChildren(parentID)
+	parentChildren := w.ChildrenOf(parentID)
 	if len(parentChildren) != 2 {
 		t.Fatalf("expected 2 children, got %d", len(parentChildren))
 	}
@@ -333,7 +335,7 @@ func TestWorld_CountAndReset(t *testing.T) {
 // TestWorld_ComponentErrors tests error handling for non-existent entities.
 func TestWorld_ComponentErrors(t *testing.T) {
 	w := NewWorld()
-	nonExistent := EntityID(999)
+	nonExistent := ecs.EntityID(999)
 
 	// Test AddComponent with non-existent entity
 	if err := w.AddComponent(nonExistent, testComponentA{}); err == nil {

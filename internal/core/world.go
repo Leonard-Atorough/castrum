@@ -1,17 +1,17 @@
-package ecs
+package core
 
 import (
 	"reflect"
 	"sync/atomic"
 
-	"github.com/leonard-atorough/castrum/pkg/component"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // World is the central manager for all ECS state.
 // It manages entity lifecycle, components, tags, templates, and hierarchical relationships.
 // All public interactions with the ECS should go through the World API.
 type World struct {
-	entities  map[EntityID]*entity
+	entities  map[ecs.EntityID]*entity
 	store     *componentStore
 	index     entityIndex
 	hierarchy *Hierarchy
@@ -23,17 +23,17 @@ type World struct {
 // NewWorld creates and returns a new empty World.
 func NewWorld() *World {
 	return &World{
-		entities:  make(map[EntityID]*entity),
+		entities:  make(map[ecs.EntityID]*entity),
 		store:     NewComponentStore(),
 		index:     NewEntityIndex(),
 		hierarchy: NewHierarchy(),
 	}
 }
 
-// Spawn creates a new entity with the specified template and returns its EntityID.
+// Spawn creates a new entity with the specified template and returns its ecs.EntityID.
 // The entity is automatically registered with the world and the index.
-func (w *World) Spawn(template string) EntityID {
-	id := EntityID(w.nextID.Add(1))
+func (w *World) Spawn(template string) ecs.EntityID {
+	id := ecs.EntityID(w.nextID.Add(1))
 
 	entity := NewEntity(id, template)
 	w.entities[id] = entity
@@ -57,10 +57,14 @@ func (w *World) Spawn(template string) EntityID {
 }
 
 // Destroy marks an entity for destruction. If cascade is true, all descendants of the entity will also be destroyed.
-func (w *World) Destroy(entityID EntityID, cascade bool) {
+func (w *World) Destroy(entityID ecs.EntityID, cascade bool) error {
 	entity, exists := w.entities[entityID]
 	if !exists {
-		return
+		return &EntityError{
+			EntityID: entityID,
+			Op:       "Destroy",
+			Err:      ErrEntityNotFound,
+		}
 	}
 	entity.Destroy()
 	w.destroyed = append(w.destroyed, entity)
@@ -83,34 +87,35 @@ func (w *World) Destroy(entityID EntityID, cascade bool) {
 			w.hierarchy.Remove(entityID, childID)
 		}
 	}
+	return nil
 }
 
-// Exists checks if an entity with the given EntityID exists in the world.
-func (w *World) Exists(entityID EntityID) bool {
+// Exists checks if an entity with the given ecs.EntityID exists in the world.
+func (w *World) Exists(entityID ecs.EntityID) bool {
 	_, exists := w.entities[entityID]
 	return exists
 }
 
 // Query retrieves all entities that have all the specified component types.
 // Returns a slice of matching EntityIDs, or nil if none match.
-func (w *World) Query(components ...reflect.Type) []EntityID {
+func (w *World) Query(components ...reflect.Type) []ecs.EntityID {
 	return w.index.GetEntitiesWithComponents(components...)
 }
 
 // QueryByTag retrieves all entities that have the specified tag.
 // Returns a slice of matching EntityIDs, or nil if none match.
-func (w *World) QueryByTag(tag string) []EntityID {
+func (w *World) QueryByTag(tag string) []ecs.EntityID {
 	return w.index.GetEntitiesWithTag(tag)
 }
 
 // QueryByTemplate retrieves all entities that use the specified template.
 // Returns a slice of matching EntityIDs, or nil if none match.
-func (w *World) QueryByTemplate(template string) []EntityID {
+func (w *World) QueryByTemplate(template string) []ecs.EntityID {
 	return w.index.GetEntitiesWithTemplate(template)
 }
 
 // AddTag adds a tag to an entity. The entity must exist in the world.
-func (w *World) AddTag(entityID EntityID, tag string) error {
+func (w *World) AddTag(entityID ecs.EntityID, tag string) error {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return &EntityError{
@@ -125,7 +130,7 @@ func (w *World) AddTag(entityID EntityID, tag string) error {
 }
 
 // RemoveTag removes a tag from an entity. The entity must exist in the world.
-func (w *World) RemoveTag(entityID EntityID, tag string) error {
+func (w *World) RemoveTag(entityID ecs.EntityID, tag string) error {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return &EntityError{
@@ -141,7 +146,7 @@ func (w *World) RemoveTag(entityID EntityID, tag string) error {
 }
 
 // HasTag checks if an entity has a specific tag. The entity must exist in the world.
-func (w *World) HasTag(entityID EntityID, tag string) (bool, error) {
+func (w *World) HasTag(entityID ecs.EntityID, tag string) (bool, error) {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return false, &EntityError{
@@ -154,7 +159,7 @@ func (w *World) HasTag(entityID EntityID, tag string) (bool, error) {
 }
 
 // AddComponent adds a component to an entity. The entity must exist in the world.
-func (w *World) AddComponent(entityID EntityID, comp component.Component) error {
+func (w *World) AddComponent(entityID ecs.EntityID, comp ecs.Component) error {
 	if _, exists := w.entities[entityID]; !exists {
 		return ErrEntityNotFound
 	}
@@ -164,7 +169,7 @@ func (w *World) AddComponent(entityID EntityID, comp component.Component) error 
 }
 
 // RemoveComponent removes a component from an entity by type.
-func (w *World) RemoveComponent(entityID EntityID, componentType reflect.Type) error {
+func (w *World) RemoveComponent(entityID ecs.EntityID, componentType reflect.Type) error {
 	if _, exists := w.entities[entityID]; !exists {
 		return ErrEntityNotFound
 	}
@@ -180,7 +185,7 @@ func (w *World) RemoveComponent(entityID EntityID, componentType reflect.Type) e
 }
 
 // GetComponent returns the first component of the specified type for an entity.
-func (w *World) GetComponent(entityID EntityID, compType reflect.Type) (component.Component, error) {
+func (w *World) GetComponent(entityID ecs.EntityID, compType reflect.Type) (ecs.Component, error) {
 	comp, err := w.store.Get(entityID, compType)
 	if err != nil {
 		return nil, &EntityError{
@@ -192,7 +197,7 @@ func (w *World) GetComponent(entityID EntityID, compType reflect.Type) (componen
 	return comp, nil
 }
 
-func (w *World) GetComponentByName(entityID EntityID, compName string) (component.Component, error) {
+func (w *World) GetComponentByName(entityID ecs.EntityID, compName string) (ecs.Component, error) {
 	comp, err := w.store.GetByString(entityID, compName)
 	if err != nil {
 		return nil, &EntityError{
@@ -204,33 +209,33 @@ func (w *World) GetComponentByName(entityID EntityID, compName string) (componen
 	return comp, nil
 }
 
-func (w *World) GetAllComponents(entityID EntityID) []component.Component {
+func (w *World) Components(entityID ecs.EntityID) []ecs.Component {
 	return w.store.GetAll(entityID)
 }
 
 // HasComponent checks whether an entity has a component of the specified type.
-func (w *World) HasComponent(entityID EntityID, compType reflect.Type) bool {
+func (w *World) HasComponent(entityID ecs.EntityID, compType reflect.Type) bool {
 	_, err := w.store.Get(entityID, compType)
 	return err == nil
 }
 
 // SetParent sets the parent of childID to parentID in the hierarchy.
-func (w *World) SetParent(childID, parentID EntityID) {
+func (w *World) SetParent(childID, parentID ecs.EntityID) {
 	w.hierarchy.Add(parentID, childID)
 }
 
-// GetParent returns the parent EntityID of the given child entity, if one exists.
-func (w *World) GetParent(childID EntityID) (EntityID, bool) {
+// GetParent returns the parent ecs.EntityID of the given child entity, if one exists.
+func (w *World) ParentOf(childID ecs.EntityID) (ecs.EntityID, bool) {
 	return w.hierarchy.Parent(childID)
 }
 
 // GetChildren returns all direct children of the given parent entity.
-func (w *World) GetChildren(parentID EntityID) []EntityID {
+func (w *World) ChildrenOf(parentID ecs.EntityID) []ecs.EntityID {
 	return w.hierarchy.Children(parentID)
 }
 
 // Detach removes the parent-child relationship for the given entity.
-func (w *World) Detach(id EntityID) {
+func (w *World) Detach(id ecs.EntityID) {
 	if parentID, hasParent := w.hierarchy.Parent(id); hasParent {
 		w.hierarchy.Remove(parentID, id)
 	}
@@ -265,7 +270,7 @@ func (w *World) Cleanup() {
 
 // Reset clears the world entirely, removing all entities, components, and hierarchy relationships.
 func (w *World) Reset() {
-	w.entities = make(map[EntityID]*entity)
+	w.entities = make(map[ecs.EntityID]*entity)
 	w.store = NewComponentStore()
 	w.index = NewEntityIndex()
 	w.hierarchy = NewHierarchy()

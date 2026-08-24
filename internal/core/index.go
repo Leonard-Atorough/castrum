@@ -1,54 +1,56 @@
-package ecs
+package core
 
 import (
 	"reflect"
 	"slices"
+
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // entityIndex maintains an index of components, tags, and templates for efficient querying.
 type entityIndex struct {
 	// Component index maps component names to a set of entity IDs that have that component.
 	// The map structure is: componentName -> list of entityIDs
-	componentIndex map[reflect.Type][]EntityID
+	componentIndex map[reflect.Type][]ecs.EntityID
 
 	// Tag index maps tag names to a set of entity IDs that have that tag.
 	// The map structure is: tagName -> list of entityIDs
-	tagIndex map[string][]EntityID
+	tagIndex map[string][]ecs.EntityID
 
 	// Template index maps template names to a set of entity IDs that use that template.
 	// The map structure is: templateName -> list of entityIDs
-	templateIndex map[string][]EntityID
+	templateIndex map[string][]ecs.EntityID
 }
 
 func NewEntityIndex() entityIndex {
 	return entityIndex{
-		componentIndex: make(map[reflect.Type][]EntityID),
-		tagIndex:       make(map[string][]EntityID),
-		templateIndex:  make(map[string][]EntityID),
+		componentIndex: make(map[reflect.Type][]ecs.EntityID),
+		tagIndex:       make(map[string][]ecs.EntityID),
+		templateIndex:  make(map[string][]ecs.EntityID),
 	}
 }
 
-func (idx *entityIndex) AddComponent(entityID EntityID, compType reflect.Type) {
+func (idx *entityIndex) AddComponent(entityID ecs.EntityID, compType reflect.Type) {
 	idx.addToIndex(idx.componentIndex, compType, entityID)
 }
 
-func (idx *entityIndex) RemoveComponent(entityID EntityID, compType reflect.Type) {
+func (idx *entityIndex) RemoveComponent(entityID ecs.EntityID, compType reflect.Type) {
 	idx.removeFromIndex(idx.componentIndex, compType, entityID)
 }
 
-func (idx *entityIndex) AddTag(entityID EntityID, tagName string) {
+func (idx *entityIndex) AddTag(entityID ecs.EntityID, tagName string) {
 	idx.addToIndexString(idx.tagIndex, tagName, entityID)
 }
 
-func (idx *entityIndex) RemoveTag(entityID EntityID, tagName string) {
+func (idx *entityIndex) RemoveTag(entityID ecs.EntityID, tagName string) {
 	idx.removeFromIndexString(idx.tagIndex, tagName, entityID)
 }
 
-func (idx *entityIndex) AddTemplate(entityID EntityID, templateName string) {
+func (idx *entityIndex) AddTemplate(entityID ecs.EntityID, templateName string) {
 	idx.addToIndexString(idx.templateIndex, templateName, entityID)
 }
 
-func (idx *entityIndex) RemoveTemplate(entityID EntityID, templateName string) {
+func (idx *entityIndex) RemoveTemplate(entityID ecs.EntityID, templateName string) {
 	idx.removeFromIndexString(idx.templateIndex, templateName, entityID)
 }
 
@@ -77,16 +79,16 @@ func (idx *entityIndex) UpdateTemplate(entity *entity, oldTemplate string, newTe
 	}
 }
 
-func (idx *entityIndex) GetEntitiesWithComponent(componentType reflect.Type) []EntityID {
+func (idx *entityIndex) GetEntitiesWithComponent(componentType reflect.Type) []ecs.EntityID {
 	return idx.getFromIndex(idx.componentIndex, componentType)
 }
 
-func (idx *entityIndex) GetEntitiesWithComponents(componentTypes ...reflect.Type) []EntityID {
+func (idx *entityIndex) GetEntitiesWithComponents(componentTypes ...reflect.Type) []ecs.EntityID {
 	if len(componentTypes) == 0 {
 		return nil
 	}
 
-	resultSet := make(map[EntityID]bool)
+	resultSet := make(map[ecs.EntityID]bool)
 	for _, ct := range componentTypes {
 		currentList := idx.GetEntitiesWithComponent(ct)
 		if len(currentList) == 0 {
@@ -100,7 +102,7 @@ func (idx *entityIndex) GetEntitiesWithComponents(componentTypes ...reflect.Type
 			continue
 		}
 
-		nextSet := make(map[EntityID]bool, len(currentList))
+		nextSet := make(map[ecs.EntityID]bool, len(currentList))
 		for _, id := range currentList {
 			nextSet[id] = true
 		}
@@ -112,48 +114,48 @@ func (idx *entityIndex) GetEntitiesWithComponents(componentTypes ...reflect.Type
 		}
 	}
 
-	out := make([]EntityID, 0, len(resultSet))
+	out := make([]ecs.EntityID, 0, len(resultSet))
 	for id := range resultSet {
 		out = append(out, id)
 	}
 	return out
 }
 
-func (idx *entityIndex) GetEntitiesWithTag(tagName string) []EntityID {
+func (idx *entityIndex) GetEntitiesWithTag(tagName string) []ecs.EntityID {
 	return idx.getFromIndexString(idx.tagIndex, tagName)
 }
 
-func (idx *entityIndex) GetEntitiesWithTemplate(templateName string) []EntityID {
+func (idx *entityIndex) GetEntitiesWithTemplate(templateName string) []ecs.EntityID {
 	return idx.getFromIndexString(idx.templateIndex, templateName)
 }
 
-func (idx *entityIndex) addToIndex(index map[reflect.Type][]EntityID, key reflect.Type, entityID EntityID) {
+func (idx *entityIndex) addToIndex(index map[reflect.Type][]ecs.EntityID, key reflect.Type, entityID ecs.EntityID) {
 	if _, exists := index[key]; !exists {
-		index[key] = make([]EntityID, 0)
+		index[key] = make([]ecs.EntityID, 0)
 	}
 	if !slices.Contains(index[key], entityID) {
 		index[key] = append(index[key], entityID)
 	}
 }
 
-func (idx *entityIndex) addToIndexString(index map[string][]EntityID, key string, entityID EntityID) {
+func (idx *entityIndex) addToIndexString(index map[string][]ecs.EntityID, key string, entityID ecs.EntityID) {
 	if _, exists := index[key]; !exists {
-		index[key] = make([]EntityID, 0)
+		index[key] = make([]ecs.EntityID, 0)
 	}
 	if !slices.Contains(index[key], entityID) {
 		index[key] = append(index[key], entityID)
 	}
 }
 
-func (idx *entityIndex) removeFromIndex(index map[reflect.Type][]EntityID, key reflect.Type, entityID EntityID) {
+func (idx *entityIndex) removeFromIndex(index map[reflect.Type][]ecs.EntityID, key reflect.Type, entityID ecs.EntityID) {
 	index[key] = removeEntityID(index[key], entityID)
 }
 
-func (idx *entityIndex) removeFromIndexString(index map[string][]EntityID, key string, entityID EntityID) {
+func (idx *entityIndex) removeFromIndexString(index map[string][]ecs.EntityID, key string, entityID ecs.EntityID) {
 	index[key] = removeEntityID(index[key], entityID)
 }
 
-func removeEntityID(entities []EntityID, entityID EntityID) []EntityID {
+func removeEntityID(entities []ecs.EntityID, entityID ecs.EntityID) []ecs.EntityID {
 	for i, id := range entities {
 		if id == entityID {
 			entities = append(entities[:i], entities[i+1:]...)
@@ -166,7 +168,7 @@ func removeEntityID(entities []EntityID, entityID EntityID) []EntityID {
 	return entities
 }
 
-func (idx *entityIndex) getFromIndex(index map[reflect.Type][]EntityID, key reflect.Type) []EntityID {
+func (idx *entityIndex) getFromIndex(index map[reflect.Type][]ecs.EntityID, key reflect.Type) []ecs.EntityID {
 	value, ok := index[key]
 	if !ok {
 		return nil
@@ -174,7 +176,7 @@ func (idx *entityIndex) getFromIndex(index map[reflect.Type][]EntityID, key refl
 	return value
 }
 
-func (idx *entityIndex) getFromIndexString(index map[string][]EntityID, key string) []EntityID {
+func (idx *entityIndex) getFromIndexString(index map[string][]ecs.EntityID, key string) []ecs.EntityID {
 	value, ok := index[key]
 	if !ok {
 		return nil

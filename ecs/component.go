@@ -1,4 +1,4 @@
-package component
+package ecs
 
 type Component interface {
 	Name() string

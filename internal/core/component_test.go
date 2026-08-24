@@ -1,25 +1,25 @@
-package ecs
+package core
 
 import (
 	"reflect"
 	"testing"
 
-	"github.com/leonard-atorough/castrum/pkg/component"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 type testComponentA struct {
 	value int
 }
 
-func (t testComponentA) Name() string               { return "testComponentA" }
-func (t testComponentA) Clone() component.Component { return testComponentA{value: t.value} }
+func (t testComponentA) Name() string         { return "testComponentA" }
+func (t testComponentA) Clone() ecs.Component { return testComponentA{value: t.value} }
 
 type testComponentB struct {
 	value int
 }
 
-func (t testComponentB) Name() string               { return "testComponentB" }
-func (t testComponentB) Clone() component.Component { return testComponentB{value: t.value} }
+func (t testComponentB) Name() string         { return "testComponentB" }
+func (t testComponentB) Clone() ecs.Component { return testComponentB{value: t.value} }
 
 func TestComponentStore_SetAndGetAll(t *testing.T) {
 	store := NewComponentStore()
