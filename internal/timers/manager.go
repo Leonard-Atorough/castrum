@@ -1,7 +1,6 @@
 package timers
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -35,9 +34,12 @@ func (tm *TimerManager) StartTimer(timerID TimerID) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	timer, exists := tm.timers[timerID]
-	if !exists {
-		return fmt.Errorf("timer with ID %d does not exist", timerID)
+	timer, err := tm.lookupTimer(timerID)
+	if err != nil {
+		return err
+	}
+	if timer.IsRunning() {
+		return &TimerError{TimerID: timerID, Op: "start", Err: ErrTimerAlreadyRunning}
 	}
 	timer.Start()
 	return nil
@@ -47,9 +49,12 @@ func (tm *TimerManager) ResumeTimer(timerID TimerID) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	timer, exists := tm.timers[timerID]
-	if !exists {
-		return fmt.Errorf("timer with ID %d does not exist", timerID)
+	timer, err := tm.lookupTimer(timerID)
+	if err != nil {
+		return err
+	}
+	if timer.IsRunning() {
+		return &TimerError{TimerID: timerID, Op: "resume", Err: ErrTimerAlreadyRunning}
 	}
 	timer.Resume()
 	return nil
@@ -59,15 +64,22 @@ func (tm *TimerManager) StopTimer(timerID TimerID) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	timer, exists := tm.timers[timerID]
-	if !exists {
-		return fmt.Errorf("timer with ID %d does not exist", timerID)
+	timer, err := tm.lookupTimer(timerID)
+	if err != nil {
+		return err
+	}
+	if !timer.IsRunning() {
+		return &TimerError{TimerID: timerID, Op: "stop", Err: ErrTimerAlreadyStopped}
 	}
 	timer.Stop()
 	return nil
 }
 
 func (tm *TimerManager) UpdateTimers(deltaTime float64) {
+	if deltaTime < 0 {
+		return
+	}
+
 	tm.mu.Lock()
 
 	var callbacks []func()
@@ -75,7 +87,7 @@ func (tm *TimerManager) UpdateTimers(deltaTime float64) {
 
 	for _, timer := range tm.timers {
 		if !timer.Update(deltaTime) {
-			continue // Timer has not expired yet
+			continue
 		}
 		if timer.timerFunc != nil {
 			callbacks = append(callbacks, timer.timerFunc)
@@ -100,12 +112,20 @@ func (tm *TimerManager) RemoveTimer(timerID TimerID) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	timer, exists := tm.timers[timerID]
-	if !exists {
-		return fmt.Errorf("timer with ID %d does not exist", timerID)
+	timer, err := tm.lookupTimer(timerID)
+	if err != nil {
+		return err
 	}
 	timer.Stop()
 
 	delete(tm.timers, timerID)
 	return nil
+}
+
+func (tm *TimerManager) lookupTimer(timerID TimerID) (*Timer, error) {
+	timer, exists := tm.timers[timerID]
+	if !exists {
+		return nil, &TimerError{TimerID: timerID, Op: "lookup", Err: ErrTimerNotFound}
+	}
+	return timer, nil
 }

@@ -1,6 +1,7 @@
 package timers
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -108,17 +109,47 @@ func TestTimerManager_UnknownTimerIDErrors(t *testing.T) {
 	manager := NewTimerManager()
 	missingID := TimerID(999)
 
-	if err := manager.StartTimer(missingID); err == nil {
-		t.Fatal("expected StartTimer to fail for missing id")
+	for _, tc := range []struct {
+		name string
+		call func() error
+	}{
+		{name: "start", call: func() error { return manager.StartTimer(missingID) }},
+		{name: "stop", call: func() error { return manager.StopTimer(missingID) }},
+		{name: "resume", call: func() error { return manager.ResumeTimer(missingID) }},
+		{name: "remove", call: func() error { return manager.RemoveTimer(missingID) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.call()
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !errors.Is(err, ErrTimerNotFound) {
+				t.Fatalf("expected ErrTimerNotFound, got %v", err)
+			}
+			var timerErr *TimerError
+			if !errors.As(err, &timerErr) {
+				t.Fatalf("expected TimerError wrapper, got %T: %v", err, err)
+			}
+			if timerErr.TimerID != missingID {
+				t.Fatalf("expected wrapped timer id %d, got %d", missingID, timerErr.TimerID)
+			}
+		})
 	}
-	if err := manager.StopTimer(missingID); err == nil {
-		t.Fatal("expected StopTimer to fail for missing id")
+}
+
+func TestTimerManager_StateTransitionErrors(t *testing.T) {
+	manager := NewTimerManager()
+	timerID := manager.CreateTimer(0.2, true, true, nil)
+
+	if err := manager.StartTimer(timerID); err == nil || !errors.Is(err, ErrTimerAlreadyRunning) {
+		t.Fatal("expected ErrTimerAlreadyRunning from StartTimer on an active timer")
 	}
-	if err := manager.ResumeTimer(missingID); err == nil {
-		t.Fatal("expected ResumeTimer to fail for missing id")
+
+	if err := manager.StopTimer(timerID); err != nil {
+		t.Fatalf("StopTimer should succeed on active timer: %v", err)
 	}
-	if err := manager.RemoveTimer(missingID); err == nil {
-		t.Fatal("expected RemoveTimer to fail for missing id")
+	if err := manager.StopTimer(timerID); err == nil || !errors.Is(err, ErrTimerAlreadyStopped) {
+		t.Fatal("expected ErrTimerAlreadyStopped from StopTimer on an inactive timer")
 	}
 }
 
@@ -130,8 +161,8 @@ func TestTimerManager_CallbackCanMutateManagerWithoutDeadlock(t *testing.T) {
 	var callback func()
 	callback = func() {
 		callbackCalled++
-		if err := manager.StopTimer(timerID); err != nil {
-			t.Errorf("callback should be able to stop timer without deadlock: %v", err)
+		if err := manager.StartTimer(timerID); err != nil && !errors.Is(err, ErrTimerAlreadyRunning) {
+			t.Fatalf("callback should be able to re-enter manager without deadlock: %v", err)
 		}
 	}
 
