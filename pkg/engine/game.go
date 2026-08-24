@@ -3,6 +3,7 @@ package engine
 import (
 	"github.com/leonard-atorough/castrum/internal/ecs"
 	"github.com/leonard-atorough/castrum/internal/system"
+	"github.com/leonard-atorough/castrum/internal/timers"
 )
 
 // Alias for ecs.EntityID to simplify usage in the engine package.
@@ -11,16 +12,20 @@ type EntityID = ecs.EntityID
 // Alias for system.Layer to simplify usage in the engine package.
 type Layer = system.Layer
 
-// Alias for system.System to simplify usage in the engine package.
 type System = system.System
+
+type TimerID = timers.TimerID
 
 type Game struct {
 	world   *ecs.World
 	manager *system.Manager
+	timers  *timers.TimerManager
 
 	accumulator float64
 	fixedDelta  float64
 }
+
+// PUBLIC API - The following methods are intended for public use and provide the main interface for interacting with the Game engine.
 
 func NewGame(fixedDelta float64) *Game {
 	return &Game{
@@ -28,6 +33,7 @@ func NewGame(fixedDelta float64) *Game {
 		fixedDelta:  fixedDelta,
 		world:       ecs.NewWorld(),
 		manager:     system.NewSystemManager(),
+		timers:      timers.NewTimerManager(),
 	}
 }
 
@@ -38,20 +44,21 @@ func (g *Game) World() *ecs.World {
 	return g.world
 }
 
-func (g *Game) Manager() *system.Manager {
+func (g *Game) Manager() *SystemAPI {
 	if g.manager == nil {
 		g.manager = system.NewSystemManager()
 	}
-	return g.manager
+	return &SystemAPI{mgr: g.manager, wrld: g.world}
 }
 
-func (g *Game) RegisterSystem(name string, sys System) error {
-	return g.Manager().Register(system.Player, name, sys, g.World())
+func (g *Game) Timers() *TimersAPI {
+	if g.timers == nil {
+		g.timers = timers.NewTimerManager()
+	}
+	return &TimersAPI{mgr: g.timers}
 }
 
-func (g *Game) UnregisterSystem(name string) error {
-	return g.Manager().Unregister(name, g.World())
-}
+// CORE EBITEN COMPATIBLE FUNCTIONS
 
 func (g *Game) Update() error {
 	g.accumulator += g.fixedDelta
@@ -59,6 +66,7 @@ func (g *Game) Update() error {
 	for g.accumulator >= g.fixedDelta {
 		g.accumulator -= g.fixedDelta
 		g.Manager().Update(g.World(), g.fixedDelta)
+		g.timers.UpdateTimers(g.fixedDelta)
 	}
 
 	return nil
@@ -72,8 +80,10 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return outsideWidth, outsideHeight
 }
 
+// INTERNAL FUNCTIONS
+
 // registerCoreSystem registers a system in the Core layer of the game.
 // This is typically used for essential systems that should always be active, such as rendering, physics, or input handling.
 func (g *Game) registerCoreSystem(name string, sys System) error {
-	return g.Manager().Register(system.Core, name, sys, g.World())
+	return g.Manager().mgr.Register(system.Core, name, sys, g.World())
 }
