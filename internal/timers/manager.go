@@ -71,10 +71,17 @@ func (tm *TimerManager) UpdateTimers(deltaTime float64) {
 	tm.mu.Lock()
 
 	var callbacks []func()
+	var cleanupTimers []TimerID
 
 	for _, timer := range tm.timers {
-		if timer.Update(deltaTime) && timer.timerFunc != nil {
+		if !timer.Update(deltaTime) {
+			continue // Timer has not expired yet
+		}
+		if timer.timerFunc != nil {
 			callbacks = append(callbacks, timer.timerFunc)
+		}
+		if timer.IsOnce() {
+			cleanupTimers = append(cleanupTimers, timer.ID())
 		}
 	}
 
@@ -82,6 +89,10 @@ func (tm *TimerManager) UpdateTimers(deltaTime float64) {
 
 	for _, cb := range callbacks {
 		cb()
+	}
+
+	for _, timerID := range cleanupTimers {
+		tm.RemoveTimer(timerID)
 	}
 }
 

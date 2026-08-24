@@ -51,8 +51,8 @@ func TestTimerManager_UpdateTimersTriggersCallback(t *testing.T) {
 	if callbackCalled != 1 {
 		t.Fatalf("expected callback once, got %d", callbackCalled)
 	}
-	if _, exists := manager.timers[timerID]; !exists {
-		t.Fatal("timer should still exist for a one-shot timer until removed")
+	if _, exists := manager.timers[timerID]; exists {
+		t.Fatal("one-shot timer should be cleaned up after triggering")
 	}
 }
 
@@ -78,6 +78,30 @@ func TestTimerManager_RepeatingTimerKeepsFiring(t *testing.T) {
 	if err := manager.RemoveTimer(timerID); err != nil {
 		t.Fatalf("remove timer failed: %v", err)
 	}
+}
+
+func TestTimerManager_OneShotTimerAutoCleanupAfterExpiry(t *testing.T) {
+	t.Run("with callback", func(t *testing.T) {
+		manager := NewTimerManager()
+		timerID := manager.CreateTimer(0.05, true, true, func() {})
+
+		manager.UpdateTimers(0.05)
+
+		if _, exists := manager.timers[timerID]; exists {
+			t.Fatal("one-shot timer with callback should be removed automatically after expiry")
+		}
+	})
+
+	t.Run("without callback", func(t *testing.T) {
+		manager := NewTimerManager()
+		timerID := manager.CreateTimer(0.05, true, true, nil)
+
+		manager.UpdateTimers(0.05)
+
+		if _, exists := manager.timers[timerID]; exists {
+			t.Fatal("one-shot timer without callback should also be removed automatically after expiry")
+		}
+	})
 }
 
 func TestTimerManager_UnknownTimerIDErrors(t *testing.T) {
