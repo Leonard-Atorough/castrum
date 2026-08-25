@@ -11,10 +11,10 @@ import (
 	"github.com/leonard-atorough/castrum/internal/timers"
 )
 
-type gameRuntime struct {
-	world   *ecs.World
-	systems *system.Manager
-	timers  *timers.Manager
+type GameRuntime struct {
+	world   ecs.World
+	Systems *system.Manager
+	Timers  *timers.Manager
 	scenes  *scene.Manager
 
 	accumulator float64
@@ -24,18 +24,18 @@ type gameRuntime struct {
 	fpsCounter  float64
 }
 
-func newGameRuntime(world *ecs.World, config *config.Config) *gameRuntime {
+func NewGameRuntime(world ecs.World, config *config.Config) *GameRuntime {
 	// TODO: Use the config parameter to configure the game runtime as needed.
-	return &gameRuntime{
+	return &GameRuntime{
 		world:   world,
-		systems: system.NewManager(),
-		timers:  timers.NewManager(),
-		scenes:  scene.NewManager(*world),
+		Systems: system.NewManager(),
+		Timers:  timers.NewManager(),
+		scenes:  scene.NewManager(world),
 	}
 }
 
 // Update implements the fixed-timestep game loop.
-func (g *gameRuntime) Update() error {
+func (g *GameRuntime) Update() error {
 	g.accumulator += g.fixedDelta
 
 	for g.accumulator >= g.fixedDelta {
@@ -47,29 +47,29 @@ func (g *gameRuntime) Update() error {
 }
 
 // Draw orchestrates rendering through the scene manager.
-func (g *gameRuntime) Draw(screen *ebiten.Image) {
+func (g *GameRuntime) Draw(screen *ebiten.Image) {
 	// Implementation goes here.
 	// TODO: Implement renderer package. This package will handle rendering and layout logic, including scaling and aspect ratio management.
 }
 
 // Layout delegates to renderer.
-func (g *gameRuntime) Layout(w, h int) (int, int) {
+func (g *GameRuntime) Layout(w, h int) (int, int) {
 	// Implementation goes here.
 	// TODO: Implement renderer package. This package will handle rendering and layout logic, including scaling and aspect ratio management.
 	return w, h
 }
 
 // tickSystems runs all registered systems in order.
-func (g *gameRuntime) tickSystems(dt float64) {
-	g.systems.Update(*g.world, dt)
+func (g *GameRuntime) tickSystems(dt float64) {
+	g.Systems.Update(g.world, dt)
 }
 
 // tickTimers advances the timer queue.
-func (g *gameRuntime) tickTimers(dt float64) {
-	g.timers.Update(dt)
+func (g *GameRuntime) tickTimers(dt float64) {
+	g.Timers.Update(dt)
 }
 
 // measureFps calculates actual frames per second.
-func (g *gameRuntime) measureFps() {
+func (g *GameRuntime) measureFps() {
 	// Implementation goes here.
 }

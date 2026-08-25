@@ -6,6 +6,16 @@ import (
 	"github.com/leonard-atorough/castrum/ecs"
 )
 
+type SceneInterface interface {
+	Name() string
+
+	// OnLoad is called when the scene becomes active. Implement this to set up initial scene state.
+	OnLoad(world ecs.World) error
+	// OnUnload is called when the scene is unloaded.
+	// The base implementation unindexes the scene's entities from the tag index.
+	OnUnload(world ecs.World) error
+}
+
 // Scene represents a logical grouping of entities within the world.
 // A scene owns entities via scene tags and manages its own lifecycle.
 // Multiple scenes can be active simultaneously (entities can have multiple scene tags).
@@ -43,21 +53,15 @@ func (s *Scene) Entities(world ecs.World) []ecs.EntityID {
 	return world.QueryByTag(s.tag)
 }
 
-// Init is called when the scene becomes active.
+// OnLoad is called when the scene becomes active.
 // Override this to set up initial scene state.
-func (s *Scene) Init(world ecs.World) error {
+func (s *Scene) OnLoad(world ecs.World) error {
 	return nil
 }
 
-// Update is called every frame for the active scene.
-// Override this to implement scene-specific logic.
-func (s *Scene) Update(world ecs.World, deltaTime float64) error {
-	return nil
-}
-
-// Shutdown is called when the scene is unloaded.
+// OnUnload is called when the scene is unloaded.
 // This cleans up all entities belonging to this scene.
-func (s *Scene) Shutdown(world ecs.World) error {
+func (s *Scene) OnUnload(world ecs.World) error {
 	// Get all entities in this scene
 	entities := s.Entities(world)
 

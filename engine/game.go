@@ -1,9 +1,11 @@
 package castrum
 
 import (
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/config"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/engine"
 	"github.com/leonard-atorough/castrum/internal/system"
 	"github.com/leonard-atorough/castrum/internal/timers"
 )
@@ -16,67 +18,56 @@ type TimerID = timers.TimerID
 
 type Game struct {
 	world   *core.World
-	manager *system.Manager
-	timers  *timers.Manager
 	config  *config.Config
+	runtime *engine.GameRuntime
 
-	
-	accumulator float64
-	fixedDelta  float64
+	systems *SystemAPI
+	timers  *TimersAPI
 }
 
-func NewGame(fixedDelta float64) *Game {
+func NewGame(config *config.Config) *Game {
+	newWorld := core.NewWorld()
+	runtime := engine.NewGameRuntime(newWorld, config)
+
 	return &Game{
-		accumulator: 0,
-		fixedDelta:  fixedDelta,
-		world:       core.NewWorld(),
-		manager:     system.NewManager(),
-		timers:      timers.NewManager(),
+		world:   newWorld,
+		config:  config,
+		runtime: runtime,
+		systems: &SystemAPI{mgr: runtime.Systems, wrld: newWorld},
+		timers:  &TimersAPI{mgr: runtime.Timers},
 	}
 }
 
 func (g *Game) World() ecs.World {
 	if g.world == nil {
 		g.world = core.NewWorld()
+		g.runtime = engine.NewGameRuntime(g.world, g.config)
 	}
 	return g.world
 }
 
-func (g *Game) Manager() *SystemAPI {
-	if g.manager == nil {
-		g.manager = system.NewManager()
-	}
-	return &SystemAPI{mgr: g.manager, wrld: g.World()}
+// Systems returns the system manager API.
+func (g *Game) Systems() *SystemAPI {
+	return g.systems
 }
 
+// Timers returns the timer manager API.
 func (g *Game) Timers() *TimersAPI {
-	if g.timers == nil {
-		g.timers = timers.NewManager()
-	}
-	return &TimersAPI{mgr: g.timers}
+	return g.timers
 }
 
 // CORE EBITEN COMPATIBLE FUNCTIONS
 
 func (g *Game) Update() error {
-	g.accumulator += g.fixedDelta
-
-	for g.accumulator >= g.fixedDelta {
-		g.accumulator -= g.fixedDelta
-
-		g.timers.Update(g.fixedDelta)
-		g.Manager().Update(g.fixedDelta)
-	}
-
-	return nil
+	return g.runtime.Update()
 }
 
-func (*Game) Draw() error {
-	return nil
+func (g *Game) Draw(screen *ebiten.Image) {
+	g.runtime.Draw(screen)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return outsideWidth, outsideHeight
+	return g.runtime.Layout(outsideWidth, outsideHeight)
 }
 
 // INTERNAL FUNCTIONS

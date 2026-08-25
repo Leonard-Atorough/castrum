@@ -2,6 +2,9 @@ package ecs
 
 import "reflect"
 
+// World defines the interface for an ECS world, which manages entities, components, and systems.
+// This is the public API that game developers will interact with and is implemented by the internal core.World struct.
+// While extensible, it is recommended to use the provided core.World implementation for most use cases.
 type World interface {
 	// Lifecycle
 	Spawn(template string) EntityID
