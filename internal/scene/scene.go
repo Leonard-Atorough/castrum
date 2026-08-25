@@ -7,8 +7,6 @@ import (
 )
 
 type SceneInterface interface {
-	Name() string
-
 	// OnLoad is called when the scene becomes active. Implement this to set up initial scene state.
 	OnLoad(world ecs.World) error
 	// OnUnload is called when the scene is unloaded.

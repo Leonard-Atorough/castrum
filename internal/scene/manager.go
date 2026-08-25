@@ -7,19 +7,23 @@ import (
 )
 
 type Manager struct {
-	scenes  map[string]Scene
+	scenes  map[string]SceneInterface
 	current string
 	world   ecs.World
 }
 
 func NewManager(world ecs.World) *Manager {
 	return &Manager{
-		scenes: make(map[string]Scene),
+		scenes: make(map[string]SceneInterface),
 		world:  world,
 	}
 }
 
-func (sm *Manager) LoadScene(name string, scene Scene) error {
+func (sm *Manager) World() ecs.World {
+	return sm.world
+}
+
+func (sm *Manager) LoadScene(name string, scene SceneInterface) error {
 	if _, exists := sm.scenes[name]; exists {
 		return fmt.Errorf("scene %s already loaded", name)
 	}
@@ -45,9 +49,9 @@ func (sm *Manager) UnloadScene(name string) error {
 	return nil
 }
 
-func (sm *Manager) CurrentScene() Scene {
+func (sm *Manager) CurrentScene() SceneInterface {
 	if sm.current == "" {
-		return Scene{}
+		return nil
 	}
 	return sm.scenes[sm.current]
 }
