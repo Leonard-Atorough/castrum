@@ -7,7 +7,7 @@ import "reflect"
 // While extensible, it is recommended to use the provided core.World implementation for most use cases.
 type World interface {
 	// Lifecycle
-	Spawn(template string) EntityID
+	Create(template string) EntityID
 	Destroy(id EntityID, cascade bool) error
 
 	// Querying

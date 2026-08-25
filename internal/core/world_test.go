@@ -10,7 +10,7 @@ import (
 // TestWorld_ComponentLifecycle tests adding, removing, getting, and querying components.
 func TestWorld_ComponentLifecycle(t *testing.T) {
 	w := NewWorld()
-	id := w.Spawn("Generic")
+	id := w.Create("Generic")
 
 	// Test adding a component
 	compA := testComponentA{value: 42}
@@ -71,8 +71,8 @@ func TestWorld_ComponentQueries(t *testing.T) {
 	w := NewWorld()
 
 	// Create entities with different component combinations
-	id1 := w.Spawn("Generic")
-	id2 := w.Spawn("Generic")
+	id1 := w.Create("Generic")
+	id2 := w.Create("Generic")
 
 	compA := testComponentA{value: 1}
 	compB := testComponentB{value: 2}
@@ -109,7 +109,7 @@ func TestWorld_ComponentQueries(t *testing.T) {
 // TestWorld_TagManagement tests adding, removing, and querying by tags.
 func TestWorld_TagManagement(t *testing.T) {
 	w := NewWorld()
-	id := w.Spawn("Generic")
+	id := w.Create("Generic")
 
 	// Test adding a custom tag
 	if err := w.AddTag(id, "soldier"); err != nil {
@@ -138,7 +138,7 @@ func TestWorld_TagManagement(t *testing.T) {
 	}
 
 	// Test QueryByTag
-	id2 := w.Spawn("Generic")
+	id2 := w.Create("Generic")
 	w.AddTag(id, "archer")
 	w.AddTag(id2, "archer")
 
@@ -156,11 +156,11 @@ func TestWorld_TagManagement(t *testing.T) {
 func TestWorld_TemplateQueries(t *testing.T) {
 	w := NewWorld()
 
-	// The Spawn method applies template-based tags (Province, City, Generic)
-	provinceID := w.Spawn("Province")
-	cityID := w.Spawn("City")
-	generic1ID := w.Spawn("Generic")
-	generic2ID := w.Spawn("Generic")
+	// The Create method applies template-based tags (Province, City, Generic)
+	provinceID := w.Create("Province")
+	cityID := w.Create("City")
+	generic1ID := w.Create("Generic")
+	generic2ID := w.Create("Generic")
 
 	provinces := w.QueryByTemplate("Province")
 	if len(provinces) != 1 || provinces[0] != provinceID {
@@ -188,10 +188,10 @@ func TestWorld_TemplateQueries(t *testing.T) {
 func TestWorld_HierarchyNavigation(t *testing.T) {
 	w := NewWorld()
 
-	root := w.Spawn("Generic")
-	child1 := w.Spawn("Generic")
-	child2 := w.Spawn("Generic")
-	grandchild := w.Spawn("Generic")
+	root := w.Create("Generic")
+	child1 := w.Create("Generic")
+	child2 := w.Create("Generic")
+	grandchild := w.Create("Generic")
 
 	// Build hierarchy: root -> [child1, child2], child1 -> [grandchild]
 	w.SetParent(child1, root)
@@ -235,17 +235,17 @@ func TestWorld_CompleteEntityLifecycle(t *testing.T) {
 	w := NewWorld()
 
 	// Create a parent entity with components and tags
-	parentID := w.Spawn("Generic")
+	parentID := w.Create("Generic")
 	w.AddComponent(parentID, testComponentA{value: 100})
 	w.AddTag(parentID, "warrior")
 	w.AddTag(parentID, "leader")
 
 	// Create child entities
-	child1ID := w.Spawn("Generic")
+	child1ID := w.Create("Generic")
 	w.AddComponent(child1ID, testComponentA{value: 200})
 	w.SetParent(child1ID, parentID)
 
-	child2ID := w.Spawn("Generic")
+	child2ID := w.Create("Generic")
 	w.AddComponent(child2ID, testComponentB{value: 300})
 	w.AddTag(child2ID, "warrior")
 	w.SetParent(child2ID, parentID)
@@ -290,12 +290,12 @@ func TestWorld_CountAndReset(t *testing.T) {
 		t.Fatalf("expected 0 entities in new world, got %d", w.Count())
 	}
 
-	id1 := w.Spawn("Generic")
+	id1 := w.Create("Generic")
 	w.AddComponent(id1, testComponentA{value: 1})
 	w.AddTag(id1, "test")
 
-	id2 := w.Spawn("Generic")
-	w.Spawn("Generic") // third entity for testing Count
+	id2 := w.Create("Generic")
+	w.Create("Generic") // third entity for testing Count
 
 	if w.Count() != 3 {
 		t.Fatalf("expected 3 entities, got %d", w.Count())
@@ -322,13 +322,13 @@ func TestWorld_CountAndReset(t *testing.T) {
 		t.Fatalf("expected no entities after reset, got %d", len(generics))
 	}
 
-	// Should be able to spawn again
-	newID := w.Spawn("Generic")
+	// Should be able to create again
+	newID := w.Create("Generic")
 	if !w.Exists(newID) {
-		t.Fatal("should be able to spawn new entity after reset")
+		t.Fatal("should be able to create new entity after reset")
 	}
 	if w.Count() != 1 {
-		t.Fatalf("expected 1 entity after new spawn, got %d", w.Count())
+		t.Fatalf("expected 1 entity after new create, got %d", w.Count())
 	}
 }
 
@@ -371,7 +371,7 @@ func TestWorld_ComponentErrors(t *testing.T) {
 // TestWorld_GetComponentByName tests retrieving components by their name.
 func TestWorld_GetComponentByName(t *testing.T) {
 	w := NewWorld()
-	id := w.Spawn("Generic")
+	id := w.Create("Generic")
 
 	compA := testComponentA{value: 42}
 	compB := testComponentB{value: 99}

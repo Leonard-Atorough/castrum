@@ -30,9 +30,9 @@ func NewWorld() *World {
 	}
 }
 
-// Spawn creates a new entity with the specified template and returns its ecs.EntityID.
+// Create creates a new entity with the specified template and returns its ecs.EntityID.
 // The entity is automatically registered with the world and the index.
-func (w *World) Spawn(template string) ecs.EntityID {
+func (w *World) Create(template string) ecs.EntityID {
 	id := ecs.EntityID(w.nextID.Add(1))
 
 	entity := NewEntity(id, template)

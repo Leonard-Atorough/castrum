@@ -20,7 +20,7 @@ func (s *SceneAPI) UnloadScene(name string) error {
 	return s.manager.UnloadScene(name)
 }
 
-func (s *SceneAPI) CurrentScene() scene.SceneLifecycle {
+func (s *SceneAPI) CurrentScene() *Scene {
 	return s.manager.CurrentScene()
 }
 
@@ -28,6 +28,7 @@ func (s *SceneAPI) TransitionTo(name string) error {
 	return s.manager.TransitionTo(name)
 }
 
+// NewSceneBuilder creates a new scene builder for constructing scenes with entities and hooks.
 func (s *SceneAPI) NewSceneBuilder(sceneID string) *SceneBuilder {
 	return scene.NewBuilder(sceneID)
 }

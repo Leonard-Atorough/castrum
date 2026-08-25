@@ -17,7 +17,7 @@ var (
 
 // WorldError wraps errors that occur at the world level.
 type WorldError struct {
-	Op  string // operation that failed (e.g., "Spawn", "Destroy")
+	Op  string // operation that failed (e.g., "Create", "Destroy")
 	Err error  // underlying error
 }
 
@@ -47,9 +47,9 @@ func (e *EntityError) Unwrap() error {
 // IndexError wraps errors from the entity index (components, tags, templates).
 type IndexError struct {
 	EntityID ecs.EntityID // ID of the entity involved
-	IndexKey string   // component type, tag name, or template name
-	Op       string   // operation that failed
-	Err      error    // underlying error
+	IndexKey string       // component type, tag name, or template name
+	Op       string       // operation that failed
+	Err      error        // underlying error
 }
 
 func (e *IndexError) Error() string {

@@ -94,7 +94,7 @@ Implement the Entity-Component-System foundation with efficient data structures.
 |----|------|--------|--------|----------|
 | 1.1 | Entity ID generation and management | ✅ Done | 2h | High |
 | 1.2 | Component storage with type-based indexing | ✅ Done | 4h | High |
-| 1.3 | Entity spawning and destruction | ✅ Done | 3h | High |
+| 1.3 | Entity createing and destruction | ✅ Done | 3h | High |
 | 1.4 | Component add/remove/get operations | ✅ Done | 4h | High |
 | 1.5 | Entity querying by component type | ✅ Done | 3h | High |
 | 1.6 | Tag system for entity categorization | ✅ Done | 3h | High |
@@ -381,7 +381,7 @@ Provide developer tools to accelerate content creation and improve the developme
 ### Performance Targets
 | Metric | Target | Measurement Method |
 |--------|--------|-------------------|
-| Entity spawn rate | 10,000+ entities/sec | Benchmark test |
+| Entity create rate | 10,000+ entities/sec | Benchmark test |
 | Query performance | <1ms for 10,000 entities | Benchmark test |
 | System update rate | 1,000+ systems/frame | Benchmark test |
 | Memory per entity | <100 bytes | Profiling |
@@ -423,7 +423,7 @@ Provide developer tools to accelerate content creation and improve the developme
 ### Alpha Release (After Phase 1)
 - Core ECS functional
 - Basic game loop working
-- Can spawn entities and add components
+- Can create entities and add components
 - Unit tests passing
 
 ### Beta Release (After Phase 3)

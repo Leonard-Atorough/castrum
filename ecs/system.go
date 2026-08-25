@@ -2,7 +2,7 @@ package ecs
 
 type System interface {
 	// Init is called once when the system is registered.
-	// Use this to initialize state, spawn entities, or validate preconditions.
+	// Use this to initialize state, create entities, or validate preconditions.
 	Init(world World) error
 
 	// Update is called every frame for this system.

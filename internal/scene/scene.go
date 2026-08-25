@@ -6,22 +6,17 @@ import (
 	"github.com/leonard-atorough/castrum/ecs"
 )
 
-// SceneLifecycle defines the lifecycle methods for a scene, allowing for custom behavior on load and unload.
-type SceneLifecycle interface {
-	// OnLoad is called when the scene becomes active. Implement this to set up initial scene state.
-	OnLoad(world ecs.World) error
-	// OnUnload is called when the scene is unloaded.
-	// The base implementation unindexes the scene's entities from the tag index.
-	OnUnload(world ecs.World) error
-}
+type SceneHook func(world ecs.World) error
 
 // Scene is a ready-to-use scene with tag-based entity tracking.
 // Embed this for default behavior, or implement Scene directly.
 // A SceneBuilder is provided to help create scenes adhering to this struct in a fluent manner.
 type Scene struct {
-	ID   string         // Unique scene identifier
-	tag  string         // Internal tag used to track entities in this scene
-	data map[string]any // Scene-specific data/state
+	ID         string         // Unique scene identifier
+	tag        string         // Internal tag used to track entities in this scene
+	data       map[string]any // Scene-specific data/state
+	loadHook   SceneHook      // Optional hook called when the scene is loaded
+	unloadHook SceneHook      // Optional hook called when the scene is unloaded
 }
 
 func NewScene(id string) *Scene {
@@ -52,9 +47,22 @@ func (s *Scene) Entities(world ecs.World) []ecs.EntityID {
 	return world.QueryByTag(s.tag)
 }
 
+func (s *Scene) SetLoadHook(hook SceneHook) {
+	s.loadHook = hook
+}
+
+func (s *Scene) SetUnloadHook(hook SceneHook) {
+	s.unloadHook = hook
+}
+
 // OnLoad is called when the scene becomes active.
 // Override this to set up initial scene state.
 func (s *Scene) OnLoad(world ecs.World) error {
+	if s.loadHook != nil {
+		if err := s.loadHook(world); err != nil {
+			return fmt.Errorf("failed to execute load hook for scene %s: %w", s.ID, err)
+		}
+	}
 	return nil
 }
 
@@ -69,6 +77,13 @@ func (s *Scene) OnUnload(world ecs.World) error {
 			return fmt.Errorf("failed to remove entity %d from scene %s: %w", entityID, s.ID, err)
 		}
 	}
+
+	if s.unloadHook != nil {
+		if err := s.unloadHook(world); err != nil {
+			return fmt.Errorf("failed to execute unload hook for scene %s: %w", s.ID, err)
+		}
+	}
+
 	return nil
 }
 

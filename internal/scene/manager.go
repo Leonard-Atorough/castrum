@@ -7,15 +7,15 @@ import (
 )
 
 type Manager struct {
-	scenes  map[string]SceneLifecycle
-	current string
-	world   ecs.World
+	scenes      map[string]*Scene
+	current     string
+	world       ecs.World
 }
 
 func NewManager(world ecs.World) *Manager {
 	return &Manager{
-		scenes: make(map[string]SceneLifecycle),
-		world:  world,
+		scenes:      make(map[string]*Scene),
+		world:       world,
 	}
 }
 
@@ -23,7 +23,7 @@ func (sm *Manager) World() ecs.World {
 	return sm.world
 }
 
-func (sm *Manager) LoadScene(name string, scene SceneLifecycle) error {
+func (sm *Manager) LoadScene(name string, scene *Scene) error {
 	if _, exists := sm.scenes[name]; exists {
 		return fmt.Errorf("scene %s already loaded", name)
 	}
@@ -32,14 +32,14 @@ func (sm *Manager) LoadScene(name string, scene SceneLifecycle) error {
 	return nil
 }
 
+
 func (sm *Manager) UnloadScene(name string) error {
 	if _, exists := sm.scenes[name]; !exists {
 		return fmt.Errorf("scene %s not found", name)
 	}
 
-	scene := sm.scenes[name]
 	if sm.current == name {
-		if err := scene.OnUnload(sm.world); err != nil {
+		if err := sm.scenes[name].OnUnload(sm.world); err != nil {
 			return fmt.Errorf("failed to unload scene %s: %v", name, err)
 		}
 		sm.current = ""
@@ -49,7 +49,7 @@ func (sm *Manager) UnloadScene(name string) error {
 	return nil
 }
 
-func (sm *Manager) CurrentScene() SceneLifecycle {
+func (sm *Manager) CurrentScene() *Scene {
 	if sm.current == "" {
 		return nil
 	}
@@ -63,8 +63,7 @@ func (sm *Manager) TransitionTo(name string) error {
 	}
 
 	if sm.current != "" {
-		currentScene := sm.scenes[sm.current]
-		if err := currentScene.OnUnload(sm.world); err != nil {
+		if err := sm.scenes[sm.current].OnUnload(sm.world); err != nil {
 			return fmt.Errorf("failed to unload current scene %s: %v", sm.current, err)
 		}
 	}

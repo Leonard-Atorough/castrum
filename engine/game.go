@@ -23,6 +23,7 @@ type Game struct {
 
 	systems *SystemAPI
 	timers  *TimersAPI
+	scenes  *SceneAPI
 }
 
 func NewGame(config *config.Config) *Game {
@@ -54,6 +55,13 @@ func (g *Game) Systems() *SystemAPI {
 // Timers returns the timer manager API.
 func (g *Game) Timers() *TimersAPI {
 	return g.timers
+}
+
+func (g *Game) Scenes() *SceneAPI {
+	if g.scenes == nil {
+		g.scenes = &SceneAPI{manager: g.runtime.Scenes}
+	}
+	return g.scenes
 }
 
 // CORE EBITEN COMPATIBLE FUNCTIONS

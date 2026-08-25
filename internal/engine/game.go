@@ -15,7 +15,7 @@ type GameRuntime struct {
 	world   ecs.World
 	Systems *system.Manager
 	Timers  *timers.Manager
-	scenes  *scene.Manager
+	Scenes  *scene.Manager
 
 	accumulator float64
 	fixedDelta  float64
@@ -30,7 +30,7 @@ func NewGameRuntime(world ecs.World, config *config.Config) *GameRuntime {
 		world:   world,
 		Systems: system.NewManager(),
 		Timers:  timers.NewManager(),
-		scenes:  scene.NewManager(world),
+		Scenes:  scene.NewManager(world),
 	}
 }
 
