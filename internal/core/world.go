@@ -7,12 +7,17 @@ import (
 	"github.com/leonard-atorough/castrum/ecs"
 )
 
+const (
+	CacheCapacity = 100
+)
+
 // World is the central manager for all ECS state.
 // It manages entity lifecycle, components, tags, templates, and hierarchical relationships.
 // All public interactions with the ECS should go through the World API.
 type World struct {
 	entities  map[ecs.EntityID]*entity
 	store     *componentStore
+	cache     *QueryCache
 	index     entityIndex
 	hierarchy *Hierarchy
 	nextID    atomic.Uint64
@@ -24,6 +29,7 @@ func NewWorld() *World {
 	return &World{
 		entities:  make(map[ecs.EntityID]*entity),
 		store:     NewComponentStore(),
+		cache:     NewQueryCache(CacheCapacity),
 		index:     NewEntityIndex(),
 		hierarchy: NewHierarchy(),
 		nextID:    atomic.Uint64{},
