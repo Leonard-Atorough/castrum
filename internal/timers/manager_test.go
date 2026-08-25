@@ -47,7 +47,7 @@ func TestTimerManager_UpdateTimersTriggersCallback(t *testing.T) {
 	callback := func() { callbackCalled++ }
 
 	timerID := manager.CreateTimer(0.1, true, true, callback)
-	manager.UpdateTimers(0.1)
+	manager.Update(0.1)
 
 	if callbackCalled != 1 {
 		t.Fatalf("expected callback once, got %d", callbackCalled)
@@ -67,11 +67,11 @@ func TestTimerManager_RepeatingTimerKeepsFiring(t *testing.T) {
 		t.Fatal("timer id should be valid")
 	}
 
-	manager.UpdateTimers(0.05)
+	manager.Update(0.05)
 	if callbackCalled != 1 {
 		t.Fatalf("expected first callback, got %d", callbackCalled)
 	}
-	manager.UpdateTimers(0.05)
+	manager.Update(0.05)
 	if callbackCalled != 2 {
 		t.Fatalf("expected repeating callback twice, got %d", callbackCalled)
 	}
@@ -86,7 +86,7 @@ func TestTimerManager_OneShotTimerAutoCleanupAfterExpiry(t *testing.T) {
 		manager := NewTimerManager()
 		timerID := manager.CreateTimer(0.05, true, true, func() {})
 
-		manager.UpdateTimers(0.05)
+		manager.Update(0.05)
 
 		if _, exists := manager.timers[timerID]; exists {
 			t.Fatal("one-shot timer with callback should be removed automatically after expiry")
@@ -97,7 +97,7 @@ func TestTimerManager_OneShotTimerAutoCleanupAfterExpiry(t *testing.T) {
 		manager := NewTimerManager()
 		timerID := manager.CreateTimer(0.05, true, true, nil)
 
-		manager.UpdateTimers(0.05)
+		manager.Update(0.05)
 
 		if _, exists := manager.timers[timerID]; exists {
 			t.Fatal("one-shot timer without callback should also be removed automatically after expiry")
@@ -169,7 +169,7 @@ func TestTimerManager_CallbackCanMutateManagerWithoutDeadlock(t *testing.T) {
 	timerID = manager.CreateTimer(0.05, true, true, callback)
 	done := make(chan struct{})
 	go func() {
-		manager.UpdateTimers(0.05)
+		manager.Update(0.05)
 		close(done)
 	}()
 

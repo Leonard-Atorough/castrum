@@ -62,8 +62,9 @@ func (g *Game) Update() error {
 
 	for g.accumulator >= g.fixedDelta {
 		g.accumulator -= g.fixedDelta
+		
+		g.timers.Update(g.fixedDelta)
 		g.Manager().Update(g.fixedDelta)
-		g.timers.UpdateTimers(g.fixedDelta)
 	}
 
 	return nil

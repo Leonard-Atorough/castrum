@@ -75,7 +75,7 @@ func (tm *TimerManager) StopTimer(timerID TimerID) error {
 	return nil
 }
 
-func (tm *TimerManager) UpdateTimers(deltaTime float64) {
+func (tm *TimerManager) Update(deltaTime float64) {
 	if deltaTime < 0 {
 		return
 	}
