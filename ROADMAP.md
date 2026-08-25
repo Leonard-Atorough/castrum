@@ -94,7 +94,7 @@ Implement the Entity-Component-System foundation with efficient data structures.
 |----|------|--------|--------|----------|
 | 1.1 | Entity ID generation and management | ✅ Done | 2h | High |
 | 1.2 | Component storage with type-based indexing | ✅ Done | 4h | High |
-| 1.3 | Entity createing and destruction | ✅ Done | 3h | High |
+| 1.3 | Entity creation and destruction | ✅ Done | 3h | High |
 | 1.4 | Component add/remove/get operations | ✅ Done | 4h | High |
 | 1.5 | Entity querying by component type | ✅ Done | 3h | High |
 | 1.6 | Tag system for entity categorization | ✅ Done | 3h | High |
@@ -104,7 +104,7 @@ Implement the Entity-Component-System foundation with efficient data structures.
 | 1.10 | System interface and base implementation | ✅ Done | 4h | High |
 | 1.11 | System manager with layer support | ✅ Done | 4h | High |
 | 1.12 | Timer system for delayed/scheduled actions | ✅ Done | 4h | Medium |
-| 1.13 | Scene interface and basic implementation | 🟡 Partial | 4h | High |
+| 1.13 | Scene interface and basic implementation | ✅ Done | 4h | High |
 | 1.14 | Comprehensive unit tests for core packages | 🟡 Partial | 8h | High |
 | 1.15 | Benchmark tests for performance validation | ❌ Not Started | 4h | Medium |
 
