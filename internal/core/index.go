@@ -20,13 +20,18 @@ type entityIndex struct {
 	// Template index maps template names to a set of entity IDs that use that template.
 	// The map structure is: templateName -> list of entityIDs
 	templateIndex map[string][]ecs.EntityID
+
+	// lazyTagTemplateIndex indicates whether the tag/template indexes are stale because
+	// entities were created without eagerly updating lookup metadata.
+	lazyTagTemplateIndex bool
 }
 
 func NewEntityIndex() entityIndex {
 	return entityIndex{
-		componentIndex: make(map[reflect.Type][]ecs.EntityID),
-		tagIndex:       make(map[string][]ecs.EntityID),
-		templateIndex:  make(map[string][]ecs.EntityID),
+		componentIndex:       make(map[reflect.Type][]ecs.EntityID),
+		tagIndex:             make(map[string][]ecs.EntityID),
+		templateIndex:        make(map[string][]ecs.EntityID),
+		lazyTagTemplateIndex: false,
 	}
 }
 
@@ -145,6 +150,24 @@ func (idx *entityIndex) addToIndexString(index map[string][]ecs.EntityID, key st
 	if !slices.Contains(index[key], entityID) {
 		index[key] = append(index[key], entityID)
 	}
+}
+
+func (idx *entityIndex) rebuildTagAndTemplateIndex(entities map[ecs.EntityID]*entity) {
+	idx.tagIndex = make(map[string][]ecs.EntityID)
+	idx.templateIndex = make(map[string][]ecs.EntityID)
+
+	for entityID, entity := range entities {
+		if entity == nil {
+			continue
+		}
+		if entity.template != "" {
+			idx.addToIndexString(idx.templateIndex, entity.template, entityID)
+		}
+		for tag := range entity.tags {
+			idx.addToIndexString(idx.tagIndex, tag, entityID)
+		}
+	}
+	idx.lazyTagTemplateIndex = false
 }
 
 func (idx *entityIndex) removeFromIndex(index map[reflect.Type][]ecs.EntityID, key reflect.Type, entityID ecs.EntityID) {

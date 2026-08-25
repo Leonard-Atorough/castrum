@@ -16,7 +16,6 @@ type World struct {
 	index     entityIndex
 	hierarchy *Hierarchy
 	nextID    atomic.Uint64
-
 	destroyed []*entity
 }
 
@@ -27,6 +26,8 @@ func NewWorld() *World {
 		store:     NewComponentStore(),
 		index:     NewEntityIndex(),
 		hierarchy: NewHierarchy(),
+		nextID:    atomic.Uint64{},
+		destroyed: make([]*entity, 0),
 	}
 }
 
@@ -38,19 +39,18 @@ func (w *World) Create(template string) ecs.EntityID {
 	entity := NewEntity(id, template)
 	w.entities[id] = entity
 
-	w.index.AddTemplate(id, template)
+	// Defer tag/template index maintenance until the first query or tag mutation.
+	// This keeps entity creation cheap while preserving correctness when lookup indexes are needed.
+	w.index.lazyTagTemplateIndex = true
 
 	// two temporary templates for testing - Province and City
 	switch template {
 	case "Province":
 		entity.AddTag("Province")
-		w.index.AddTag(id, "Province")
 	case "City":
 		entity.AddTag("City")
-		w.index.AddTag(id, "City")
 	default:
 		entity.AddTag("Generic")
-		w.index.AddTag(id, "Generic")
 	}
 
 	return id
@@ -110,12 +110,14 @@ func (w *World) Query(components ...reflect.Type) []ecs.EntityID {
 // QueryByTag retrieves all entities that have the specified tag.
 // Returns a slice of matching EntityIDs, or nil if none match.
 func (w *World) QueryByTag(tag string) []ecs.EntityID {
+	w.ensureTagAndTemplateIndex()
 	return w.index.GetEntitiesWithTag(tag)
 }
 
 // QueryByTemplate retrieves all entities that use the specified template.
 // Returns a slice of matching EntityIDs, or nil if none match.
 func (w *World) QueryByTemplate(template string) []ecs.EntityID {
+	w.ensureTagAndTemplateIndex()
 	return w.index.GetEntitiesWithTemplate(template)
 }
 
@@ -130,7 +132,11 @@ func (w *World) AddTag(entityID ecs.EntityID, tag string) error {
 		}
 	}
 	entity.AddTag(tag)
-	w.index.AddTag(entityID, tag)
+	if w.index.lazyTagTemplateIndex {
+		w.index.rebuildTagAndTemplateIndex(w.entities)
+	} else {
+		w.index.AddTag(entityID, tag)
+	}
 	return nil
 }
 
@@ -146,7 +152,11 @@ func (w *World) RemoveTag(entityID ecs.EntityID, tag string) error {
 	}
 
 	entity.RemoveTag(tag)
-	w.index.RemoveTag(entityID, tag)
+	if w.index.lazyTagTemplateIndex {
+		w.index.rebuildTagAndTemplateIndex(w.entities)
+	} else {
+		w.index.RemoveTag(entityID, tag)
+	}
 	return nil
 }
 
@@ -161,6 +171,13 @@ func (w *World) HasTag(entityID ecs.EntityID, tag string) (bool, error) {
 		}
 	}
 	return entity.HasTag(tag), nil
+}
+
+func (w *World) ensureTagAndTemplateIndex() {
+	if !w.index.lazyTagTemplateIndex {
+		return
+	}
+	w.index.rebuildTagAndTemplateIndex(w.entities)
 }
 
 // AddComponent adds a component to an entity. The entity must exist in the world.
