@@ -1,4 +1,4 @@
-.PHONY build test lint install clean run dev
+.PHONY build test lint install clean run dev bench
 
 build:
 	@echo "Building the project..."
@@ -12,6 +12,10 @@ test:
 lint:
 	@echo "Linting the code..."
 	@golangci-lint run ./...
+
+bench:
+	@echo "Running benchmarks..."
+	@go test -bench=. -benchmem -run=^$$ ./benchmark/...
 
 install:
 	@echo "Installing the project to the GOPATH/bin..."
