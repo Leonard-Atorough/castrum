@@ -4,7 +4,7 @@ import (
 	"sync"
 )
 
-type TimerManager struct {
+type Manager struct {
 	// Map to store timers with their unique IDs
 	timers map[TimerID]*Timer
 	// Counter to generate unique TimerIDs
@@ -12,14 +12,14 @@ type TimerManager struct {
 	mu     sync.Mutex
 }
 
-func NewTimerManager() *TimerManager {
-	return &TimerManager{
+func NewManager() *Manager {
+	return &Manager{
 		timers: make(map[TimerID]*Timer),
 		nextID: 1,
 	}
 }
 
-func (tm *TimerManager) CreateTimer(duration float64, once bool, autoStart bool, callbackFunc func()) TimerID {
+func (tm *Manager) CreateTimer(duration float64, once bool, autoStart bool, callbackFunc func()) TimerID {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -30,7 +30,7 @@ func (tm *TimerManager) CreateTimer(duration float64, once bool, autoStart bool,
 	return timerID
 }
 
-func (tm *TimerManager) StartTimer(timerID TimerID) error {
+func (tm *Manager) StartTimer(timerID TimerID) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -45,7 +45,7 @@ func (tm *TimerManager) StartTimer(timerID TimerID) error {
 	return nil
 }
 
-func (tm *TimerManager) ResumeTimer(timerID TimerID) error {
+func (tm *Manager) ResumeTimer(timerID TimerID) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -60,7 +60,7 @@ func (tm *TimerManager) ResumeTimer(timerID TimerID) error {
 	return nil
 }
 
-func (tm *TimerManager) StopTimer(timerID TimerID) error {
+func (tm *Manager) StopTimer(timerID TimerID) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -75,7 +75,7 @@ func (tm *TimerManager) StopTimer(timerID TimerID) error {
 	return nil
 }
 
-func (tm *TimerManager) Update(deltaTime float64) {
+func (tm *Manager) Update(deltaTime float64) {
 	if deltaTime < 0 {
 		return
 	}
@@ -108,7 +108,7 @@ func (tm *TimerManager) Update(deltaTime float64) {
 	}
 }
 
-func (tm *TimerManager) RemoveTimer(timerID TimerID) error {
+func (tm *Manager) RemoveTimer(timerID TimerID) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -122,7 +122,7 @@ func (tm *TimerManager) RemoveTimer(timerID TimerID) error {
 	return nil
 }
 
-func (tm *TimerManager) lookupTimer(timerID TimerID) (*Timer, error) {
+func (tm *Manager) lookupTimer(timerID TimerID) (*Timer, error) {
 	timer, exists := tm.timers[timerID]
 	if !exists {
 		return nil, &TimerError{TimerID: timerID, Op: "lookup", Err: ErrTimerNotFound}

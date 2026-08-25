@@ -19,7 +19,7 @@ type Manager struct {
 	}
 }
 
-func NewSystemManager() *Manager {
+func NewManager() *Manager {
 	return &Manager{
 		coreSystems:   []systemEntry{},
 		playerSystems: []systemEntry{},

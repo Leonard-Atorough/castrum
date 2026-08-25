@@ -1,6 +1,7 @@
 package castrum
 
 import (
+	"github.com/leonard-atorough/castrum/config"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/system"
@@ -8,18 +9,18 @@ import (
 )
 
 type Layer = system.Layer
-
 type EntityID = ecs.EntityID
 type Component = ecs.Component
 type System = ecs.System
-
 type TimerID = timers.TimerID
 
 type Game struct {
 	world   *core.World
 	manager *system.Manager
-	timers  *timers.TimerManager
+	timers  *timers.Manager
+	config  *config.Config
 
+	
 	accumulator float64
 	fixedDelta  float64
 }
@@ -29,8 +30,8 @@ func NewGame(fixedDelta float64) *Game {
 		accumulator: 0,
 		fixedDelta:  fixedDelta,
 		world:       core.NewWorld(),
-		manager:     system.NewSystemManager(),
-		timers:      timers.NewTimerManager(),
+		manager:     system.NewManager(),
+		timers:      timers.NewManager(),
 	}
 }
 
@@ -43,14 +44,14 @@ func (g *Game) World() ecs.World {
 
 func (g *Game) Manager() *SystemAPI {
 	if g.manager == nil {
-		g.manager = system.NewSystemManager()
+		g.manager = system.NewManager()
 	}
 	return &SystemAPI{mgr: g.manager, wrld: g.World()}
 }
 
 func (g *Game) Timers() *TimersAPI {
 	if g.timers == nil {
-		g.timers = timers.NewTimerManager()
+		g.timers = timers.NewManager()
 	}
 	return &TimersAPI{mgr: g.timers}
 }
@@ -62,7 +63,7 @@ func (g *Game) Update() error {
 
 	for g.accumulator >= g.fixedDelta {
 		g.accumulator -= g.fixedDelta
-		
+
 		g.timers.Update(g.fixedDelta)
 		g.Manager().Update(g.fixedDelta)
 	}
@@ -82,6 +83,6 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 // registerCoreSystem registers a system in the Core layer of the game.
 // This is typically used for essential systems that should always be active, such as rendering, physics, or input handling.
-func (g *Game) registerCoreSystem(name string, sys ecs.System) error {
-	return g.Manager().mgr.Register(system.Core, name, sys, g.World())
-}
+// func (g *Game) registerCoreSystem(name string, sys ecs.System) error {
+// 	return g.Manager().mgr.Register(system.Core, name, sys, g.World())
+// }

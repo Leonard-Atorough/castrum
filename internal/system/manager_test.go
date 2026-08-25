@@ -35,7 +35,7 @@ func (ms *mockSystem) Shutdown(world ecs.World) error {
 
 // TestManager_Register tests system registration and Init call.
 func TestManager_Register(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	mockSys := &mockSystem{}
 
@@ -63,7 +63,7 @@ func TestManager_Register(t *testing.T) {
 
 // TestManager_RegisterDuplicate tests that duplicate names are rejected.
 func TestManager_RegisterDuplicate(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	mockSys1 := &mockSystem{}
 	mockSys2 := &mockSystem{}
@@ -82,7 +82,7 @@ func TestManager_RegisterDuplicate(t *testing.T) {
 
 // TestManager_RegisterInitFails tests that Init failure is propagated.
 func TestManager_RegisterInitFails(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	mockSys := &mockSystem{initErr: errors.New("init failed")}
 
@@ -98,7 +98,7 @@ func TestManager_RegisterInitFails(t *testing.T) {
 
 // TestManager_Unregister tests system unregistration and Shutdown call.
 func TestManager_Unregister(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	mockSys := &mockSystem{}
 
@@ -124,7 +124,7 @@ func TestManager_Unregister(t *testing.T) {
 
 // TestManager_UnregisterNotFound tests unregistering non-existent system.
 func TestManager_UnregisterNotFound(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 
 	err := sm.Unregister("nonexistent", world)
@@ -135,7 +135,7 @@ func TestManager_UnregisterNotFound(t *testing.T) {
 
 // TestManager_UnregisterIndexFix tests that indices are corrected after removal.
 func TestManager_UnregisterIndexFix(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	sys0 := &mockSystem{}
 	sys1 := &mockSystem{}
@@ -172,7 +172,7 @@ func TestManager_UnregisterIndexFix(t *testing.T) {
 
 // TestManager_Update tests system update execution order.
 func TestManager_Update(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	coreSys := &mockSystem{}
 	playerSys := &mockSystem{}
@@ -196,7 +196,7 @@ func TestManager_Update(t *testing.T) {
 
 // TestManager_UpdateError tests that Update stops on first error.
 func TestManager_UpdateError(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	sys1 := &mockSystem{}
 	sys2 := &mockSystem{updateErr: errors.New("system 2 failed")}
@@ -226,7 +226,7 @@ func TestManager_UpdateError(t *testing.T) {
 
 // TestManager_UpdateLayerOrder tests Core systems run before Player systems.
 func TestManager_UpdateLayerOrder(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 
 	coreSys := &mockSystem{}
@@ -249,7 +249,7 @@ func TestManager_UpdateLayerOrder(t *testing.T) {
 
 // TestManager_Shutdown tests system shutdown in reverse order.
 func TestManager_Shutdown(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	playerSys1 := &mockSystem{}
 	playerSys2 := &mockSystem{}
@@ -283,7 +283,7 @@ func TestManager_Shutdown(t *testing.T) {
 
 // TestManager_ShutdownError tests that Shutdown continues despite errors.
 func TestManager_ShutdownError(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	sys1 := &mockSystem{shutdownErr: errors.New("shutdown failed")}
 	sys2 := &mockSystem{}
@@ -304,7 +304,7 @@ func TestManager_ShutdownError(t *testing.T) {
 
 // TestManager_GetSystem tests retrieving a system by name.
 func TestManager_GetSystem(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	mockSys := &mockSystem{}
 
@@ -322,7 +322,7 @@ func TestManager_GetSystem(t *testing.T) {
 
 // TestManager_GetSystemNotFound tests GetSystem with non-existent name.
 func TestManager_GetSystemNotFound(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	_, err := sm.GetSystem("nonexistent")
 
 	if err == nil {
@@ -332,7 +332,7 @@ func TestManager_GetSystemNotFound(t *testing.T) {
 
 // TestManager_GetSystems tests retrieving all systems by layer.
 func TestManager_GetSystems(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	sys1 := &mockSystem{}
 	sys2 := &mockSystem{}
@@ -359,7 +359,7 @@ func TestManager_GetSystems(t *testing.T) {
 
 // TestManager_Count tests counting total systems.
 func TestManager_Count(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 
 	if sm.Count() != 0 {
@@ -383,7 +383,7 @@ func TestManager_Count(t *testing.T) {
 
 // TestManager_Len tests counting systems per layer.
 func TestManager_Len(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	sys1 := &mockSystem{}
 	sys2 := &mockSystem{}
@@ -404,7 +404,7 @@ func TestManager_Len(t *testing.T) {
 
 // TestManager_Has tests checking system registration.
 func TestManager_Has(t *testing.T) {
-	sm := NewSystemManager()
+	sm := NewManager()
 	world := core.NewWorld()
 	mockSys := &mockSystem{}
 

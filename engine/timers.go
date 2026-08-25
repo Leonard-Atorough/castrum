@@ -7,7 +7,7 @@ import (
 )
 
 type TimersAPI struct {
-	mgr *timers.TimerManager
+	mgr *timers.Manager
 }
 
 func (t *TimersAPI) AddTimer(duration time.Duration, once bool, autoStart bool, callbackFunc func()) TimerID {

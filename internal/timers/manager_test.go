@@ -7,7 +7,7 @@ import (
 )
 
 func TestTimerManager_CreateStartStopAndRemove(t *testing.T) {
-	manager := NewTimerManager()
+	manager := NewManager()
 	callbackCalled := 0
 	callback := func() { callbackCalled++ }
 
@@ -42,7 +42,7 @@ func TestTimerManager_CreateStartStopAndRemove(t *testing.T) {
 }
 
 func TestTimerManager_UpdateTimersTriggersCallback(t *testing.T) {
-	manager := NewTimerManager()
+	manager := NewManager()
 	callbackCalled := 0
 	callback := func() { callbackCalled++ }
 
@@ -58,7 +58,7 @@ func TestTimerManager_UpdateTimersTriggersCallback(t *testing.T) {
 }
 
 func TestTimerManager_RepeatingTimerKeepsFiring(t *testing.T) {
-	manager := NewTimerManager()
+	manager := NewManager()
 	callbackCalled := 0
 	callback := func() { callbackCalled++ }
 
@@ -83,7 +83,7 @@ func TestTimerManager_RepeatingTimerKeepsFiring(t *testing.T) {
 
 func TestTimerManager_OneShotTimerAutoCleanupAfterExpiry(t *testing.T) {
 	t.Run("with callback", func(t *testing.T) {
-		manager := NewTimerManager()
+		manager := NewManager()
 		timerID := manager.CreateTimer(0.05, true, true, func() {})
 
 		manager.Update(0.05)
@@ -94,7 +94,7 @@ func TestTimerManager_OneShotTimerAutoCleanupAfterExpiry(t *testing.T) {
 	})
 
 	t.Run("without callback", func(t *testing.T) {
-		manager := NewTimerManager()
+		manager := NewManager()
 		timerID := manager.CreateTimer(0.05, true, true, nil)
 
 		manager.Update(0.05)
@@ -106,7 +106,7 @@ func TestTimerManager_OneShotTimerAutoCleanupAfterExpiry(t *testing.T) {
 }
 
 func TestTimerManager_UnknownTimerIDErrors(t *testing.T) {
-	manager := NewTimerManager()
+	manager := NewManager()
 	missingID := TimerID(999)
 
 	for _, tc := range []struct {
@@ -138,7 +138,7 @@ func TestTimerManager_UnknownTimerIDErrors(t *testing.T) {
 }
 
 func TestTimerManager_StateTransitionErrors(t *testing.T) {
-	manager := NewTimerManager()
+	manager := NewManager()
 	timerID := manager.CreateTimer(0.2, true, true, nil)
 
 	if err := manager.StartTimer(timerID); err == nil || !errors.Is(err, ErrTimerAlreadyRunning) {
@@ -154,7 +154,7 @@ func TestTimerManager_StateTransitionErrors(t *testing.T) {
 }
 
 func TestTimerManager_CallbackCanMutateManagerWithoutDeadlock(t *testing.T) {
-	manager := NewTimerManager()
+	manager := NewManager()
 	var callbackCalled int
 
 	var timerID TimerID
