@@ -32,7 +32,6 @@ func (sm *Manager) LoadScene(name string, scene *Scene) error {
 	return nil
 }
 
-
 func (sm *Manager) UnloadScene(name string) error {
 	if _, exists := sm.scenes[name]; !exists {
 		return fmt.Errorf("scene %s not found", name)
