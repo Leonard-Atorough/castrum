@@ -20,8 +20,8 @@ func (s *SceneAPI) UnloadScene(name string) error {
 	return s.manager.UnloadScene(name)
 }
 
-func (s *SceneAPI) CurrentScene() *Scene {
-	return s.manager.CurrentScene().(*Scene)
+func (s *SceneAPI) CurrentScene() scene.SceneLifecycle {
+	return s.manager.CurrentScene()
 }
 
 func (s *SceneAPI) TransitionTo(name string) error {

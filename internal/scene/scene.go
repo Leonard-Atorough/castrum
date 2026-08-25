@@ -6,7 +6,8 @@ import (
 	"github.com/leonard-atorough/castrum/ecs"
 )
 
-type SceneInterface interface {
+// SceneLifecycle defines the lifecycle methods for a scene, allowing for custom behavior on load and unload.
+type SceneLifecycle interface {
 	// OnLoad is called when the scene becomes active. Implement this to set up initial scene state.
 	OnLoad(world ecs.World) error
 	// OnUnload is called when the scene is unloaded.
@@ -14,9 +15,9 @@ type SceneInterface interface {
 	OnUnload(world ecs.World) error
 }
 
-// Scene represents a logical grouping of entities within the world.
-// A scene owns entities via scene tags and manages its own lifecycle.
-// Multiple scenes can be active simultaneously (entities can have multiple scene tags).
+// Scene is a ready-to-use scene with tag-based entity tracking.
+// Embed this for default behavior, or implement Scene directly.
+// A SceneBuilder is provided to help create scenes adhering to this struct in a fluent manner.
 type Scene struct {
 	ID   string         // Unique scene identifier
 	tag  string         // Internal tag used to track entities in this scene
