@@ -440,12 +440,13 @@ func BenchmarkMemoryEfficientOperations(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-create entities
-	for i := range 1000 {
+	for i := range 10000 {
 		id := world.Create("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 	}
 
 	b.ReportAllocs()
+	b.ResetTimer()
 	for b.Loop() {
 		entities := world.Query(posType)
 		for _, id := range entities {
