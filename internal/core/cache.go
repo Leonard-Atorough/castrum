@@ -1,6 +1,10 @@
 package core
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/leonard-atorough/castrum/ecs"
+)
 
 type ListNode struct {
 	Prev  *ListNode
@@ -34,18 +38,18 @@ func NewQueryCache(capacity int) *QueryCache {
 	}
 }
 
-func (c *QueryCache) Get(key string) (any, bool) {
+func (c *QueryCache) Get(key string) ([]ecs.EntityID, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if node, ok := c.Cache[key]; ok {
 		c.moveToHead(node)
-		return node.value, true
+		return node.value.([]ecs.EntityID), true
 	}
 	return nil, false
 }
 
-func (c *QueryCache) Put(key string, value any) {
+func (c *QueryCache) Set(key string, value []ecs.EntityID) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

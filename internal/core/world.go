@@ -1,7 +1,9 @@
 package core
 
 import (
+	"bytes"
 	"reflect"
+	"sort"
 	"sync/atomic"
 
 	"github.com/leonard-atorough/castrum/ecs"
@@ -48,6 +50,7 @@ func (w *World) Create(template string) ecs.EntityID {
 	// Defer tag/template index maintenance until the first query or tag mutation.
 	// This keeps entity creation cheap while preserving correctness when lookup indexes are needed.
 	w.index.lazyTagTemplateIndex = true
+	w.invalidateQueryCache()
 
 	// two temporary templates for testing - Province and City
 	switch template {
@@ -93,6 +96,7 @@ func (w *World) Destroy(entityID ecs.EntityID, cascade bool) error {
 			w.hierarchy.Remove(entityID, childID)
 		}
 	}
+	w.invalidateQueryCache()
 	return nil
 }
 
@@ -110,7 +114,16 @@ func (w *World) Exists(entityID ecs.EntityID) bool {
 // Query retrieves all entities that have all the specified component types.
 // Returns a slice of matching EntityIDs, or nil if none match.
 func (w *World) Query(components ...reflect.Type) []ecs.EntityID {
-	return w.index.GetEntitiesWithComponents(components...)
+	key := generateQueryKey(components...)
+	if cachedResult, found := w.cache.Get(key); found {
+		result := make([]ecs.EntityID, len(cachedResult))
+		copy(result, cachedResult)
+		return result
+	}
+
+	result := w.index.GetEntitiesWithComponents(components...)
+	w.cache.Set(key, result)
+	return result
 }
 
 // QueryByTag retrieves all entities that have the specified tag.
@@ -193,6 +206,7 @@ func (w *World) AddComponent(entityID ecs.EntityID, comp ecs.Component) error {
 	}
 	w.store.Set(entityID, comp)
 	w.index.AddComponent(entityID, reflect.TypeOf(comp))
+	w.invalidateQueryCache()
 	return nil
 }
 
@@ -208,7 +222,7 @@ func (w *World) RemoveComponent(entityID ecs.EntityID, componentType reflect.Typ
 		w.store.Remove(entityID, component)
 		w.index.RemoveComponent(entityID, componentType)
 	}
-
+	w.invalidateQueryCache()
 	return nil // silently ignore if component type not found
 }
 
@@ -225,6 +239,8 @@ func (w *World) GetComponent(entityID ecs.EntityID, compType reflect.Type) (ecs.
 	return comp, nil
 }
 
+// GetComponentByName returns the first component of the specified name for an entity.
+// This is a helper method that uses reflection to find the component type by name.
 func (w *World) GetComponentByName(entityID ecs.EntityID, compName string) (ecs.Component, error) {
 	comp, err := w.store.GetByString(entityID, compName)
 	if err != nil {
@@ -237,6 +253,7 @@ func (w *World) GetComponentByName(entityID ecs.EntityID, compName string) (ecs.
 	return comp, nil
 }
 
+// Components returns all components associated with an entity.
 func (w *World) Components(entityID ecs.EntityID) []ecs.Component {
 	return w.store.GetAll(entityID)
 }
@@ -311,4 +328,28 @@ func (w *World) Count() int {
 	return len(w.entities)
 }
 
-// General utility methods
+func generateQueryKey(components ...reflect.Type) string {
+	if len(components) == 0 {
+		return "query:empty"
+	}
+
+	sorted := make([]reflect.Type, len(components))
+	copy(sorted, components)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].String() < sorted[j].String()
+	})
+
+	var buf bytes.Buffer
+	buf.WriteString("query:")
+	for i, t := range sorted {
+		if i > 0 {
+			buf.WriteString(",")
+		}
+		buf.WriteString(t.String())
+	}
+	return buf.String()
+}
+
+func (w *World) invalidateQueryCache() {
+	w.cache.Clear()
+}

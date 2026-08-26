@@ -52,7 +52,6 @@ func BenchmarkAddComponent(b *testing.B) {
 		entityPool[i] = world.Create("Generic")
 	}
 
-	
 	for i := 0; b.Loop(); i++ {
 		// Reuse entities from pool, remove old component if exists
 		entityID := entityPool[i%10000]
@@ -73,7 +72,6 @@ func BenchmarkGetComponent(b *testing.B) {
 		entityPool[i] = id
 	}
 
-	
 	for i := 0; b.Loop(); i++ {
 		world.GetComponent(entityPool[i%10000], posType)
 	}
@@ -91,7 +89,6 @@ func BenchmarkHasComponent(b *testing.B) {
 		entityPool[i] = id
 	}
 
-	
 	for i := 0; b.Loop(); i++ {
 		world.HasComponent(entityPool[i%10000], posType)
 	}
@@ -109,7 +106,6 @@ func BenchmarkRemoveComponent(b *testing.B) {
 		entityPool[i] = id
 	}
 
-	
 	for i := 0; b.Loop(); i++ {
 		entityID := entityPool[i%10000]
 		world.RemoveComponent(entityID, posType)
@@ -240,7 +236,6 @@ func BenchmarkDestroyEntity(b *testing.B) {
 		entityPool[i] = world.Create("Generic")
 	}
 
-	
 	for i := 0; b.Loop(); i++ {
 		entityID := entityPool[i%10000]
 		world.Destroy(entityID, false)
@@ -261,7 +256,6 @@ func BenchmarkDestroyEntityWithCleanup(b *testing.B) {
 		entityPool[i] = world.Create("Generic")
 	}
 
-	
 	for i := 0; b.Loop(); i++ {
 		entityID := entityPool[i%10000]
 		world.Destroy(entityID, false)
@@ -311,7 +305,6 @@ func BenchmarkAddTag(b *testing.B) {
 		entityPool[i] = world.Create("Generic")
 	}
 
-	
 	for i := 0; b.Loop(); i++ {
 		entityID := entityPool[i%10000]
 		world.AddTag(entityID, "TestTag")
@@ -333,7 +326,6 @@ func BenchmarkHasTag(b *testing.B) {
 		entityPool[i] = id
 	}
 
-	
 	for i := 0; b.Loop(); i++ {
 		world.HasTag(entityPool[i%10000], "TestTag")
 	}
@@ -350,7 +342,6 @@ func BenchmarkRemoveTag(b *testing.B) {
 		entityPool[i] = id
 	}
 
-	
 	for i := 0; b.Loop(); i++ {
 		entityID := entityPool[i%10000]
 		world.RemoveTag(entityID, "TestTag")
@@ -411,7 +402,7 @@ func BenchmarkComponentsList(b *testing.B) {
 func BenchmarkLargeScaleEntityCreation(b *testing.B) {
 	world := core.NewWorld()
 
-	
+	b.ResetTimer()
 	for b.Loop() {
 		for j := range 100 {
 			id := world.Create("Generic")
@@ -437,6 +428,7 @@ func BenchmarkLargeScaleQuery(b *testing.B) {
 		}
 	}
 
+	b.ResetTimer()
 	for b.Loop() {
 		world.Query(posType, velType)
 	}
