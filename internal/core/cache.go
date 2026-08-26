@@ -85,6 +85,25 @@ func (c *QueryCache) Clear() {
 	c.Cache = make(map[string]*ListNode)
 }
 
+func (c *QueryCache) Size() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.Cache)
+}
+
+func (c *QueryCache) IsEmpty() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.Cache) == 0
+}
+
+func (c *QueryCache) Contains(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, exists := c.Cache[key]
+	return exists
+}
+
 func (c *QueryCache) addToHead(node *ListNode) {
 	if c.Head == nil {
 		c.Head = node
