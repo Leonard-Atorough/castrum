@@ -15,8 +15,8 @@ func TestScene_IntegrationWithRealWorld(t *testing.T) {
 	scene := NewScene("integration-test")
 
 	// Create entities
-	entity1 := world.Create("player")
-	entity2 := world.Create("enemy")
+	entity1 := world.CreateEntity("player")
+	entity2 := world.CreateEntity("enemy")
 
 	// Add entities to scene
 	_ = scene.AddToScene(entity1, world)
@@ -55,8 +55,8 @@ func TestManager_IntegrationWithRealWorld(t *testing.T) {
 	scene1 := NewScene("level-1")
 	scene2 := NewScene("level-2")
 
-	entity1 := world.Create("player")
-	entity2 := world.Create("enemy")
+	entity1 := world.CreateEntity("player")
+	entity2 := world.CreateEntity("enemy")
 
 	_ = scene1.AddToScene(entity1, world)
 	_ = scene2.AddToScene(entity2, world)
@@ -90,8 +90,8 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 	world := core.NewWorld()
 
 	// Create entities
-	entity1 := world.Create("player")
-	entity2 := world.Create("enemy")
+	entity1 := world.CreateEntity("player")
+	entity2 := world.CreateEntity("enemy")
 
 	// Build scene with entities
 	builder := NewBuilder("builder-test")
@@ -129,9 +129,9 @@ func TestSceneManager_IntegrationWithRealWorld(t *testing.T) {
 	manager := NewManager(world)
 
 	// Create entities
-	player := world.Create("player")
-	enemy := world.Create("enemy")
-	boss := world.Create("boss")
+	player := world.CreateEntity("player")
+	enemy := world.CreateEntity("enemy")
+	boss := world.CreateEntity("boss")
 
 	// Create scenes using builder
 	builder1 := NewBuilder("level-1")
@@ -199,7 +199,7 @@ func TestScene_Lifecycle_IntegrationWithRealWorld(t *testing.T) {
 	})
 
 	// Create and add entities
-	entity1 := world.Create("test-entity")
+	entity1 := world.CreateEntity("test-entity")
 	_ = scene.AddToScene(entity1, world)
 
 	// Test OnLoad
@@ -264,7 +264,7 @@ func TestScene_Data_IntegrationWithRealWorld(t *testing.T) {
 	}
 
 	// Test with entities
-	entity := world.Create("data-entity")
+	entity := world.CreateEntity("data-entity")
 	_ = scene.AddToScene(entity, world)
 
 	// Data should still be accessible

@@ -45,7 +45,7 @@ func CreateBenchmarkWorld(config BenchmarkConfig) *core.World {
 	// Create entities with various configurations
 	for i := 0; i < config.EntityCount; i++ {
 		template := config.TemplateNames[i%len(config.TemplateNames)]
-		id := world.Create(template)
+		id := world.CreateEntity(template)
 
 		// Add components
 		for _, compType := range config.ComponentTypes {
@@ -85,7 +85,7 @@ func CreateBenchmarkHierarchy(world *core.World, config BenchmarkConfig) {
 	var rootID ecs.EntityID
 
 	// Create root entity
-	rootID = world.Create("Root")
+	rootID = world.CreateEntity("Root")
 	world.AddTag(rootID, "Root")
 
 	// Create hierarchical structure
@@ -96,7 +96,7 @@ func CreateBenchmarkHierarchy(world *core.World, config BenchmarkConfig) {
 		var nextLevel []ecs.EntityID
 		for _, parentID := range currentLevel {
 			for breadth := 0; breadth < config.HierarchyBreadth; breadth++ {
-				childID := world.Create("HierarchyNode")
+				childID := world.CreateEntity("HierarchyNode")
 				world.SetParent(childID, parentID)
 				world.AddTag(childID, "HierarchyNode")
 				nextLevel = append(nextLevel, childID)
@@ -122,7 +122,7 @@ func CreateBenchmarkWorkers(workerCount int, entitiesPerWorker int) []*Benchmark
 		entities := make([]ecs.EntityID, entitiesPerWorker)
 
 		for j := range entitiesPerWorker {
-			id := world.Create("WorkerEntity")
+			id := world.CreateEntity("WorkerEntity")
 			world.AddComponent(id, Position{X: float64(j), Y: float64(j)})
 			world.AddComponent(id, Velocity{X: 1.0, Y: 1.0})
 			entities[j] = id
@@ -231,7 +231,7 @@ func RunStressTest(config StressTestConfig) (int, int, float64) {
 
 	// Create initial entities
 	for i := 0; i < config.InitialEntities; i++ {
-		id := world.Create("StressEntity")
+		id := world.CreateEntity("StressEntity")
 		for _, compType := range config.ComponentTypes {
 			var comp ecs.Component
 			switch compType {
@@ -255,7 +255,7 @@ func RunStressTest(config StressTestConfig) (int, int, float64) {
 	for op := 0; op < config.OperationsPerSec*config.Duration; op++ {
 		start := testing.AllocsPerRun(1, func() {
 			// Perform various operations
-			id := world.Create("StressEntity")
+			id := world.CreateEntity("StressEntity")
 			world.AddComponent(id, Position{X: float64(op), Y: float64(op)})
 
 			// Query some entities
@@ -265,7 +265,7 @@ func RunStressTest(config StressTestConfig) (int, int, float64) {
 			if op%100 == 0 && world.Count() > config.InitialEntities/2 {
 				entities := world.Query(reflect.TypeFor[Position]())
 				if len(entities) > 0 {
-					world.Destroy(entities[0], false)
+					world.DestroyEntity(entities[0], false)
 					world.Cleanup()
 				}
 			}
@@ -296,7 +296,7 @@ func BenchmarkReflectionOverhead(b *testing.B) {
 	world := core.NewWorld()
 
 	// Create entity with components
-	id := world.Create("Generic")
+	id := world.CreateEntity("Generic")
 	world.AddComponent(id, Position{X: 1.0, Y: 2.0})
 
 	// Direct access (no reflection)
@@ -328,7 +328,7 @@ func BenchmarkEntityReuse(b *testing.B) {
 	// Pre-create a pool of entities
 	entityPool := make([]ecs.EntityID, 1000)
 	for i := range entityPool {
-		entityPool[i] = world.Create("PooledEntity")
+		entityPool[i] = world.CreateEntity("PooledEntity")
 	}
 
 	for i := 0; b.Loop(); i++ {

@@ -8,13 +8,7 @@ import (
 	"github.com/leonard-atorough/castrum/ecs"
 )
 
-const (
-	CacheCapacity = 100
-)
-
-// World is the central manager for all ECS state.
-// It manages entity lifecycle, components, tags, templates, and hierarchical relationships.
-// All public interactions with the ECS should go through the World API.
+// World represents the central manager for all ECS state, handling entities, components, tags, templates, and hierarchical relationships.
 type World struct {
 	entities         map[ecs.EntityID]*entity
 	nextID           atomic.Uint64
@@ -24,7 +18,6 @@ type World struct {
 	index            entityIndex
 }
 
-// NewWorld creates and returns a new empty World.
 func NewWorld() *World {
 	return &World{
 		entities:         make(map[ecs.EntityID]*entity),
@@ -36,9 +29,9 @@ func NewWorld() *World {
 	}
 }
 
-// Create creates a new entity with the specified template and returns its ecs.EntityID.
+// CreateEntity creates a new entity with the specified template and returns its ecs.EntityID.
 // The entity is automatically registered with the world and the index.
-func (w *World) Create(template string) ecs.EntityID {
+func (w *World) CreateEntity(template string) ecs.EntityID {
 	id := ecs.EntityID(w.nextID.Add(1))
 
 	entity := NewEntity(id, template)
@@ -66,13 +59,13 @@ func (w *World) Create(template string) ecs.EntityID {
 	return id
 }
 
-// Destroy marks an entity for destruction. If cascade is true, all descendants of the entity will also be destroyed.
-func (w *World) Destroy(entityID ecs.EntityID, cascade bool) error {
+// DestroyEntity marks an entity for destruction. If cascade is true, all descendants of the entity will also be destroyed.
+func (w *World) DestroyEntity(entityID ecs.EntityID, cascade bool) error {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return &EntityError{
 			EntityID: entityID,
-			Op:       "Destroy",
+			Op:       "DestroyEntity",
 			Err:      ErrEntityNotFound,
 		}
 	}
@@ -81,7 +74,7 @@ func (w *World) Destroy(entityID ecs.EntityID, cascade bool) error {
 	if !exists {
 		return &EntityError{
 			EntityID: entityID,
-			Op:       "Destroy",
+			Op:       "DestroyEntity",
 			Err:      ErrArchetypeNotFound,
 		}
 	}

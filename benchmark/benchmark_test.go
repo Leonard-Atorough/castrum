@@ -14,7 +14,7 @@ func BenchmarkEntityCreation(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		world.Create("Generic")
+		world.CreateEntity("Generic")
 	}
 
 	b.SetBytes(int64(b.N))
@@ -24,7 +24,7 @@ func BenchmarkEntityCreationWithComponents(b *testing.B) {
 	world := core.NewWorld()
 
 	for i := 0; b.Loop(); i++ {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(id, Velocity{X: 1.0, Y: 1.0})
 		world.AddComponent(id, Health{Value: 100})
@@ -36,7 +36,7 @@ func BenchmarkEntityCreationParallel(b *testing.B) {
 		for pb.Next() {
 			world := core.NewWorld()
 			for range 1000 {
-				world.Create("Generic")
+				world.CreateEntity("Generic")
 			}
 		}
 	})
@@ -46,10 +46,10 @@ func BenchmarkEntityCreationParallel(b *testing.B) {
 func BenchmarkAddComponent(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create a fixed pool of entities to avoid setup time dominating
+	// Pre-createentity a fixed pool of entities to avoid setup time dominating
 	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		entityPool[i] = world.Create("Generic")
+		entityPool[i] = world.CreateEntity("Generic")
 	}
 
 	for i := 0; b.Loop(); i++ {
@@ -64,10 +64,10 @@ func BenchmarkGetComponent(b *testing.B) {
 	world := core.NewWorld()
 	posType := reflect.TypeFor[Position]()
 
-	// Pre-create a fixed pool of entities to avoid setup time dominating
+	// Pre-createentity a fixed pool of entities to avoid setup time dominating
 	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 		entityPool[i] = id
 	}
@@ -81,10 +81,10 @@ func BenchmarkHasComponent(b *testing.B) {
 	world := core.NewWorld()
 	posType := reflect.TypeFor[Position]()
 
-	// Pre-create a fixed pool of entities to avoid setup time dominating
+	// Pre-createentity a fixed pool of entities to avoid setup time dominating
 	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 		entityPool[i] = id
 	}
@@ -98,10 +98,10 @@ func BenchmarkRemoveComponent(b *testing.B) {
 	world := core.NewWorld()
 	posType := reflect.TypeFor[Position]()
 
-	// Pre-create a fixed pool of entities with components
+	// Pre-createentity a fixed pool of entities with components
 	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 		entityPool[i] = id
 	}
@@ -119,9 +119,9 @@ func BenchmarkQuerySingleComponent(b *testing.B) {
 	posType := reflect.TypeFor[Position]()
 	world := core.NewWorld()
 
-	// Pre-create entities with Position component
+	// Pre-createentity entities with Position component
 	for i := range 10000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 	}
 
@@ -136,9 +136,9 @@ func BenchmarkQueryMultipleComponents(b *testing.B) {
 	healthType := reflect.TypeFor[Health]()
 	world := core.NewWorld()
 
-	// Pre-create entities with multiple components
+	// Pre-createentity entities with multiple components
 	for i := range 10000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(id, Velocity{X: 1.0, Y: 1.0})
 		world.AddComponent(id, Health{Value: 100})
@@ -152,9 +152,9 @@ func BenchmarkQueryMultipleComponents(b *testing.B) {
 func BenchmarkQueryByTag(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create entities with tags
+	// Pre-createentity entities with tags
 	for range 10000 {
-		id := world.Create("Province")
+		id := world.CreateEntity("Province")
 		world.AddTag(id, "Province")
 	}
 
@@ -166,9 +166,9 @@ func BenchmarkQueryByTag(b *testing.B) {
 func BenchmarkQueryByTemplate(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create entities with specific template
+	// Pre-createentity entities with specific template
 	for range 10000 {
-		world.Create("Province")
+		world.CreateEntity("Province")
 	}
 
 	for b.Loop() {
@@ -180,12 +180,12 @@ func BenchmarkQueryByTemplate(b *testing.B) {
 func BenchmarkSetParent(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create entities
+	// Pre-createentity entities
 	parents := make([]ecs.EntityID, 10000)
 	children := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		parents[i] = world.Create("Generic")
-		children[i] = world.Create("Generic")
+		parents[i] = world.CreateEntity("Generic")
+		children[i] = world.CreateEntity("Generic")
 	}
 
 	for i := 0; b.Loop(); i++ {
@@ -196,12 +196,12 @@ func BenchmarkSetParent(b *testing.B) {
 func BenchmarkParentOf(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create hierarchy
+	// Pre-createentity hierarchy
 	parents := make([]ecs.EntityID, 10000)
 	children := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		parents[i] = world.Create("Generic")
-		children[i] = world.Create("Generic")
+		parents[i] = world.CreateEntity("Generic")
+		children[i] = world.CreateEntity("Generic")
 		world.SetParent(children[i], parents[i])
 	}
 
@@ -213,11 +213,11 @@ func BenchmarkParentOf(b *testing.B) {
 func BenchmarkChildrenOf(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create hierarchy - one parent with many children
-	parent := world.Create("Generic")
+	// Pre-createentity hierarchy - one parent with many children
+	parent := world.CreateEntity("Generic")
 	children := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		children[i] = world.Create("Generic")
+		children[i] = world.CreateEntity("Generic")
 		world.SetParent(children[i], parent)
 	}
 
@@ -230,17 +230,17 @@ func BenchmarkChildrenOf(b *testing.B) {
 func BenchmarkDestroyEntity(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create a fixed pool of entities to avoid setup time dominating
+	// Pre-createentity a fixed pool of entities to avoid setup time dominating
 	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		entityPool[i] = world.Create("Generic")
+		entityPool[i] = world.CreateEntity("Generic")
 	}
 
 	for i := 0; b.Loop(); i++ {
 		entityID := entityPool[i%10000]
-		world.Destroy(entityID, false)
+		world.DestroyEntity(entityID, false)
 		// Recreate entity for next iteration
-		entityPool[i%10000] = world.Create("Generic")
+		entityPool[i%10000] = world.CreateEntity("Generic")
 	}
 
 	// Cleanup after benchmark
@@ -250,18 +250,18 @@ func BenchmarkDestroyEntity(b *testing.B) {
 func BenchmarkDestroyEntityWithCleanup(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create a fixed pool of entities to avoid setup time dominating
+	// Pre-createentity a fixed pool of entities to avoid setup time dominating
 	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		entityPool[i] = world.Create("Generic")
+		entityPool[i] = world.CreateEntity("Generic")
 	}
 
 	for i := 0; b.Loop(); i++ {
 		entityID := entityPool[i%10000]
-		world.Destroy(entityID, false)
+		world.DestroyEntity(entityID, false)
 		world.Cleanup()
 		// Recreate entity for next iteration
-		entityPool[i%10000] = world.Create("Generic")
+		entityPool[i%10000] = world.CreateEntity("Generic")
 	}
 }
 
@@ -271,9 +271,9 @@ func BenchmarkGameLoopSimulation(b *testing.B) {
 	velType := reflect.TypeFor[Velocity]()
 	world := core.NewWorld()
 
-	// Pre-create some entities
+	// Pre-createentity some entities
 	for i := range 1000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(id, Velocity{X: 1.0, Y: 1.0})
 	}
@@ -299,10 +299,10 @@ func BenchmarkGameLoopSimulation(b *testing.B) {
 func BenchmarkAddTag(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create a fixed pool of entities to avoid setup time dominating
+	// Pre-createentity a fixed pool of entities to avoid setup time dominating
 	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		entityPool[i] = world.Create("Generic")
+		entityPool[i] = world.CreateEntity("Generic")
 	}
 
 	for i := 0; b.Loop(); i++ {
@@ -318,10 +318,10 @@ func BenchmarkAddTag(b *testing.B) {
 func BenchmarkHasTag(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create a fixed pool of entities with tags
+	// Pre-createentity a fixed pool of entities with tags
 	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddTag(id, "TestTag")
 		entityPool[i] = id
 	}
@@ -334,10 +334,10 @@ func BenchmarkHasTag(b *testing.B) {
 func BenchmarkRemoveTag(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create a fixed pool of entities with tags
+	// Pre-createentity a fixed pool of entities with tags
 	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddTag(id, "TestTag")
 		entityPool[i] = id
 	}
@@ -354,9 +354,9 @@ func BenchmarkRemoveTag(b *testing.B) {
 func BenchmarkWorldCount(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create entities
+	// Pre-createentity entities
 	for range 10000 {
-		world.Create("Generic")
+		world.CreateEntity("Generic")
 	}
 
 	for b.Loop() {
@@ -367,10 +367,10 @@ func BenchmarkWorldCount(b *testing.B) {
 func BenchmarkWorldExists(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create entities
+	// Pre-createentity entities
 	entities := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
-		entities[i] = world.Create("Generic")
+		entities[i] = world.CreateEntity("Generic")
 	}
 
 	for i := 0; b.Loop(); i++ {
@@ -382,10 +382,10 @@ func BenchmarkWorldExists(b *testing.B) {
 func BenchmarkComponentsList(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-create entities with multiple components
+	// Pre-createentity entities with multiple components
 	entities := make([]ecs.EntityID, 1000)
 	for i := range 1000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(id, Velocity{X: 1.0, Y: 1.0})
 		world.AddComponent(id, Health{Value: 100})
@@ -405,7 +405,7 @@ func BenchmarkLargeScaleEntityCreation(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		for j := range 100 {
-			id := world.Create("Generic")
+			id := world.CreateEntity("Generic")
 			world.AddComponent(id, Position{X: float64(j), Y: float64(j)})
 		}
 	}
@@ -416,9 +416,9 @@ func BenchmarkLargeScaleQuery(b *testing.B) {
 	velType := reflect.TypeFor[Velocity]()
 	world := core.NewWorld()
 
-	// Pre-create 50,000 entities
+	// Pre-createentity 50,000 entities
 	for i := range 50000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(id, Velocity{X: 1.0, Y: 1.0})
 		if i%2 == 0 {
@@ -439,9 +439,9 @@ func BenchmarkMemoryEfficientOperations(b *testing.B) {
 	posType := reflect.TypeFor[Position]()
 	world := core.NewWorld()
 
-	// Pre-create entities
+	// Pre-createentity entities
 	for i := range 10000 {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 	}
 

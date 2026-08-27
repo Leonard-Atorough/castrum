@@ -30,12 +30,14 @@ func (h TestHealth) Name() string         { return "TestHealth" }
 func (h TestHealth) Clone() ecs.Component { return TestHealth{Value: h.Value} }
 
 type TestSprite struct {
-	TextureID string
+	TextureID     string
 	Width, Height int
 }
 
-func (s TestSprite) Name() string         { return "TestSprite" }
-func (s TestSprite) Clone() ecs.Component { return TestSprite{TextureID: s.TextureID, Width: s.Width, Height: s.Height} }
+func (s TestSprite) Name() string { return "TestSprite" }
+func (s TestSprite) Clone() ecs.Component {
+	return TestSprite{TextureID: s.TextureID, Width: s.Width, Height: s.Height}
+}
 
 // =============================================================================
 // ArchetypeKey Tests
@@ -68,7 +70,7 @@ func TestArchetypeKeyCreation(t *testing.T) {
 		if len(key) != 3 {
 			t.Errorf("Expected length 3, got %d", len(key))
 		}
-		
+
 		// Should be sorted
 		for i := 1; i < len(key); i++ {
 			if key[i-1].Name() > key[i].Name() {
@@ -82,7 +84,7 @@ func TestArchetypeKeyCreation(t *testing.T) {
 		key1 := NewArchetypeKey(posType, velType, healthType)
 		key2 := NewArchetypeKey(healthType, posType, velType)
 		key3 := NewArchetypeKey(velType, healthType, posType)
-		
+
 		if !reflect.DeepEqual(key1, key2) || !reflect.DeepEqual(key2, key3) {
 			t.Error("ArchetypeKeys with same types in different orders should be equal")
 		}
@@ -104,10 +106,10 @@ func TestArchetypeKeyHash(t *testing.T) {
 	t.Run("ConsistentHashing", func(t *testing.T) {
 		key1 := NewArchetypeKey(posType, velType)
 		key2 := NewArchetypeKey(velType, posType) // Different order
-		
+
 		hash1 := key1.Hash()
 		hash2 := key2.Hash()
-		
+
 		if hash1 != hash2 {
 			t.Errorf("Same types in different orders should have same hash: %d != %d", hash1, hash2)
 		}
@@ -117,11 +119,11 @@ func TestArchetypeKeyHash(t *testing.T) {
 		key1 := NewArchetypeKey(posType)
 		key2 := NewArchetypeKey(posType, velType)
 		key3 := NewArchetypeKey(velType)
-		
+
 		hash1 := key1.Hash()
 		hash2 := key2.Hash()
 		hash3 := key3.Hash()
-		
+
 		if hash1 == hash2 || hash1 == hash3 || hash2 == hash3 {
 			t.Error("Different keys should have different hashes")
 		}
@@ -130,12 +132,12 @@ func TestArchetypeKeyHash(t *testing.T) {
 	t.Run("HashIncludesTypeName", func(t *testing.T) {
 		// This test validates that the hash uses the full type name, not just length
 		// Create two types with same name length but different names
-		key1 := NewArchetypeKey(posType)        // "TestPosition" - 13 chars
-		key2 := NewArchetypeKey(velType)        // "TestVelocity" - 12 chars
-		
+		key1 := NewArchetypeKey(posType) // "TestPosition" - 13 chars
+		key2 := NewArchetypeKey(velType) // "TestVelocity" - 12 chars
+
 		hash1 := key1.Hash()
 		hash2 := key2.Hash()
-		
+
 		if hash1 == hash2 {
 			t.Error("Types with different names should have different hashes")
 		}
@@ -206,19 +208,19 @@ func TestArchetypeCreation(t *testing.T) {
 	t.Run("NewArchetype", func(t *testing.T) {
 		key := NewArchetypeKey(posType, velType)
 		archetype := NewArchetype(1, key)
-		
+
 		if archetype.ID != 1 {
 			t.Errorf("Expected ID 1, got %d", archetype.ID)
 		}
-		
+
 		if !reflect.DeepEqual(archetype.componentTypes, key) {
 			t.Errorf("componentTypes mismatch")
 		}
-		
+
 		if len(archetype.entities) != 0 {
 			t.Errorf("Expected empty entities, got %d", len(archetype.entities))
 		}
-		
+
 		if archetype.componentData == nil {
 			t.Error("componentData should be initialized")
 		}
@@ -252,31 +254,31 @@ func TestArchetypeManager(t *testing.T) {
 
 	t.Run("GetOrCreateArchetype", func(t *testing.T) {
 		manager := NewArchetypeManager()
-		
+
 		// Create first archetype
 		arch1 := manager.GetOrCreateArchetype(posType)
 		if arch1.ID != 1 {
 			t.Errorf("Expected first archetype ID 1, got %d", arch1.ID)
 		}
-		
+
 		// Create second archetype
 		arch2 := manager.GetOrCreateArchetype(posType, velType)
 		if arch2.ID != 2 {
 			t.Errorf("Expected second archetype ID 2, got %d", arch2.ID)
 		}
-		
+
 		// Create third archetype with all three types
 		arch3 := manager.GetOrCreateArchetype(posType, velType, healthType)
 		if arch3.ID != 3 {
 			t.Errorf("Expected third archetype ID 3, got %d", arch3.ID)
 		}
-		
+
 		// Get existing archetype
 		arch1Again := manager.GetOrCreateArchetype(posType)
 		if arch1Again.ID != arch1.ID {
 			t.Error("GetOrCreate should return same archetype for same types")
 		}
-		
+
 		// Different order should return same archetype
 		arch1Reverse := manager.GetOrCreateArchetype(posType) // Same as arch1
 		if arch1Reverse.ID != arch1.ID {
@@ -286,9 +288,9 @@ func TestArchetypeManager(t *testing.T) {
 
 	t.Run("GetArchetypeByID", func(t *testing.T) {
 		manager := NewArchetypeManager()
-		
+
 		arch := manager.GetOrCreateArchetype(posType)
-		
+
 		retrieved, exists := manager.GetArchetypeByID(arch.ID)
 		if !exists {
 			t.Error("GetArchetypeByID should find existing archetype")
@@ -296,7 +298,7 @@ func TestArchetypeManager(t *testing.T) {
 		if retrieved.ID != arch.ID {
 			t.Error("Retrieved archetype should match original")
 		}
-		
+
 		_, exists = manager.GetArchetypeByID(999)
 		if exists {
 			t.Error("GetArchetypeByID should not find non-existent archetype")
@@ -305,10 +307,10 @@ func TestArchetypeManager(t *testing.T) {
 
 	t.Run("GetArchetypeByKeyHash", func(t *testing.T) {
 		manager := NewArchetypeManager()
-		
+
 		key := NewArchetypeKey(posType, velType)
 		arch := manager.GetOrCreateArchetype(key...)
-		
+
 		retrieved, exists := manager.GetArchetypeByKeyHash(key.Hash())
 		if !exists {
 			t.Error("GetArchetypeByKeyHash should find existing archetype")
@@ -326,29 +328,29 @@ func TestArchetypeManager(t *testing.T) {
 func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("EntityCreationAddsToEmptyArchetype", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
-		
+
+		id := world.CreateEntity("Generic")
+
 		// Entity should be in empty archetype
 		entity, exists := world.GetEntity(id)
 		if !exists {
 			t.Fatal("Entity should exist")
 		}
-		
+
 		if entity.archetypeID == 0 {
 			t.Error("Entity should have archetype ID")
 		}
-		
+
 		// Check that empty archetype exists
 		arch, exists := world.archetypeManager.GetArchetypeByID(entity.archetypeID)
 		if !exists {
 			t.Fatal("Empty archetype should exist")
 		}
-		
+
 		if len(arch.componentTypes) != 0 {
 			t.Error("Empty archetype should have no component types")
 		}
-		
+
 		if len(arch.entities) != 1 {
 			t.Errorf("Empty archetype should have 1 entity, got %d", len(arch.entities))
 		}
@@ -356,28 +358,28 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("AddComponentMigratesArchetype", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
-		
+
+		id := world.CreateEntity("Generic")
+
 		// Get initial archetype
 		entity, _ := world.GetEntity(id)
 		initialArchetypeID := entity.archetypeID
-		
+
 		// Add component
 		world.AddComponent(id, TestPosition{X: 1, Y: 2})
-		
+
 		// Entity should have migrated to new archetype
 		entity, _ = world.GetEntity(id)
 		if entity.archetypeID == initialArchetypeID {
 			t.Error("Entity should have migrated to new archetype")
 		}
-		
+
 		// Check new archetype
 		arch, exists := world.archetypeManager.GetArchetypeByID(entity.archetypeID)
 		if !exists {
 			t.Fatal("New archetype should exist")
 		}
-		
+
 		if len(arch.componentTypes) != 1 {
 			t.Errorf("New archetype should have 1 component type, got %d", len(arch.componentTypes))
 		}
@@ -385,30 +387,30 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("QueryReturnsEntitiesFromArchetype", func(t *testing.T) {
 		world := NewWorld()
-		
+
 		// Create entities with Position
-		id1 := world.Create("Generic")
-		id2 := world.Create("Generic")
-		id3 := world.Create("Generic")
-		
+		id1 := world.CreateEntity("Generic")
+		id2 := world.CreateEntity("Generic")
+		id3 := world.CreateEntity("Generic")
+
 		world.AddComponent(id1, TestPosition{X: 1, Y: 2})
 		world.AddComponent(id2, TestPosition{X: 3, Y: 4})
 		world.AddComponent(id3, TestPosition{X: 5, Y: 6})
-		
+
 		// Query for Position
 		posType := reflect.TypeFor[TestPosition]()
 		result := world.Query(posType)
-		
+
 		if len(result) != 3 {
 			t.Errorf("Expected 3 entities with Position, got %d", len(result))
 		}
-		
+
 		// Check that all IDs are present
 		idSet := make(map[ecs.EntityID]bool)
 		for _, id := range result {
 			idSet[id] = true
 		}
-		
+
 		if !idSet[id1] || !idSet[id2] || !idSet[id3] {
 			t.Error("Query should return all entities with Position")
 		}
@@ -416,39 +418,39 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("QueryMultipleComponents", func(t *testing.T) {
 		world := NewWorld()
-		
+
 		// Create entities with different component combinations
-		id1 := world.Create("Generic") // Position only
-		id2 := world.Create("Generic") // Position + Velocity
-		id3 := world.Create("Generic") // Position + Velocity
-		id4 := world.Create("Generic") // Velocity only
-		
+		id1 := world.CreateEntity("Generic") // Position only
+		id2 := world.CreateEntity("Generic") // Position + Velocity
+		id3 := world.CreateEntity("Generic") // Position + Velocity
+		id4 := world.CreateEntity("Generic") // Velocity only
+
 		world.AddComponent(id1, TestPosition{X: 1, Y: 2})
 		world.AddComponent(id2, TestPosition{X: 3, Y: 4})
 		world.AddComponent(id2, TestVelocity{X: 0.1, Y: 0.1})
 		world.AddComponent(id3, TestPosition{X: 5, Y: 6})
 		world.AddComponent(id3, TestVelocity{X: 0.2, Y: 0.2})
 		world.AddComponent(id4, TestVelocity{X: 0.3, Y: 0.3})
-		
+
 		// Query for Position + Velocity
 		posType := reflect.TypeFor[TestPosition]()
 		velType := reflect.TypeFor[TestVelocity]()
 		result := world.Query(posType, velType)
-		
+
 		if len(result) != 2 {
 			t.Errorf("Expected 2 entities with Position+Velocity, got %d", len(result))
 		}
-		
+
 		// Should only include id2 and id3
 		idSet := make(map[ecs.EntityID]bool)
 		for _, id := range result {
 			idSet[id] = true
 		}
-		
+
 		if !idSet[id2] || !idSet[id3] {
 			t.Error("Query should return entities with both Position and Velocity")
 		}
-		
+
 		if idSet[id1] || idSet[id4] {
 			t.Error("Query should not return entities missing either component")
 		}
@@ -456,33 +458,33 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("QuerySuperset", func(t *testing.T) {
 		world := NewWorld()
-		
+
 		// Create entities with different component combinations
-		id1 := world.Create("Generic") // Position only
-		id2 := world.Create("Generic") // Position + Velocity
-		id3 := world.Create("Generic") // Position + Velocity + Health
-		
+		id1 := world.CreateEntity("Generic") // Position only
+		id2 := world.CreateEntity("Generic") // Position + Velocity
+		id3 := world.CreateEntity("Generic") // Position + Velocity + Health
+
 		world.AddComponent(id1, TestPosition{X: 1, Y: 2})
 		world.AddComponent(id2, TestPosition{X: 3, Y: 4})
 		world.AddComponent(id2, TestVelocity{X: 0.1, Y: 0.1})
 		world.AddComponent(id3, TestPosition{X: 5, Y: 6})
 		world.AddComponent(id3, TestVelocity{X: 0.2, Y: 0.2})
 		world.AddComponent(id3, TestHealth{Value: 100})
-		
+
 		// Query for Position (superset - entities with Position AND possibly more)
 		posType := reflect.TypeFor[TestPosition]()
 		result := world.QuerySuperset(posType)
-		
+
 		if len(result) != 3 {
 			t.Errorf("Expected 3 entities with at least Position, got %d", len(result))
 		}
-		
+
 		// Should include all three entities
 		idSet := make(map[ecs.EntityID]bool)
 		for _, id := range result {
 			idSet[id] = true
 		}
-		
+
 		if !idSet[id1] || !idSet[id2] || !idSet[id3] {
 			t.Error("QuerySuperset should return all entities with Position")
 		}
@@ -490,27 +492,27 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("GetComponentFromArchetype", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
+
+		id := world.CreateEntity("Generic")
 		pos := TestPosition{X: 10, Y: 20}
 		world.AddComponent(id, pos)
-		
+
 		// Get component back
 		retrieved, err := world.GetComponent(id, reflect.TypeFor[TestPosition]())
 		if err != nil {
 			t.Fatalf("Failed to get component: %v", err)
 		}
-		
+
 		if retrieved == nil {
 			t.Fatal("Retrieved component should not be nil")
 		}
-		
+
 		// Type assertion and comparison
 		retrievedPos, ok := retrieved.(TestPosition)
 		if !ok {
 			t.Fatal("Retrieved component should be TestPosition")
 		}
-		
+
 		if retrievedPos.X != pos.X || retrievedPos.Y != pos.Y {
 			t.Errorf("Retrieved component values don't match: got (%f,%f), want (%f,%f)",
 				retrievedPos.X, retrievedPos.Y, pos.X, pos.Y)
@@ -519,22 +521,22 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("HasComponent", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
-		
+
+		id := world.CreateEntity("Generic")
+
 		// Entity should not have Position initially
 		if world.HasComponent(id, reflect.TypeFor[TestPosition]()) {
 			t.Error("Entity should not have Position initially")
 		}
-		
+
 		// Add Position
 		world.AddComponent(id, TestPosition{X: 1, Y: 2})
-		
+
 		// Entity should now have Position
 		if !world.HasComponent(id, reflect.TypeFor[TestPosition]()) {
 			t.Error("Entity should have Position after adding it")
 		}
-		
+
 		// Entity should not have Velocity
 		if world.HasComponent(id, reflect.TypeFor[TestVelocity]()) {
 			t.Error("Entity should not have Velocity")
@@ -543,25 +545,25 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("RemoveComponent", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
+
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, TestPosition{X: 1, Y: 2})
 		world.AddComponent(id, TestVelocity{X: 0.1, Y: 0.1})
-		
+
 		// Entity should have both components
 		if !world.HasComponent(id, reflect.TypeFor[TestPosition]()) ||
 			!world.HasComponent(id, reflect.TypeFor[TestVelocity]()) {
 			t.Error("Entity should have both components")
 		}
-		
+
 		// Remove Position
 		world.RemoveComponent(id, reflect.TypeFor[TestPosition]())
-		
+
 		// Entity should no longer have Position
 		if world.HasComponent(id, reflect.TypeFor[TestPosition]()) {
 			t.Error("Entity should not have Position after removal")
 		}
-		
+
 		// Entity should still have Velocity
 		if !world.HasComponent(id, reflect.TypeFor[TestVelocity]()) {
 			t.Error("Entity should still have Velocity")
@@ -570,23 +572,23 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("ComponentsList", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
+
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, TestPosition{X: 1, Y: 2})
 		world.AddComponent(id, TestVelocity{X: 0.1, Y: 0.1})
 		world.AddComponent(id, TestHealth{Value: 100})
-		
+
 		comps := world.Components(id)
-		
+
 		if len(comps) != 3 {
 			t.Errorf("Expected 3 components, got %d", len(comps))
 		}
-		
+
 		// Check that we have all three component types
 		foundPosition := false
 		foundVelocity := false
 		foundHealth := false
-		
+
 		for _, comp := range comps {
 			switch comp.Name() {
 			case "TestPosition":
@@ -597,7 +599,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 				foundHealth = true
 			}
 		}
-		
+
 		if !foundPosition || !foundVelocity || !foundHealth {
 			t.Error("Not all component types found in Components list")
 		}
@@ -605,19 +607,19 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("EntityDestructionRemovesFromArchetype", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
+
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, TestPosition{X: 1, Y: 2})
-		
+
 		// Get archetype info before destruction
 		entity, _ := world.GetEntity(id)
 		arch, _ := world.archetypeManager.GetArchetypeByID(entity.archetypeID)
 		initialCount := len(arch.entities)
-		
+
 		// Destroy entity
-		world.Destroy(id, false)
+		world.DestroyEntity(id, false)
 		world.Cleanup()
-		
+
 		// Archetype should have one less entity
 		arch, _ = world.archetypeManager.GetArchetypeByID(entity.archetypeID)
 		if arch != nil && len(arch.entities) != initialCount-1 {
@@ -628,27 +630,27 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("MultipleEntitiesInSameArchetype", func(t *testing.T) {
 		world := NewWorld()
-		
+
 		// Create multiple entities with same components
 		ids := make([]ecs.EntityID, 100)
 		for i := range ids {
-			ids[i] = world.Create("Generic")
+			ids[i] = world.CreateEntity("Generic")
 			world.AddComponent(ids[i], TestPosition{X: float64(i), Y: float64(i)})
 			world.AddComponent(ids[i], TestVelocity{X: 0.1, Y: 0.1})
 		}
-		
+
 		// All should be in the same archetype
 		arch, _ := world.archetypeManager.GetArchetypeByKeyHash(
 			NewArchetypeKey(reflect.TypeFor[TestPosition](), reflect.TypeFor[TestVelocity]()).Hash())
-		
+
 		if arch == nil {
 			t.Fatal("Archetype should exist")
 		}
-		
+
 		if len(arch.entities) != 100 {
 			t.Errorf("Expected 100 entities in archetype, got %d", len(arch.entities))
 		}
-		
+
 		// Query should return all entities
 		result := world.Query(reflect.TypeFor[TestPosition](), reflect.TypeFor[TestVelocity]())
 		if len(result) != 100 {
@@ -658,32 +660,32 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 	t.Run("ArchetypeMigrationOnComponentChange", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
-		
+
+		id := world.CreateEntity("Generic")
+
 		// Add Position - should be in [Position] archetype
 		world.AddComponent(id, TestPosition{X: 1, Y: 2})
 		entity, _ := world.GetEntity(id)
 		posArchetypeID := entity.archetypeID
-		
+
 		// Add Velocity - should migrate to [Position, Velocity] archetype
 		world.AddComponent(id, TestVelocity{X: 0.1, Y: 0.1})
 		entity, _ = world.GetEntity(id)
 		posVelArchetypeID := entity.archetypeID
-		
+
 		if posArchetypeID == posVelArchetypeID {
 			t.Error("Entity should have migrated to new archetype when adding Velocity")
 		}
-		
+
 		// Remove Position - should migrate to [Velocity] archetype
 		world.RemoveComponent(id, reflect.TypeFor[TestPosition]())
 		entity, _ = world.GetEntity(id)
 		velArchetypeID := entity.archetypeID
-		
+
 		if velArchetypeID == posVelArchetypeID {
 			t.Error("Entity should have migrated to new archetype when removing Position")
 		}
-		
+
 		// Verify final state
 		if world.HasComponent(id, reflect.TypeFor[TestPosition]()) {
 			t.Error("Entity should not have Position")
@@ -701,9 +703,9 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 func TestArchetypeEdgeCases(t *testing.T) {
 	t.Run("GetComponentFromEmptyArchetype", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
-		
+
+		id := world.CreateEntity("Generic")
+
 		// Try to get component that doesn't exist
 		_, err := world.GetComponent(id, reflect.TypeFor[TestPosition]())
 		if err == nil {
@@ -713,9 +715,9 @@ func TestArchetypeEdgeCases(t *testing.T) {
 
 	t.Run("RemoveNonExistentComponent", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
-		
+
+		id := world.CreateEntity("Generic")
+
 		// Should not error when removing non-existent component
 		err := world.RemoveComponent(id, reflect.TypeFor[TestPosition]())
 		if err != nil {
@@ -725,10 +727,10 @@ func TestArchetypeEdgeCases(t *testing.T) {
 
 	t.Run("QueryNonExistentComponent", func(t *testing.T) {
 		world := NewWorld()
-		
+
 		// Create entity without components
-		world.Create("Generic")
-		
+		world.CreateEntity("Generic")
+
 		// Query for non-existent component combination
 		result := world.Query(reflect.TypeFor[TestPosition](), reflect.TypeFor[TestVelocity]())
 		if len(result) != 0 {
@@ -738,13 +740,13 @@ func TestArchetypeEdgeCases(t *testing.T) {
 
 	t.Run("GetComponentAfterDestruction", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
+
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, TestPosition{X: 1, Y: 2})
-		
-		world.Destroy(id, false)
+
+		world.DestroyEntity(id, false)
 		world.Cleanup()
-		
+
 		_, err := world.GetComponent(id, reflect.TypeFor[TestPosition]())
 		if err == nil {
 			t.Error("Expected error when getting component from destroyed entity")
@@ -753,11 +755,11 @@ func TestArchetypeEdgeCases(t *testing.T) {
 
 	t.Run("AddComponentToDestroyedEntity", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
-		world.Destroy(id, false)
+
+		id := world.CreateEntity("Generic")
+		world.DestroyEntity(id, false)
 		world.Cleanup()
-		
+
 		err := world.AddComponent(id, TestPosition{X: 1, Y: 2})
 		if err == nil {
 			t.Error("Expected error when adding component to destroyed entity")
@@ -772,14 +774,14 @@ func TestArchetypeEdgeCases(t *testing.T) {
 func TestArchetypeStress(t *testing.T) {
 	t.Run("ManyEntitiesSameArchetype", func(t *testing.T) {
 		world := NewWorld()
-		
+
 		// Create 10,000 entities with same components
 		for i := 0; i < 10000; i++ {
-			id := world.Create("Generic")
+			id := world.CreateEntity("Generic")
 			world.AddComponent(id, TestPosition{X: float64(i), Y: float64(i)})
 			world.AddComponent(id, TestVelocity{X: 0.1, Y: 0.1})
 		}
-		
+
 		// Query should be fast
 		result := world.Query(reflect.TypeFor[TestPosition](), reflect.TypeFor[TestVelocity]())
 		if len(result) != 10000 {
@@ -789,11 +791,11 @@ func TestArchetypeStress(t *testing.T) {
 
 	t.Run("ManyDifferentArchetypes", func(t *testing.T) {
 		world := NewWorld()
-		
+
 		// Create entities with many different component combinations
 		for i := 0; i < 100; i++ {
-			id := world.Create("Generic")
-			
+			id := world.CreateEntity("Generic")
+
 			// Randomly add components
 			if i%2 == 0 {
 				world.AddComponent(id, TestPosition{X: float64(i), Y: float64(i)})
@@ -808,7 +810,7 @@ func TestArchetypeStress(t *testing.T) {
 				world.AddComponent(id, TestSprite{TextureID: "test", Width: 32, Height: 32})
 			}
 		}
-		
+
 		// Should have created multiple archetypes
 		if len(world.archetypeManager.archetypes) < 5 {
 			t.Errorf("Expected multiple archetypes, got %d", len(world.archetypeManager.archetypes))
@@ -817,9 +819,9 @@ func TestArchetypeStress(t *testing.T) {
 
 	t.Run("ComponentAddRemoveStress", func(t *testing.T) {
 		world := NewWorld()
-		
-		id := world.Create("Generic")
-		
+
+		id := world.CreateEntity("Generic")
+
 		// Add and remove components many times
 		for i := 0; i < 1000; i++ {
 			world.AddComponent(id, TestPosition{X: float64(i), Y: float64(i)})
@@ -827,7 +829,7 @@ func TestArchetypeStress(t *testing.T) {
 			world.RemoveComponent(id, reflect.TypeFor[TestPosition]())
 			world.RemoveComponent(id, reflect.TypeFor[TestVelocity]())
 		}
-		
+
 		// Entity should end up in empty archetype
 		entity, _ := world.GetEntity(id)
 		arch, _ := world.archetypeManager.GetArchetypeByID(entity.archetypeID)
@@ -843,15 +845,15 @@ func TestArchetypeStress(t *testing.T) {
 
 func BenchmarkArchetypeQuery(b *testing.B) {
 	world := NewWorld()
-	
+
 	// Pre-create entities with Position
 	for i := 0; i < 10000; i++ {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, TestPosition{X: float64(i), Y: float64(i)})
 	}
-	
+
 	posType := reflect.TypeFor[TestPosition]()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		world.Query(posType)
@@ -860,17 +862,17 @@ func BenchmarkArchetypeQuery(b *testing.B) {
 
 func BenchmarkArchetypeQueryMultiple(b *testing.B) {
 	world := NewWorld()
-	
+
 	// Pre-create entities with Position + Velocity
 	for i := 0; i < 10000; i++ {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, TestPosition{X: float64(i), Y: float64(i)})
 		world.AddComponent(id, TestVelocity{X: 0.1, Y: 0.1})
 	}
-	
+
 	posType := reflect.TypeFor[TestPosition]()
 	velType := reflect.TypeFor[TestVelocity]()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		world.Query(posType, velType)
@@ -879,13 +881,13 @@ func BenchmarkArchetypeQueryMultiple(b *testing.B) {
 
 func BenchmarkArchetypeGetComponent(b *testing.B) {
 	world := NewWorld()
-	
+
 	// Pre-create entity with Position
-	id := world.Create("Generic")
+	id := world.CreateEntity("Generic")
 	world.AddComponent(id, TestPosition{X: 1, Y: 2})
-	
+
 	posType := reflect.TypeFor[TestPosition]()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		world.GetComponent(id, posType)
@@ -894,10 +896,10 @@ func BenchmarkArchetypeGetComponent(b *testing.B) {
 
 func BenchmarkArchetypeAddComponent(b *testing.B) {
 	world := NewWorld()
-	
+
 	// Pre-create entity
-	id := world.Create("Generic")
-	
+	id := world.CreateEntity("Generic")
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Remove and re-add to test migration
@@ -908,10 +910,10 @@ func BenchmarkArchetypeAddComponent(b *testing.B) {
 
 func BenchmarkArchetypeEntityCreation(b *testing.B) {
 	world := NewWorld()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		id := world.Create("Generic")
+		id := world.CreateEntity("Generic")
 		world.AddComponent(id, TestPosition{X: float64(i), Y: float64(i)})
 		world.AddComponent(id, TestVelocity{X: 0.1, Y: 0.1})
 	}

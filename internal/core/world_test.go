@@ -10,7 +10,7 @@ import (
 // TestWorld_ComponentLifecycle tests adding, removing, getting, and querying components.
 func TestWorld_ComponentLifecycle(t *testing.T) {
 	w := NewWorld()
-	id := w.Create("Generic")
+	id := w.CreateEntity("Generic")
 
 	// Test adding a component
 	compA := testComponentA{value: 42}
@@ -59,7 +59,7 @@ func TestWorld_ComponentLifecycle(t *testing.T) {
 		t.Fatal("HasComponent should return true for remaining component")
 	}
 
-	w.Destroy(id, false)
+	w.DestroyEntity(id, false)
 	w.Cleanup()
 	if w.Exists(id) {
 		t.Fatalf("entity should be destroyed after cleanup")
@@ -71,8 +71,8 @@ func TestWorld_ComponentQueries(t *testing.T) {
 	w := NewWorld()
 
 	// Create entities with different component combinations
-	id1 := w.Create("Generic")
-	id2 := w.Create("Generic")
+	id1 := w.CreateEntity("Generic")
+	id2 := w.CreateEntity("Generic")
 
 	compA := testComponentA{value: 1}
 	compB := testComponentB{value: 2}
@@ -109,7 +109,7 @@ func TestWorld_ComponentQueries(t *testing.T) {
 // TestWorld_TagManagement tests adding, removing, and querying by tags.
 func TestWorld_TagManagement(t *testing.T) {
 	w := NewWorld()
-	id := w.Create("Generic")
+	id := w.CreateEntity("Generic")
 
 	// Test adding a custom tag
 	if err := w.AddTag(id, "soldier"); err != nil {
@@ -138,7 +138,7 @@ func TestWorld_TagManagement(t *testing.T) {
 	}
 
 	// Test QueryByTag
-	id2 := w.Create("Generic")
+	id2 := w.CreateEntity("Generic")
 	w.AddTag(id, "archer")
 	w.AddTag(id2, "archer")
 
@@ -147,8 +147,8 @@ func TestWorld_TagManagement(t *testing.T) {
 		t.Fatalf("expected 2 archers, got %d", len(archers))
 	}
 
-	w.Destroy(id, false)
-	w.Destroy(id2, false)
+	w.DestroyEntity(id, false)
+	w.DestroyEntity(id2, false)
 	w.Cleanup()
 }
 
@@ -157,10 +157,10 @@ func TestWorld_TemplateQueries(t *testing.T) {
 	w := NewWorld()
 
 	// The Create method applies template-based tags (Province, City, Generic)
-	provinceID := w.Create("Province")
-	cityID := w.Create("City")
-	generic1ID := w.Create("Generic")
-	generic2ID := w.Create("Generic")
+	provinceID := w.CreateEntity("Province")
+	cityID := w.CreateEntity("City")
+	generic1ID := w.CreateEntity("Generic")
+	generic2ID := w.CreateEntity("Generic")
 
 	provinces := w.QueryByTemplate("Province")
 	if len(provinces) != 1 || provinces[0] != provinceID {
@@ -177,10 +177,10 @@ func TestWorld_TemplateQueries(t *testing.T) {
 		t.Fatalf("expected to find 2 Generic templates, got %d: %v", len(generics), generics)
 	}
 
-	w.Destroy(provinceID, false)
-	w.Destroy(cityID, false)
-	w.Destroy(generic1ID, false)
-	w.Destroy(generic2ID, false)
+	w.DestroyEntity(provinceID, false)
+	w.DestroyEntity(cityID, false)
+	w.DestroyEntity(generic1ID, false)
+	w.DestroyEntity(generic2ID, false)
 	w.Cleanup()
 }
 
@@ -188,10 +188,10 @@ func TestWorld_TemplateQueries(t *testing.T) {
 func TestWorld_HierarchyNavigation(t *testing.T) {
 	w := NewWorld()
 
-	root := w.Create("Generic")
-	child1 := w.Create("Generic")
-	child2 := w.Create("Generic")
-	grandchild := w.Create("Generic")
+	root := w.CreateEntity("Generic")
+	child1 := w.CreateEntity("Generic")
+	child2 := w.CreateEntity("Generic")
+	grandchild := w.CreateEntity("Generic")
 
 	// Build hierarchy: root -> [child1, child2], child1 -> [grandchild]
 	w.SetParent(child1, root)
@@ -223,10 +223,10 @@ func TestWorld_HierarchyNavigation(t *testing.T) {
 		t.Fatalf("expected grandchild to still have child1 as parent")
 	}
 
-	w.Destroy(root, false)
-	w.Destroy(child1, false)
-	w.Destroy(child2, false)
-	w.Destroy(grandchild, false)
+	w.DestroyEntity(root, false)
+	w.DestroyEntity(child1, false)
+	w.DestroyEntity(child2, false)
+	w.DestroyEntity(grandchild, false)
 	w.Cleanup()
 }
 
@@ -235,17 +235,17 @@ func TestWorld_CompleteEntityLifecycle(t *testing.T) {
 	w := NewWorld()
 
 	// Create a parent entity with components and tags
-	parentID := w.Create("Generic")
+	parentID := w.CreateEntity("Generic")
 	w.AddComponent(parentID, testComponentA{value: 100})
 	w.AddTag(parentID, "warrior")
 	w.AddTag(parentID, "leader")
 
 	// Create child entities
-	child1ID := w.Create("Generic")
+	child1ID := w.CreateEntity("Generic")
 	w.AddComponent(child1ID, testComponentA{value: 200})
 	w.SetParent(child1ID, parentID)
 
-	child2ID := w.Create("Generic")
+	child2ID := w.CreateEntity("Generic")
 	w.AddComponent(child2ID, testComponentB{value: 300})
 	w.AddTag(child2ID, "warrior")
 	w.SetParent(child2ID, parentID)
@@ -274,7 +274,7 @@ func TestWorld_CompleteEntityLifecycle(t *testing.T) {
 	}
 
 	// Destroy parent with cascade
-	w.Destroy(parentID, true)
+	w.DestroyEntity(parentID, true)
 	w.Cleanup()
 
 	if w.Count() != 0 {
@@ -290,12 +290,12 @@ func TestWorld_CountAndReset(t *testing.T) {
 		t.Fatalf("expected 0 entities in new world, got %d", w.Count())
 	}
 
-	id1 := w.Create("Generic")
+	id1 := w.CreateEntity("Generic")
 	w.AddComponent(id1, testComponentA{value: 1})
 	w.AddTag(id1, "test")
 
-	id2 := w.Create("Generic")
-	w.Create("Generic") // third entity for testing Count
+	id2 := w.CreateEntity("Generic")
+	w.CreateEntity("Generic") // third entity for testing Count
 
 	if w.Count() != 3 {
 		t.Fatalf("expected 3 entities, got %d", w.Count())
@@ -323,7 +323,7 @@ func TestWorld_CountAndReset(t *testing.T) {
 	}
 
 	// Should be able to create again
-	newID := w.Create("Generic")
+	newID := w.CreateEntity("Generic")
 	if !w.Exists(newID) {
 		t.Fatal("should be able to create new entity after reset")
 	}

@@ -51,8 +51,8 @@ func TestBuilder_Build(t *testing.T) {
 	world := newMockWorld()
 	builder := NewBuilder("test-scene")
 
-	entity1 := world.Create("player")
-	entity2 := world.Create("enemy")
+	entity1 := world.CreateEntity("player")
+	entity2 := world.CreateEntity("enemy")
 
 	builder.WithEntity(entity1).WithEntity(entity2)
 

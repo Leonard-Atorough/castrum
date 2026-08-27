@@ -20,14 +20,14 @@ func newMockWorld() *mockWorld {
 	}
 }
 
-func (m *mockWorld) Create(template string) ecs.EntityID {
+func (m *mockWorld) CreateEntity(template string) ecs.EntityID {
 	id := m.nextID
 	m.nextID++
 	m.entities[id] = make(map[string]bool)
 	return id
 }
 
-func (m *mockWorld) Destroy(id ecs.EntityID, cascade bool) error {
+func (m *mockWorld) DestroyEntity(id ecs.EntityID, cascade bool) error {
 	delete(m.entities, id)
 	return nil
 }
