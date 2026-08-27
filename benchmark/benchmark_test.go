@@ -114,37 +114,79 @@ func BenchmarkRemoveComponent(b *testing.B) {
 }
 
 // Benchmark query operations
-func BenchmarkQuerySingleComponent(b *testing.B) {
-	posType := reflect.TypeFor[Position]()
+func BenchmarkArchetypeQuery(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-createentity entities with Position component
-	for i := range 10000 {
+	// Pre-create entities with Position
+	for i := 0; i < 10000; i++ {
 		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 	}
 
-	for b.Loop() {
+	posType := reflect.TypeFor[Position]()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 		world.Query(posType)
 	}
 }
 
-func BenchmarkQueryMultipleComponents(b *testing.B) {
-	posType := reflect.TypeFor[Position]()
-	velType := reflect.TypeFor[Velocity]()
-	healthType := reflect.TypeFor[Health]()
+func BenchmarkArchetypeQueryMultiple(b *testing.B) {
 	world := core.NewWorld()
 
-	// Pre-createentity entities with multiple components
-	for i := range 10000 {
+	// Pre-create entities with Position + Velocity
+	for i := 0; i < 10000; i++ {
 		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
-		world.AddComponent(id, Velocity{X: 1.0, Y: 1.0})
-		world.AddComponent(id, Health{Value: 100})
+		world.AddComponent(id, Velocity{X: 0.1, Y: 0.1})
 	}
 
-	for b.Loop() {
-		world.Query(posType, velType, healthType)
+	posType := reflect.TypeFor[Position]()
+	velType := reflect.TypeFor[Velocity]()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		world.Query(posType, velType)
+	}
+}
+
+func BenchmarkArchetypeGetComponent(b *testing.B) {
+	world := core.NewWorld()
+
+	// Pre-create entity with Position
+	id := world.CreateEntity("Generic")
+	world.AddComponent(id, Position{X: 1, Y: 2})
+
+	posType := reflect.TypeFor[Position]()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		world.GetComponent(id, posType)
+	}
+}
+
+func BenchmarkArchetypeAddComponent(b *testing.B) {
+	world := core.NewWorld()
+
+	// Pre-create entity
+	id := world.CreateEntity("Generic")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Remove and re-add to test migration
+		world.RemoveComponent(id, reflect.TypeFor[Position]())
+		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
+	}
+}
+
+func BenchmarkArchetypeEntityCreation(b *testing.B) {
+	world := core.NewWorld()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		id := world.CreateEntity("Generic")
+		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
+		world.AddComponent(id, Velocity{X: 0.1, Y: 0.1})
 	}
 }
 
@@ -373,7 +415,7 @@ func BenchmarkWorldExists(b *testing.B) {
 	}
 
 	for i := 0; b.Loop(); i++ {
-		world.Exists(entities[i%10000])
+		world.HasEntity(entities[i%10000])
 	}
 }
 

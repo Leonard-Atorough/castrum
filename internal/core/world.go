@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"sync/atomic"
-
 )
 
 // World represents the central manager for all ECS state, handling entities, components, tags, templates, and hierarchical relationships.
@@ -45,7 +44,7 @@ func (w *World) CreateEntity(template string) EntityID {
 	// This keeps entity creation cheap while preserving correctness when lookup indexes are needed.
 	w.index.lazyTagTemplateIndex = true
 
-	// two temporary templates for testing - Province and City
+	// NOTE: two temporary templates for testing - Province and City
 	switch template {
 	case "Province":
 		entity.AddTag("Province")
@@ -113,8 +112,8 @@ func (w *World) GetEntity(entityID EntityID) (*entity, bool) {
 	return entity, exists
 }
 
-// Exists checks if an entity with the given EntityID exists in the world.
-func (w *World) Exists(entityID EntityID) bool {
+// HasEntity checks if an entity with the given EntityID exists in the world.
+func (w *World) HasEntity(entityID EntityID) bool {
 	_, exists := w.entities[entityID]
 	return exists
 }
@@ -255,13 +254,6 @@ func (w *World) HasTag(entityID EntityID, tag string) (bool, error) {
 		}
 	}
 	return entity.HasTag(tag), nil
-}
-
-func (w *World) ensureTagAndTemplateIndex() {
-	if !w.index.lazyTagTemplateIndex {
-		return
-	}
-	w.index.rebuildTagAndTemplateIndex(w.entities)
 }
 
 // AddComponent adds a component to an entity. The entity must exist in the world.
@@ -563,4 +555,11 @@ func (w *World) setComponentInArchetype(archetype *Archetype, index int, compTyp
 		archetype.componentData[compType] = compSlice
 	}
 	compSlice[index] = comp
+}
+
+func (w *World) ensureTagAndTemplateIndex() {
+	if !w.index.lazyTagTemplateIndex {
+		return
+	}
+	w.index.rebuildTagAndTemplateIndex(w.entities)
 }
