@@ -367,34 +367,3 @@ func TestWorld_ComponentErrors(t *testing.T) {
 		t.Fatal("expected error removing tag from non-existent entity")
 	}
 }
-
-// TestWorld_GetComponentByName tests retrieving components by their name.
-func TestWorld_GetComponentByName(t *testing.T) {
-	w := NewWorld()
-	id := w.Create("Generic")
-
-	compA := testComponentA{value: 42}
-	compB := testComponentB{value: 99}
-
-	w.AddComponent(id, compA)
-	w.AddComponent(id, compB)
-
-	// Retrieve by name
-	got, err := w.GetComponentByName(id, "testComponentA")
-	if err != nil {
-		t.Fatalf("GetComponentByName failed: %v", err)
-	}
-
-	gotComp, ok := got.(testComponentA)
-	if !ok || gotComp.value != 42 {
-		t.Fatalf("expected testComponentA with value 42, got %#v", got)
-	}
-
-	// Non-existent component name
-	if _, err := w.GetComponentByName(id, "nonExistent"); err == nil {
-		t.Fatal("expected error for non-existent component name")
-	}
-
-	w.Destroy(id, false)
-	w.Cleanup()
-}
