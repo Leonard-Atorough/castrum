@@ -200,31 +200,16 @@ func (w *World) QuerySuperset(components ...reflect.Type) []ecs.EntityID {
 // QueryByTag retrieves all entities that have the specified tag.
 // Returns a slice of matching EntityIDs, or nil if none match.
 func (w *World) QueryByTag(tag string) []ecs.EntityID {
-	value, exists := w.cache.Get(tag)
-	if exists {
-		if entityIDs, ok := value.([]ecs.EntityID); ok {
-			return entityIDs
-		}
-	}
-	// cache miss, query the index
 	w.ensureTagAndTemplateIndex()
 	entityIDs := w.index.GetEntitiesWithTag(tag)
-	w.cache.Put(tag, entityIDs)
 	return entityIDs
 }
 
 // QueryByTemplate retrieves all entities that use the specified template.
 // Returns a slice of matching EntityIDs, or nil if none match.
 func (w *World) QueryByTemplate(template string) []ecs.EntityID {
-	value, exists := w.cache.Get(template)
-	if exists {
-		if entityIDs, ok := value.([]ecs.EntityID); ok {
-			return entityIDs
-		}
-	}
 	w.ensureTagAndTemplateIndex()
 	entityIDs := w.index.GetEntitiesWithTemplate(template)
-	w.cache.Put(template, entityIDs)
 	return entityIDs
 }
 
@@ -243,10 +228,6 @@ func (w *World) AddTag(entityID ecs.EntityID, tag string) error {
 		w.index.rebuildTagAndTemplateIndex(w.entities)
 	} else {
 		w.index.AddTag(entityID, tag)
-	}
-
-	if w.cache.Contains(tag) {
-		w.cache.Invalidate(tag)
 	}
 	return nil
 }
@@ -268,11 +249,6 @@ func (w *World) RemoveTag(entityID ecs.EntityID, tag string) error {
 	} else {
 		w.index.RemoveTag(entityID, tag)
 	}
-
-	if w.cache.Contains(tag) {
-		w.cache.Invalidate(tag)
-	}
-
 	return nil
 }
 
