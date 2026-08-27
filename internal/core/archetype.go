@@ -3,8 +3,6 @@ package core
 import (
 	"reflect"
 	"sort"
-
-	"github.com/leonard-atorough/castrum/ecs"
 )
 
 type ArchetypeKey []reflect.Type
@@ -76,7 +74,7 @@ func (ak ArchetypeKey) ContainsAll(other ArchetypeKey) bool {
 type Archetype struct {
 	ID             uint64
 	componentTypes ArchetypeKey
-	entities       []ecs.EntityID
+	entities       []EntityID
 
 	componentData map[reflect.Type]any // this will replace the componentStore, storing components by type for this archetype
 }
@@ -85,7 +83,7 @@ func NewArchetype(id uint64, componentTypes ArchetypeKey) *Archetype {
 	return &Archetype{
 		ID:             id,
 		componentTypes: componentTypes,
-		entities:       make([]ecs.EntityID, 0, 1024), // corresponds to 1024 entities per archetype by default which, if each entity is 16 bytes, would be 16KB per archetype, which is a reasonable default
+		entities:       make([]EntityID, 0, 1024), // corresponds to 1024 entities per archetype by default which, if each entity is 16 bytes, would be 16KB per archetype, which is a reasonable default
 		componentData:  make(map[reflect.Type]any),
 	}
 }

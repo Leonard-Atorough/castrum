@@ -1,16 +1,16 @@
 package castrum
 
 import (
-	"github.com/leonard-atorough/castrum/ecs"
+	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/system"
 )
 
 type SystemAPI struct {
 	mgr  *system.Manager
-	wrld ecs.World
+	wrld *core.World
 }
 
-func (s *SystemAPI) Register(name string, sys ecs.System) error {
+func (s *SystemAPI) Register(name string, sys system.System) error {
 	return s.mgr.Register(system.Player, name, sys, s.wrld)
 }
 

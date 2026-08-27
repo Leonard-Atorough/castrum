@@ -5,14 +5,14 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/config"
-	"github.com/leonard-atorough/castrum/ecs"
+	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/scene"
 	"github.com/leonard-atorough/castrum/internal/system"
 	"github.com/leonard-atorough/castrum/internal/timers"
 )
 
 type GameRuntime struct {
-	world   ecs.World
+	world   *core.World
 	Systems *system.Manager
 	Timers  *timers.Manager
 	Scenes  *scene.Manager
@@ -24,7 +24,7 @@ type GameRuntime struct {
 	fpsCounter  float64
 }
 
-func NewGameRuntime(world ecs.World, config *config.Config) *GameRuntime {
+func NewGameRuntime(world *core.World, config *config.Config) *GameRuntime {
 	// TODO: Use the config parameter to configure the game runtime as needed.
 	return &GameRuntime{
 		world:   world,

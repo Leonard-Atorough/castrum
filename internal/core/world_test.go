@@ -3,8 +3,6 @@ package core
 import (
 	"reflect"
 	"testing"
-
-	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // TestWorld_ComponentLifecycle tests adding, removing, getting, and querying components.
@@ -335,7 +333,7 @@ func TestWorld_CountAndReset(t *testing.T) {
 // TestWorld_ComponentErrors tests error handling for non-existent entities.
 func TestWorld_ComponentErrors(t *testing.T) {
 	w := NewWorld()
-	nonExistent := ecs.EntityID(999)
+	nonExistent := EntityID(999)
 
 	// Test AddComponent with non-existent entity
 	if err := w.AddComponent(nonExistent, testComponentA{}); err == nil {

@@ -3,7 +3,6 @@ package castrum
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/config"
-	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/engine"
 	"github.com/leonard-atorough/castrum/internal/system"
@@ -11,9 +10,9 @@ import (
 )
 
 type Layer = system.Layer
-type EntityID = ecs.EntityID
-type Component = ecs.Component
-type System = ecs.System
+type EntityID = core.EntityID
+type Component = core.Component
+type System = system.System
 type TimerID = timers.TimerID
 
 type Game struct {
@@ -39,7 +38,7 @@ func NewGame(config *config.Config) *Game {
 	}
 }
 
-func (g *Game) World() ecs.World {
+func (g *Game) World() *core.World {
 	if g.world == nil {
 		g.world = core.NewWorld()
 		g.runtime = engine.NewGameRuntime(g.world, g.config)

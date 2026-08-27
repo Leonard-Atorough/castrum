@@ -3,23 +3,23 @@ package scene
 import (
 	"fmt"
 
-	"github.com/leonard-atorough/castrum/ecs"
+	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 type Manager struct {
-	scenes      map[string]*Scene
-	current     string
-	world       ecs.World
+	scenes  map[string]*Scene
+	current string
+	world   *core.World
 }
 
-func NewManager(world ecs.World) *Manager {
+func NewManager(world *core.World) *Manager {
 	return &Manager{
-		scenes:      make(map[string]*Scene),
-		world:       world,
+		scenes: make(map[string]*Scene),
+		world:  world,
 	}
 }
 
-func (sm *Manager) World() ecs.World {
+func (sm *Manager) World() *core.World {
 	return sm.world
 }
 

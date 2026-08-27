@@ -5,12 +5,11 @@ import (
 	"reflect"
 	"sync/atomic"
 
-	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // World represents the central manager for all ECS state, handling entities, components, tags, templates, and hierarchical relationships.
 type World struct {
-	entities         map[ecs.EntityID]*entity
+	entities         map[EntityID]*entity
 	nextID           atomic.Uint64
 	destroyed        []*entity
 	hierarchy        *Hierarchy
@@ -20,7 +19,7 @@ type World struct {
 
 func NewWorld() *World {
 	return &World{
-		entities:         make(map[ecs.EntityID]*entity),
+		entities:         make(map[EntityID]*entity),
 		index:            NewEntityIndex(),
 		hierarchy:        NewHierarchy(),
 		nextID:           atomic.Uint64{},
@@ -29,10 +28,10 @@ func NewWorld() *World {
 	}
 }
 
-// CreateEntity creates a new entity with the specified template and returns its ecs.EntityID.
+// CreateEntity creates a new entity with the specified template and returns its EntityID.
 // The entity is automatically registered with the world and the index.
-func (w *World) CreateEntity(template string) ecs.EntityID {
-	id := ecs.EntityID(w.nextID.Add(1))
+func (w *World) CreateEntity(template string) EntityID {
+	id := EntityID(w.nextID.Add(1))
 
 	entity := NewEntity(id, template)
 	w.entities[id] = entity
@@ -60,7 +59,7 @@ func (w *World) CreateEntity(template string) ecs.EntityID {
 }
 
 // DestroyEntity marks an entity for destruction. If cascade is true, all descendants of the entity will also be destroyed.
-func (w *World) DestroyEntity(entityID ecs.EntityID, cascade bool) error {
+func (w *World) DestroyEntity(entityID EntityID, cascade bool) error {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return &EntityError{
@@ -109,13 +108,13 @@ func (w *World) DestroyEntity(entityID ecs.EntityID, cascade bool) error {
 	return nil
 }
 
-func (w *World) GetEntity(entityID ecs.EntityID) (*entity, bool) {
+func (w *World) GetEntity(entityID EntityID) (*entity, bool) {
 	entity, exists := w.entities[entityID]
 	return entity, exists
 }
 
-// Exists checks if an entity with the given ecs.EntityID exists in the world.
-func (w *World) Exists(entityID ecs.EntityID) bool {
+// Exists checks if an entity with the given EntityID exists in the world.
+func (w *World) Exists(entityID EntityID) bool {
 	_, exists := w.entities[entityID]
 	return exists
 }
@@ -123,14 +122,14 @@ func (w *World) Exists(entityID ecs.EntityID) bool {
 // Query retrieves all entities that have all the specified component types.
 // Returns a slice of matching EntityIDs, or nil if none match.
 // This uses superset matching - entities with AT LEAST the specified components.
-func (w *World) Query(components ...reflect.Type) []ecs.EntityID {
+func (w *World) Query(components ...reflect.Type) []EntityID {
 	if len(components) == 0 {
 		return nil
 	}
 
 	// Use superset matching to find all entities that have at least these components
 	queryKey := NewArchetypeKey(components...)
-	var result []ecs.EntityID
+	var result []EntityID
 
 	for _, archetype := range w.archetypeManager.archetypes {
 		if archetype.componentTypes.ContainsAll(queryKey) {
@@ -141,13 +140,13 @@ func (w *World) Query(components ...reflect.Type) []ecs.EntityID {
 	return result
 }
 
-func (w *World) QueryAny(components ...reflect.Type) []ecs.EntityID {
+func (w *World) QueryAny(components ...reflect.Type) []EntityID {
 	if len(components) == 0 {
 		return nil
 	}
 
-	var results []ecs.EntityID
-	seen := make(map[ecs.EntityID]bool)
+	var results []EntityID
+	seen := make(map[EntityID]bool)
 
 	// This reads as:
 	// For each component type, check all archetypes to see if they contain that component type.
@@ -173,13 +172,13 @@ func (w *World) QueryAny(components ...reflect.Type) []ecs.EntityID {
 	return results
 }
 
-func (w *World) QuerySuperset(components ...reflect.Type) []ecs.EntityID {
+func (w *World) QuerySuperset(components ...reflect.Type) []EntityID {
 	if len(components) == 0 {
 		return nil
 	}
 
 	querykey := NewArchetypeKey(components...)
-	var results []ecs.EntityID
+	var results []EntityID
 
 	for _, archetype := range w.archetypeManager.archetypes {
 		if archetype.componentTypes.ContainsAll(querykey) {
@@ -192,7 +191,7 @@ func (w *World) QuerySuperset(components ...reflect.Type) []ecs.EntityID {
 
 // QueryByTag retrieves all entities that have the specified tag.
 // Returns a slice of matching EntityIDs, or nil if none match.
-func (w *World) QueryByTag(tag string) []ecs.EntityID {
+func (w *World) QueryByTag(tag string) []EntityID {
 	w.ensureTagAndTemplateIndex()
 	entityIDs := w.index.GetEntitiesWithTag(tag)
 	return entityIDs
@@ -200,14 +199,14 @@ func (w *World) QueryByTag(tag string) []ecs.EntityID {
 
 // QueryByTemplate retrieves all entities that use the specified template.
 // Returns a slice of matching EntityIDs, or nil if none match.
-func (w *World) QueryByTemplate(template string) []ecs.EntityID {
+func (w *World) QueryByTemplate(template string) []EntityID {
 	w.ensureTagAndTemplateIndex()
 	entityIDs := w.index.GetEntitiesWithTemplate(template)
 	return entityIDs
 }
 
 // AddTag adds a tag to an entity. The entity must exist in the world.
-func (w *World) AddTag(entityID ecs.EntityID, tag string) error {
+func (w *World) AddTag(entityID EntityID, tag string) error {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return &EntityError{
@@ -226,7 +225,7 @@ func (w *World) AddTag(entityID ecs.EntityID, tag string) error {
 }
 
 // RemoveTag removes a tag from an entity. The entity must exist in the world.
-func (w *World) RemoveTag(entityID ecs.EntityID, tag string) error {
+func (w *World) RemoveTag(entityID EntityID, tag string) error {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return &EntityError{
@@ -246,7 +245,7 @@ func (w *World) RemoveTag(entityID ecs.EntityID, tag string) error {
 }
 
 // HasTag checks if an entity has a specific tag. The entity must exist in the world.
-func (w *World) HasTag(entityID ecs.EntityID, tag string) (bool, error) {
+func (w *World) HasTag(entityID EntityID, tag string) (bool, error) {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return false, &EntityError{
@@ -266,7 +265,7 @@ func (w *World) ensureTagAndTemplateIndex() {
 }
 
 // AddComponent adds a component to an entity. The entity must exist in the world.
-func (w *World) AddComponent(entityID ecs.EntityID, comp ecs.Component) error {
+func (w *World) AddComponent(entityID EntityID, comp Component) error {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return ErrEntityNotFound
@@ -291,7 +290,7 @@ func (w *World) AddComponent(entityID ecs.EntityID, comp ecs.Component) error {
 }
 
 // RemoveComponent removes a component from an entity by type.
-func (w *World) RemoveComponent(entityID ecs.EntityID, componentType reflect.Type) error {
+func (w *World) RemoveComponent(entityID EntityID, componentType reflect.Type) error {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return ErrEntityNotFound
@@ -332,7 +331,7 @@ func (w *World) RemoveComponent(entityID ecs.EntityID, componentType reflect.Typ
 }
 
 // GetComponent returns the first component of the specified type for an entity.
-func (w *World) GetComponent(entityID ecs.EntityID, compType reflect.Type) (ecs.Component, error) {
+func (w *World) GetComponent(entityID EntityID, compType reflect.Type) (Component, error) {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return nil, &EntityError{
@@ -369,7 +368,7 @@ func (w *World) GetComponent(entityID ecs.EntityID, compType reflect.Type) (ecs.
 	}
 
 	slice, exists := archetype.componentData[compType]
-	if !exists || entity.archetypeIdx >= len(slice.([]ecs.Component)) {
+	if !exists || entity.archetypeIdx >= len(slice.([]Component)) {
 		return nil, &EntityError{
 			EntityID: entityID,
 			Op:       "GetComponent",
@@ -377,10 +376,10 @@ func (w *World) GetComponent(entityID ecs.EntityID, compType reflect.Type) (ecs.
 		}
 	}
 
-	return slice.([]ecs.Component)[entity.archetypeIdx], nil
+	return slice.([]Component)[entity.archetypeIdx], nil
 }
 
-func (w *World) HasComponent(entityID ecs.EntityID, compType reflect.Type) bool {
+func (w *World) HasComponent(entityID EntityID, compType reflect.Type) bool {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return false
@@ -400,7 +399,7 @@ func (w *World) HasComponent(entityID ecs.EntityID, compType reflect.Type) bool 
 }
 
 // Components returns all components associated with an entity.
-func (w *World) Components(entityID ecs.EntityID) []ecs.Component {
+func (w *World) Components(entityID EntityID) []Component {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return nil
@@ -411,10 +410,10 @@ func (w *World) Components(entityID ecs.EntityID) []ecs.Component {
 		return nil
 	}
 
-	components := make([]ecs.Component, 0, len(archetype.componentTypes))
+	components := make([]Component, 0, len(archetype.componentTypes))
 	for _, compType := range archetype.componentTypes {
 		if slice, exists := archetype.componentData[compType]; exists {
-			compSlice := slice.([]ecs.Component)
+			compSlice := slice.([]Component)
 			if entity.archetypeIdx < len(compSlice) {
 				components = append(components, compSlice[entity.archetypeIdx])
 			}
@@ -424,22 +423,22 @@ func (w *World) Components(entityID ecs.EntityID) []ecs.Component {
 }
 
 // SetParent sets the parent of childID to parentID in the hierarchy.
-func (w *World) SetParent(childID, parentID ecs.EntityID) {
+func (w *World) SetParent(childID, parentID EntityID) {
 	w.hierarchy.Add(parentID, childID)
 }
 
-// GetParent returns the parent ecs.EntityID of the given child entity, if one exists.
-func (w *World) ParentOf(childID ecs.EntityID) (ecs.EntityID, bool) {
+// GetParent returns the parent EntityID of the given child entity, if one exists.
+func (w *World) ParentOf(childID EntityID) (EntityID, bool) {
 	return w.hierarchy.Parent(childID)
 }
 
 // GetChildren returns all direct children of the given parent entity.
-func (w *World) ChildrenOf(parentID ecs.EntityID) []ecs.EntityID {
+func (w *World) ChildrenOf(parentID EntityID) []EntityID {
 	return w.hierarchy.Children(parentID)
 }
 
 // Detach removes the parent-child relationship for the given entity.
-func (w *World) Detach(id ecs.EntityID) {
+func (w *World) Detach(id EntityID) {
 	if parentID, hasParent := w.hierarchy.Parent(id); hasParent {
 		w.hierarchy.Remove(parentID, id)
 	}
@@ -471,7 +470,7 @@ func (w *World) Cleanup() {
 
 // Reset clears the world entirely, removing all entities, components, and hierarchy relationships.
 func (w *World) Reset() {
-	w.entities = make(map[ecs.EntityID]*entity)
+	w.entities = make(map[EntityID]*entity)
 	w.archetypeManager = NewArchetypeManager()
 	w.index = NewEntityIndex()
 	w.hierarchy = NewHierarchy()
@@ -484,7 +483,7 @@ func (w *World) Count() int {
 	return len(w.entities)
 }
 
-func (w *World) migrateEntityToNewArchetype(entity *entity, newComp ecs.Component, newComponentTypes ...reflect.Type) error {
+func (w *World) migrateEntityToNewArchetype(entity *entity, newComp Component, newComponentTypes ...reflect.Type) error {
 	newArchetype := w.archetypeManager.GetOrCreateArchetype(newComponentTypes...)
 
 	// Copy existing components from current archetype before removing entity
@@ -493,16 +492,16 @@ func (w *World) migrateEntityToNewArchetype(entity *entity, newComp ecs.Componen
 		// Copy all existing components to new archetype
 		for _, compType := range currentArchetype.componentTypes {
 			if slice, sliceExists := currentArchetype.componentData[compType]; sliceExists {
-				compSlice := slice.([]ecs.Component)
+				compSlice := slice.([]Component)
 				if entity.archetypeIdx < len(compSlice) {
 					// Ensure new archetype has storage for this component type
 					if _, newSliceExists := newArchetype.componentData[compType]; !newSliceExists {
-						newArchetype.componentData[compType] = make([]ecs.Component, 0)
+						newArchetype.componentData[compType] = make([]Component, 0)
 					}
 					// Add component to new archetype
-					newSlice := newArchetype.componentData[compType].([]ecs.Component)
+					newSlice := newArchetype.componentData[compType].([]Component)
 					if len(newSlice) <= entity.archetypeIdx {
-						newSlice = append(newSlice, make([]ecs.Component, entity.archetypeIdx-len(newSlice)+1)...)
+						newSlice = append(newSlice, make([]Component, entity.archetypeIdx-len(newSlice)+1)...)
 						newArchetype.componentData[compType] = newSlice
 					}
 					newSlice[entity.archetypeIdx] = compSlice[entity.archetypeIdx]
@@ -526,7 +525,7 @@ func (w *World) migrateEntityToNewArchetype(entity *entity, newComp ecs.Componen
 	entity.archetypeIdx = len(newArchetype.entities)
 	newArchetype.entities = append(newArchetype.entities, entity.id)
 
-	// Set the new component if provided
+	// Set the new Component if provided
 	if newComp != nil {
 		w.setComponentInArchetype(newArchetype, entity.archetypeIdx, reflect.TypeOf(newComp), newComp)
 	}
@@ -534,7 +533,7 @@ func (w *World) migrateEntityToNewArchetype(entity *entity, newComp ecs.Componen
 	return nil
 }
 
-func (w *World) updateComponentInArchetype(entity *entity, comp ecs.Component, compType reflect.Type, archetype *Archetype) error {
+func (w *World) updateComponentInArchetype(entity *entity, comp Component, compType reflect.Type, archetype *Archetype) error {
 	// if no archetype passed in, try to get the current archetype of the entity
 	if archetype == nil {
 		var exists bool
@@ -551,14 +550,14 @@ func (w *World) updateComponentInArchetype(entity *entity, comp ecs.Component, c
 	return nil
 }
 
-func (w *World) setComponentInArchetype(archetype *Archetype, index int, compType reflect.Type, comp ecs.Component) {
+func (w *World) setComponentInArchetype(archetype *Archetype, index int, compType reflect.Type, comp Component) {
 	if _, exists := archetype.componentData[compType]; !exists {
-		archetype.componentData[compType] = make([]ecs.Component, len(archetype.entities))
+		archetype.componentData[compType] = make([]Component, len(archetype.entities))
 	}
-	compSlice := archetype.componentData[compType].([]ecs.Component)
+	compSlice := archetype.componentData[compType].([]Component)
 
 	if index >= len(compSlice) {
-		newSlice := make([]ecs.Component, len(archetype.entities))
+		newSlice := make([]Component, len(archetype.entities))
 		copy(newSlice, compSlice)
 		compSlice = newSlice
 		archetype.componentData[compType] = compSlice

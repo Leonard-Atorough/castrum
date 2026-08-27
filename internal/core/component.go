@@ -5,10 +5,10 @@ import (
 	"reflect"
 )
 
-type componentStore struct {
+type Component interface {
+	Name() string
+	Clone() Component
 }
-
-// The below functions are set to replace the componentStore with a more efficient structure for managing components in archetypes.
 
 // GetComponent retrieves a component of type T for the given entity ID from the specified archetype.
 func GetComponent[T any](archetype *Archetype, index int) (T, error) {

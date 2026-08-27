@@ -3,8 +3,6 @@ package core
 import (
 	"reflect"
 	"testing"
-
-	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // Test component types for archetype testing
@@ -12,22 +10,22 @@ type TestPosition struct {
 	X, Y float64
 }
 
-func (p TestPosition) Name() string         { return "TestPosition" }
-func (p TestPosition) Clone() ecs.Component { return TestPosition{X: p.X, Y: p.Y} }
+func (p TestPosition) Name() string     { return "TestPosition" }
+func (p TestPosition) Clone() Component { return TestPosition{X: p.X, Y: p.Y} }
 
 type TestVelocity struct {
 	X, Y float64
 }
 
-func (v TestVelocity) Name() string         { return "TestVelocity" }
-func (v TestVelocity) Clone() ecs.Component { return TestVelocity{X: v.X, Y: v.Y} }
+func (v TestVelocity) Name() string     { return "TestVelocity" }
+func (v TestVelocity) Clone() Component { return TestVelocity{X: v.X, Y: v.Y} }
 
 type TestHealth struct {
 	Value int
 }
 
-func (h TestHealth) Name() string         { return "TestHealth" }
-func (h TestHealth) Clone() ecs.Component { return TestHealth{Value: h.Value} }
+func (h TestHealth) Name() string     { return "TestHealth" }
+func (h TestHealth) Clone() Component { return TestHealth{Value: h.Value} }
 
 type TestSprite struct {
 	TextureID     string
@@ -35,7 +33,7 @@ type TestSprite struct {
 }
 
 func (s TestSprite) Name() string { return "TestSprite" }
-func (s TestSprite) Clone() ecs.Component {
+func (s TestSprite) Clone() Component {
 	return TestSprite{TextureID: s.TextureID, Width: s.Width, Height: s.Height}
 }
 
@@ -406,7 +404,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		}
 
 		// Check that all IDs are present
-		idSet := make(map[ecs.EntityID]bool)
+		idSet := make(map[EntityID]bool)
 		for _, id := range result {
 			idSet[id] = true
 		}
@@ -442,7 +440,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		}
 
 		// Should only include id2 and id3
-		idSet := make(map[ecs.EntityID]bool)
+		idSet := make(map[EntityID]bool)
 		for _, id := range result {
 			idSet[id] = true
 		}
@@ -480,7 +478,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		}
 
 		// Should include all three entities
-		idSet := make(map[ecs.EntityID]bool)
+		idSet := make(map[EntityID]bool)
 		for _, id := range result {
 			idSet[id] = true
 		}
@@ -632,7 +630,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		world := NewWorld()
 
 		// Create multiple entities with same components
-		ids := make([]ecs.EntityID, 100)
+		ids := make([]EntityID, 100)
 		for i := range ids {
 			ids[i] = world.CreateEntity("Generic")
 			world.AddComponent(ids[i], TestPosition{X: float64(i), Y: float64(i)})

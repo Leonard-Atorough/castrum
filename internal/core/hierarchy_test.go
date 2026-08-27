@@ -2,8 +2,6 @@ package core
 
 import (
 	"testing"
-
-	"github.com/leonard-atorough/castrum/ecs"
 )
 
 func TestHierarchy_AddAndQuery(t *testing.T) {
@@ -39,7 +37,7 @@ func TestHierarchy_Descendants(t *testing.T) {
 	h.Add(5, 6)
 
 	got := h.Descendants(1)
-	want := []ecs.EntityID{2, 4, 5, 6, 3}
+	want := []EntityID{2, 4, 5, 6, 3}
 	if len(got) != len(want) {
 		t.Fatalf("expected %d descendants, got %d: %#v", len(want), len(got), got)
 	}

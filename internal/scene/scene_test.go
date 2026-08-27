@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/leonard-atorough/castrum/ecs"
+	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 func TestNewScene(t *testing.T) {
@@ -40,7 +40,7 @@ func TestScene_Name(t *testing.T) {
 }
 
 func TestScene_AddToScene(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	entityID := world.CreateEntity("player")
@@ -60,7 +60,7 @@ func TestScene_AddToScene(t *testing.T) {
 }
 
 func TestScene_AddToScene_NonExistentEntity(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	err := scene.AddToScene(999, world)
@@ -70,7 +70,7 @@ func TestScene_AddToScene_NonExistentEntity(t *testing.T) {
 }
 
 func TestScene_RemoveFromScene(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	entityID := world.CreateEntity("player")
@@ -91,7 +91,7 @@ func TestScene_RemoveFromScene(t *testing.T) {
 }
 
 func TestScene_RemoveFromScene_NonExistentEntity(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	err := scene.RemoveFromScene(999, world)
@@ -101,7 +101,7 @@ func TestScene_RemoveFromScene_NonExistentEntity(t *testing.T) {
 }
 
 func TestScene_Entities(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	entity1 := world.CreateEntity("player")
@@ -131,7 +131,7 @@ func TestScene_Entities(t *testing.T) {
 }
 
 func TestScene_Entities_Empty(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("empty-scene")
 
 	entities := scene.Entities(world)
@@ -159,11 +159,11 @@ func TestScene_SetGetData(t *testing.T) {
 }
 
 func TestScene_OnLoad_WithHook(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	loadCalled := false
-	scene.SetLoadHook(func(w ecs.World) error {
+	scene.SetLoadHook(func(w *core.World) error {
 		loadCalled = true
 		return nil
 	})
@@ -178,11 +178,11 @@ func TestScene_OnLoad_WithHook(t *testing.T) {
 }
 
 func TestScene_OnLoad_HookError(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	expectedErr := errors.New("load failed")
-	scene.SetLoadHook(func(w ecs.World) error {
+	scene.SetLoadHook(func(w *core.World) error {
 		return expectedErr
 	})
 
@@ -196,7 +196,7 @@ func TestScene_OnLoad_HookError(t *testing.T) {
 }
 
 func TestScene_OnLoad_NoHook(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	err := scene.OnLoad(world)
@@ -206,7 +206,7 @@ func TestScene_OnLoad_NoHook(t *testing.T) {
 }
 
 func TestScene_OnUnload_WithEntities(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	entity1 := world.CreateEntity("player")
@@ -229,11 +229,11 @@ func TestScene_OnUnload_WithEntities(t *testing.T) {
 }
 
 func TestScene_OnUnload_WithHook(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	unloadCalled := false
-	scene.SetUnloadHook(func(w ecs.World) error {
+	scene.SetUnloadHook(func(w *core.World) error {
 		unloadCalled = true
 		return nil
 	})
@@ -248,14 +248,14 @@ func TestScene_OnUnload_WithHook(t *testing.T) {
 }
 
 func TestScene_OnUnload_HookError(t *testing.T) {
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	entity1 := world.CreateEntity("player")
 	_ = scene.AddToScene(entity1, world)
 
 	expectedErr := errors.New("unload failed")
-	scene.SetUnloadHook(func(w ecs.World) error {
+	scene.SetUnloadHook(func(w *core.World) error {
 		return expectedErr
 	})
 
@@ -271,7 +271,7 @@ func TestScene_OnUnload_HookError(t *testing.T) {
 func TestScene_OnUnload_WithBothEntitiesAndHook(t *testing.T) {
 	// Test that OnUnload properly removes entities AND calls the unload hook
 	// Note: entities are removed BEFORE the unload hook is called
-	world := newMockWorld()
+	world := core.NewWorld()
 	scene := NewScene("test")
 
 	entity1 := world.CreateEntity("player")
@@ -280,7 +280,7 @@ func TestScene_OnUnload_WithBothEntitiesAndHook(t *testing.T) {
 	_ = scene.AddToScene(entity2, world)
 
 	unloadCalled := false
-	scene.SetUnloadHook(func(w ecs.World) error {
+	scene.SetUnloadHook(func(w *core.World) error {
 		unloadCalled = true
 		// Verify entities are already removed from scene when hook is called
 		// (this is the actual behavior - entities are cleaned up first)

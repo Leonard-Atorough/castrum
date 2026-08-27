@@ -3,8 +3,6 @@ package core
 import (
 	"errors"
 	"fmt"
-
-	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // Sentinel errors for common ECS operations.
@@ -39,9 +37,9 @@ func (e *WorldError) Unwrap() error {
 
 // EntityError wraps errors related to a specific entity.
 type EntityError struct {
-	EntityID ecs.EntityID // ID of the entity that caused the error
-	Op       string       // operation that failed
-	Err      error        // underlying error
+	EntityID EntityID // ID of the entity that caused the error
+	Op       string   // operation that failed
+	Err      error    // underlying error
 }
 
 func (e *EntityError) Error() string {
@@ -54,10 +52,10 @@ func (e *EntityError) Unwrap() error {
 
 // IndexError wraps errors from the entity index (components, tags, templates).
 type IndexError struct {
-	EntityID ecs.EntityID // ID of the entity involved
-	IndexKey string       // component type, tag name, or template name
-	Op       string       // operation that failed
-	Err      error        // underlying error
+	EntityID EntityID // ID of the entity involved
+	IndexKey string   // component type, tag name, or template name
+	Op       string   // operation that failed
+	Err      error    // underlying error
 }
 
 func (e *IndexError) Error() string {
@@ -70,8 +68,8 @@ func (e *IndexError) Unwrap() error {
 
 // HierarchyError wraps errors from hierarchy operations.
 type HierarchyError struct {
-	ParentID ecs.EntityID
-	ChildID  ecs.EntityID
+	ParentID EntityID
+	ChildID  EntityID
 	Op       string
 	Err      error
 }

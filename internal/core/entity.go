@@ -2,12 +2,12 @@
 // It manages entities, their components, tags, and hierarchical relationships.
 package core
 
-import "github.com/leonard-atorough/castrum/ecs"
+type EntityID uint64
 
 // entity represents a game entity with an ID, template, tags, and lifecycle state.
 // Entities are not directly exposed in the public API; they are accessed through World methods.
 type entity struct {
-	id       ecs.EntityID
+	id       EntityID
 	template string
 	tags     map[string]struct{}
 	alive    bool
@@ -17,7 +17,7 @@ type entity struct {
 	archetypeIdx int    // Index of the entity within its archetype's entity slice
 }
 
-func NewEntity(id ecs.EntityID, template string) *entity {
+func NewEntity(id EntityID, template string) *entity {
 	return &entity{
 		id:       id,
 		template: template,
@@ -28,7 +28,7 @@ func NewEntity(id ecs.EntityID, template string) *entity {
 }
 
 // ID returns the unique identifier of the entity.
-func (e *entity) ID() ecs.EntityID { return e.id }
+func (e *entity) ID() EntityID { return e.id }
 
 // Template returns the template name of the entity.
 func (e *entity) Template() string { return e.template }
@@ -72,7 +72,7 @@ func (e *entity) Destroy() { e.alive = false }
 
 func (e *entity) Version() uint32 { return e.version }
 
-func (e *entity) Clone(newID ecs.EntityID) *entity {
+func (e *entity) Clone(newID EntityID) *entity {
 	clone := &entity{
 		id:       newID,
 		template: e.template,

@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/leonard-atorough/castrum/ecs"
+	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 func TestNewManager(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	if manager.world != world {
@@ -29,7 +29,7 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestManager_World(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	if manager.World() != world {
@@ -38,7 +38,7 @@ func TestManager_World(t *testing.T) {
 }
 
 func TestManager_LoadScene(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	scene := NewScene("level-1")
@@ -58,7 +58,7 @@ func TestManager_LoadScene(t *testing.T) {
 }
 
 func TestManager_LoadScene_Duplicate(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	scene1 := NewScene("level-1")
@@ -77,7 +77,7 @@ func TestManager_LoadScene_Duplicate(t *testing.T) {
 }
 
 func TestManager_UnloadScene(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	scene := NewScene("level-1")
@@ -94,7 +94,7 @@ func TestManager_UnloadScene(t *testing.T) {
 }
 
 func TestManager_UnloadScene_NotFound(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	err := manager.UnloadScene("nonexistent")
@@ -108,7 +108,7 @@ func TestManager_UnloadScene_NotFound(t *testing.T) {
 }
 
 func TestManager_UnloadScene_CurrentScene(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	scene := NewScene("level-1")
@@ -132,12 +132,12 @@ func TestManager_UnloadScene_CurrentScene(t *testing.T) {
 }
 
 func TestManager_UnloadScene_CurrentSceneWithUnloadError(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	scene := NewScene("level-1")
 	expectedErr := errors.New("unload error")
-	scene.SetUnloadHook(func(w ecs.World) error {
+	scene.SetUnloadHook(func(w *core.World) error {
 		return expectedErr
 	})
 
@@ -151,7 +151,7 @@ func TestManager_UnloadScene_CurrentSceneWithUnloadError(t *testing.T) {
 }
 
 func TestManager_CurrentScene(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	// No current scene
@@ -170,7 +170,7 @@ func TestManager_CurrentScene(t *testing.T) {
 }
 
 func TestManager_TransitionTo(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	scene1 := NewScene("level-1")
@@ -201,7 +201,7 @@ func TestManager_TransitionTo(t *testing.T) {
 }
 
 func TestManager_TransitionTo_NotFound(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	err := manager.TransitionTo("nonexistent")
@@ -215,14 +215,14 @@ func TestManager_TransitionTo_NotFound(t *testing.T) {
 }
 
 func TestManager_TransitionTo_UnloadCurrentError(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	scene1 := NewScene("level-1")
 	scene2 := NewScene("level-2")
 
 	expectedErr := errors.New("unload error")
-	scene1.SetUnloadHook(func(w ecs.World) error {
+	scene1.SetUnloadHook(func(w *core.World) error {
 		return expectedErr
 	})
 
@@ -238,14 +238,14 @@ func TestManager_TransitionTo_UnloadCurrentError(t *testing.T) {
 }
 
 func TestManager_TransitionTo_LoadError(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	scene1 := NewScene("level-1")
 	scene2 := NewScene("level-2")
 
 	expectedErr := errors.New("load error")
-	scene2.SetLoadHook(func(w ecs.World) error {
+	scene2.SetLoadHook(func(w *core.World) error {
 		return expectedErr
 	})
 
@@ -260,7 +260,7 @@ func TestManager_TransitionTo_LoadError(t *testing.T) {
 }
 
 func TestManager_TransitionTo_FromEmpty(t *testing.T) {
-	world := &mockWorld{}
+	world := core.NewWorld()
 	manager := NewManager(world)
 
 	scene := NewScene("level-1")

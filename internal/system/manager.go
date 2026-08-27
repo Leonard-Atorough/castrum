@@ -3,12 +3,12 @@ package system
 import (
 	"fmt"
 
-	"github.com/leonard-atorough/castrum/ecs"
+	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 type systemEntry struct {
 	name   string
-	system ecs.System
+	system System
 }
 type Manager struct {
 	coreSystems   []systemEntry
@@ -30,7 +30,7 @@ func NewManager() *Manager {
 	}
 }
 
-func (sm *Manager) Register(layer Layer, name string, sys ecs.System, world ecs.World) error {
+func (sm *Manager) Register(layer Layer, name string, sys System, world *core.World) error {
 	if _, exists := sm.nameToIndex[name]; exists {
 		return fmt.Errorf("system with name %s already registered", name)
 	}
@@ -71,13 +71,13 @@ func (sm *Manager) Register(layer Layer, name string, sys ecs.System, world ecs.
 	return nil
 }
 
-func (sm *Manager) Unregister(name string, world ecs.World) error {
+func (sm *Manager) Unregister(name string, world *core.World) error {
 	info, exists := sm.nameToIndex[name]
 	if !exists {
 		return fmt.Errorf("system with name %s not found", name)
 	}
 
-	var sys ecs.System
+	var sys System
 	var systems *[]systemEntry
 
 	switch info.layer {
@@ -115,7 +115,7 @@ func (sm *Manager) Unregister(name string, world ecs.World) error {
 
 // Update runs all systems in layer priority order: Core systems first, then Player systems.
 // Returns error if any system fails (stops execution at first error).
-func (sm *Manager) Update(world ecs.World, deltaTime float64) error {
+func (sm *Manager) Update(world *core.World, deltaTime float64) error {
 	for _, entry := range sm.coreSystems {
 		if err := entry.system.Update(world, deltaTime); err != nil {
 			return fmt.Errorf("core system %s failed: %w", entry.name, err)
@@ -129,7 +129,7 @@ func (sm *Manager) Update(world ecs.World, deltaTime float64) error {
 	return nil
 }
 
-func (sm *Manager) GetSystem(name string) (ecs.System, error) {
+func (sm *Manager) GetSystem(name string) (System, error) {
 	info, exists := sm.nameToIndex[name]
 	if !exists {
 		return nil, fmt.Errorf("system with name %s not found", name)
@@ -145,16 +145,16 @@ func (sm *Manager) GetSystem(name string) (ecs.System, error) {
 	}
 }
 
-func (sm *Manager) GetSystems(layer Layer) []ecs.System {
+func (sm *Manager) GetSystems(layer Layer) []System {
 	switch layer {
 	case Core:
-		systems := make([]ecs.System, len(sm.coreSystems))
+		systems := make([]System, len(sm.coreSystems))
 		for i, entry := range sm.coreSystems {
 			systems[i] = entry.system
 		}
 		return systems
 	case Player:
-		systems := make([]ecs.System, len(sm.playerSystems))
+		systems := make([]System, len(sm.playerSystems))
 		for i, entry := range sm.playerSystems {
 			systems[i] = entry.system
 		}
@@ -166,7 +166,7 @@ func (sm *Manager) GetSystems(layer Layer) []ecs.System {
 
 // Shutdown shuts down all systems in reverse order (Player first, then Core).
 // Returns error if any system fails (continues shutdown of remaining systems).
-func (sm *Manager) Shutdown(world ecs.World) error {
+func (sm *Manager) Shutdown(world *core.World) error {
 	var lastErr error
 
 	// Shutdown player systems in reverse order

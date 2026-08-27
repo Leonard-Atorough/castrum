@@ -4,7 +4,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
@@ -18,17 +17,17 @@ type mockSystem struct {
 	shutdownErr    error
 }
 
-func (ms *mockSystem) Init(world ecs.World) error {
+func (ms *mockSystem) Init(world *core.World) error {
 	ms.initCalled++
 	return ms.initErr
 }
 
-func (ms *mockSystem) Update(world ecs.World, deltaTime float64) error {
+func (ms *mockSystem) Update(world *core.World, deltaTime float64) error {
 	ms.updateCalled++
 	return ms.updateErr
 }
 
-func (ms *mockSystem) Shutdown(world ecs.World) error {
+func (ms *mockSystem) Shutdown(world *core.World) error {
 	ms.shutdownCalled++
 	return ms.shutdownErr
 }

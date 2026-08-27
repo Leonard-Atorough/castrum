@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
@@ -49,7 +48,7 @@ func CreateBenchmarkWorld(config BenchmarkConfig) *core.World {
 
 		// Add components
 		for _, compType := range config.ComponentTypes {
-			var comp ecs.Component
+			var comp core.Component
 			switch compType {
 			case posType:
 				comp = Position{X: float64(i), Y: float64(i)}
@@ -82,18 +81,18 @@ func CreateBenchmarkWorld(config BenchmarkConfig) *core.World {
 
 // CreateBenchmarkHierarchy creates a hierarchical structure for benchmarking
 func CreateBenchmarkHierarchy(world *core.World, config BenchmarkConfig) {
-	var rootID ecs.EntityID
+	var rootID core.EntityID
 
 	// Create root entity
 	rootID = world.CreateEntity("Root")
 	world.AddTag(rootID, "Root")
 
 	// Create hierarchical structure
-	var currentLevel []ecs.EntityID
+	var currentLevel []core.EntityID
 	currentLevel = append(currentLevel, rootID)
 
 	for depth := 0; depth < config.HierarchyDepth; depth++ {
-		var nextLevel []ecs.EntityID
+		var nextLevel []core.EntityID
 		for _, parentID := range currentLevel {
 			for breadth := 0; breadth < config.HierarchyBreadth; breadth++ {
 				childID := world.CreateEntity("HierarchyNode")
@@ -110,7 +109,7 @@ func CreateBenchmarkHierarchy(world *core.World, config BenchmarkConfig) {
 type BenchmarkWorker struct {
 	ID       int
 	World    *core.World
-	Entities []ecs.EntityID
+	Entities []core.EntityID
 }
 
 // CreateBenchmarkWorkers creates multiple worker worlds for parallel benchmarking
@@ -119,7 +118,7 @@ func CreateBenchmarkWorkers(workerCount int, entitiesPerWorker int) []*Benchmark
 
 	for i := range workerCount {
 		world := core.NewWorld()
-		entities := make([]ecs.EntityID, entitiesPerWorker)
+		entities := make([]core.EntityID, entitiesPerWorker)
 
 		for j := range entitiesPerWorker {
 			id := world.CreateEntity("WorkerEntity")
@@ -233,7 +232,7 @@ func RunStressTest(config StressTestConfig) (int, int, float64) {
 	for i := 0; i < config.InitialEntities; i++ {
 		id := world.CreateEntity("StressEntity")
 		for _, compType := range config.ComponentTypes {
-			var comp ecs.Component
+			var comp core.Component
 			switch compType {
 			case posType:
 				comp = Position{X: float64(i), Y: float64(i)}
@@ -326,7 +325,7 @@ func BenchmarkEntityReuse(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-create a pool of entities
-	entityPool := make([]ecs.EntityID, 1000)
+	entityPool := make([]core.EntityID, 1000)
 	for i := range entityPool {
 		entityPool[i] = world.CreateEntity("PooledEntity")
 	}

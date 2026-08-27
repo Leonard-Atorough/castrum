@@ -3,7 +3,6 @@ package scene
 import (
 	"testing"
 
-	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
@@ -111,7 +110,7 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 	// Test with hooks
 	loadCalled := false
 	builder2 := NewBuilder("builder-test-2")
-	builder2.WithEntity(entity1).WithLoadHook(func(w ecs.World) error {
+	builder2.WithEntity(entity1).WithLoadHook(func(w *core.World) error {
 		loadCalled = true
 		return nil
 	})
@@ -188,12 +187,12 @@ func TestScene_Lifecycle_IntegrationWithRealWorld(t *testing.T) {
 	loadCalled := false
 	unloadCalled := false
 
-	scene.SetLoadHook(func(w ecs.World) error {
+	scene.SetLoadHook(func(w *core.World) error {
 		loadCalled = true
 		return nil
 	})
 
-	scene.SetUnloadHook(func(w ecs.World) error {
+	scene.SetUnloadHook(func(w *core.World) error {
 		unloadCalled = true
 		return nil
 	})

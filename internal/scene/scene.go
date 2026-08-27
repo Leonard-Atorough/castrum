@@ -3,10 +3,10 @@ package scene
 import (
 	"fmt"
 
-	"github.com/leonard-atorough/castrum/ecs"
+	"github.com/leonard-atorough/castrum/internal/core"
 )
 
-type SceneHook func(world ecs.World) error
+type SceneHook func(world *core.World) error
 
 // Scene is a ready-to-use scene with tag-based entity tracking.
 // Embed this for default behavior, or implement Scene directly.
@@ -33,17 +33,17 @@ func (s *Scene) Name() string {
 
 // AddToScene adds an entity to this scene by tagging it.
 // The entity must already exist in the world.
-func (s *Scene) AddToScene(entityID ecs.EntityID, world ecs.World) error {
+func (s *Scene) AddToScene(entityID core.EntityID, world *core.World) error {
 	return world.AddTag(entityID, s.tag)
 }
 
 // RemoveFromScene removes an entity from this scene.
-func (s *Scene) RemoveFromScene(entityID ecs.EntityID, world ecs.World) error {
+func (s *Scene) RemoveFromScene(entityID core.EntityID, world *core.World) error {
 	return world.RemoveTag(entityID, s.tag)
 }
 
 // Entities returns all entities currently in this scene.
-func (s *Scene) Entities(world ecs.World) []ecs.EntityID {
+func (s *Scene) Entities(world *core.World) []core.EntityID {
 	return world.QueryByTag(s.tag)
 }
 
@@ -57,7 +57,7 @@ func (s *Scene) SetUnloadHook(hook SceneHook) {
 
 // OnLoad is called when the scene becomes active.
 // Override this to set up initial scene state.
-func (s *Scene) OnLoad(world ecs.World) error {
+func (s *Scene) OnLoad(world *core.World) error {
 	if s.loadHook != nil {
 		if err := s.loadHook(world); err != nil {
 			return fmt.Errorf("failed to execute load hook for scene %s: %w", s.ID, err)
@@ -68,7 +68,7 @@ func (s *Scene) OnLoad(world ecs.World) error {
 
 // OnUnload is called when the scene is unloaded.
 // This cleans up all entities belonging to this scene.
-func (s *Scene) OnUnload(world ecs.World) error {
+func (s *Scene) OnUnload(world *core.World) error {
 	// Get all entities in this scene
 	entities := s.Entities(world)
 

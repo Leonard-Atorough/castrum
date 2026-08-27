@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
@@ -47,7 +46,7 @@ func BenchmarkAddComponent(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-createentity a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]ecs.EntityID, 10000)
+	entityPool := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		entityPool[i] = world.CreateEntity("Generic")
 	}
@@ -65,7 +64,7 @@ func BenchmarkGetComponent(b *testing.B) {
 	posType := reflect.TypeFor[Position]()
 
 	// Pre-createentity a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]ecs.EntityID, 10000)
+	entityPool := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
@@ -82,7 +81,7 @@ func BenchmarkHasComponent(b *testing.B) {
 	posType := reflect.TypeFor[Position]()
 
 	// Pre-createentity a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]ecs.EntityID, 10000)
+	entityPool := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
@@ -99,7 +98,7 @@ func BenchmarkRemoveComponent(b *testing.B) {
 	posType := reflect.TypeFor[Position]()
 
 	// Pre-createentity a fixed pool of entities with components
-	entityPool := make([]ecs.EntityID, 10000)
+	entityPool := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
@@ -181,8 +180,8 @@ func BenchmarkSetParent(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-createentity entities
-	parents := make([]ecs.EntityID, 10000)
-	children := make([]ecs.EntityID, 10000)
+	parents := make([]core.EntityID, 10000)
+	children := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		parents[i] = world.CreateEntity("Generic")
 		children[i] = world.CreateEntity("Generic")
@@ -197,8 +196,8 @@ func BenchmarkParentOf(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-createentity hierarchy
-	parents := make([]ecs.EntityID, 10000)
-	children := make([]ecs.EntityID, 10000)
+	parents := make([]core.EntityID, 10000)
+	children := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		parents[i] = world.CreateEntity("Generic")
 		children[i] = world.CreateEntity("Generic")
@@ -215,7 +214,7 @@ func BenchmarkChildrenOf(b *testing.B) {
 
 	// Pre-createentity hierarchy - one parent with many children
 	parent := world.CreateEntity("Generic")
-	children := make([]ecs.EntityID, 10000)
+	children := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		children[i] = world.CreateEntity("Generic")
 		world.SetParent(children[i], parent)
@@ -231,7 +230,7 @@ func BenchmarkDestroyEntity(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-createentity a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]ecs.EntityID, 10000)
+	entityPool := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		entityPool[i] = world.CreateEntity("Generic")
 	}
@@ -251,7 +250,7 @@ func BenchmarkDestroyEntityWithCleanup(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-createentity a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]ecs.EntityID, 10000)
+	entityPool := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		entityPool[i] = world.CreateEntity("Generic")
 	}
@@ -300,7 +299,7 @@ func BenchmarkAddTag(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-createentity a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]ecs.EntityID, 10000)
+	entityPool := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		entityPool[i] = world.CreateEntity("Generic")
 	}
@@ -319,7 +318,7 @@ func BenchmarkHasTag(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-createentity a fixed pool of entities with tags
-	entityPool := make([]ecs.EntityID, 10000)
+	entityPool := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		id := world.CreateEntity("Generic")
 		world.AddTag(id, "TestTag")
@@ -335,7 +334,7 @@ func BenchmarkRemoveTag(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-createentity a fixed pool of entities with tags
-	entityPool := make([]ecs.EntityID, 10000)
+	entityPool := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		id := world.CreateEntity("Generic")
 		world.AddTag(id, "TestTag")
@@ -368,7 +367,7 @@ func BenchmarkWorldExists(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-createentity entities
-	entities := make([]ecs.EntityID, 10000)
+	entities := make([]core.EntityID, 10000)
 	for i := range 10000 {
 		entities[i] = world.CreateEntity("Generic")
 	}
@@ -383,7 +382,7 @@ func BenchmarkComponentsList(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-createentity entities with multiple components
-	entities := make([]ecs.EntityID, 1000)
+	entities := make([]core.EntityID, 1000)
 	for i := range 1000 {
 		id := world.CreateEntity("Generic")
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
