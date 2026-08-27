@@ -13,6 +13,14 @@ var (
 	ErrEntityNotFound = errors.New("entity not found")
 	// ErrInvalidEntity is returned when an entity has invalid state or properties.
 	ErrInvalidEntity = errors.New("invalid entity")
+	// ErrArchetypeNotFound is returned when an operation references an archetype that does not exist.
+	ErrArchetypeNotFound = errors.New("archetype not found")
+	// ErrComponentNotFound is returned when a requested component type is not found for an entity.
+	ErrComponentNotFound = errors.New("component not found: %s")
+	// ErrTagNotFound is returned when a requested tag is not found for an entity.
+	ErrTagNotFound = errors.New("tag not found")
+	// ErrTemplateNotFound is returned when a requested template is not found for an entity.
+	ErrTemplateNotFound = errors.New("template not found")
 )
 
 // WorldError wraps errors that occur at the world level.

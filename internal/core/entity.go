@@ -12,6 +12,9 @@ type entity struct {
 	tags     map[string]struct{}
 	alive    bool
 	version  uint32
+
+	archetypeID  uint64 // ID of the archetype this entity belongs to
+	archetypeIdx int    // Index of the entity within its archetype's entity slice
 }
 
 func NewEntity(id ecs.EntityID, template string) *entity {
