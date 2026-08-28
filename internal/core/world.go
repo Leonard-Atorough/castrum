@@ -27,6 +27,44 @@ func NewWorld() *World {
 	}
 }
 
+// Reset clears the world entirely, removing all entities, components, and hierarchy relationships.
+func (w *World) Reset() {
+	w.entities = make(map[EntityID]*entity)
+	w.archetypeManager = NewArchetypeManager()
+	w.index = NewEntityIndex()
+	w.hierarchy = NewHierarchy()
+	w.nextID.Store(0)
+	w.destroyed = make([]*entity, 0)
+}
+
+// This method should be called after calling Destroy() to perform the actual removal.
+func (w *World) Cleanup() {
+	for _, entity := range w.destroyed {
+		if entity == nil {
+			continue
+		}
+
+		delete(w.entities, entity.ID())
+		w.index.RemoveTemplate(entity.ID(), entity.Template())
+		for tag := range entity.tags {
+			w.index.RemoveTag(entity.ID(), tag)
+		}
+
+		if parentID, hasParent := w.hierarchy.Parent(entity.ID()); hasParent {
+			w.hierarchy.Remove(parentID, entity.ID())
+		}
+
+		entity.tags = nil
+		entity.template = ""
+	}
+	w.destroyed = w.destroyed[:0]
+}
+
+// Count returns the number of active entities in the world.
+func (w *World) Count() int {
+	return len(w.entities)
+}
+
 // CreateEntity creates a new entity with the specified template and returns its EntityID.
 // The entity is automatically registered with the world and the index.
 func (w *World) CreateEntity(template string) EntityID {
@@ -116,144 +154,6 @@ func (w *World) GetEntity(entityID EntityID) (*entity, bool) {
 func (w *World) HasEntity(entityID EntityID) bool {
 	_, exists := w.entities[entityID]
 	return exists
-}
-
-// Query retrieves all entities that have all the specified component types.
-// Returns a slice of matching EntityIDs, or nil if none match.
-// This uses superset matching - entities with AT LEAST the specified components.
-func (w *World) Query(components ...reflect.Type) []EntityID {
-	if len(components) == 0 {
-		return nil
-	}
-
-	// Use superset matching to find all entities that have at least these components
-	queryKey := NewArchetypeKey(components...)
-	var result []EntityID
-
-	for _, archetype := range w.archetypeManager.archetypes {
-		if archetype.componentTypes.ContainsAll(queryKey) {
-			result = append(result, archetype.entities...)
-		}
-	}
-
-	return result
-}
-
-func (w *World) QueryAny(components ...reflect.Type) []EntityID {
-	if len(components) == 0 {
-		return nil
-	}
-
-	var results []EntityID
-	seen := make(map[EntityID]bool)
-
-	// This reads as:
-	// For each component type, check all archetypes to see if they contain that component type.
-	// If they do, add all entities from that archetype to the results, ensuring no duplicates.
-	// This is a brute-force approach and can be optimized with a better indexing strategy in the future.
-	// We'll need to consider how to efficiently handle queries for "any" component type, especially as the number of archetypes grows.
-	for _, compType := range components {
-		for _, archetype := range w.archetypeManager.archetypes {
-			for _, t := range archetype.componentTypes {
-				if t == compType {
-					for _, entityID := range archetype.entities {
-						if !seen[entityID] {
-							results = append(results, entityID)
-							seen[entityID] = true
-						}
-					}
-					break
-				}
-			}
-		}
-	}
-
-	return results
-}
-
-func (w *World) QuerySuperset(components ...reflect.Type) []EntityID {
-	if len(components) == 0 {
-		return nil
-	}
-
-	querykey := NewArchetypeKey(components...)
-	var results []EntityID
-
-	for _, archetype := range w.archetypeManager.archetypes {
-		if archetype.componentTypes.ContainsAll(querykey) {
-			results = append(results, archetype.entities...)
-		}
-	}
-
-	return results
-}
-
-// QueryByTag retrieves all entities that have the specified tag.
-// Returns a slice of matching EntityIDs, or nil if none match.
-func (w *World) QueryByTag(tag string) []EntityID {
-	w.ensureTagAndTemplateIndex()
-	entityIDs := w.index.GetEntitiesWithTag(tag)
-	return entityIDs
-}
-
-// QueryByTemplate retrieves all entities that use the specified template.
-// Returns a slice of matching EntityIDs, or nil if none match.
-func (w *World) QueryByTemplate(template string) []EntityID {
-	w.ensureTagAndTemplateIndex()
-	entityIDs := w.index.GetEntitiesWithTemplate(template)
-	return entityIDs
-}
-
-// AddTag adds a tag to an entity. The entity must exist in the world.
-func (w *World) AddTag(entityID EntityID, tag string) error {
-	entity, exists := w.entities[entityID]
-	if !exists {
-		return &EntityError{
-			EntityID: entityID,
-			Op:       "AddTag",
-			Err:      ErrEntityNotFound,
-		}
-	}
-	entity.AddTag(tag)
-	if w.index.lazyTagTemplateIndex {
-		w.index.rebuildTagAndTemplateIndex(w.entities)
-	} else {
-		w.index.AddTag(entityID, tag)
-	}
-	return nil
-}
-
-// RemoveTag removes a tag from an entity. The entity must exist in the world.
-func (w *World) RemoveTag(entityID EntityID, tag string) error {
-	entity, exists := w.entities[entityID]
-	if !exists {
-		return &EntityError{
-			EntityID: entityID,
-			Op:       "RemoveTag",
-			Err:      ErrEntityNotFound,
-		}
-	}
-
-	entity.RemoveTag(tag)
-	if w.index.lazyTagTemplateIndex {
-		w.index.rebuildTagAndTemplateIndex(w.entities)
-	} else {
-		w.index.RemoveTag(entityID, tag)
-	}
-	return nil
-}
-
-// HasTag checks if an entity has a specific tag. The entity must exist in the world.
-func (w *World) HasTag(entityID EntityID, tag string) (bool, error) {
-	entity, exists := w.entities[entityID]
-	if !exists {
-		return false, &EntityError{
-			EntityID: entityID,
-			Op:       "HasTag",
-			Err:      ErrEntityNotFound,
-		}
-	}
-	return entity.HasTag(tag), nil
 }
 
 // AddComponent adds a component to an entity. The entity must exist in the world.
@@ -390,6 +290,144 @@ func (w *World) HasComponent(entityID EntityID, compType reflect.Type) bool {
 	return false
 }
 
+// AddTag adds a tag to an entity. The entity must exist in the world.
+func (w *World) AddTag(entityID EntityID, tag string) error {
+	entity, exists := w.entities[entityID]
+	if !exists {
+		return &EntityError{
+			EntityID: entityID,
+			Op:       "AddTag",
+			Err:      ErrEntityNotFound,
+		}
+	}
+	entity.AddTag(tag)
+	if w.index.lazyTagTemplateIndex {
+		w.index.rebuildTagAndTemplateIndex(w.entities)
+	} else {
+		w.index.AddTag(entityID, tag)
+	}
+	return nil
+}
+
+// RemoveTag removes a tag from an entity. The entity must exist in the world.
+func (w *World) RemoveTag(entityID EntityID, tag string) error {
+	entity, exists := w.entities[entityID]
+	if !exists {
+		return &EntityError{
+			EntityID: entityID,
+			Op:       "RemoveTag",
+			Err:      ErrEntityNotFound,
+		}
+	}
+
+	entity.RemoveTag(tag)
+	if w.index.lazyTagTemplateIndex {
+		w.index.rebuildTagAndTemplateIndex(w.entities)
+	} else {
+		w.index.RemoveTag(entityID, tag)
+	}
+	return nil
+}
+
+// HasTag checks if an entity has a specific tag. The entity must exist in the world.
+func (w *World) HasTag(entityID EntityID, tag string) (bool, error) {
+	entity, exists := w.entities[entityID]
+	if !exists {
+		return false, &EntityError{
+			EntityID: entityID,
+			Op:       "HasTag",
+			Err:      ErrEntityNotFound,
+		}
+	}
+	return entity.HasTag(tag), nil
+}
+
+// Query retrieves all entities that have all the specified component types.
+// Returns a slice of matching EntityIDs, or nil if none match.
+// This uses superset matching - entities with AT LEAST the specified components.
+func (w *World) Query(components ...reflect.Type) []EntityID {
+	if len(components) == 0 {
+		return nil
+	}
+
+	// Use superset matching to find all entities that have at least these components
+	queryKey := NewArchetypeKey(components...)
+	var result []EntityID
+
+	for _, archetype := range w.archetypeManager.archetypes {
+		if archetype.componentTypes.ContainsAll(queryKey) {
+			result = append(result, archetype.entities...)
+		}
+	}
+
+	return result
+}
+
+func (w *World) QueryAny(components ...reflect.Type) []EntityID {
+	if len(components) == 0 {
+		return nil
+	}
+
+	var results []EntityID
+	seen := make(map[EntityID]bool)
+
+	// This reads as:
+	// For each component type, check all archetypes to see if they contain that component type.
+	// If they do, add all entities from that archetype to the results, ensuring no duplicates.
+	// This is a brute-force approach and can be optimized with a better indexing strategy in the future.
+	// We'll need to consider how to efficiently handle queries for "any" component type, especially as the number of archetypes grows.
+	for _, compType := range components {
+		for _, archetype := range w.archetypeManager.archetypes {
+			for _, t := range archetype.componentTypes {
+				if t == compType {
+					for _, entityID := range archetype.entities {
+						if !seen[entityID] {
+							results = append(results, entityID)
+							seen[entityID] = true
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+
+	return results
+}
+
+func (w *World) QuerySuperset(components ...reflect.Type) []EntityID {
+	if len(components) == 0 {
+		return nil
+	}
+
+	querykey := NewArchetypeKey(components...)
+	var results []EntityID
+
+	for _, archetype := range w.archetypeManager.archetypes {
+		if archetype.componentTypes.ContainsAll(querykey) {
+			results = append(results, archetype.entities...)
+		}
+	}
+
+	return results
+}
+
+// QueryByTag retrieves all entities that have the specified tag.
+// Returns a slice of matching EntityIDs, or nil if none match.
+func (w *World) QueryByTag(tag string) []EntityID {
+	w.ensureTagAndTemplateIndex()
+	entityIDs := w.index.GetEntitiesWithTag(tag)
+	return entityIDs
+}
+
+// QueryByTemplate retrieves all entities that use the specified template.
+// Returns a slice of matching EntityIDs, or nil if none match.
+func (w *World) QueryByTemplate(template string) []EntityID {
+	w.ensureTagAndTemplateIndex()
+	entityIDs := w.index.GetEntitiesWithTemplate(template)
+	return entityIDs
+}
+
 // Components returns all components associated with an entity.
 func (w *World) Components(entityID EntityID) []Component {
 	entity, exists := w.entities[entityID]
@@ -434,45 +472,6 @@ func (w *World) Detach(id EntityID) {
 	if parentID, hasParent := w.hierarchy.Parent(id); hasParent {
 		w.hierarchy.Remove(parentID, id)
 	}
-}
-
-// Cleanup removes all destroyed entities and clears their associated data from the store, index, and hierarchy.
-// This method should be called after calling Destroy() to perform the actual removal.
-func (w *World) Cleanup() {
-	for _, entity := range w.destroyed {
-		if entity == nil {
-			continue
-		}
-
-		delete(w.entities, entity.ID())
-		w.index.RemoveTemplate(entity.ID(), entity.Template())
-		for tag := range entity.tags {
-			w.index.RemoveTag(entity.ID(), tag)
-		}
-
-		if parentID, hasParent := w.hierarchy.Parent(entity.ID()); hasParent {
-			w.hierarchy.Remove(parentID, entity.ID())
-		}
-
-		entity.tags = nil
-		entity.template = ""
-	}
-	w.destroyed = w.destroyed[:0]
-}
-
-// Reset clears the world entirely, removing all entities, components, and hierarchy relationships.
-func (w *World) Reset() {
-	w.entities = make(map[EntityID]*entity)
-	w.archetypeManager = NewArchetypeManager()
-	w.index = NewEntityIndex()
-	w.hierarchy = NewHierarchy()
-	w.nextID.Store(0)
-	w.destroyed = make([]*entity, 0)
-}
-
-// Count returns the number of active entities in the world.
-func (w *World) Count() int {
-	return len(w.entities)
 }
 
 func (w *World) migrateEntityToNewArchetype(entity *entity, newComp Component, newComponentTypes ...reflect.Type) error {
