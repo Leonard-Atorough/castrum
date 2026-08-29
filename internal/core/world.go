@@ -8,9 +8,9 @@ import (
 
 // World represents the central manager for all ECS state, handling entities, components, tags, templates, and hierarchical relationships.
 type World struct {
-	entities         map[EntityID]*entity
+	entities         map[EntityID]*Entity
 	nextID           atomic.Uint64
-	destroyed        []*entity
+	destroyed        []*Entity
 	hierarchy        *Hierarchy
 	archetypeManager *ArchetypeManager
 	index            entityIndex
@@ -18,23 +18,23 @@ type World struct {
 
 func NewWorld() *World {
 	return &World{
-		entities:         make(map[EntityID]*entity),
+		entities:         make(map[EntityID]*Entity),
 		index:            NewEntityIndex(),
 		hierarchy:        NewHierarchy(),
 		nextID:           atomic.Uint64{},
-		destroyed:        make([]*entity, 0),
+		destroyed:        make([]*Entity, 0),
 		archetypeManager: NewArchetypeManager(),
 	}
 }
 
 // Reset clears the world entirely, removing all entities, components, and hierarchy relationships.
 func (w *World) Reset() {
-	w.entities = make(map[EntityID]*entity)
+	w.entities = make(map[EntityID]*Entity)
 	w.archetypeManager = NewArchetypeManager()
 	w.index = NewEntityIndex()
 	w.hierarchy = NewHierarchy()
 	w.nextID.Store(0)
-	w.destroyed = make([]*entity, 0)
+	w.destroyed = make([]*Entity, 0)
 }
 
 // This method should be called after calling Destroy() to perform the actual removal.
@@ -57,7 +57,7 @@ func (w *World) Cleanup() {
 		entity.tags = nil
 		entity.template = ""
 	}
-	w.destroyed = w.destroyed[:0]
+	w.destroyed = make([]*Entity, 0)
 }
 
 // Count returns the number of active entities in the world.
@@ -67,7 +67,7 @@ func (w *World) Count() int {
 
 // CreateEntity creates a new entity with the specified template and returns its EntityID.
 // The entity is automatically registered with the world and the index.
-func (w *World) CreateEntity(template string) EntityID {
+func (w *World) CreateEntity(template string) *Entity {
 	id := EntityID(w.nextID.Add(1))
 
 	entity := NewEntity(id, template)
@@ -92,7 +92,7 @@ func (w *World) CreateEntity(template string) EntityID {
 		entity.AddTag("Generic")
 	}
 
-	return id
+	return entity
 }
 
 // DestroyEntity marks an entity for destruction. If cascade is true, all descendants of the entity will also be destroyed.
@@ -145,7 +145,7 @@ func (w *World) DestroyEntity(entityID EntityID, cascade bool) error {
 	return nil
 }
 
-func (w *World) GetEntity(entityID EntityID) (*entity, bool) {
+func (w *World) GetEntity(entityID EntityID) (*Entity, bool) {
 	entity, exists := w.entities[entityID]
 	return entity, exists
 }
@@ -329,19 +329,6 @@ func (w *World) RemoveTag(entityID EntityID, tag string) error {
 	return nil
 }
 
-// HasTag checks if an entity has a specific tag. The entity must exist in the world.
-func (w *World) HasTag(entityID EntityID, tag string) (bool, error) {
-	entity, exists := w.entities[entityID]
-	if !exists {
-		return false, &EntityError{
-			EntityID: entityID,
-			Op:       "HasTag",
-			Err:      ErrEntityNotFound,
-		}
-	}
-	return entity.HasTag(tag), nil
-}
-
 // Query retrieves all entities that have all the specified component types.
 // Returns a slice of matching EntityIDs, or nil if none match.
 // This uses superset matching - entities with AT LEAST the specified components.
@@ -474,7 +461,7 @@ func (w *World) Detach(id EntityID) {
 	}
 }
 
-func (w *World) migrateEntityToNewArchetype(entity *entity, newComp Component, newComponentTypes ...reflect.Type) error {
+func (w *World) migrateEntityToNewArchetype(entity *Entity, newComp Component, newComponentTypes ...reflect.Type) error {
 	newArchetype := w.archetypeManager.GetOrCreateArchetype(newComponentTypes...)
 
 	// Copy existing components from current archetype before removing entity
@@ -524,7 +511,7 @@ func (w *World) migrateEntityToNewArchetype(entity *entity, newComp Component, n
 	return nil
 }
 
-func (w *World) updateComponentInArchetype(entity *entity, comp Component, compType reflect.Type, archetype *Archetype) error {
+func (w *World) updateComponentInArchetype(entity *Entity, comp Component, compType reflect.Type, archetype *Archetype) error {
 	// if no archetype passed in, try to get the current archetype of the entity
 	if archetype == nil {
 		var exists bool

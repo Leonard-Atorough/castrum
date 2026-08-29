@@ -43,17 +43,15 @@ func TestScene_AddToScene(t *testing.T) {
 	world := core.NewWorld()
 	scene := NewScene("test")
 
-	entityID := world.CreateEntity("player")
+	entity := world.CreateEntity("player")
+	entityID := entity.ID()
 
 	err := scene.AddToScene(entityID, world)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	hasTag, err := world.HasTag(entityID, "scene:test")
-	if err != nil {
-		t.Fatalf("unexpected error checking tag: %v", err)
-	}
+	hasTag := entity.HasTag("scene:test")
 	if !hasTag {
 		t.Fatal("expected entity to have scene tag after AddToScene")
 	}
@@ -73,7 +71,8 @@ func TestScene_RemoveFromScene(t *testing.T) {
 	world := core.NewWorld()
 	scene := NewScene("test")
 
-	entityID := world.CreateEntity("player")
+	entity := world.CreateEntity("player")
+	entityID := entity.ID()
 	_ = scene.AddToScene(entityID, world)
 
 	err := scene.RemoveFromScene(entityID, world)
@@ -81,10 +80,7 @@ func TestScene_RemoveFromScene(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	hasTag, err := world.HasTag(entityID, "scene:test")
-	if err != nil {
-		t.Fatalf("unexpected error checking tag: %v", err)
-	}
+	hasTag := entity.HasTag("scene:test")
 	if hasTag {
 		t.Fatal("expected entity to not have scene tag after RemoveFromScene")
 	}
@@ -108,8 +104,8 @@ func TestScene_Entities(t *testing.T) {
 	entity2 := world.CreateEntity("enemy")
 	_ = world.CreateEntity("npc")
 
-	_ = scene.AddToScene(entity1, world)
-	_ = scene.AddToScene(entity2, world)
+	_ = scene.AddToScene(entity1.ID(), world)
+	_ = scene.AddToScene(entity2.ID(), world)
 
 	entities := scene.Entities(world)
 	if len(entities) != 2 {
@@ -118,10 +114,10 @@ func TestScene_Entities(t *testing.T) {
 
 	found1, found2 := false, false
 	for _, id := range entities {
-		if id == entity1 {
+		if id == entity1.ID() {
 			found1 = true
 		}
-		if id == entity2 {
+		if id == entity2.ID() {
 			found2 = true
 		}
 	}
@@ -211,8 +207,8 @@ func TestScene_OnUnload_WithEntities(t *testing.T) {
 
 	entity1 := world.CreateEntity("player")
 	entity2 := world.CreateEntity("enemy")
-	_ = scene.AddToScene(entity1, world)
-	_ = scene.AddToScene(entity2, world)
+	_ = scene.AddToScene(entity1.ID(), world)
+	_ = scene.AddToScene(entity2.ID(), world)
 
 	if len(scene.Entities(world)) != 2 {
 		t.Fatal("expected 2 entities in scene before unload")
@@ -252,7 +248,7 @@ func TestScene_OnUnload_HookError(t *testing.T) {
 	scene := NewScene("test")
 
 	entity1 := world.CreateEntity("player")
-	_ = scene.AddToScene(entity1, world)
+	_ = scene.AddToScene(entity1.ID(), world)
 
 	expectedErr := errors.New("unload failed")
 	scene.SetUnloadHook(func(w *core.World) error {
@@ -276,8 +272,8 @@ func TestScene_OnUnload_WithBothEntitiesAndHook(t *testing.T) {
 
 	entity1 := world.CreateEntity("player")
 	entity2 := world.CreateEntity("enemy")
-	_ = scene.AddToScene(entity1, world)
-	_ = scene.AddToScene(entity2, world)
+	_ = scene.AddToScene(entity1.ID(), world)
+	_ = scene.AddToScene(entity2.ID(), world)
 
 	unloadCalled := false
 	scene.SetUnloadHook(func(w *core.World) error {

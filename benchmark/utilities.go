@@ -44,7 +44,7 @@ func CreateBenchmarkWorld(config BenchmarkConfig) *core.World {
 	// Create entities with various configurations
 	for i := 0; i < config.EntityCount; i++ {
 		template := config.TemplateNames[i%len(config.TemplateNames)]
-		id := world.CreateEntity(template)
+		entity := world.CreateEntity(template)
 
 		// Add components
 		for _, compType := range config.ComponentTypes {
@@ -60,14 +60,14 @@ func CreateBenchmarkWorld(config BenchmarkConfig) *core.World {
 				comp = Sprite{TextureID: "test", Width: 32, Height: 32}
 			}
 			if comp != nil {
-				world.AddComponent(id, comp)
+				world.AddComponent(entity.ID(), comp)
 			}
 		}
 
 		// Add tags
 		if len(config.TagNames) > 0 {
 			tag := config.TagNames[i%len(config.TagNames)]
-			world.AddTag(id, tag)
+			world.AddTag(entity.ID(), tag)
 		}
 	}
 
@@ -84,7 +84,8 @@ func CreateBenchmarkHierarchy(world *core.World, config BenchmarkConfig) {
 	var rootID core.EntityID
 
 	// Create root entity
-	rootID = world.CreateEntity("Root")
+	root := world.CreateEntity("Root")
+	rootID = root.ID()
 	world.AddTag(rootID, "Root")
 
 	// Create hierarchical structure
@@ -95,7 +96,8 @@ func CreateBenchmarkHierarchy(world *core.World, config BenchmarkConfig) {
 		var nextLevel []core.EntityID
 		for _, parentID := range currentLevel {
 			for breadth := 0; breadth < config.HierarchyBreadth; breadth++ {
-				childID := world.CreateEntity("HierarchyNode")
+				child := world.CreateEntity("HierarchyNode")
+				childID := child.ID()
 				world.SetParent(childID, parentID)
 				world.AddTag(childID, "HierarchyNode")
 				nextLevel = append(nextLevel, childID)
@@ -121,10 +123,10 @@ func CreateBenchmarkWorkers(workerCount int, entitiesPerWorker int) []*Benchmark
 		entities := make([]core.EntityID, entitiesPerWorker)
 
 		for j := range entitiesPerWorker {
-			id := world.CreateEntity("WorkerEntity")
-			world.AddComponent(id, Position{X: float64(j), Y: float64(j)})
-			world.AddComponent(id, Velocity{X: 1.0, Y: 1.0})
-			entities[j] = id
+			entity := world.CreateEntity("WorkerEntity")
+			world.AddComponent(entity.ID(), Position{X: float64(j), Y: float64(j)})
+			world.AddComponent(entity.ID(), Velocity{X: 1.0, Y: 1.0})
+			entities[j] = entity.ID()
 		}
 
 		workers[i] = &BenchmarkWorker{
@@ -230,7 +232,7 @@ func RunStressTest(config StressTestConfig) (int, int, float64) {
 
 	// Create initial entities
 	for i := 0; i < config.InitialEntities; i++ {
-		id := world.CreateEntity("StressEntity")
+		entity := world.CreateEntity("StressEntity")
 		for _, compType := range config.ComponentTypes {
 			var comp core.Component
 			switch compType {
@@ -240,7 +242,7 @@ func RunStressTest(config StressTestConfig) (int, int, float64) {
 				comp = Velocity{X: 1.0, Y: 1.0}
 			}
 			if comp != nil {
-				world.AddComponent(id, comp)
+				world.AddComponent(entity.ID(), comp)
 			}
 		}
 	}
@@ -254,8 +256,8 @@ func RunStressTest(config StressTestConfig) (int, int, float64) {
 	for op := 0; op < config.OperationsPerSec*config.Duration; op++ {
 		start := testing.AllocsPerRun(1, func() {
 			// Perform various operations
-			id := world.CreateEntity("StressEntity")
-			world.AddComponent(id, Position{X: float64(op), Y: float64(op)})
+			entity := world.CreateEntity("StressEntity")
+			world.AddComponent(entity.ID(), Position{X: float64(op), Y: float64(op)})
 
 			// Query some entities
 			world.Query(reflect.TypeFor[Position]())
@@ -295,13 +297,13 @@ func BenchmarkReflectionOverhead(b *testing.B) {
 	world := core.NewWorld()
 
 	// Create entity with components
-	id := world.CreateEntity("Generic")
-	world.AddComponent(id, Position{X: 1.0, Y: 2.0})
+	entity := world.CreateEntity("Generic")
+	world.AddComponent(entity.ID(), Position{X: 1.0, Y: 2.0})
 
 	// Direct access (no reflection)
 	b.Run("Direct", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			comp, _ := world.GetComponent(id, reflect.TypeFor[Position]())
+			comp, _ := world.GetComponent(entity.ID(), reflect.TypeFor[Position]())
 			if comp != nil {
 				_ = comp.(Position)
 			}
@@ -312,7 +314,7 @@ func BenchmarkReflectionOverhead(b *testing.B) {
 	posType := reflect.TypeFor[Position]()
 	b.Run("Cached", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			comp, _ := world.GetComponent(id, posType)
+			comp, _ := world.GetComponent(entity.ID(), posType)
 			if comp != nil {
 				_ = comp.(Position)
 			}
@@ -327,7 +329,7 @@ func BenchmarkEntityReuse(b *testing.B) {
 	// Pre-create a pool of entities
 	entityPool := make([]core.EntityID, 1000)
 	for i := range entityPool {
-		entityPool[i] = world.CreateEntity("PooledEntity")
+		entityPool[i] = world.CreateEntity("PooledEntity").ID()
 	}
 
 	for i := 0; b.Loop(); i++ {

@@ -46,6 +46,6 @@ func (l *Loader) LoadFromBytes(data []byte) (*Blueprint, error) {
 	return l.Load(bytes.NewReader(data))
 }
 
-func (l *Loader) Spawn(world *core.World, bp *Blueprint) (*core.EntityID, error) {
+func (l *Loader) Spawn(world *core.World, bp *Blueprint) (*core.Entity, error) {
 	return bp.Construct(world, l.reg)
 }

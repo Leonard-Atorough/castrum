@@ -42,7 +42,7 @@ func (m *Manager) GetBlueprint(name string) (*Blueprint, bool) {
 	return bp, exists
 }
 
-func (m *Manager) SpawnBlueprint(world *core.World, name string) (*core.EntityID, error) {
+func (m *Manager) SpawnBlueprint(world *core.World, name string) (*core.Entity, error) {
 	bp, exists := m.blueprints[name]
 	if !exists {
 		return nil, ErrBlueprintNotFound

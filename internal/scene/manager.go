@@ -10,6 +10,7 @@ type Manager struct {
 	scenes  map[string]*Scene
 	current string
 	world   *core.World
+	builder *Builder
 }
 
 func NewManager(world *core.World) *Manager {
@@ -21,6 +22,24 @@ func NewManager(world *core.World) *Manager {
 
 func (sm *Manager) World() *core.World {
 	return sm.world
+}
+
+func (sm *Manager) Scenes() map[string]*Scene {
+	return sm.scenes
+}
+
+func (sm *Manager) Current() *Scene {
+	if sm.current == "" {
+		return nil
+	}
+	return sm.scenes[sm.current]
+}
+
+func (sm *Manager) SceneBuilder(sceneID string) *Builder {
+	if sm.builder == nil {
+		sm.builder = NewBuilder(sceneID, sm.world)
+	}
+	return sm.builder
 }
 
 func (sm *Manager) LoadScene(name string, scene *Scene) error {

@@ -325,9 +325,9 @@ func TestArchetypeEdgeCases(t *testing.T) {
 	t.Run("GetComponentFromEmptyArchetype", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
+		entity := world.CreateEntity("Generic")
 
-		_, err := world.GetComponent(id, reflect.TypeFor[TestPosition]())
+		_, err := world.GetComponent(entity.id, reflect.TypeFor[TestPosition]())
 		if err == nil {
 			t.Error("Expected error when getting non-existent component")
 		}
@@ -336,9 +336,9 @@ func TestArchetypeEdgeCases(t *testing.T) {
 	t.Run("RemoveNonExistentComponent", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
+		entity := world.CreateEntity("Generic")
 
-		err := world.RemoveComponent(id, reflect.TypeFor[TestPosition]())
+		err := world.RemoveComponent(entity.id, reflect.TypeFor[TestPosition]())
 		if err != nil {
 			t.Errorf("Expected no error when removing non-existent component, got: %v", err)
 		}
@@ -358,13 +358,13 @@ func TestArchetypeEdgeCases(t *testing.T) {
 	t.Run("GetComponentAfterDestruction", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
-		world.AddComponent(id, TestPosition{X: 1, Y: 2})
+		entity := world.CreateEntity("Generic")
+		world.AddComponent(entity.id, TestPosition{X: 1, Y: 2})
 
-		world.DestroyEntity(id, false)
+		world.DestroyEntity(entity.id, false)
 		world.Cleanup()
 
-		_, err := world.GetComponent(id, reflect.TypeFor[TestPosition]())
+		_, err := world.GetComponent(entity.id, reflect.TypeFor[TestPosition]())
 		if err == nil {
 			t.Error("Expected error when getting component from destroyed entity")
 		}
@@ -373,11 +373,11 @@ func TestArchetypeEdgeCases(t *testing.T) {
 	t.Run("AddComponentToDestroyedEntity", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
-		world.DestroyEntity(id, false)
+		entity := world.CreateEntity("Generic")
+		world.DestroyEntity(entity.id, false)
 		world.Cleanup()
 
-		err := world.AddComponent(id, TestPosition{X: 1, Y: 2})
+		err := world.AddComponent(entity.id, TestPosition{X: 1, Y: 2})
 		if err == nil {
 			t.Error("Expected error when adding component to destroyed entity")
 		}

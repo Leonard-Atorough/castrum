@@ -33,23 +33,23 @@ func TestWorldCreation(t *testing.T) {
 
 	t.Run("QueryByTemplate returns correct entities", func(t *testing.T) {
 		w := NewWorld()
-		provinceID := w.CreateEntity("Province")
-		cityID := w.CreateEntity("City")
-		genericID1 := w.CreateEntity("Generic")
-		genericID2 := w.CreateEntity("Generic")
+		provinceEntity := w.CreateEntity("Province")
+		cityEntity := w.CreateEntity("City")
+		genericEntity1 := w.CreateEntity("Generic")
+		genericEntity2 := w.CreateEntity("Generic")
 
 		provinces := w.QueryByTemplate("Province")
-		if len(provinces) != 1 || provinces[0] != provinceID {
+		if len(provinces) != 1 || provinces[0] != provinceEntity.id {
 			t.Fatal("QueryByTemplate for 'Province' returned incorrect entities")
 		}
 
 		cities := w.QueryByTemplate("City")
-		if len(cities) != 1 || cities[0] != cityID {
+		if len(cities) != 1 || cities[0] != cityEntity.id {
 			t.Fatal("QueryByTemplate for 'City' returned incorrect entities")
 		}
 
 		generics := w.QueryByTemplate("Generic")
-		if len(generics) != 2 || (generics[0] != genericID1 && generics[0] != genericID2) || (generics[1] != genericID1 && generics[1] != genericID2) {
+		if len(generics) != 2 || (generics[0] != genericEntity1.id && generics[0] != genericEntity2.id) || (generics[1] != genericEntity1.id && generics[1] != genericEntity2.id) {
 			t.Fatal("QueryByTemplate for 'Generic' returned incorrect entities")
 		}
 	})
@@ -59,21 +59,21 @@ func TestWorldCreation(t *testing.T) {
 func TestWorld_EntityLifecycle(t *testing.T) {
 	t.Run("Create, Get, and Destroy Entity", func(t *testing.T) {
 		w := NewWorld()
-		id := w.CreateEntity("Generic")
-		if !w.HasEntity(id) {
+		entity := w.CreateEntity("Generic")
+		if !w.HasEntity(entity.id) {
 			t.Fatal("Created entity should exist")
 		}
-		if _, exists := w.GetEntity(id); !exists {
+		if _, exists := w.GetEntity(entity.id); !exists {
 			t.Fatal("GetEntity should return the entity after creation")
 		}
-		if exists := w.HasEntity(id); !exists {
+		if exists := w.HasEntity(entity.id); !exists {
 			t.Fatal("Entity should exist before destruction")
 		}
-		if err := w.DestroyEntity(id, false); err != nil {
+		if err := w.DestroyEntity(entity.id, false); err != nil {
 			t.Fatalf("DestroyEntity failed: %v", err)
 		}
 		w.Cleanup()
-		if w.HasEntity(id) {
+		if w.HasEntity(entity.id) {
 			t.Fatal("Entity should not exist after destruction and cleanup")
 		}
 	})
@@ -86,90 +86,56 @@ func TestWorld_EntityLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("CreateEntity with template tags", func(t *testing.T) {
-		w := NewWorld()
-		provinceID := w.CreateEntity("Province")
-		cityID := w.CreateEntity("City")
-		genericID := w.CreateEntity("Generic")
-
-		exists, err := w.HasTag(provinceID, "Province")
-		if err != nil {
-			t.Fatalf("HasTag failed: %v", err)
-		}
-		if !exists {
-			t.Fatal("Province entity should have 'Province' tag")
-		}
-		exists, err = w.HasTag(cityID, "City")
-		if err != nil {
-			t.Fatalf("HasTag failed: %v", err)
-		}
-		if !exists {
-			t.Fatal("City entity should have 'City' tag")
-		}
-		exists, err = w.HasTag(genericID, "Generic")
-		if err != nil {
-			t.Fatalf("HasTag failed: %v", err)
-		}
-		if !exists {
-			t.Fatal("Generic entity should have 'Generic' tag")
-		}
-
-		w.DestroyEntity(provinceID, false)
-		w.DestroyEntity(cityID, false)
-		w.DestroyEntity(genericID, false)
-		w.Cleanup()
-	})
-
 	t.Run("CreateEntity with unknown template", func(t *testing.T) {
 		w := NewWorld()
-		id := w.CreateEntity("UnknownTemplate")
-		if !w.HasEntity(id) {
+		entity := w.CreateEntity("UnknownTemplate")
+		if !w.HasEntity(entity.id) {
 			t.Fatal("Entity with unknown template should still be created")
 		}
-		w.DestroyEntity(id, false)
+		w.DestroyEntity(entity.id, false)
 		w.Cleanup()
 	})
 
 	t.Run("CreateEntity with empty template", func(t *testing.T) {
 		w := NewWorld()
-		id := w.CreateEntity("")
-		if !w.HasEntity(id) {
+		entity := w.CreateEntity("")
+		if !w.HasEntity(entity.id) {
 			t.Fatal("Entity with empty template should still be created")
 		}
-		w.DestroyEntity(id, false)
+		w.DestroyEntity(entity.id, false)
 		w.Cleanup()
 	})
 
 	t.Run("Entity heirarchy management", func(t *testing.T) {
 		w := NewWorld()
-		parentID := w.CreateEntity("Generic")
-		childID := w.CreateEntity("Generic")
+		parent := w.CreateEntity("Generic")
+		child := w.CreateEntity("Generic")
 
-		w.SetParent(childID, parentID)
-		parent, ok := w.ParentOf(childID)
-		if !ok || parent != parentID {
+		w.SetParent(child.id, parent.id)
+		parentID, ok := w.ParentOf(child.id)
+		if !ok || parentID != parent.id {
 			t.Fatal("ParentOf returned incorrect parent")
 		}
 
-		children := w.ChildrenOf(parentID)
-		found := slices.Contains(children, childID)
+		children := w.ChildrenOf(parent.id)
+		found := slices.Contains(children, child.id)
 		if !found {
 			t.Fatal("ChildrenOf did not return the correct child")
 		}
 
-		w.DestroyEntity(parentID, true) // cascade destroy
-		w.Cleanup()                     // Ensure cleanup is called to remove destroyed entities. Entities are still associated when destroyed and only removed after cleanup.
+		w.DestroyEntity(parent.id, true) // cascade destroy
+		w.Cleanup()                      // Ensure cleanup is called to remove destroyed entities. Entities are still associated when destroyed and only removed after cleanup.
 
-		if w.HasEntity(childID) {
+		if w.HasEntity(child.id) {
 			t.Fatal("Child entity should be destroyed when parent is cascade destroyed")
 		}
-		if w.HasEntity(parentID) {
+		if w.HasEntity(parent.id) {
 			t.Fatal("Parent entity should be destroyed when cascade destroyed")
 		}
 
 		// Ensure that the child is no longer listed under the parent's children
-		children = w.ChildrenOf(parentID)
-		found = slices.Contains(children, childID)
+		children = w.ChildrenOf(parent.id)
+		found = slices.Contains(children, child.id)
 		if found {
 			t.Fatal("ChildrenOf should not return destroyed child")
 		}
@@ -180,55 +146,55 @@ func TestWorld_EntityLifecycle(t *testing.T) {
 func TestWorld_TagAndTemplateQueries(t *testing.T) {
 	t.Run("QueryByTag returns correct entities", func(t *testing.T) {
 		w := NewWorld()
-		provinceID := w.CreateEntity("Province")
-		cityID := w.CreateEntity("City")
-		genericID := w.CreateEntity("Generic")
+		provinceEntity := w.CreateEntity("Province")
+		cityEntity := w.CreateEntity("City")
+		genericEntity := w.CreateEntity("Generic")
 
 		provinces := w.QueryByTag("Province")
-		if len(provinces) != 1 || provinces[0] != provinceID {
+		if len(provinces) != 1 || provinces[0] != provinceEntity.id {
 			t.Fatalf("expected to find 1 Province, got %d", len(provinces))
 		}
 
 		cities := w.QueryByTag("City")
-		if len(cities) != 1 || cities[0] != cityID {
+		if len(cities) != 1 || cities[0] != cityEntity.id {
 			t.Fatalf("expected to find 1 City, got %d", len(cities))
 		}
 
 		generics := w.QueryByTag("Generic")
-		if len(generics) != 1 || generics[0] != genericID {
+		if len(generics) != 1 || generics[0] != genericEntity.id {
 			t.Fatalf("expected to find 1 Generic, got %d", len(generics))
 		}
 
-		w.DestroyEntity(provinceID, false)
-		w.DestroyEntity(cityID, false)
-		w.DestroyEntity(genericID, false)
+		w.DestroyEntity(provinceEntity.id, false)
+		w.DestroyEntity(cityEntity.id, false)
+		w.DestroyEntity(genericEntity.id, false)
 		w.Cleanup()
 	})
 
 	t.Run("QueryByTemplate returns correct entities", func(t *testing.T) {
 		w := NewWorld()
-		provinceID := w.CreateEntity("Province")
-		cityID := w.CreateEntity("City")
-		genericID := w.CreateEntity("Generic")
+		provinceEntity := w.CreateEntity("Province")
+		cityEntity := w.CreateEntity("City")
+		genericEntity := w.CreateEntity("Generic")
 
 		provinces := w.QueryByTemplate("Province")
-		if len(provinces) != 1 || provinces[0] != provinceID {
+		if len(provinces) != 1 || provinces[0] != provinceEntity.id {
 			t.Fatalf("expected to find 1 Province, got %d", len(provinces))
 		}
 
 		cities := w.QueryByTemplate("City")
-		if len(cities) != 1 || cities[0] != cityID {
+		if len(cities) != 1 || cities[0] != cityEntity.id {
 			t.Fatalf("expected to find 1 City, got %d", len(cities))
 		}
 
 		generics := w.QueryByTemplate("Generic")
-		if len(generics) != 1 || generics[0] != genericID {
+		if len(generics) != 1 || generics[0] != genericEntity.id {
 			t.Fatalf("expected to find 1 Generic, got %d", len(generics))
 		}
 
-		w.DestroyEntity(provinceID, false)
-		w.DestroyEntity(cityID, false)
-		w.DestroyEntity(genericID, false)
+		w.DestroyEntity(provinceEntity.id, false)
+		w.DestroyEntity(cityEntity.id, false)
+		w.DestroyEntity(genericEntity.id, false)
 		w.Cleanup()
 	})
 
@@ -259,11 +225,10 @@ func TestWorld_CountAndReset(t *testing.T) {
 		t.Fatalf("expected 0 entities in new world, got %d", w.Count())
 	}
 
-	id1 := w.CreateEntity("Generic")
-	w.AddComponent(id1, testComponentA{value: 1})
-	w.AddTag(id1, "test")
+	entity1 := w.CreateEntity("Generic")
+	w.AddComponent(entity1.id, testComponentA{value: 1})
 
-	id2 := w.CreateEntity("Generic")
+	entity2 := w.CreateEntity("Generic")
 	w.CreateEntity("Generic") // third entity for testing Count
 
 	if w.Count() != 3 {
@@ -271,7 +236,7 @@ func TestWorld_CountAndReset(t *testing.T) {
 	}
 
 	// Set up a hierarchy
-	w.SetParent(id2, id1)
+	w.SetParent(entity2.id, entity1.id)
 
 	// Verify query still works
 	generics := w.QueryByTemplate("Generic")
@@ -292,8 +257,8 @@ func TestWorld_CountAndReset(t *testing.T) {
 	}
 
 	// Should be able to create again
-	newID := w.CreateEntity("Generic")
-	if !w.HasEntity(newID) {
+	newEntity := w.CreateEntity("Generic")
+	if !w.HasEntity(newEntity.id) {
 		t.Fatal("should be able to create new entity after reset")
 	}
 	if w.Count() != 1 {
@@ -320,41 +285,26 @@ func TestWorld_ComponentErrors(t *testing.T) {
 	if err := w.RemoveComponent(nonExistent, reflect.TypeOf(testComponentA{})); err == nil {
 		t.Fatal("expected error removing component from non-existent entity")
 	}
-
-	// Test AddTag with non-existent entity
-	if err := w.AddTag(nonExistent, "test"); err == nil {
-		t.Fatal("expected error adding tag to non-existent entity")
-	}
-
-	// Test HasTag with non-existent entity
-	if _, err := w.HasTag(nonExistent, "test"); err == nil {
-		t.Fatal("expected error checking tag on non-existent entity")
-	}
-
-	// Test RemoveTag with non-existent entity
-	if err := w.RemoveTag(nonExistent, "test"); err == nil {
-		t.Fatal("expected error removing tag from non-existent entity")
-	}
 }
 
 func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("EntityCreationAddsToEmptyArchetype", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
+		entity := world.CreateEntity("Generic")
 
 		// Entity should be in empty archetype
-		entity, exists := world.GetEntity(id)
+		gotEntity, exists := world.GetEntity(entity.id)
 		if !exists {
 			t.Fatal("Entity should exist")
 		}
 
-		if entity.archetypeID == 0 {
+		if gotEntity.archetypeID == 0 {
 			t.Error("Entity should have archetype ID")
 		}
 
 		// Check that empty archetype exists
-		arch, exists := world.archetypeManager.GetArchetypeByID(entity.archetypeID)
+		arch, exists := world.archetypeManager.GetArchetypeByID(gotEntity.archetypeID)
 		if !exists {
 			t.Fatal("Empty archetype should exist")
 		}
@@ -371,23 +321,23 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("AddComponentMigratesArchetype", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
+		entity := world.CreateEntity("Generic")
 
 		// Get initial archetype
-		entity, _ := world.GetEntity(id)
-		initialArchetypeID := entity.archetypeID
+		gotEntity, _ := world.GetEntity(entity.id)
+		initialArchetypeID := gotEntity.archetypeID
 
 		// Add component
-		world.AddComponent(id, TestPosition{X: 1, Y: 2})
+		world.AddComponent(entity.id, TestPosition{X: 1, Y: 2})
 
 		// Entity should have migrated to new archetype
-		entity, _ = world.GetEntity(id)
-		if entity.archetypeID == initialArchetypeID {
+		gotEntity, _ = world.GetEntity(entity.id)
+		if gotEntity.archetypeID == initialArchetypeID {
 			t.Error("Entity should have migrated to new archetype")
 		}
 
 		// Check new archetype
-		arch, exists := world.archetypeManager.GetArchetypeByID(entity.archetypeID)
+		arch, exists := world.archetypeManager.GetArchetypeByID(gotEntity.archetypeID)
 		if !exists {
 			t.Fatal("New archetype should exist")
 		}
@@ -401,13 +351,13 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		world := NewWorld()
 
 		// Create entities with Position
-		id1 := world.CreateEntity("Generic")
-		id2 := world.CreateEntity("Generic")
-		id3 := world.CreateEntity("Generic")
+		entity1 := world.CreateEntity("Generic")
+		entity2 := world.CreateEntity("Generic")
+		entity3 := world.CreateEntity("Generic")
 
-		world.AddComponent(id1, TestPosition{X: 1, Y: 2})
-		world.AddComponent(id2, TestPosition{X: 3, Y: 4})
-		world.AddComponent(id3, TestPosition{X: 5, Y: 6})
+		world.AddComponent(entity1.id, TestPosition{X: 1, Y: 2})
+		world.AddComponent(entity2.id, TestPosition{X: 3, Y: 4})
+		world.AddComponent(entity3.id, TestPosition{X: 5, Y: 6})
 
 		// Query for Position
 		posType := reflect.TypeFor[TestPosition]()
@@ -423,7 +373,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 			idSet[id] = true
 		}
 
-		if !idSet[id1] || !idSet[id2] || !idSet[id3] {
+		if !idSet[entity1.id] || !idSet[entity2.id] || !idSet[entity3.id] {
 			t.Error("Query should return all entities with Position")
 		}
 	})
@@ -432,17 +382,17 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		world := NewWorld()
 
 		// Create entities with different component combinations
-		id1 := world.CreateEntity("Generic") // Position only
-		id2 := world.CreateEntity("Generic") // Position + Velocity
-		id3 := world.CreateEntity("Generic") // Position + Velocity
-		id4 := world.CreateEntity("Generic") // Velocity only
+		entity1 := world.CreateEntity("Generic") // Position only
+		entity2 := world.CreateEntity("Generic") // Position + Velocity
+		entity3 := world.CreateEntity("Generic") // Position + Velocity
+		entity4 := world.CreateEntity("Generic") // Velocity only
 
-		world.AddComponent(id1, TestPosition{X: 1, Y: 2})
-		world.AddComponent(id2, TestPosition{X: 3, Y: 4})
-		world.AddComponent(id2, TestVelocity{X: 0.1, Y: 0.1})
-		world.AddComponent(id3, TestPosition{X: 5, Y: 6})
-		world.AddComponent(id3, TestVelocity{X: 0.2, Y: 0.2})
-		world.AddComponent(id4, TestVelocity{X: 0.3, Y: 0.3})
+		world.AddComponent(entity1.id, TestPosition{X: 1, Y: 2})
+		world.AddComponent(entity2.id, TestPosition{X: 3, Y: 4})
+		world.AddComponent(entity2.id, TestVelocity{X: 0.1, Y: 0.1})
+		world.AddComponent(entity3.id, TestPosition{X: 5, Y: 6})
+		world.AddComponent(entity3.id, TestVelocity{X: 0.2, Y: 0.2})
+		world.AddComponent(entity4.id, TestVelocity{X: 0.3, Y: 0.3})
 
 		// Query for Position + Velocity
 		posType := reflect.TypeFor[TestPosition]()
@@ -453,17 +403,17 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 			t.Errorf("Expected 2 entities with Position+Velocity, got %d", len(result))
 		}
 
-		// Should only include id2 and id3
+		// Should only include entity2 and entity3
 		idSet := make(map[EntityID]bool)
 		for _, id := range result {
 			idSet[id] = true
 		}
 
-		if !idSet[id2] || !idSet[id3] {
+		if !idSet[entity2.id] || !idSet[entity3.id] {
 			t.Error("Query should return entities with both Position and Velocity")
 		}
 
-		if idSet[id1] || idSet[id4] {
+		if idSet[entity1.id] || idSet[entity4.id] {
 			t.Error("Query should not return entities missing either component")
 		}
 	})
@@ -472,16 +422,16 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		world := NewWorld()
 
 		// Create entities with different component combinations
-		id1 := world.CreateEntity("Generic") // Position only
-		id2 := world.CreateEntity("Generic") // Position + Velocity
-		id3 := world.CreateEntity("Generic") // Position + Velocity + Health
+		entity1 := world.CreateEntity("Generic") // Position only
+		entity2 := world.CreateEntity("Generic") // Position + Velocity
+		entity3 := world.CreateEntity("Generic") // Position + Velocity + Health
 
-		world.AddComponent(id1, TestPosition{X: 1, Y: 2})
-		world.AddComponent(id2, TestPosition{X: 3, Y: 4})
-		world.AddComponent(id2, TestVelocity{X: 0.1, Y: 0.1})
-		world.AddComponent(id3, TestPosition{X: 5, Y: 6})
-		world.AddComponent(id3, TestVelocity{X: 0.2, Y: 0.2})
-		world.AddComponent(id3, TestHealth{Value: 100})
+		world.AddComponent(entity1.id, TestPosition{X: 1, Y: 2})
+		world.AddComponent(entity2.id, TestPosition{X: 3, Y: 4})
+		world.AddComponent(entity2.id, TestVelocity{X: 0.1, Y: 0.1})
+		world.AddComponent(entity3.id, TestPosition{X: 5, Y: 6})
+		world.AddComponent(entity3.id, TestVelocity{X: 0.2, Y: 0.2})
+		world.AddComponent(entity3.id, TestHealth{Value: 100})
 
 		// Query for Position (superset - entities with Position AND possibly more)
 		posType := reflect.TypeFor[TestPosition]()
@@ -497,7 +447,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 			idSet[id] = true
 		}
 
-		if !idSet[id1] || !idSet[id2] || !idSet[id3] {
+		if !idSet[entity1.id] || !idSet[entity2.id] || !idSet[entity3.id] {
 			t.Error("QuerySuperset should return all entities with Position")
 		}
 	})
@@ -505,12 +455,12 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("GetComponentFromArchetype", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
+		entity := world.CreateEntity("Generic")
 		pos := TestPosition{X: 10, Y: 20}
-		world.AddComponent(id, pos)
+		world.AddComponent(entity.id, pos)
 
 		// Get component back
-		retrieved, err := world.GetComponent(id, reflect.TypeFor[TestPosition]())
+		retrieved, err := world.GetComponent(entity.id, reflect.TypeFor[TestPosition]())
 		if err != nil {
 			t.Fatalf("Failed to get component: %v", err)
 		}
@@ -534,23 +484,23 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("HasComponent", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
+		entity := world.CreateEntity("Generic")
 
 		// Entity should not have Position initially
-		if world.HasComponent(id, reflect.TypeFor[TestPosition]()) {
+		if world.HasComponent(entity.id, reflect.TypeFor[TestPosition]()) {
 			t.Error("Entity should not have Position initially")
 		}
 
 		// Add Position
-		world.AddComponent(id, TestPosition{X: 1, Y: 2})
+		world.AddComponent(entity.id, TestPosition{X: 1, Y: 2})
 
 		// Entity should now have Position
-		if !world.HasComponent(id, reflect.TypeFor[TestPosition]()) {
+		if !world.HasComponent(entity.id, reflect.TypeFor[TestPosition]()) {
 			t.Error("Entity should have Position after adding it")
 		}
 
 		// Entity should not have Velocity
-		if world.HasComponent(id, reflect.TypeFor[TestVelocity]()) {
+		if world.HasComponent(entity.id, reflect.TypeFor[TestVelocity]()) {
 			t.Error("Entity should not have Velocity")
 		}
 	})
@@ -558,26 +508,26 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("RemoveComponent", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
-		world.AddComponent(id, TestPosition{X: 1, Y: 2})
-		world.AddComponent(id, TestVelocity{X: 0.1, Y: 0.1})
+		entity := world.CreateEntity("Generic")
+		world.AddComponent(entity.id, TestPosition{X: 1, Y: 2})
+		world.AddComponent(entity.id, TestVelocity{X: 0.1, Y: 0.1})
 
 		// Entity should have both components
-		if !world.HasComponent(id, reflect.TypeFor[TestPosition]()) ||
-			!world.HasComponent(id, reflect.TypeFor[TestVelocity]()) {
+		if !world.HasComponent(entity.id, reflect.TypeFor[TestPosition]()) ||
+			!world.HasComponent(entity.id, reflect.TypeFor[TestVelocity]()) {
 			t.Error("Entity should have both components")
 		}
 
 		// Remove Position
-		world.RemoveComponent(id, reflect.TypeFor[TestPosition]())
+		world.RemoveComponent(entity.id, reflect.TypeFor[TestPosition]())
 
 		// Entity should no longer have Position
-		if world.HasComponent(id, reflect.TypeFor[TestPosition]()) {
+		if world.HasComponent(entity.id, reflect.TypeFor[TestPosition]()) {
 			t.Error("Entity should not have Position after removal")
 		}
 
 		// Entity should still have Velocity
-		if !world.HasComponent(id, reflect.TypeFor[TestVelocity]()) {
+		if !world.HasComponent(entity.id, reflect.TypeFor[TestVelocity]()) {
 			t.Error("Entity should still have Velocity")
 		}
 	})
@@ -585,12 +535,12 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("ComponentsList", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
-		world.AddComponent(id, TestPosition{X: 1, Y: 2})
-		world.AddComponent(id, TestVelocity{X: 0.1, Y: 0.1})
-		world.AddComponent(id, TestHealth{Value: 100})
+		entity := world.CreateEntity("Generic")
+		world.AddComponent(entity.id, TestPosition{X: 1, Y: 2})
+		world.AddComponent(entity.id, TestVelocity{X: 0.1, Y: 0.1})
+		world.AddComponent(entity.id, TestHealth{Value: 100})
 
-		comps := world.Components(id)
+		comps := world.Components(entity.id)
 
 		if len(comps) != 3 {
 			t.Errorf("Expected 3 components, got %d", len(comps))
@@ -620,16 +570,16 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("EntityDestructionRemovesFromArchetype", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
-		world.AddComponent(id, TestPosition{X: 1, Y: 2})
+		entity := world.CreateEntity("Generic")
+		world.AddComponent(entity.id, TestPosition{X: 1, Y: 2})
 
 		// Get archetype info before destruction
-		entity, _ := world.GetEntity(id)
+		entity, _ = world.GetEntity(entity.id)
 		arch, _ := world.archetypeManager.GetArchetypeByID(entity.archetypeID)
 		initialCount := len(arch.entities)
 
 		// Destroy entity
-		world.DestroyEntity(id, false)
+		world.DestroyEntity(entity.id, false)
 		world.Cleanup()
 
 		// Archetype should have one less entity
@@ -644,11 +594,11 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		world := NewWorld()
 
 		// Create multiple entities with same components
-		ids := make([]EntityID, 100)
-		for i := range ids {
-			ids[i] = world.CreateEntity("Generic")
-			world.AddComponent(ids[i], TestPosition{X: float64(i), Y: float64(i)})
-			world.AddComponent(ids[i], TestVelocity{X: 0.1, Y: 0.1})
+		entities := make([]*Entity, 100)
+		for i := range entities {
+			entities[i] = world.CreateEntity("Generic")
+			world.AddComponent(entities[i].id, TestPosition{X: float64(i), Y: float64(i)})
+			world.AddComponent(entities[i].id, TestVelocity{X: 0.1, Y: 0.1})
 		}
 
 		// All should be in the same archetype
@@ -673,16 +623,16 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("ArchetypeMigrationOnComponentChange", func(t *testing.T) {
 		world := NewWorld()
 
-		id := world.CreateEntity("Generic")
+		entity := world.CreateEntity("Generic")
 
 		// Add Position - should be in [Position] archetype
-		world.AddComponent(id, TestPosition{X: 1, Y: 2})
-		entity, _ := world.GetEntity(id)
+		world.AddComponent(entity.id, TestPosition{X: 1, Y: 2})
+		entity, _ = world.GetEntity(entity.id)
 		posArchetypeID := entity.archetypeID
 
 		// Add Velocity - should migrate to [Position, Velocity] archetype
-		world.AddComponent(id, TestVelocity{X: 0.1, Y: 0.1})
-		entity, _ = world.GetEntity(id)
+		world.AddComponent(entity.id, TestVelocity{X: 0.1, Y: 0.1})
+		entity, _ = world.GetEntity(entity.id)
 		posVelArchetypeID := entity.archetypeID
 
 		if posArchetypeID == posVelArchetypeID {
@@ -690,8 +640,8 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		}
 
 		// Remove Position - should migrate to [Velocity] archetype
-		world.RemoveComponent(id, reflect.TypeFor[TestPosition]())
-		entity, _ = world.GetEntity(id)
+		world.RemoveComponent(entity.id, reflect.TypeFor[TestPosition]())
+		entity, _ = world.GetEntity(entity.id)
 		velArchetypeID := entity.archetypeID
 
 		if velArchetypeID == posVelArchetypeID {
@@ -699,10 +649,10 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		}
 
 		// Verify final state
-		if world.HasComponent(id, reflect.TypeFor[TestPosition]()) {
+		if world.HasComponent(entity.id, reflect.TypeFor[TestPosition]()) {
 			t.Error("Entity should not have Position")
 		}
-		if !world.HasComponent(id, reflect.TypeFor[TestVelocity]()) {
+		if !world.HasComponent(entity.id, reflect.TypeFor[TestVelocity]()) {
 			t.Error("Entity should still have Velocity")
 		}
 	})

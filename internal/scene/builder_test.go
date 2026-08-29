@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewBuilder(t *testing.T) {
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", core.NewWorld())
 
 	if builder.scene.ID != "test-scene" {
 		t.Fatalf("expected scene ID 'test-scene', got %q", builder.scene.ID)
@@ -19,7 +19,7 @@ func TestNewBuilder(t *testing.T) {
 }
 
 func TestBuilder_WithEntity(t *testing.T) {
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", core.NewWorld())
 
 	entityID := core.EntityID(1)
 	result := builder.WithEntity(entityID)
@@ -38,7 +38,7 @@ func TestBuilder_WithEntity(t *testing.T) {
 }
 
 func TestBuilder_WithEntity_Multiple(t *testing.T) {
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", core.NewWorld())
 
 	builder.WithEntity(1).WithEntity(2).WithEntity(3)
 
@@ -49,14 +49,14 @@ func TestBuilder_WithEntity_Multiple(t *testing.T) {
 
 func TestBuilder_Build(t *testing.T) {
 	world := core.NewWorld()
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", world)
 
 	entity1 := world.CreateEntity("player")
 	entity2 := world.CreateEntity("enemy")
 
-	builder.WithEntity(entity1).WithEntity(entity2)
+	builder.WithEntity(entity1.ID()).WithEntity(entity2.ID())
 
-	scene, err := builder.Build(world)
+	scene, err := builder.Build()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,9 +74,9 @@ func TestBuilder_Build(t *testing.T) {
 
 func TestBuilder_Build_Empty(t *testing.T) {
 	world := core.NewWorld()
-	builder := NewBuilder("empty-scene")
+	builder := NewBuilder("empty-scene", world)
 
-	scene, err := builder.Build(world)
+	scene, err := builder.Build()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,18 +93,18 @@ func TestBuilder_Build_Empty(t *testing.T) {
 
 func TestBuilder_Build_WithNonExistentEntity(t *testing.T) {
 	world := core.NewWorld()
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", world)
 
 	builder.WithEntity(999) // Non-existent entity
 
-	_, err := builder.Build(world)
+	_, err := builder.Build()
 	if err == nil {
 		t.Fatal("expected error when building with non-existent entity")
 	}
 }
 
 func TestBuilder_WithLoadHook(t *testing.T) {
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", core.NewWorld())
 
 	loadCalled := false
 	builder.WithLoadHook(func(w *core.World) error {
@@ -118,7 +118,7 @@ func TestBuilder_WithLoadHook(t *testing.T) {
 
 	// Verify the hook works
 	world := core.NewWorld()
-	scene, _ := builder.Build(world)
+	scene, _ := builder.Build()
 	_ = scene.OnLoad(world)
 
 	if !loadCalled {
@@ -127,7 +127,7 @@ func TestBuilder_WithLoadHook(t *testing.T) {
 }
 
 func TestBuilder_WithUnloadHook(t *testing.T) {
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", core.NewWorld())
 
 	unloadCalled := false
 	builder.WithUnloadHook(func(w *core.World) error {
@@ -141,7 +141,7 @@ func TestBuilder_WithUnloadHook(t *testing.T) {
 
 	// Verify the hook works
 	world := core.NewWorld()
-	scene, _ := builder.Build(world)
+	scene, _ := builder.Build()
 	_ = scene.OnUnload(world)
 
 	if !unloadCalled {
@@ -150,7 +150,7 @@ func TestBuilder_WithUnloadHook(t *testing.T) {
 }
 
 func TestBuilder_WithHooks(t *testing.T) {
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", core.NewWorld())
 
 	loadCalled, unloadCalled := false, false
 	builder.WithHooks(
@@ -165,7 +165,7 @@ func TestBuilder_WithHooks(t *testing.T) {
 	)
 
 	world := core.NewWorld()
-	scene, _ := builder.Build(world)
+	scene, _ := builder.Build()
 
 	_ = scene.OnLoad(world)
 	if !loadCalled {
@@ -179,7 +179,7 @@ func TestBuilder_WithHooks(t *testing.T) {
 }
 
 func TestBuilder_WithData(t *testing.T) {
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", core.NewWorld())
 
 	builder.WithData("score", 100)
 	builder.WithData("level", 5)
@@ -198,7 +198,7 @@ func TestBuilder_WithData(t *testing.T) {
 }
 
 func TestBuilder_WithDataMap(t *testing.T) {
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", core.NewWorld())
 
 	data := map[string]any{
 		"health": 100,
@@ -221,7 +221,7 @@ func TestBuilder_WithDataMap(t *testing.T) {
 }
 
 func TestBuilder_Scene(t *testing.T) {
-	builder := NewBuilder("test-scene")
+	builder := NewBuilder("test-scene", core.NewWorld())
 
 	scene := builder.Scene()
 
@@ -230,8 +230,7 @@ func TestBuilder_Scene(t *testing.T) {
 	}
 
 	// Verify we can still build after getting the scene
-	world := core.NewWorld()
-	builtScene, err := builder.Build(world)
+	builtScene, err := builder.Build()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

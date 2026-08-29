@@ -4,9 +4,9 @@ package core
 
 type EntityID uint64
 
-// entity represents a game entity with an ID, template, tags, and lifecycle state.
+// Entity represents a game Entity with an ID, template, tags, and lifecycle state.
 // Entities are not directly exposed in the public API; they are accessed through World methods.
-type entity struct {
+type Entity struct {
 	id       EntityID
 	template string
 	tags     map[string]struct{}
@@ -17,8 +17,8 @@ type entity struct {
 	archetypeIdx int    // Index of the entity within its archetype's entity slice
 }
 
-func NewEntity(id EntityID, template string) *entity {
-	return &entity{
+func NewEntity(id EntityID, template string) *Entity {
+	return &Entity{
 		id:       id,
 		template: template,
 		tags:     make(map[string]struct{}),
@@ -28,16 +28,16 @@ func NewEntity(id EntityID, template string) *entity {
 }
 
 // ID returns the unique identifier of the entity.
-func (e *entity) ID() EntityID { return e.id }
+func (e *Entity) ID() EntityID { return e.id }
 
 // Template returns the template name of the entity.
-func (e *entity) Template() string { return e.template }
+func (e *Entity) Template() string { return e.template }
 
 // IsAlive returns true if the entity is currently alive.
-func (e *entity) IsAlive() bool { return e.alive }
+func (e *Entity) IsAlive() bool { return e.alive }
 
 // Tags returns a copy of the entity's current tag set.
-func (e *entity) Tags() []string {
+func (e *Entity) Tags() []string {
 	if len(e.tags) == 0 {
 		return nil
 	}
@@ -49,13 +49,13 @@ func (e *entity) Tags() []string {
 }
 
 // HasTag reports whether the entity currently has the given tag.
-func (e *entity) HasTag(tag string) bool {
+func (e *Entity) HasTag(tag string) bool {
 	_, ok := e.tags[tag]
 	return ok
 }
 
 // AddTag adds a tag to the entity if it is not already present.
-func (e *entity) AddTag(tag string) {
+func (e *Entity) AddTag(tag string) {
 	if tag == "" {
 		return
 	}
@@ -63,17 +63,17 @@ func (e *entity) AddTag(tag string) {
 }
 
 // RemoveTag removes a tag from the entity.
-func (e *entity) RemoveTag(tag string) {
+func (e *Entity) RemoveTag(tag string) {
 	delete(e.tags, tag)
 }
 
 // Destroy marks the entity as no longer alive.
-func (e *entity) Destroy() { e.alive = false }
+func (e *Entity) Destroy() { e.alive = false }
 
-func (e *entity) Version() uint32 { return e.version }
+func (e *Entity) Version() uint32 { return e.version }
 
-func (e *entity) Clone(newID EntityID) *entity {
-	clone := &entity{
+func (e *Entity) Clone(newID EntityID) *Entity {
+	clone := &Entity{
 		id:       newID,
 		template: e.template,
 		tags:     make(map[string]struct{}, len(e.tags)),

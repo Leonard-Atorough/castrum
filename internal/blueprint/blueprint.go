@@ -16,7 +16,7 @@ type ComponentData struct {
 	Properties map[string]any `yaml:"properties"`
 }
 
-func (b *Blueprint) Construct(world *core.World, registry *Registry) (*core.EntityID, error) {
+func (b *Blueprint) Construct(world *core.World, registry *Registry) (*core.Entity, error) {
 	entity := world.CreateEntity(b.Name)
 
 	comps := make([]core.Component, len(b.Components))
@@ -30,11 +30,11 @@ func (b *Blueprint) Construct(world *core.World, registry *Registry) (*core.Enti
 
 	// TODO: World batching. for now, iterate
 	for _, comp := range comps {
-		world.AddComponent(entity, comp)
+		world.AddComponent(entity.ID(), comp)
 	}
 
 	for _, tag := range b.Tags {
-		world.AddTag(entity, tag)
+		world.AddTag(entity.ID(), tag)
 	}
-	return &entity, nil
+	return entity, nil
 }

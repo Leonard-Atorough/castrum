@@ -30,7 +30,7 @@ func NewEntityIndex() entityIndex {
 }
 
 func (idx *entityIndex) AddTag(entityID EntityID, tagName string) {
-	idx.addToIndexString(idx.tagIndex, tagName, entityID)
+	idx.addToIndex(idx.tagIndex, tagName, entityID)
 }
 
 func (idx *entityIndex) RemoveTag(entityID EntityID, tagName string) {
@@ -38,27 +38,27 @@ func (idx *entityIndex) RemoveTag(entityID EntityID, tagName string) {
 }
 
 func (idx *entityIndex) AddTemplate(entityID EntityID, templateName string) {
-	idx.addToIndexString(idx.templateIndex, templateName, entityID)
+	idx.addToIndex(idx.templateIndex, templateName, entityID)
 }
 
 func (idx *entityIndex) RemoveTemplate(entityID EntityID, templateName string) {
 	idx.removeFromIndexString(idx.templateIndex, templateName, entityID)
 }
 
-func (idx *entityIndex) UpdateTag(entity *entity, tagName string, add bool) {
+func (idx *entityIndex) UpdateTag(entity *Entity, tagName string, add bool) {
 	if add {
-		idx.addToIndexString(idx.tagIndex, tagName, entity.id)
+		idx.addToIndex(idx.tagIndex, tagName, entity.id)
 	} else {
 		idx.removeFromIndexString(idx.tagIndex, tagName, entity.id)
 	}
 }
 
-func (idx *entityIndex) UpdateTemplate(entity *entity, oldTemplate string, newTemplate string) {
+func (idx *entityIndex) UpdateTemplate(entity *Entity, oldTemplate string, newTemplate string) {
 	if oldTemplate != "" {
 		idx.removeFromIndexString(idx.templateIndex, oldTemplate, entity.id)
 	}
 	if newTemplate != "" {
-		idx.addToIndexString(idx.templateIndex, newTemplate, entity.id)
+		idx.addToIndex(idx.templateIndex, newTemplate, entity.id)
 	}
 }
 
@@ -70,7 +70,7 @@ func (idx *entityIndex) GetEntitiesWithTemplate(templateName string) []EntityID 
 	return idx.getFromIndexString(idx.templateIndex, templateName)
 }
 
-func (idx *entityIndex) addToIndex(index map[reflect.Type][]EntityID, key reflect.Type, entityID EntityID) {
+func (idx *entityIndex) addToIndex(index map[string][]EntityID, key string, entityID EntityID) {
 	if _, exists := index[key]; !exists {
 		index[key] = make([]EntityID, 0)
 	}
@@ -79,16 +79,7 @@ func (idx *entityIndex) addToIndex(index map[reflect.Type][]EntityID, key reflec
 	}
 }
 
-func (idx *entityIndex) addToIndexString(index map[string][]EntityID, key string, entityID EntityID) {
-	if _, exists := index[key]; !exists {
-		index[key] = make([]EntityID, 0)
-	}
-	if !slices.Contains(index[key], entityID) {
-		index[key] = append(index[key], entityID)
-	}
-}
-
-func (idx *entityIndex) rebuildTagAndTemplateIndex(entities map[EntityID]*entity) {
+func (idx *entityIndex) rebuildTagAndTemplateIndex(entities map[EntityID]*Entity) {
 	idx.tagIndex = make(map[string][]EntityID)
 	idx.templateIndex = make(map[string][]EntityID)
 
@@ -97,10 +88,10 @@ func (idx *entityIndex) rebuildTagAndTemplateIndex(entities map[EntityID]*entity
 			continue
 		}
 		if entity.template != "" {
-			idx.addToIndexString(idx.templateIndex, entity.template, entityID)
+			idx.addToIndex(idx.templateIndex, entity.template, entityID)
 		}
 		for tag := range entity.tags {
-			idx.addToIndexString(idx.tagIndex, tag, entityID)
+			idx.addToIndex(idx.tagIndex, tag, entityID)
 		}
 	}
 	idx.lazyTagTemplateIndex = false
