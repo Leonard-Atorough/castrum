@@ -2,7 +2,7 @@
 // It defines the configuration options for various aspects of the engine, including project settings,
 // window properties, graphics settings, audio settings, input configurations, and engine parameters.
 // The package also includes functions to load and validate configurations from YAML files, as well as to provide default configurations.
-package config
+package castrum
 
 import (
 	"io"

@@ -1,24 +1,40 @@
 package blueprint
 
 import (
-	"io"
-
-	"go.yaml.in/yaml/v3"
+	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 type Blueprint struct {
-	Name       string      `yaml:"name"`
-	Components []Component `yaml:"components"`
-	Version    string      `yaml:"version"`
+	Name       string          `yaml:"name"`
+	Components []ComponentData `yaml:"components"`
+	Tags       []string        `yaml:"tags"`
+	Version    string          `yaml:"version"`
 }
 
-type Component struct {
+type ComponentData struct {
 	Type       string         `yaml:"type"`
 	Properties map[string]any `yaml:"properties"`
 }
 
-func (b *Blueprint) Construct(reader io.Reader) error {
-	decoder := yaml.NewDecoder(reader)
-	return decoder.Decode(b)
-}
+func (b *Blueprint) Construct(world *core.World, registry *Registry) (*core.EntityID, error) {
+	entity := world.CreateEntity(b.Name)
 
+	comps := make([]core.Component, len(b.Components))
+	for i, comp := range b.Components {
+		component, err := registry.Resolve(comp.Type, comp.Properties)
+		if err != nil {
+			return nil, err
+		}
+		comps[i] = component
+	}
+
+	// TODO: World batching. for now, iterate
+	for _, comp := range comps {
+		world.AddComponent(entity, comp)
+	}
+
+	for _, tag := range b.Tags {
+		world.AddTag(entity, tag)
+	}
+	return &entity, nil
+}
