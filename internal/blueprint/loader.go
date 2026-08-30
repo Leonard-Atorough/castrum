@@ -6,16 +6,19 @@ import (
 	"os"
 	"strings"
 
-	"github.com/leonard-atorough/castrum/internal/core"
 	"go.yaml.in/yaml/v3"
+
+	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 type Loader struct {
-	reg *Registry
+	reg *core.Registry
 }
 
-func NewLoader(reg *Registry) *Loader {
-	return &Loader{reg: reg}
+func NewLoader(reg *core.Registry) *Loader {
+	return &Loader{
+		reg: reg,
+	}
 }
 
 func (l *Loader) Load(reader io.Reader) (*Blueprint, error) {
@@ -44,8 +47,4 @@ func (l *Loader) LoadFromString(data string) (*Blueprint, error) {
 
 func (l *Loader) LoadFromBytes(data []byte) (*Blueprint, error) {
 	return l.Load(bytes.NewReader(data))
-}
-
-func (l *Loader) Spawn(world *core.World, bp *Blueprint) (*core.Entity, error) {
-	return bp.Construct(world, l.reg)
 }

@@ -16,12 +16,12 @@ type ComponentData struct {
 	Properties map[string]any `yaml:"properties"`
 }
 
-func (b *Blueprint) Construct(world *core.World, registry *Registry) (*core.Entity, error) {
+func (b *Blueprint) Spawn(world *core.World) (*core.Entity, error) {
 	entity := world.CreateEntity(b.Name)
 
 	comps := make([]core.Component, len(b.Components))
 	for i, comp := range b.Components {
-		component, err := registry.Resolve(comp.Type, comp.Properties)
+		component, err := world.Registry().Resolve(comp.Type, comp.Properties)
 		if err != nil {
 			return nil, err
 		}

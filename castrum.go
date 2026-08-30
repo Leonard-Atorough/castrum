@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/leonard-atorough/castrum/internal/blueprint"
 	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/scene"
 	"github.com/leonard-atorough/castrum/internal/system"
@@ -30,6 +31,8 @@ type Game struct {
 	Timers  *timers.Manager
 	Scenes  *scene.Manager
 
+	BlueprintLoader *blueprint.Loader
+
 	// Timestep state
 	accumulator float64
 	fixedDelta  float64
@@ -45,11 +48,12 @@ func NewGame(config *Config) *Game {
 	timers := timers.NewManager()
 
 	return &Game{
-		World:   newWorld,
-		Config:  config,
-		Systems: systems,
-		Timers:  timers,
-		Scenes:  scenes,
+		World:           newWorld,
+		Config:          config,
+		Systems:         systems,
+		Timers:          timers,
+		Scenes:          scenes,
+		BlueprintLoader: blueprint.NewLoader(newWorld.Registry()),
 	}
 }
 

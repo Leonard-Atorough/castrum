@@ -14,6 +14,7 @@ type World struct {
 	hierarchy        *Hierarchy
 	archetypeManager *ArchetypeManager
 	index            entityIndex
+	registry         *Registry
 }
 
 func NewWorld() *World {
@@ -24,7 +25,12 @@ func NewWorld() *World {
 		nextID:           atomic.Uint64{},
 		destroyed:        make([]*Entity, 0),
 		archetypeManager: NewArchetypeManager(),
+		registry:         NewRegistry(),
 	}
+}
+
+func (w *World) Registry() *Registry {
+	return w.registry
 }
 
 // Reset clears the world entirely, removing all entities, components, and hierarchy relationships.
