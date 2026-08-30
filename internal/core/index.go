@@ -1,7 +1,6 @@
 package core
 
 import (
-	"reflect"
 	"slices"
 )
 
@@ -34,7 +33,7 @@ func (idx *entityIndex) AddTag(entityID EntityID, tagName string) {
 }
 
 func (idx *entityIndex) RemoveTag(entityID EntityID, tagName string) {
-	idx.removeFromIndexString(idx.tagIndex, tagName, entityID)
+	idx.removeFromIndex(idx.tagIndex, tagName, entityID)
 }
 
 func (idx *entityIndex) AddTemplate(entityID EntityID, templateName string) {
@@ -42,20 +41,20 @@ func (idx *entityIndex) AddTemplate(entityID EntityID, templateName string) {
 }
 
 func (idx *entityIndex) RemoveTemplate(entityID EntityID, templateName string) {
-	idx.removeFromIndexString(idx.templateIndex, templateName, entityID)
+	idx.removeFromIndex(idx.templateIndex, templateName, entityID)
 }
 
 func (idx *entityIndex) UpdateTag(entity *Entity, tagName string, add bool) {
 	if add {
 		idx.addToIndex(idx.tagIndex, tagName, entity.id)
 	} else {
-		idx.removeFromIndexString(idx.tagIndex, tagName, entity.id)
+		idx.removeFromIndex(idx.tagIndex, tagName, entity.id)
 	}
 }
 
 func (idx *entityIndex) UpdateTemplate(entity *Entity, oldTemplate string, newTemplate string) {
 	if oldTemplate != "" {
-		idx.removeFromIndexString(idx.templateIndex, oldTemplate, entity.id)
+		idx.removeFromIndex(idx.templateIndex, oldTemplate, entity.id)
 	}
 	if newTemplate != "" {
 		idx.addToIndex(idx.templateIndex, newTemplate, entity.id)
@@ -63,11 +62,11 @@ func (idx *entityIndex) UpdateTemplate(entity *Entity, oldTemplate string, newTe
 }
 
 func (idx *entityIndex) GetEntitiesWithTag(tagName string) []EntityID {
-	return idx.getFromIndexString(idx.tagIndex, tagName)
+	return idx.getFromIndex(idx.tagIndex, tagName)
 }
 
 func (idx *entityIndex) GetEntitiesWithTemplate(templateName string) []EntityID {
-	return idx.getFromIndexString(idx.templateIndex, templateName)
+	return idx.getFromIndex(idx.templateIndex, templateName)
 }
 
 func (idx *entityIndex) addToIndex(index map[string][]EntityID, key string, entityID EntityID) {
@@ -97,15 +96,11 @@ func (idx *entityIndex) rebuildTagAndTemplateIndex(entities map[EntityID]*Entity
 	idx.lazyTagTemplateIndex = false
 }
 
-func (idx *entityIndex) removeFromIndex(index map[reflect.Type][]EntityID, key reflect.Type, entityID EntityID) {
-	index[key] = removeEntityID(index[key], entityID)
-}
-
-func (idx *entityIndex) removeFromIndexString(index map[string][]EntityID, key string, entityID EntityID) {
-	index[key] = removeEntityID(index[key], entityID)
-}
-
-func removeEntityID(entities []EntityID, entityID EntityID) []EntityID {
+func (idx *entityIndex) removeFromIndex(index map[string][]EntityID, key string, entityID EntityID) {
+	entities, exists := index[key]
+	if !exists {
+		return
+	}
 	for i, id := range entities {
 		if id == entityID {
 			entities = append(entities[:i], entities[i+1:]...)
@@ -113,20 +108,13 @@ func removeEntityID(entities []EntityID, entityID EntityID) []EntityID {
 		}
 	}
 	if len(entities) == 0 {
-		entities = nil
+		delete(index, key)
+	} else {
+		index[key] = entities
 	}
-	return entities
 }
 
-func (idx *entityIndex) getFromIndex(index map[reflect.Type][]EntityID, key reflect.Type) []EntityID {
-	value, ok := index[key]
-	if !ok {
-		return nil
-	}
-	return value
-}
-
-func (idx *entityIndex) getFromIndexString(index map[string][]EntityID, key string) []EntityID {
+func (idx *entityIndex) getFromIndex(index map[string][]EntityID, key string) []EntityID {
 	value, ok := index[key]
 	if !ok {
 		return nil
