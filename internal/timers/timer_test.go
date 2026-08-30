@@ -51,14 +51,14 @@ func TestTimer_UpdateFiresWhenExpired(t *testing.T) {
 		t.Fatal("timer should auto-start")
 	}
 
-	if fired := timer.Update(0.1); fired {
+	if _, shouldFire := timer.Update(0.1); shouldFire {
 		t.Fatal("timer should not fire before duration completes")
 	}
 	if callbackCalled != 0 {
 		t.Fatalf("callback should not fire before expiration, got %d calls", callbackCalled)
 	}
 
-	if fired := timer.Update(0.2); !fired {
+	if _, shouldFire := timer.Update(0.2); !shouldFire {
 		t.Fatal("timer should fire once duration is reached")
 	}
 	if timer.IsRunning() {
@@ -78,7 +78,7 @@ func TestTimer_UpdateRepeatingTimerResetsAndContinues(t *testing.T) {
 		t.Fatal("repeating timer should auto-start")
 	}
 
-	if fired := timer.Update(0.1); !fired {
+	if _, shouldFire := timer.Update(0.1); !shouldFire {
 		t.Fatal("timer should fire at its first duration boundary")
 	}
 	if callbackCalled != 0 {
@@ -91,7 +91,7 @@ func TestTimer_UpdateRepeatingTimerResetsAndContinues(t *testing.T) {
 		t.Fatalf("repeating timer should reset elapsed after a cycle, got %f", timer.Elapsed())
 	}
 
-	if fired := timer.Update(0.1); !fired {
+	if _, shouldFire := timer.Update(0.1); !shouldFire {
 		t.Fatal("timer should fire again on the next interval")
 	}
 	if callbackCalled != 0 {
@@ -105,7 +105,7 @@ func TestTimer_UnhappyPath_UnknownStateTransitions(t *testing.T) {
 		t.Fatal("timer should start stopped")
 	}
 
-	if fired := timer.Update(0.5); fired {
+	if _, shouldFire := timer.Update(0.5); shouldFire {
 		t.Fatal("stopped timer should not fire")
 	}
 	if timer.Elapsed() != 0 {
