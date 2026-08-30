@@ -19,7 +19,7 @@ func NewManager() *Manager {
 	}
 }
 
-func (tm *Manager) CreateTimer(duration float64, once bool, autoStart bool, callbackFunc func()) TimerID {
+func (tm *Manager) CreateTimer(duration float64, once bool, autoStart bool, callbackFunc func()) *Timer {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -27,52 +27,7 @@ func (tm *Manager) CreateTimer(duration float64, once bool, autoStart bool, call
 	tm.nextID++
 	timer := NewTimer(timerID, duration, once, autoStart, callbackFunc)
 	tm.timers[timerID] = timer
-	return timerID
-}
-
-func (tm *Manager) StartTimer(timerID TimerID) error {
-	tm.mu.Lock()
-	defer tm.mu.Unlock()
-
-	timer, err := tm.lookupTimer(timerID)
-	if err != nil {
-		return err
-	}
-	if timer.IsRunning() {
-		return &TimerError{TimerID: timerID, Op: "start", Err: ErrTimerAlreadyRunning}
-	}
-	timer.Start()
-	return nil
-}
-
-func (tm *Manager) ResumeTimer(timerID TimerID) error {
-	tm.mu.Lock()
-	defer tm.mu.Unlock()
-
-	timer, err := tm.lookupTimer(timerID)
-	if err != nil {
-		return err
-	}
-	if timer.IsRunning() {
-		return &TimerError{TimerID: timerID, Op: "resume", Err: ErrTimerAlreadyRunning}
-	}
-	timer.Resume()
-	return nil
-}
-
-func (tm *Manager) StopTimer(timerID TimerID) error {
-	tm.mu.Lock()
-	defer tm.mu.Unlock()
-
-	timer, err := tm.lookupTimer(timerID)
-	if err != nil {
-		return err
-	}
-	if !timer.IsRunning() {
-		return &TimerError{TimerID: timerID, Op: "stop", Err: ErrTimerAlreadyStopped}
-	}
-	timer.Stop()
-	return nil
+	return timer
 }
 
 func (tm *Manager) Update(deltaTime float64) {
@@ -86,13 +41,14 @@ func (tm *Manager) Update(deltaTime float64) {
 	var cleanupTimers []TimerID
 
 	for _, timer := range tm.timers {
-		if !timer.Update(deltaTime) {
+		completed, shouldFire := timer.Update(deltaTime)
+		if !completed {
 			continue
 		}
-		if timer.timerFunc != nil {
+		if shouldFire {
 			callbacks = append(callbacks, timer.timerFunc)
 		}
-		if timer.IsOnce() {
+		if timer.IsOnce() || timer.cancelled {
 			cleanupTimers = append(cleanupTimers, timer.ID())
 		}
 	}
@@ -116,10 +72,18 @@ func (tm *Manager) RemoveTimer(timerID TimerID) error {
 	if err != nil {
 		return err
 	}
-	timer.Stop()
+	timer.Cancel()
 
 	delete(tm.timers, timerID)
 	return nil
+}
+
+func (tm *Manager) HasTimer(timerID TimerID) bool {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	_, exists := tm.timers[timerID]
+	return exists
 }
 
 func (tm *Manager) lookupTimer(timerID TimerID) (*Timer, error) {

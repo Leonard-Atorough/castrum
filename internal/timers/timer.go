@@ -11,6 +11,8 @@ type Timer struct {
 	elapsed float64
 	// Indicates whether the timer is currently running
 	running bool
+	// Indicates whether the timer has been cancelled
+	cancelled bool
 	// Indicates whether the timer should start automatically upon creation
 	autoStart bool
 	// Indicates whether the timer is a fire once timer or a repeating timer
@@ -44,29 +46,49 @@ func (t *Timer) Resume() {
 	t.running = true
 }
 
-func (t *Timer) Update(deltaTime float64) bool {
-	if !t.running {
-		return false
+func (t *Timer) Cancel() {
+	t.running = false
+	t.elapsed = 0
+	t.cancelled = true
+}
+
+func (t *Timer) Update(deltaTime float64) (completed bool, shouldFire bool) {
+	if !t.running || t.cancelled {
+		return false, false
 	}
 
 	t.elapsed += deltaTime
 
 	if t.elapsed < t.duration {
-		return false
+		return false, false
 	}
 
-	t.running = false
+	shouldFire = t.timerFunc != nil
+
+	if t.once {
+		t.cancelled = true
+		t.running = false
+		t.elapsed = 0
+		t.timerFunc = nil
+	}
 
 	if !t.once {
-		t.elapsed = 0
-		t.running = true
+		t.elapsed = 0 // Reset elapsed time for repeating timer
 	}
 
-	return true
+	return true, shouldFire
 }
 
 func (t *Timer) AutoStart() bool {
 	return t.autoStart
+}
+
+func (t *Timer) SetAutoStart(autoStart bool) {
+	t.autoStart = autoStart
+}
+
+func (t *Timer) IsCancelled() bool {
+	return t.cancelled
 }
 
 func (t *Timer) IsRunning() bool {
