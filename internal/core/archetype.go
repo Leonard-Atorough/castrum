@@ -3,6 +3,7 @@ package core
 import (
 	"reflect"
 	"sort"
+
 )
 
 type ArchetypeKey []reflect.Type
@@ -76,7 +77,7 @@ type Archetype struct {
 	componentTypes ArchetypeKey
 	entities       []EntityID
 
-	componentData map[reflect.Type]any // this will replace the componentStore, storing components by type for this archetype
+	componentData map[reflect.Type]any // could switch to a byte slice for more efficient storage
 }
 
 func NewArchetype(id uint64, componentTypes ArchetypeKey) *Archetype {

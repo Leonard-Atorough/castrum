@@ -21,7 +21,7 @@ func (b *Blueprint) Spawn(world *core.World) (*core.Entity, error) {
 
 	comps := make([]core.Component, len(b.Components))
 	for i, comp := range b.Components {
-		component, err := world.Registry().Resolve(comp.Type, comp.Properties)
+		component, err := core.Resolve(comp.Type, comp.Properties)
 		if err != nil {
 			return nil, err
 		}
@@ -30,11 +30,11 @@ func (b *Blueprint) Spawn(world *core.World) (*core.Entity, error) {
 
 	// TODO: World batching. for now, iterate
 	for _, comp := range comps {
-		world.AddComponent(entity.ID(), comp)
+		world.AddComponent(entity.ID, comp)
 	}
 
 	for _, tag := range b.Tags {
-		world.AddTag(entity.ID(), tag)
+		world.AddTag(entity.ID, tag)
 	}
 	return entity, nil
 }

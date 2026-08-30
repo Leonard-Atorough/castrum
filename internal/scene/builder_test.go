@@ -54,7 +54,7 @@ func TestBuilder_Build(t *testing.T) {
 	entity1 := world.CreateEntity("player")
 	entity2 := world.CreateEntity("enemy")
 
-	builder.WithEntity(entity1.ID()).WithEntity(entity2.ID())
+	builder.WithEntity(entity1.ID).WithEntity(entity2.ID)
 
 	scene, err := builder.Build()
 	if err != nil {

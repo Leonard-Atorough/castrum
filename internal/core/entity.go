@@ -7,7 +7,7 @@ type EntityID uint64
 // Entity represents a game Entity with an ID, template, tags, and lifecycle state.
 // Entities are not directly exposed in the public API; they are accessed through World methods.
 type Entity struct {
-	id       EntityID
+	ID       EntityID
 	template string
 	tags     map[string]struct{}
 	alive    bool
@@ -19,16 +19,13 @@ type Entity struct {
 
 func NewEntity(id EntityID, template string) *Entity {
 	return &Entity{
-		id:       id,
+		ID:       id,
 		template: template,
 		tags:     make(map[string]struct{}),
 		alive:    true,
 		version:  0,
 	}
 }
-
-// ID returns the unique identifier of the entity.
-func (e *Entity) ID() EntityID { return e.id }
 
 // Template returns the template name of the entity.
 func (e *Entity) Template() string { return e.template }
@@ -74,7 +71,7 @@ func (e *Entity) Version() uint32 { return e.version }
 
 func (e *Entity) Clone(newID EntityID) *Entity {
 	clone := &Entity{
-		id:       newID,
+		ID:       newID,
 		template: e.template,
 		tags:     make(map[string]struct{}, len(e.tags)),
 		alive:    e.alive,

@@ -7,19 +7,12 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
-
-	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 type Loader struct {
-	reg *core.Registry
 }
 
-func NewLoader(reg *core.Registry) *Loader {
-	return &Loader{
-		reg: reg,
-	}
-}
+var BlueprintLoader = &Loader{}
 
 func (l *Loader) Load(reader io.Reader) (*Blueprint, error) {
 	var blueprint Blueprint

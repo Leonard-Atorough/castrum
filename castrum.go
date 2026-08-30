@@ -31,7 +31,8 @@ type Game struct {
 	Timers  *timers.Manager
 	Scenes  *scene.Manager
 
-	BlueprintLoader *blueprint.Loader
+	BlueprintLoader   *blueprint.Loader
+	ComponentRegistry *core.Registry
 
 	// Timestep state
 	accumulator float64
@@ -48,12 +49,13 @@ func NewGame(config *Config) *Game {
 	timers := timers.NewManager()
 
 	return &Game{
-		World:           newWorld,
-		Config:          config,
-		Systems:         systems,
-		Timers:          timers,
-		Scenes:          scenes,
-		BlueprintLoader: blueprint.NewLoader(newWorld.Registry()),
+		World:             newWorld,
+		Config:            config,
+		Systems:           systems,
+		Timers:            timers,
+		Scenes:            scenes,
+		BlueprintLoader:   blueprint.BlueprintLoader, // Use the global blueprint loader instance
+		ComponentRegistry: core.GlobalRegistry,       // Use the global component registry instance
 	}
 }
 

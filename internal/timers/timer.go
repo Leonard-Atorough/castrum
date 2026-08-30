@@ -69,7 +69,6 @@ func (t *Timer) Update(deltaTime float64) (completed bool, shouldFire bool) {
 		t.cancelled = true
 		t.running = false
 		t.elapsed = 0
-		t.timerFunc = nil
 	}
 
 	if !t.once {

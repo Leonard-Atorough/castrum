@@ -5,8 +5,8 @@ import "testing"
 func TestEntity_BasicLifecycle(t *testing.T) {
 	e := NewEntity(42, "player")
 
-	if e.ID() != 42 {
-		t.Fatalf("expected id 42, got %d", e.ID())
+	if e.ID != 42 {
+		t.Fatalf("expected id 42, got %d", e.ID)
 	}
 	if e.Template() != "player" {
 		t.Fatalf("expected template %q, got %q", "player", e.Template())
@@ -30,8 +30,8 @@ func TestEntity_Clone(t *testing.T) {
 	src.Destroy()
 
 	clone := src.Clone(99)
-	if clone.ID() != 99 {
-		t.Fatalf("expected cloned id 99, got %d", clone.ID())
+	if clone.ID != 99 {
+		t.Fatalf("expected cloned id 99, got %d", clone.ID)
 	}
 	if clone.Template() != "enemy" {
 		t.Fatalf("expected template enemy, got %q", clone.Template())
@@ -55,7 +55,7 @@ func TestEntity_CloneIsIndependent(t *testing.T) {
 	if src.IsAlive() != true {
 		t.Fatal("source entity should remain unaffected by clone mutation")
 	}
-	if clone.ID() == src.ID() {
+	if clone.ID == src.ID {
 		t.Fatal("clone should have a distinct ID from the source")
 	}
 }

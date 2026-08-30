@@ -18,8 +18,8 @@ func TestScene_IntegrationWithRealWorld(t *testing.T) {
 	entity2 := world.CreateEntity("enemy")
 
 	// Add entities to scene
-	_ = scene.AddToScene(entity1.ID(), world)
-	_ = scene.AddToScene(entity2.ID(), world)
+	_ = scene.AddToScene(entity1.ID, world)
+	_ = scene.AddToScene(entity2.ID, world)
 
 	// Verify entities are in scene
 	entities := scene.Entities(world)
@@ -40,7 +40,7 @@ func TestScene_IntegrationWithRealWorld(t *testing.T) {
 	}
 
 	// Remove from scene
-	_ = scene.RemoveFromScene(entity1.ID(), world)
+	_ = scene.RemoveFromScene(entity1.ID, world)
 	entities = scene.Entities(world)
 	if len(entities) != 1 {
 		t.Fatalf("expected 1 entity in scene after removal, got %d", len(entities))
@@ -58,8 +58,8 @@ func TestManager_IntegrationWithRealWorld(t *testing.T) {
 	entity1 := world.CreateEntity("player")
 	entity2 := world.CreateEntity("enemy")
 
-	_ = scene1.AddToScene(entity1.ID(), world)
-	_ = scene2.AddToScene(entity2.ID(), world)
+	_ = scene1.AddToScene(entity1.ID, world)
+	_ = scene2.AddToScene(entity2.ID, world)
 
 	// Load scenes
 	_ = manager.LoadScene("level-1", scene1)
@@ -95,7 +95,7 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 
 	// Build scene with entities
 	builder := NewBuilder("builder-test", world)
-	builder.WithEntity(entity1.ID()).WithEntity(entity2.ID())
+	builder.WithEntity(entity1.ID).WithEntity(entity2.ID)
 
 	scene, err := builder.Build()
 	if err != nil {
@@ -111,7 +111,7 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 	// Test with hooks
 	loadCalled := false
 	builder2 := NewBuilder("builder-test-2", world)
-	builder2.WithEntity(entity1.ID()).WithLoadHook(func(w *core.World) error {
+	builder2.WithEntity(entity1.ID).WithLoadHook(func(w *core.World) error {
 		loadCalled = true
 		return nil
 	})
@@ -135,10 +135,10 @@ func TestSceneManager_IntegrationWithRealWorld(t *testing.T) {
 
 	// Create scenes using builder
 	builder1 := NewBuilder("level-1", world)
-	builder1.WithEntity(player.ID()).WithEntity(enemy.ID())
+	builder1.WithEntity(player.ID).WithEntity(enemy.ID)
 
 	builder2 := NewBuilder("level-2", world)
-	builder2.WithEntity(boss.ID())
+	builder2.WithEntity(boss.ID)
 
 	scene1, _ := builder1.Build()
 	scene2, _ := builder2.Build()
@@ -200,7 +200,7 @@ func TestScene_Lifecycle_IntegrationWithRealWorld(t *testing.T) {
 
 	// Create and add entities
 	entity1 := world.CreateEntity("test-entity")
-	_ = scene.AddToScene(entity1.ID(), world)
+	_ = scene.AddToScene(entity1.ID, world)
 
 	// Test OnLoad
 	err := scene.OnLoad(world)
@@ -265,7 +265,7 @@ func TestScene_Data_IntegrationWithRealWorld(t *testing.T) {
 
 	// Test with entities
 	entity := world.CreateEntity("data-entity")
-	_ = scene.AddToScene(entity.ID(), world)
+	_ = scene.AddToScene(entity.ID, world)
 
 	// Data should still be accessible
 	val, ok = scene.GetData("score")

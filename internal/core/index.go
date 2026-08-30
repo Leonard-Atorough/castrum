@@ -46,18 +46,18 @@ func (idx *entityIndex) RemoveTemplate(entityID EntityID, templateName string) {
 
 func (idx *entityIndex) UpdateTag(entity *Entity, tagName string, add bool) {
 	if add {
-		idx.addToIndex(idx.tagIndex, tagName, entity.id)
+		idx.addToIndex(idx.tagIndex, tagName, entity.ID)
 	} else {
-		idx.removeFromIndex(idx.tagIndex, tagName, entity.id)
+		idx.removeFromIndex(idx.tagIndex, tagName, entity.ID)
 	}
 }
 
 func (idx *entityIndex) UpdateTemplate(entity *Entity, oldTemplate string, newTemplate string) {
 	if oldTemplate != "" {
-		idx.removeFromIndex(idx.templateIndex, oldTemplate, entity.id)
+		idx.removeFromIndex(idx.templateIndex, oldTemplate, entity.ID)
 	}
 	if newTemplate != "" {
-		idx.addToIndex(idx.templateIndex, newTemplate, entity.id)
+		idx.addToIndex(idx.templateIndex, newTemplate, entity.ID)
 	}
 }
 

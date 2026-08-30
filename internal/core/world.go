@@ -14,7 +14,6 @@ type World struct {
 	hierarchy        *Hierarchy
 	archetypeManager *ArchetypeManager
 	index            entityIndex
-	registry         *Registry
 }
 
 func NewWorld() *World {
@@ -25,12 +24,7 @@ func NewWorld() *World {
 		nextID:           atomic.Uint64{},
 		destroyed:        make([]*Entity, 0),
 		archetypeManager: NewArchetypeManager(),
-		registry:         NewRegistry(),
 	}
-}
-
-func (w *World) Registry() *Registry {
-	return w.registry
 }
 
 // Reset clears the world entirely, removing all entities, components, and hierarchy relationships.
@@ -50,14 +44,14 @@ func (w *World) Cleanup() {
 			continue
 		}
 
-		delete(w.entities, entity.ID())
-		w.index.RemoveTemplate(entity.ID(), entity.Template())
+		delete(w.entities, entity.ID)
+		w.index.RemoveTemplate(entity.ID, entity.Template())
 		for tag := range entity.tags {
-			w.index.RemoveTag(entity.ID(), tag)
+			w.index.RemoveTag(entity.ID, tag)
 		}
 
-		if parentID, hasParent := w.hierarchy.Parent(entity.ID()); hasParent {
-			w.hierarchy.Remove(parentID, entity.ID())
+		if parentID, hasParent := w.hierarchy.Parent(entity.ID); hasParent {
+			w.hierarchy.Remove(parentID, entity.ID)
 		}
 
 		entity.tags = nil
@@ -507,7 +501,7 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComp Component, n
 	// Add entity to new archetype
 	entity.archetypeID = newArchetype.ID
 	entity.archetypeIdx = len(newArchetype.entities)
-	newArchetype.entities = append(newArchetype.entities, entity.id)
+	newArchetype.entities = append(newArchetype.entities, entity.ID)
 
 	// Set the new Component if provided
 	if newComp != nil {
@@ -524,7 +518,7 @@ func (w *World) updateComponentInArchetype(entity *Entity, comp Component, compT
 		archetype, exists = w.archetypeManager.GetArchetypeByID(entity.archetypeID)
 		if !exists {
 			return &EntityError{
-				EntityID: entity.ID(),
+				EntityID: entity.ID,
 				Op:       "UpdateComponentInArchetype",
 				Err:      ErrArchetypeNotFound,
 			}

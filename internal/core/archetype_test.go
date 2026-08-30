@@ -327,7 +327,7 @@ func TestArchetypeEdgeCases(t *testing.T) {
 
 		entity := world.CreateEntity("Generic")
 
-		_, err := world.GetComponent(entity.id, reflect.TypeFor[TestPosition]())
+		_, err := world.GetComponent(entity.ID, reflect.TypeFor[TestPosition]())
 		if err == nil {
 			t.Error("Expected error when getting non-existent component")
 		}
@@ -338,7 +338,7 @@ func TestArchetypeEdgeCases(t *testing.T) {
 
 		entity := world.CreateEntity("Generic")
 
-		err := world.RemoveComponent(entity.id, reflect.TypeFor[TestPosition]())
+		err := world.RemoveComponent(entity.ID, reflect.TypeFor[TestPosition]())
 		if err != nil {
 			t.Errorf("Expected no error when removing non-existent component, got: %v", err)
 		}
@@ -359,12 +359,12 @@ func TestArchetypeEdgeCases(t *testing.T) {
 		world := NewWorld()
 
 		entity := world.CreateEntity("Generic")
-		world.AddComponent(entity.id, TestPosition{X: 1, Y: 2})
+		world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
 
-		world.DestroyEntity(entity.id, false)
+		world.DestroyEntity(entity.ID, false)
 		world.Cleanup()
 
-		_, err := world.GetComponent(entity.id, reflect.TypeFor[TestPosition]())
+		_, err := world.GetComponent(entity.ID, reflect.TypeFor[TestPosition]())
 		if err == nil {
 			t.Error("Expected error when getting component from destroyed entity")
 		}
@@ -374,10 +374,10 @@ func TestArchetypeEdgeCases(t *testing.T) {
 		world := NewWorld()
 
 		entity := world.CreateEntity("Generic")
-		world.DestroyEntity(entity.id, false)
+		world.DestroyEntity(entity.ID, false)
 		world.Cleanup()
 
-		err := world.AddComponent(entity.id, TestPosition{X: 1, Y: 2})
+		err := world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
 		if err == nil {
 			t.Error("Expected error when adding component to destroyed entity")
 		}
