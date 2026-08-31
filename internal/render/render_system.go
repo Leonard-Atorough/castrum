@@ -32,8 +32,9 @@ func (rs *RenderSystem) Init(world *core.World) error {
 }
 
 func (rs *RenderSystem) Update(world *core.World, delta float64) error {
-	// Clear the renderer for the new frame
 	return nil
+	// NOTE: The render system and the renderer work together to handle rendering, with the renderer being what talks to ebiten.
+	// The render system is responsible for managing the renderable, transform and animation components, doing things like handling animation updates, visibility checks, and sorting entities by layer. The renderer is responsible for actually drawing the entities to the screen using ebiten.
 }
 
 func (rs *RenderSystem) Shutdown(world *core.World) error {
