@@ -1,6 +1,6 @@
 module github.com/leonard-atorough/castrum
 
-go 1.26.6
+go 1.27
 
 require (
 	github.com/hajimehoshi/ebiten/v2 v2.9.10

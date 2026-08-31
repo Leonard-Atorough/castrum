@@ -27,3 +27,22 @@ const (
 	PrimitiveKindCircle
 	PrimitiveKindLine
 )
+
+
+
+type Animation struct {
+	Frames     []string
+	FrameIndex int
+	FrameCount int
+	FrameTime  float64 // time elapsed since the last frame change
+	FrameSpeed float64 // seconds per frame
+	Loop       bool
+	Playing    bool // indicates whether the animation is currently playing
+	AutoPlay   bool // indicates whether the animation should start playing automatically
+}
+
+func (a *Animation) Reset() {
+	a.FrameIndex = 0
+	a.FrameTime = 0
+	a.Playing = a.AutoPlay
+}

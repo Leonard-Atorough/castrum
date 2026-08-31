@@ -384,6 +384,14 @@ func (w *World) Query(components ...reflect.Type) []EntityID {
 	return result
 }
 
+func (w *World) QueryByComponents[T []Component]() []EntityID {
+	var componentTypes []reflect.Type
+	for _, t := range []T(nil) {
+		componentTypes = append(componentTypes, reflect.TypeOf(t))
+	}
+	return w.Query(componentTypes...)
+}
+
 func (w *World) QueryAny(components ...reflect.Type) []EntityID {
 	if len(components) == 0 {
 		return nil
@@ -582,4 +590,12 @@ func (w *World) ensureTagAndTemplateIndex() {
 		return
 	}
 	w.index.rebuildTagAndTemplateIndex(w.entities)
+}
+
+func Types(comps ...Component) []reflect.Type {
+	var componentTypes []reflect.Type
+	for _, comp := range comps {
+		componentTypes = append(componentTypes, reflect.TypeOf(comp))
+	}
+	return componentTypes
 }
