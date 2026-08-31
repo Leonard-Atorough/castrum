@@ -32,7 +32,7 @@ type Game struct {
 	Scenes  *scene.Manager
 
 	BlueprintLoader   *blueprint.Loader
-	ComponentRegistry *core.Registry
+	ComponentRegistry *core.ComponentRegistry
 
 	// Timestep state
 	accumulator float64

@@ -33,10 +33,10 @@ func TestWorldCreation(t *testing.T) {
 
 	t.Run("QueryByTemplate returns correct entities", func(t *testing.T) {
 		w := NewWorld()
-		provinceEntity := w.CreateEntity("Province")
-		cityEntity := w.CreateEntity("City")
-		genericEntity1 := w.CreateEntity("Generic")
-		genericEntity2 := w.CreateEntity("Generic")
+		provinceEntity := w.Create("Province")
+		cityEntity := w.Create("City")
+		genericEntity1 := w.Create("Generic")
+		genericEntity2 := w.Create("Generic")
 
 		provinces := w.QueryByTemplate("Province")
 		if len(provinces) != 1 || provinces[0] != provinceEntity.ID {
@@ -59,7 +59,7 @@ func TestWorldCreation(t *testing.T) {
 func TestWorld_EntityLifecycle(t *testing.T) {
 	t.Run("Create, Get, and Destroy Entity", func(t *testing.T) {
 		w := NewWorld()
-		entity := w.CreateEntity("Generic")
+		entity := w.Create("Generic")
 		if !w.HasEntity(entity.ID) {
 			t.Fatal("Created entity should exist")
 		}
@@ -88,7 +88,7 @@ func TestWorld_EntityLifecycle(t *testing.T) {
 
 	t.Run("CreateEntity with unknown template", func(t *testing.T) {
 		w := NewWorld()
-		entity := w.CreateEntity("UnknownTemplate")
+		entity := w.Create("UnknownTemplate")
 		if !w.HasEntity(entity.ID) {
 			t.Fatal("Entity with unknown template should still be created")
 		}
@@ -98,7 +98,7 @@ func TestWorld_EntityLifecycle(t *testing.T) {
 
 	t.Run("CreateEntity with empty template", func(t *testing.T) {
 		w := NewWorld()
-		entity := w.CreateEntity("")
+		entity := w.Create("")
 		if !w.HasEntity(entity.ID) {
 			t.Fatal("Entity with empty template should still be created")
 		}
@@ -108,8 +108,8 @@ func TestWorld_EntityLifecycle(t *testing.T) {
 
 	t.Run("Entity heirarchy management", func(t *testing.T) {
 		w := NewWorld()
-		parent := w.CreateEntity("Generic")
-		child := w.CreateEntity("Generic")
+		parent := w.Create("Generic")
+		child := w.Create("Generic")
 
 		w.SetParent(child.ID, parent.ID)
 		parentID, ok := w.ParentOf(child.ID)
@@ -146,9 +146,9 @@ func TestWorld_EntityLifecycle(t *testing.T) {
 func TestWorld_TagAndTemplateQueries(t *testing.T) {
 	t.Run("QueryByTag returns correct entities", func(t *testing.T) {
 		w := NewWorld()
-		provinceEntity := w.CreateEntity("Province")
-		cityEntity := w.CreateEntity("City")
-		genericEntity := w.CreateEntity("Generic")
+		provinceEntity := w.Create("Province")
+		cityEntity := w.Create("City")
+		genericEntity := w.Create("Generic")
 
 		provinces := w.QueryByTag("Province")
 		if len(provinces) != 1 || provinces[0] != provinceEntity.ID {
@@ -173,9 +173,9 @@ func TestWorld_TagAndTemplateQueries(t *testing.T) {
 
 	t.Run("QueryByTemplate returns correct entities", func(t *testing.T) {
 		w := NewWorld()
-		provinceEntity := w.CreateEntity("Province")
-		cityEntity := w.CreateEntity("City")
-		genericEntity := w.CreateEntity("Generic")
+		provinceEntity := w.Create("Province")
+		cityEntity := w.Create("City")
+		genericEntity := w.Create("Generic")
 
 		provinces := w.QueryByTemplate("Province")
 		if len(provinces) != 1 || provinces[0] != provinceEntity.ID {
@@ -225,11 +225,11 @@ func TestWorld_CountAndReset(t *testing.T) {
 		t.Fatalf("expected 0 entities in new world, got %d", w.Count())
 	}
 
-	entity1 := w.CreateEntity("Generic")
+	entity1 := w.Create("Generic")
 	w.AddComponent(entity1.ID, testComponentA{value: 1})
 
-	entity2 := w.CreateEntity("Generic")
-	w.CreateEntity("Generic") // third entity for testing Count
+	entity2 := w.Create("Generic")
+	w.Create("Generic") // third entity for testing Count
 
 	if w.Count() != 3 {
 		t.Fatalf("expected 3 entities, got %d", w.Count())
@@ -257,7 +257,7 @@ func TestWorld_CountAndReset(t *testing.T) {
 	}
 
 	// Should be able to create again
-	newEntity := w.CreateEntity("Generic")
+	newEntity := w.Create("Generic")
 	if !w.HasEntity(newEntity.ID) {
 		t.Fatal("should be able to create new entity after reset")
 	}
@@ -291,7 +291,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("EntityCreationAddsToEmptyArchetype", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 
 		// Entity should be in empty archetype
 		gotEntity, exists := world.GetEntity(entity.ID)
@@ -321,7 +321,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("AddComponentMigratesArchetype", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 
 		// Get initial archetype
 		gotEntity, _ := world.GetEntity(entity.ID)
@@ -351,9 +351,9 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		world := NewWorld()
 
 		// Create entities with Position
-		entity1 := world.CreateEntity("Generic")
-		entity2 := world.CreateEntity("Generic")
-		entity3 := world.CreateEntity("Generic")
+		entity1 := world.Create("Generic")
+		entity2 := world.Create("Generic")
+		entity3 := world.Create("Generic")
 
 		world.AddComponent(entity1.ID, TestPosition{X: 1, Y: 2})
 		world.AddComponent(entity2.ID, TestPosition{X: 3, Y: 4})
@@ -382,10 +382,10 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		world := NewWorld()
 
 		// Create entities with different component combinations
-		entity1 := world.CreateEntity("Generic") // Position only
-		entity2 := world.CreateEntity("Generic") // Position + Velocity
-		entity3 := world.CreateEntity("Generic") // Position + Velocity
-		entity4 := world.CreateEntity("Generic") // Velocity only
+		entity1 := world.Create("Generic") // Position only
+		entity2 := world.Create("Generic") // Position + Velocity
+		entity3 := world.Create("Generic") // Position + Velocity
+		entity4 := world.Create("Generic") // Velocity only
 
 		world.AddComponent(entity1.ID, TestPosition{X: 1, Y: 2})
 		world.AddComponent(entity2.ID, TestPosition{X: 3, Y: 4})
@@ -422,9 +422,9 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		world := NewWorld()
 
 		// Create entities with different component combinations
-		entity1 := world.CreateEntity("Generic") // Position only
-		entity2 := world.CreateEntity("Generic") // Position + Velocity
-		entity3 := world.CreateEntity("Generic") // Position + Velocity + Health
+		entity1 := world.Create("Generic") // Position only
+		entity2 := world.Create("Generic") // Position + Velocity
+		entity3 := world.Create("Generic") // Position + Velocity + Health
 
 		world.AddComponent(entity1.ID, TestPosition{X: 1, Y: 2})
 		world.AddComponent(entity2.ID, TestPosition{X: 3, Y: 4})
@@ -455,7 +455,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("GetComponentFromArchetype", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 		pos := TestPosition{X: 10, Y: 20}
 		world.AddComponent(entity.ID, pos)
 
@@ -484,7 +484,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("HasComponent", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 
 		// Entity should not have Position initially
 		if world.HasComponent(entity.ID, reflect.TypeFor[TestPosition]()) {
@@ -508,7 +508,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("RemoveComponent", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
 		world.AddComponent(entity.ID, TestVelocity{X: 0.1, Y: 0.1})
 
@@ -540,7 +540,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 			reflect.TypeFor[TestHealth](),
 		)
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
 		world.AddComponent(entity.ID, TestVelocity{X: 0.1, Y: 0.1})
 		world.AddComponent(entity.ID, TestHealth{Value: 100})
@@ -576,7 +576,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("EntityDestructionRemovesFromArchetype", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
 
 		// Get archetype info before destruction
@@ -602,7 +602,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 		// Create multiple entities with same components
 		entities := make([]*Entity, 100)
 		for i := range entities {
-			entities[i] = world.CreateEntity("Generic")
+			entities[i] = world.Create("Generic")
 			world.AddComponent(entities[i].ID, TestPosition{X: float64(i), Y: float64(i)})
 			world.AddComponent(entities[i].ID, TestVelocity{X: 0.1, Y: 0.1})
 		}
@@ -629,7 +629,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 	t.Run("ArchetypeMigrationOnComponentChange", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 
 		// Add Position - should be in [Position] archetype
 		world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})

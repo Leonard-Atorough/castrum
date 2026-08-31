@@ -65,32 +65,51 @@ func (w *World) Count() int {
 	return len(w.entities)
 }
 
-// CreateEntity creates a new entity with the specified template and returns its EntityID.
-// The entity is automatically registered with the world and the index.
-func (w *World) CreateEntity(template string) *Entity {
+func (w *World) Create(blueprintName string, components ...ComponentType) *Entity {
+	componentTypes := make([]reflect.Type, len(components))
+	for i, comp := range components {
+		componentTypes[i] = comp.Type
+	}
+	archetype := w.archetypeManager.GetOrCreateArchetype(componentTypes...)
+	return w.createEntity(archetype, blueprintName)
+}
+
+func (w *World) CreateMany(blueprintName string, count int, components ...ComponentType) []*Entity {
+	entities := make([]*Entity, count)
+	for i := 0; i < count; i++ {
+		entities[i] = w.Create(blueprintName, components...)
+	}
+	return entities
+}
+
+func (w *World) CreateWithComponents(blueprintName string, components ...Component) (*Entity, error) {
+	componentTypes := make([]reflect.Type, len(components))
+	for i, comp := range components {
+		componentTypes[i] = reflect.TypeOf(comp)
+	}
+	archetype := w.archetypeManager.GetOrCreateArchetype(componentTypes...)
+	entity := w.createEntity(archetype, blueprintName)
+
+	for _, comp := range components {
+		if err := w.updateComponentInArchetype(entity, comp, reflect.TypeOf(comp), archetype); err != nil {
+			return nil, err
+		}
+	}
+	return entity, nil
+}
+
+func (w *World) createEntity(archetype *Archetype, blueprintName string) *Entity {
 	id := EntityID(w.nextID.Add(1))
 
-	entity := NewEntity(id, template)
+	entity := NewEntity(id, blueprintName)
 	w.entities[id] = entity
 
-	emptyArchtype := w.archetypeManager.GetOrCreateArchetype()
-	entity.archetypeID = emptyArchtype.ID
-	entity.archetypeIdx = len(emptyArchtype.entities)
-	emptyArchtype.entities = append(emptyArchtype.entities, id)
+	entity.archetypeID = archetype.ID
+	entity.archetypeIdx = len(archetype.entities)
+	archetype.entities = append(archetype.entities, id)
 
-	// Defer tag/template index maintenance until the first query or tag mutation.
-	// This keeps entity creation cheap while preserving correctness when lookup indexes are needed.
+	// Defer tag/blueprint index maintenance until the first query or tag mutation.
 	w.index.lazyTagTemplateIndex = true
-
-	// NOTE: two temporary templates for testing - Province and City
-	switch template {
-	case "Province":
-		entity.AddTag("Province")
-	case "City":
-		entity.AddTag("City")
-	default:
-		entity.AddTag("Generic")
-	}
 
 	return entity
 }
@@ -157,27 +176,42 @@ func (w *World) HasEntity(entityID EntityID) bool {
 }
 
 // AddComponent adds a component to an entity. The entity must exist in the world.
-func (w *World) AddComponent(entityID EntityID, comp Component) error {
+func (w *World) AddComponent(entityID EntityID, comp ...Component) error {
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return ErrEntityNotFound
 	}
-
-	compType := reflect.TypeOf(comp)
-
 	currentArchetype, exists := w.archetypeManager.GetArchetypeByID(entity.archetypeID)
 
-	if exists {
+	var toAdd []Component
+	var newTypes []reflect.Type
+	for _, c := range comp {
+		compType := reflect.TypeOf(c)
+		exists := false
 		for _, t := range currentArchetype.componentTypes {
 			if t == compType {
-				// Component type already exists in the current archetype; no need to change archetype.
-				return w.updateComponentInArchetype(entity, comp, compType, currentArchetype)
+				// update the existing component in the current archetype
+				if err := w.updateComponentInArchetype(entity, c, compType, currentArchetype); err != nil {
+					return err
+				}
+				exists = true
+				break
 			}
+		}
+		if !exists {
+			toAdd = append(toAdd, c)
+			newTypes = append(newTypes, compType)
 		}
 	}
 
+	if len(newTypes) == 0 {
+		// No new component types to add; nothing to do.
+		return nil
+	}
+
+	targetTypes := append(currentArchetype.componentTypes, newTypes...)
 	// migrate entity to a new archetype that includes the new component type
-	return w.migrateEntityToNewArchetype(entity, comp, append(currentArchetype.componentTypes, compType)...)
+	return w.migrateEntityToNewArchetype(entity, comp, targetTypes...)
 
 }
 

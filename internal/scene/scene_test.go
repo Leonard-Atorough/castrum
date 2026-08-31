@@ -43,7 +43,7 @@ func TestScene_AddToScene(t *testing.T) {
 	world := core.NewWorld()
 	scene := NewScene("test")
 
-	entity := world.CreateEntity("player")
+	entity := world.Create("player")
 	entityID := entity.ID
 
 	err := scene.AddToScene(entityID, world)
@@ -71,7 +71,7 @@ func TestScene_RemoveFromScene(t *testing.T) {
 	world := core.NewWorld()
 	scene := NewScene("test")
 
-	entity := world.CreateEntity("player")
+	entity := world.Create("player")
 	entityID := entity.ID
 	_ = scene.AddToScene(entityID, world)
 
@@ -100,9 +100,9 @@ func TestScene_Entities(t *testing.T) {
 	world := core.NewWorld()
 	scene := NewScene("test")
 
-	entity1 := world.CreateEntity("player")
-	entity2 := world.CreateEntity("enemy")
-	_ = world.CreateEntity("npc")
+	entity1 := world.Create("player")
+	entity2 := world.Create("enemy")
+	_ = world.Create("npc")
 
 	_ = scene.AddToScene(entity1.ID, world)
 	_ = scene.AddToScene(entity2.ID, world)
@@ -205,8 +205,8 @@ func TestScene_OnUnload_WithEntities(t *testing.T) {
 	world := core.NewWorld()
 	scene := NewScene("test")
 
-	entity1 := world.CreateEntity("player")
-	entity2 := world.CreateEntity("enemy")
+	entity1 := world.Create("player")
+	entity2 := world.Create("enemy")
 	_ = scene.AddToScene(entity1.ID, world)
 	_ = scene.AddToScene(entity2.ID, world)
 
@@ -247,7 +247,7 @@ func TestScene_OnUnload_HookError(t *testing.T) {
 	world := core.NewWorld()
 	scene := NewScene("test")
 
-	entity1 := world.CreateEntity("player")
+	entity1 := world.Create("player")
 	_ = scene.AddToScene(entity1.ID, world)
 
 	expectedErr := errors.New("unload failed")
@@ -270,8 +270,8 @@ func TestScene_OnUnload_WithBothEntitiesAndHook(t *testing.T) {
 	world := core.NewWorld()
 	scene := NewScene("test")
 
-	entity1 := world.CreateEntity("player")
-	entity2 := world.CreateEntity("enemy")
+	entity1 := world.Create("player")
+	entity2 := world.Create("enemy")
 	_ = scene.AddToScene(entity1.ID, world)
 	_ = scene.AddToScene(entity2.ID, world)
 

@@ -6,13 +6,13 @@ import (
 	"sync"
 )
 
-type Registry struct {
+type ComponentRegistry struct {
 	mu         sync.RWMutex
-	types      map[reflect.Type]*TypeInfo
+	types      map[reflect.Type]*ComponentType
 	nameToType map[string]reflect.Type
 }
 
-type TypeInfo struct {
+type ComponentType struct {
 	Type           reflect.Type
 	Name           string
 	Size           int
@@ -20,12 +20,12 @@ type TypeInfo struct {
 	HasHooks       bool
 }
 
-var GlobalRegistry = &Registry{
-	types:      make(map[reflect.Type]*TypeInfo),
+var GlobalRegistry = &ComponentRegistry{
+	types:      make(map[reflect.Type]*ComponentType),
 	nameToType: make(map[string]reflect.Type),
 }
 
-func Register[T any]() *TypeInfo {
+func Register[T any]() *ComponentType {
 	typ := reflect.TypeFor[T]()
 	GlobalRegistry.mu.Lock()
 	defer GlobalRegistry.mu.Unlock()
@@ -34,7 +34,7 @@ func Register[T any]() *TypeInfo {
 		return info
 	}
 
-	info := &TypeInfo{
+	info := &ComponentType{
 		Type:           typ,
 		Name:           typ.Name(),
 		Size:           int(typ.Size()),
@@ -50,7 +50,7 @@ func RegisterMultiple(types ...reflect.Type) {
 	for _, typ := range types {
 		GlobalRegistry.mu.Lock()
 		if _, exists := GlobalRegistry.types[typ]; !exists {
-			info := &TypeInfo{
+			info := &ComponentType{
 				Type:           typ,
 				Name:           typ.Name(),
 				Size:           int(typ.Size()),
@@ -93,18 +93,18 @@ func Resolve(name string, props map[string]any) (Component, error) {
 	return instance.Addr().Interface().(Component), nil
 }
 
-func GetTypeInfo(typ reflect.Type) *TypeInfo {
+func GetTypeInfo(typ reflect.Type) *ComponentType {
 	GlobalRegistry.mu.RLock()
 	defer GlobalRegistry.mu.RUnlock()
 
 	return GlobalRegistry.types[typ]
 }
 
-func ListTypeInfo() []*TypeInfo {
+func ListTypeInfo() []*ComponentType {
 	GlobalRegistry.mu.RLock()
 	defer GlobalRegistry.mu.RUnlock()
 
-	list := make([]*TypeInfo, 0, len(GlobalRegistry.types))
+	list := make([]*ComponentType, 0, len(GlobalRegistry.types))
 	for _, info := range GlobalRegistry.types {
 		list = append(list, info)
 	}

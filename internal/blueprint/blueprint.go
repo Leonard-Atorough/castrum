@@ -17,20 +17,18 @@ type ComponentData struct {
 }
 
 func (b *Blueprint) Spawn(world *core.World) (*core.Entity, error) {
-	entity := world.CreateEntity(b.Name)
-
-	comps := make([]core.Component, len(b.Components))
+	components := make([]core.Component, len(b.Components))
 	for i, comp := range b.Components {
-		component, err := core.Resolve(comp.Type, comp.Properties)
+		instance, err := core.Resolve(comp.Type, comp.Properties)
 		if err != nil {
 			return nil, err
 		}
-		comps[i] = component
+		components[i] = instance
 	}
 
-	// TODO: World batching. for now, iterate
-	for _, comp := range comps {
-		world.AddComponent(entity.ID, comp)
+	entity, err := world.CreateWithComponents(b.Name, components...)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, tag := range b.Tags {

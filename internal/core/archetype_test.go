@@ -325,7 +325,7 @@ func TestArchetypeEdgeCases(t *testing.T) {
 	t.Run("GetComponentFromEmptyArchetype", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 
 		_, err := world.GetComponent(entity.ID, reflect.TypeFor[TestPosition]())
 		if err == nil {
@@ -336,7 +336,7 @@ func TestArchetypeEdgeCases(t *testing.T) {
 	t.Run("RemoveNonExistentComponent", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 
 		err := world.RemoveComponent(entity.ID, reflect.TypeFor[TestPosition]())
 		if err != nil {
@@ -347,7 +347,7 @@ func TestArchetypeEdgeCases(t *testing.T) {
 	t.Run("QueryNonExistentComponent", func(t *testing.T) {
 		world := NewWorld()
 
-		world.CreateEntity("Generic")
+		world.Create("Generic")
 
 		result := world.Query(reflect.TypeFor[TestPosition](), reflect.TypeFor[TestVelocity]())
 		if len(result) != 0 {
@@ -358,7 +358,7 @@ func TestArchetypeEdgeCases(t *testing.T) {
 	t.Run("GetComponentAfterDestruction", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
 
 		world.DestroyEntity(entity.ID, false)
@@ -373,7 +373,7 @@ func TestArchetypeEdgeCases(t *testing.T) {
 	t.Run("AddComponentToDestroyedEntity", func(t *testing.T) {
 		world := NewWorld()
 
-		entity := world.CreateEntity("Generic")
+		entity := world.Create("Generic")
 		world.DestroyEntity(entity.ID, false)
 		world.Cleanup()
 

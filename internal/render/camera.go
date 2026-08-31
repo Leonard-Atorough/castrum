@@ -72,12 +72,3 @@ func (c *Camera) IsWorldRectVisible(worldRect types.Rect) bool {
 func (c *Camera) AspectRatio() float64 {
 	return float64(c.ScreenSize.X) / float64(c.ScreenSize.Y)
 }
-
-/*
-Understanding the camera is key to understanding how developers can interact with, show and manipulate the game world.
-The camera can best be defined as the viewport through which the player sees the game world. The camera's, position, zoom and rotation determine what portion of the game world is visible.
-This interacts with the render system and renderer to determine which game objects to draw vs which objects just have their data updated but are not currently visible.
-Because the phase 1.0 target is akin to eu4 we only really need to worry about camera position, bounds, and zoom. Rotation can be ignored for now.
-
-When determining what to draw for example, the renderer checks the screensize, multiplies it by the camera's zoom level, and then uses the camera's position to figure out which portion of the game world is currently visible.
-*/
