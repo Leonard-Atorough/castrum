@@ -1,47 +1,12 @@
-package main
+package systems
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum"
+	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/types"
 )
-
-// MovementSystem applies Velocity to Transform.Position for every entity that has both.
-type MovementSystem struct{}
-
-func (s *MovementSystem) Init(world *castrum.World) error {
-	return nil
-}
-
-func (s *MovementSystem) Update(world *castrum.World, delta float64) error {
-	// Query for entities with both Velocity and Transform
-	entities := world.Query(castrum.Types(components.Transform{}, Velocity{})...)
-
-	for _, id := range entities {
-		vel, err := castrum.GetComponent[Velocity](world, id)
-		if err != nil {
-			continue
-		}
-		transform, err := castrum.GetComponent[components.Transform](world, id)
-		if err != nil {
-			continue
-		}
-
-		// Apply velocity to position
-		transform.Position.X += vel.Linear.X * delta
-		transform.Position.Y += vel.Linear.Y * delta
-
-		if err := castrum.SetComponent(world, id, transform); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *MovementSystem) Shutdown(world *castrum.World) error {
-	return nil
-}
 
 // PlayerController reads input and updates velocity on entities with a Player marker.
 type PlayerController struct {
@@ -58,10 +23,10 @@ func (pc *PlayerController) Init(world *castrum.World) error {
 
 func (pc *PlayerController) Update(world *castrum.World, delta float64) error {
 	// Query for player entities (those with Player + Velocity + Transform)
-	entities := world.Query(castrum.Types(Player{}, Velocity{}, components.Transform{})...)
+	entities := world.Query(castrum.Types(gamecomponents.Player{}, gamecomponents.Velocity{}, components.Transform{})...)
 
 	for _, id := range entities {
-		vel, err := castrum.GetComponent[Velocity](world, id)
+		vel, err := castrum.GetComponent[gamecomponents.Velocity](world, id)
 		if err != nil {
 			continue
 		}

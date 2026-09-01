@@ -2,6 +2,7 @@ package castrum
 
 import (
 	"image/color"
+	"io/fs"
 	"math"
 	"reflect"
 	"time"
@@ -57,7 +58,7 @@ type Game struct {
 	fpsTarget   int
 }
 
-func NewGame(config *Config) *Game {
+func NewGame(config *Config, filesystem fs.FS) *Game {
 	ValidateConfig(config)
 
 	newWorld := core.NewWorld()
@@ -69,15 +70,17 @@ func NewGame(config *Config) *Game {
 	camera := render.NewCamera()
 	camera.SetScreenSize(config.Graphics.VirtualWidth, config.Graphics.VirtualHeight)
 
+	assets := assets.NewAssets(filesystem)
+
 	return &Game{
 		World:             newWorld,
 		Config:            config,
 		Systems:           systems,
 		Timers:            timers,
 		Scenes:            scenes,
-		Assets:            assets.GlobalAssets,             // Use the global assets instance
-		ComponentRegistry: core.GlobalRegistry,             // Use the global component registry instance
-		Render:            render.New(assets.GlobalAssets), // Initialize the renderer
+		Assets:            assets,              // Use the global assets instance
+		ComponentRegistry: core.GlobalRegistry, // Use the global component registry instance
+		Render:            render.New(assets),  // Initialize the renderer
 		Camera:            camera,
 		Input:             input.NewManager(),
 		Animation:         animation.NewManager(),

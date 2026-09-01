@@ -17,8 +17,17 @@ import (
 // is still a real regression guard (e.g. against the nil-Color type-assertion
 // panic this package used to have).
 func newTestRenderer() *Renderer {
-	store := texture.NewStore()
-	store.AddTexture("square", &texture.Texture{Image: ebiten.NewImage(4, 4), Width: 4, Height: 4})
+	store := texture.NewStore(nil)
+	// Manually populate store with a test texture (we're not testing texture loading,
+	// just that rendering doesn't panic). Create a 1x1 ebiten.Image as a minimal sprite.
+	testImage := ebiten.NewImage(1, 1)
+	testImage.Fill(color.White)
+	store.Textures["square"] = &texture.Texture{
+		Path:   "square",
+		Image:  testImage,
+		Width:  1,
+		Height: 1,
+	}
 	return New(&assets.Assets{Textures: store})
 }
 

@@ -1,30 +1,30 @@
 package blueprint
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+	"testing/fstest"
 )
 
-const validBlueprintYAML = `
-name: Goblin
+const validBlueprintYAML = `name: Goblin
 version: "1.0"
-tags:
-  - enemy
-  - hostile
 components:
   - type: testComponent
     properties:
       Value: 5
 `
 
-func TestStore_LoadFromString(t *testing.T) {
-	t.Run("parses a valid blueprint and registers it in the store", func(t *testing.T) {
-		s := NewStore()
+const invalidBlueprintYAML = "not: [valid"
 
-		bp, err := s.LoadFromString(validBlueprintYAML)
+func TestStore_Load(t *testing.T) {
+	t.Run("parses a valid blueprint and caches it by path", func(t *testing.T) {
+		fs := fstest.MapFS{
+			"goblin.yaml": {Data: []byte(validBlueprintYAML)},
+		}
+		s := NewStore(fs)
+
+		bp, err := s.Load("goblin.yaml")
 		if err != nil {
-			t.Fatalf("LoadFromString failed: %v", err)
+			t.Fatalf("Load failed: %v", err)
 		}
 		if bp.Name != "Goblin" {
 			t.Fatalf("Name = %q, want %q", bp.Name, "Goblin")
@@ -33,68 +33,44 @@ func TestStore_LoadFromString(t *testing.T) {
 			t.Fatalf("unexpected components: %#v", bp.Components)
 		}
 
-		got, exists := s.GetBlueprint("Goblin")
+		// Verify caching by path
+		got, exists := s.Blueprints["goblin.yaml"]
 		if !exists || got != bp {
-			t.Fatal("expected Load to register the blueprint under its name")
+			t.Fatal("expected Load to cache the blueprint under its path")
 		}
 	})
 
 	t.Run("invalid YAML returns an error", func(t *testing.T) {
-		s := NewStore()
-		if _, err := s.LoadFromString("not: [valid"); err == nil {
+		fs := fstest.MapFS{
+			"broken.yaml": {Data: []byte(invalidBlueprintYAML)},
+		}
+		s := NewStore(fs)
+
+		if _, err := s.Load("broken.yaml"); err == nil {
 			t.Fatal("expected an error for malformed YAML")
-		}
-	})
-}
-
-func TestStore_LoadFromBytes(t *testing.T) {
-	s := NewStore()
-	bp, err := s.LoadFromBytes([]byte(validBlueprintYAML))
-	if err != nil {
-		t.Fatalf("LoadFromBytes failed: %v", err)
-	}
-	if bp.Name != "Goblin" {
-		t.Fatalf("Name = %q, want %q", bp.Name, "Goblin")
-	}
-}
-
-func TestStore_LoadFromPath(t *testing.T) {
-	t.Run("loads a blueprint from a file on disk", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "goblin.yaml")
-		if err := os.WriteFile(path, []byte(validBlueprintYAML), 0o644); err != nil {
-			t.Fatalf("failed to write test fixture: %v", err)
-		}
-
-		s := NewStore()
-		bp, err := s.LoadFromPath(path)
-		if err != nil {
-			t.Fatalf("LoadFromPath failed: %v", err)
-		}
-		if bp.Name != "Goblin" {
-			t.Fatalf("Name = %q, want %q", bp.Name, "Goblin")
 		}
 	})
 
 	t.Run("a missing file returns an error", func(t *testing.T) {
-		s := NewStore()
-		if _, err := s.LoadFromPath(filepath.Join(t.TempDir(), "missing.yaml")); err == nil {
+		fs := fstest.MapFS{}
+		s := NewStore(fs)
+
+		if _, err := s.Load("missing.yaml"); err == nil {
 			t.Fatal("expected an error for a missing file")
 		}
 	})
-}
 
-func TestStore_AddAndGetBlueprint(t *testing.T) {
-	s := NewStore()
-	bp := &Blueprint{Name: "Orc"}
+	t.Run("caches result on repeated calls", func(t *testing.T) {
+		fs := fstest.MapFS{
+			"hero.yaml": {Data: []byte(validBlueprintYAML)},
+		}
+		s := NewStore(fs)
 
-	s.AddBlueprint(bp.Name, bp)
+		bp1, _ := s.Load("hero.yaml")
+		bp2, _ := s.Load("hero.yaml")
 
-	got, exists := s.GetBlueprint("Orc")
-	if !exists || got != bp {
-		t.Fatal("expected to retrieve the added blueprint")
-	}
-
-	if _, exists := s.GetBlueprint("nonexistent"); exists {
-		t.Fatal("expected no blueprint for an unregistered name")
-	}
+		if bp1 != bp2 {
+			t.Fatal("expected Load to return cached blueprint on second call")
+		}
+	})
 }

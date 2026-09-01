@@ -1,4 +1,4 @@
-package main
+package components
 
 import "github.com/leonard-atorough/castrum/types"
 
@@ -10,6 +10,7 @@ type Velocity struct {
 // Player is a marker component for entities controlled by player input.
 type Player struct{}
 
+// Pulse animates an entity's scale by modulating it sinusoidally.
 type Pulse struct {
 	Frequency   float64       // Hz, how fast to pulse
 	Amplitude   float64       // 0-1, how much to scale

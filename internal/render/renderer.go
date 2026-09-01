@@ -90,7 +90,7 @@ func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, camera *Camera, world *co
 }
 
 func (r *Renderer) drawSprite(screen *ebiten.Image, camera *Camera, transform components.Transform, renderable components.Renderable) {
-	tx, err := r.Assets.Textures.GetTexture(renderable.TexturePath)
+	tx, err := r.Assets.Textures.Load(renderable.TexturePath)
 	if err != nil {
 		return // silently skip entities with missing textures
 	}
@@ -101,8 +101,10 @@ func (r *Renderer) drawSprite(screen *ebiten.Image, camera *Camera, transform co
 	op := &ebiten.DrawImageOptions{}
 	// first we set the position of the sprite on the screen by updating the DrawImageOptions
 	op.GeoM.Translate(-float64(frameW)/2, -float64(frameH)/2)
-	// Apply scaling, rotation, and other transforms from Transform
-	op.GeoM.Scale(transform.Scale.X, transform.Scale.Y)
+	// Apply scaling (including camera zoom), rotation, and other transforms from Transform
+	scaleX := transform.Scale.X * camera.Zoom
+	scaleY := transform.Scale.Y * camera.Zoom
+	op.GeoM.Scale(scaleX, scaleY)
 	op.GeoM.Rotate(transform.Rotation)
 	op.GeoM.Translate(screenPos.X, screenPos.Y)
 

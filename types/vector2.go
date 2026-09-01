@@ -51,6 +51,7 @@ func (v Vector2) Neg() Vector2 {
 func (v Vector2) Length() float64 {
 	return math.Sqrt(v.X*v.X + v.Y*v.Y)
 }
+
 func (v Vector2) Normalize() Vector2 {
 	length := v.Length()
 	if length == 0 {
