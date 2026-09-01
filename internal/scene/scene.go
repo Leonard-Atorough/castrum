@@ -2,11 +2,22 @@ package scene
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 type SceneHook func(world *core.World) error
+
+// SceneTag is a marker component that identifies which scene an entity belongs to.
+// Systems can query for scene membership using this component.
+type SceneTag struct {
+	SceneID string // The ID of the scene this entity belongs to
+}
+
+func init() {
+	core.Register[SceneTag]()
+}
 
 // Scene manages a collection of entities and scene-specific state.
 // Entities are tracked directly within the scene; use AddToScene/RemoveFromScene to manage membership.
@@ -32,20 +43,28 @@ func (s *Scene) Name() string {
 
 // AddToScene adds an entity to this scene.
 // The entity must already exist in the world.
+// Adds a SceneTag component so systems can query scene membership.
 func (s *Scene) AddToScene(entityID core.EntityID, world *core.World) error {
 	if !world.HasEntity(entityID) {
 		return fmt.Errorf("entity %d does not exist in world", entityID)
 	}
 	s.entities[entityID] = true
+	// Add the SceneTag component so systems can query scene membership
+	if err := world.AddComponent(entityID, SceneTag{SceneID: s.ID}); err != nil {
+		return fmt.Errorf("failed to add SceneTag to entity %d: %w", entityID, err)
+	}
 	return nil
 }
 
 // RemoveFromScene removes an entity from this scene.
+// Removes the SceneTag component so the entity is no longer queryable as part of this scene.
 func (s *Scene) RemoveFromScene(entityID core.EntityID, world *core.World) error {
 	if !world.HasEntity(entityID) {
 		return fmt.Errorf("entity %d does not exist in world", entityID)
 	}
 	delete(s.entities, entityID)
+	// Remove the SceneTag component (RemoveComponent is a no-op if not found)
+	_ = world.RemoveComponent(entityID, reflect.TypeOf(SceneTag{}))
 	return nil
 }
 
@@ -90,9 +109,8 @@ func (s *Scene) OnUnload(world *core.World) error {
 	}
 
 	for _, entityID := range entitiesList {
-		if err := s.RemoveFromScene(entityID, world); err != nil {
-			return fmt.Errorf("failed to remove entity %d from scene %s: %w", entityID, s.ID, err)
-		}
+		// Suppress errors for entities that no longer exist or don't have the component
+		_ = s.RemoveFromScene(entityID, world)
 	}
 
 	if s.unloadHook != nil {
