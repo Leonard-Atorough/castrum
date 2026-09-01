@@ -1,9 +1,7 @@
-package system
+package core
 
 import (
 	"fmt"
-
-	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 type systemEntry struct {
@@ -30,7 +28,7 @@ func NewManager() *Manager {
 	}
 }
 
-func (sm *Manager) Register(layer Layer, name string, sys System, world *core.World) error {
+func (sm *Manager) Register(layer Layer, name string, sys System, world *World) error {
 	if _, exists := sm.nameToIndex[name]; exists {
 		return fmt.Errorf("system with name %s already registered", name)
 	}
@@ -71,7 +69,7 @@ func (sm *Manager) Register(layer Layer, name string, sys System, world *core.Wo
 	return nil
 }
 
-func (sm *Manager) Unregister(name string, world *core.World) error {
+func (sm *Manager) Unregister(name string, world *World) error {
 	info, exists := sm.nameToIndex[name]
 	if !exists {
 		return fmt.Errorf("system with name %s not found", name)
@@ -115,7 +113,7 @@ func (sm *Manager) Unregister(name string, world *core.World) error {
 
 // Update runs all systems in layer priority order: Core systems first, then Player systems.
 // Returns error if any system fails (stops execution at first error).
-func (sm *Manager) Update(world *core.World, deltaTime float64) error {
+func (sm *Manager) Update(world *World, deltaTime float64) error {
 	for _, entry := range sm.coreSystems {
 		if err := entry.system.Update(world, deltaTime); err != nil {
 			return fmt.Errorf("core system %s failed: %w", entry.name, err)
@@ -166,7 +164,7 @@ func (sm *Manager) GetSystems(layer Layer) []System {
 
 // Shutdown shuts down all systems in reverse order (Player first, then Core).
 // Returns error if any system fails (continues shutdown of remaining systems).
-func (sm *Manager) Shutdown(world *core.World) error {
+func (sm *Manager) Shutdown(world *World) error {
 	var lastErr error
 
 	// Shutdown player systems in reverse order

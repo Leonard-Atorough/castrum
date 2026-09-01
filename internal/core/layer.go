@@ -1,4 +1,4 @@
-package system
+package core
 
 type Layer int
 
