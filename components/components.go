@@ -36,6 +36,7 @@ type Renderable struct {
 	Primitive   PrimitiveKind
 	Layer       RenderLayer
 	Visible     bool
+	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
 type PrimitiveKind int
@@ -44,6 +45,7 @@ const (
 	PrimitiveKindRectangle PrimitiveKind = iota
 	PrimitiveKindCircle
 	PrimitiveKindLine
+	PrimitiveKindPolygon
 )
 
 type Animation struct {

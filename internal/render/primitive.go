@@ -7,6 +7,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/types"
 )
 
 // PrimitiveRenderer draws untextured shapes (rectangles, circles, lines)
@@ -32,9 +33,42 @@ func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, camera *Camera, transfor
 		dx, dy := float32(math.Cos(transform.Rotation)), float32(math.Sin(transform.Rotation))
 		strokeWidth := float32(transform.Scale.Y) * zoom
 		vector.StrokeLine(screen, x-dx*half, y-dy*half, x+dx*half, y+dy*half, strokeWidth, clr, true)
+	case components.PrimitiveKindPolygon:
+		// using vector.Path to draw the polygon
+		ctrl := drawPolygonPath(renderable, camera, clr, screen)
+		switch ctrl {
+		case 1:
+			break
+		}
 	default: // PrimitiveKindRectangle
 		drawRotatedRect(screen, x, y, float32(transform.Scale.X)*zoom, float32(transform.Scale.Y)*zoom, transform.Rotation, clr)
 	}
+}
+
+func drawPolygonPath(renderable components.Renderable, camera *Camera, clr color.Color, screen *ebiten.Image) int {
+	if polygon, ok := renderable.Data.(*types.Polygon); ok {
+		if len(polygon.Points) < 3 {
+			return 1
+		}
+		var path vector.Path
+		first := camera.WorldToScreen(polygon.Points[0])
+		path.MoveTo(float32(first.X), float32(first.Y))
+		for _, point := range polygon.Points[1:] {
+			p := camera.WorldToScreen(point)
+			path.LineTo(float32(p.X), float32(p.Y))
+		}
+		path.Close()
+
+		var colorScale ebiten.ColorScale
+		cr, cg, cb, ca := clr.RGBA()
+		colorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
+
+		vector.FillPath(screen, &path, &vector.FillOptions{}, &vector.DrawPathOptions{
+			AntiAlias:  true,
+			ColorScale: colorScale,
+		})
+	}
+	return 0
 }
 
 // drawRotatedRect fills a width x height rectangle centered at (cx, cy) and
