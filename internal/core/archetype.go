@@ -89,6 +89,37 @@ func NewArchetype(id uint64, componentTypes ArchetypeKey) *Archetype {
 	}
 }
 
+// removeEntity removes the entity at slot idx using swap-with-last-element,
+// which keeps every component slice aligned with the entities slice in O(1).
+// It reports the EntityID that was moved into idx (if any) so the caller can
+// update that entity's archetypeIdx bookkeeping.
+func (a *Archetype) removeEntity(idx int) (movedID EntityID, moved bool) {
+	last := len(a.entities) - 1
+	if idx < 0 || idx > last {
+		return 0, false
+	}
+
+	if idx != last {
+		a.entities[idx] = a.entities[last]
+		movedID, moved = a.entities[idx], true
+	}
+	a.entities = a.entities[:last]
+
+	for compType, raw := range a.componentData {
+		compSlice := raw.([]Component)
+		compLast := len(compSlice) - 1
+		if compLast < 0 {
+			continue
+		}
+		if idx != last && idx <= compLast {
+			compSlice[idx] = compSlice[compLast]
+		}
+		a.componentData[compType] = compSlice[:compLast]
+	}
+
+	return movedID, moved
+}
+
 type ArchetypeManager struct {
 	archetypes map[uint64]*Archetype
 	keyToID    map[ArchetypeKeyHash]uint64 //can't use ArchetypeKey as a map key directly, so we hash it
