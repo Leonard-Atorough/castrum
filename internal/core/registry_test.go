@@ -54,9 +54,9 @@ func TestResolve(t *testing.T) {
 			t.Fatalf("Resolve failed: %v", err)
 		}
 
-		got, ok := comp.(*registryTestComponent)
+		got, ok := comp.(registryTestComponent)
 		if !ok {
-			t.Fatalf("expected *registryTestComponent, got %T", comp)
+			t.Fatalf("expected registryTestComponent, got %T", comp)
 		}
 		if got.Name != "goblin" || got.Value != 7 {
 			t.Fatalf("unexpected component values: %#v", got)
@@ -71,9 +71,11 @@ func TestResolve(t *testing.T) {
 			t.Fatalf("Resolve failed: %v", err)
 		}
 
-		got, ok := comp.(*registrySerializableComponent)
+		// Resolve returns the mutated value, not the pointer used internally to
+		// call Deserialize - matches GetComponent/SetComponent's value semantics.
+		got, ok := comp.(registrySerializableComponent)
 		if !ok {
-			t.Fatalf("expected *registrySerializableComponent, got %T", comp)
+			t.Fatalf("expected registrySerializableComponent, got %T", comp)
 		}
 		if !got.deserializeCalled {
 			t.Fatal("expected Deserialize to be called for a Serializable component")

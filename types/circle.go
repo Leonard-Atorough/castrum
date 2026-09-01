@@ -1,5 +1,7 @@
 package types
 
+import "math"
+
 type Circle struct {
 	Center Vector2
 	Radius float64
@@ -18,9 +20,9 @@ func (c Circle) Intersects(other Circle) bool {
 }
 
 func (c Circle) Area() float64 {
-	return 3.14159 * c.Radius * c.Radius
+	return math.Pi * c.Radius * c.Radius
 }
 
 func (c Circle) Circumference() float64 {
-	return 2 * 3.14159 * c.Radius
+	return 2 * math.Pi * c.Radius
 }

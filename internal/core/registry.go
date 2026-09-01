@@ -75,12 +75,14 @@ func Resolve(name string, props map[string]any) (Component, error) {
 	instance := reflect.New(typ).Elem()
 
 	// Deserialize needs a pointer receiver to mutate the instance, so the
-	// interface check must happen on Addr(), not the addressable value itself.
+	// interface check happens on Addr() - but Resolve still returns the
+	// mutated value (not the pointer) to match GetComponent/SetComponent's
+	// value semantics used everywhere else in the engine.
 	if ser, ok := instance.Addr().Interface().(Serializable); ok {
 		if err := ser.Deserialize(props); err != nil {
 			return nil, err
 		}
-		return instance.Addr().Interface().(Component), nil
+		return instance.Interface().(Component), nil
 	}
 
 	for key, value := range props {
@@ -92,7 +94,7 @@ func Resolve(name string, props map[string]any) (Component, error) {
 			}
 		}
 	}
-	return instance.Addr().Interface().(Component), nil
+	return instance.Interface().(Component), nil
 }
 
 func GetTypeInfo(typ reflect.Type) *ComponentType {
