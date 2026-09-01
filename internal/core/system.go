@@ -1,9 +1,8 @@
 package core
 
-//NOTE: Not sure about having to pass world into all these methods. It might be better to have the system hold a reference to the world,
-// but that could lead to issues with systems being used across different worlds. For now, we'll keep it simple and pass the world as a parameter.
-// Since its a reference type, it should be fine to pass it around without performance issues. If we find that we need to optimize this later, we can revisit the design.
-
+// System is a unit of game logic run by a Manager. World is passed explicitly
+// rather than held by the system so the same System implementation can be
+// reused across multiple worlds and stays trivially inspectable/testable.
 type System interface {
 	Init(world *World) error
 	Update(world *World, delta float64) error

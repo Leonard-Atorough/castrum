@@ -19,6 +19,10 @@ var (
 	ErrTagNotFound = errors.New("tag not found")
 	// ErrTemplateNotFound is returned when a requested template is not found for an entity.
 	ErrTemplateNotFound = errors.New("template not found")
+	// ErrSystemNotFound is returned when a requested system name is not registered.
+	ErrSystemNotFound = errors.New("system not found")
+	// ErrSystemAlreadyRegistered is returned when registering a system name that is already in use.
+	ErrSystemAlreadyRegistered = errors.New("system already registered")
 )
 
 // WorldError wraps errors that occur at the world level.
@@ -79,5 +83,20 @@ func (e *HierarchyError) Error() string {
 }
 
 func (e *HierarchyError) Unwrap() error {
+	return e.Err
+}
+
+// SystemError wraps errors related to a registered system.
+type SystemError struct {
+	Name string // name the system was registered under
+	Op   string // operation that failed
+	Err  error  // underlying error
+}
+
+func (e *SystemError) Error() string {
+	return fmt.Sprintf("system %q: %s: %v", e.Name, e.Op, e.Err)
+}
+
+func (e *SystemError) Unwrap() error {
 	return e.Err
 }
