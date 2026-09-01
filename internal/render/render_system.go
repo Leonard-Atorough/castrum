@@ -35,17 +35,15 @@ func (rs *RenderSystem) Update(world *core.World, delta float64) error {
 	entities := world.Query(core.Types(components.Renderable{}, components.Transform{}, components.Animation{})...)
 
 	for _, entityID := range entities {
-		anim, err := world.GetComponent(entityID, core.Types(components.Animation{})[0])
+		animComp, err := core.GetComponent[components.Animation](world, entityID)
 		if err != nil {
 			continue
 		}
-		renderable, err := world.GetComponent(entityID, core.Types(components.Renderable{})[0])
+		renderComp, err := core.GetComponent[components.Renderable](world, entityID)
 		if err != nil {
 			continue
 		}
 
-		animComp := anim.(components.Animation)
-		renderComp := renderable.(components.Renderable)
 		if !animComp.Playing {
 			continue
 		}
@@ -66,8 +64,7 @@ func (rs *RenderSystem) Update(world *core.World, delta float64) error {
 		}
 
 		renderComp.TexturePath = animComp.Frames[animComp.FrameIndex]
-		// Update the renderable component in the world
-		_ = world.SetComponent(entityID, core.Types(components.Renderable{})[0], renderComp)
+		_ = core.SetComponent(world, entityID, renderComp)
 	}
 	return nil
 }

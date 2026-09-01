@@ -435,7 +435,7 @@ func TestWorldArchetypeIntegration(t *testing.T) {
 
 		// Query for Position (superset - entities with Position AND possibly more)
 		posType := reflect.TypeFor[TestPosition]()
-		result := world.QuerySuperset(posType)
+		result := world.Query(posType)
 
 		if len(result) != 3 {
 			t.Errorf("Expected 3 entities with at least Position, got %d", len(result))

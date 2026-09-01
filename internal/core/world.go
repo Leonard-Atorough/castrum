@@ -66,19 +66,17 @@ func (w *World) Count() int {
 	return len(w.entities)
 }
 
-func (w *World) Create(blueprintName string, components ...ComponentType) *Entity {
-	componentTypes := make([]reflect.Type, len(components))
-	for i, comp := range components {
-		componentTypes[i] = comp.Type
-	}
-	archetype := w.archetypeManager.GetOrCreateArchetype(componentTypes...)
+// Create spawns a bare entity (no components) tagged with blueprintName.
+// Use CreateWithComponents to spawn an entity with initial component data.
+func (w *World) Create(blueprintName string) *Entity {
+	archetype := w.archetypeManager.GetOrCreateArchetype()
 	return w.createEntity(archetype, blueprintName)
 }
 
-func (w *World) CreateMany(blueprintName string, count int, components ...ComponentType) []*Entity {
+func (w *World) CreateMany(blueprintName string, count int) []*Entity {
 	entities := make([]*Entity, count)
 	for i := 0; i < count; i++ {
-		entities[i] = w.Create(blueprintName, components...)
+		entities[i] = w.Create(blueprintName)
 	}
 	return entities
 }
@@ -134,10 +132,8 @@ func (w *World) DestroyEntity(entityID EntityID, cascade bool) error {
 			Err:      ErrArchetypeNotFound,
 		}
 	}
-	archetype.entities = append(archetype.entities[:entity.archetypeIdx], archetype.entities[entity.archetypeIdx+1:]...)
-	// Update the indices of entities in the archetype that were after the removed entity
-	for i := entity.archetypeIdx; i < len(archetype.entities); i++ {
-		w.entities[archetype.entities[i]].archetypeIdx = i
+	if movedID, moved := archetype.removeEntity(entity.archetypeIdx); moved {
+		w.entities[movedID].archetypeIdx = entity.archetypeIdx
 	}
 
 	if cascade {
@@ -421,14 +417,6 @@ func (w *World) Query(components ...reflect.Type) []EntityID {
 	return result
 }
 
-func (w *World) QueryByComponents[T []Component]() []EntityID {
-	var componentTypes []reflect.Type
-	for _, t := range []T(nil) {
-		componentTypes = append(componentTypes, reflect.TypeOf(t))
-	}
-	return w.Query(componentTypes...)
-}
-
 func (w *World) QueryAny(components ...reflect.Type) []EntityID {
 	if len(components) == 0 {
 		return nil
@@ -455,23 +443,6 @@ func (w *World) QueryAny(components ...reflect.Type) []EntityID {
 					break
 				}
 			}
-		}
-	}
-
-	return results
-}
-
-func (w *World) QuerySuperset(components ...reflect.Type) []EntityID {
-	if len(components) == 0 {
-		return nil
-	}
-
-	querykey := NewArchetypeKey(components...)
-	var results []EntityID
-
-	for _, archetype := range w.archetypeManager.archetypes {
-		if archetype.componentTypes.ContainsAll(querykey) {
-			results = append(results, archetype.entities...)
 		}
 	}
 
@@ -564,16 +535,13 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComp Component, n
 					newSlice[entity.archetypeIdx] = compSlice[entity.archetypeIdx]
 				}
 			}
-			// The above logic can be read as: for each component type in the current archetype, if the entity has that component, copy it to the new archetype at the same index. This ensures that when we migrate the entity, it retains all its existing components in the new archetype.
-			// This does result in an array where the entity's index is preserved, but it may leave gaps in the component slices for other entities. This is acceptable as long as we maintain the correct index for each entity in its respective archetype.
-			// We could optimize this further by compacting the component slices after migration, but for now, this approach ensures correctness and simplicity.
+			// For each component type in the current archetype, copy the entity's value
+			// to the same slot in the new archetype so it isn't lost during migration.
 		}
 
-		// Remove entity from current archetype
-		currentArchetype.entities = append(currentArchetype.entities[:entity.archetypeIdx], currentArchetype.entities[entity.archetypeIdx+1:]...)
-		// Update the indices of entities in the current archetype that were after the removed entity
-		for i := entity.archetypeIdx; i < len(currentArchetype.entities); i++ {
-			w.entities[currentArchetype.entities[i]].archetypeIdx = i
+		// Remove entity from current archetype, keeping component slices aligned.
+		if movedID, moved := currentArchetype.removeEntity(entity.archetypeIdx); moved {
+			w.entities[movedID].archetypeIdx = entity.archetypeIdx
 		}
 	}
 
