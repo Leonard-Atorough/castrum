@@ -1,9 +1,10 @@
-package main
+package systems
 
 import (
 	"math"
 
 	"github.com/leonard-atorough/castrum"
+	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
 )
 
@@ -11,8 +12,8 @@ type PulseSystem struct {
 }
 
 func (ps *PulseSystem) Update(world *castrum.World, delta float64) error {
-	for _, entityID := range castrum.QueryFor[Pulse](world) {
-		pulse, _ := castrum.GetComponent[Pulse](world, entityID)
+	for _, entityID := range castrum.QueryFor[gamecomponents.Pulse](world) {
+		pulse, _ := castrum.GetComponent[gamecomponents.Pulse](world, entityID)
 		pulse.ElapsedTime += delta // ← Accumulate instead of calling time.Now()
 
 		phase := pulse.ElapsedTime*pulse.Frequency + pulse.TimeOffset

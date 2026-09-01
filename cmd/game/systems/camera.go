@@ -1,8 +1,9 @@
-package main
+package systems
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum"
+	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
 )
 
@@ -14,7 +15,7 @@ type CameraSystem struct {
 
 // We can demo here how we can use the query system to find the player entity and update the camera accordingly.
 func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
-	player := castrum.QueryFor[Player](world)
+	player := castrum.QueryFor[gamecomponents.Player](world)
 
 	if len(player) > 0 {
 		playerEntity := player[0]
@@ -22,6 +23,8 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 		if tx, err := castrum.GetComponent[components.Transform](world, playerEntity); err == nil {
 			pos := tx.Position
 			cs.Camera.Position = pos
+			// Apply camera bounds clamping
+			cs.Camera.ClampPosition()
 		}
 	}
 
