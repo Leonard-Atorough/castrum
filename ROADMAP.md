@@ -1,8 +1,8 @@
 # Castrum Engine Development Roadmap
 
 > **Version**: 1.0  
-> **Last Updated**: 2026-08-25  
-> **Status**: Phase 1 (Core Data Structures) - ~60% Complete
+> **Last Updated**: 2026-09-01  
+> **Status**: Phase 1 substantially complete; Phase 2 (Simulation Loop) and Phase 3 (Rendering & Scenes) both now in progress
 
 This roadmap outlines the development path for Castrum, a 2D game engine built in Go using the Ebiten library. The roadmap aligns with the architectural principles defined in `.github/agents/AGENT.md` and reflects the current state of the codebase.
 
@@ -18,27 +18,32 @@ This roadmap outlines the development path for Castrum, a 2D game engine built i
 - [x] Component storage system with type-based indexing
 - [x] Entity hierarchy and parent-child relationships
 - [x] Tag-based querying system
-- [x] System manager with layer support (Core/Player)
+- [x] System manager with priority-based scheduling (replaced the old fixed Core/Player layer split)
 - [x] Timer management system
-- [x] Scene management foundation
-- [x] Game runtime with fixed-timestep loop
+- [x] Scene management foundation (load/unload/transition, lifecycle hooks)
+- [x] Game runtime with fixed-timestep loop, wired to `Config.Engine.TicksPerSecond`
 - [x] Configuration management
-- [x] Basic test coverage for core packages
-- [x] Build pipeline (Makefile)
+- [x] Comprehensive unit + integration test coverage for `internal/core`
+- [x] Build pipeline (Makefile) with a real runnable entry point (`cmd/game`)
 - [x] Scene system
+- [x] Rendering integration - `Game.Draw` wired to `Renderer.DrawScene`
+- [x] Camera system (single camera: position/zoom/rotation/bounds, `NewCamera` constructor)
+- [x] Static render layers (`Layer0..Layer10` + `LayerDebug`) with draw-order bucketing
+- [x] Primitive shape rendering (rectangle/circle/line) - no texture asset required
+- [x] Debug overlay (FPS/TPS/camera position) gated by `Config.Engine.EnableDebug`
 
 ### Partially Implemented
 
-- [ ] Rendering integration (stubbed in `GameRuntime.Draw`)
-- [ ] Input handling (not yet implemented)
-- [ ] Asset management (not started)
-- [ ] Serialization/persistence (not started)
+- [ ] Sprite/texture rendering - draw path exists but `texture.Store.Load` is still an unimplemented stub, so no image can actually be loaded from disk yet
+- [ ] Camera system - solid for a single camera; multi-camera/viewport support (minimap, split-screen) not designed in code yet (see Phase 3 notes)
+- [ ] Scene entity cleanup - `OnUnload` untags entities but doesn't `DestroyEntity`/`Cleanup` them
+- [ ] Simulation step debugging - FPS/TPS overlay exists, but no step-through or state-inspection tooling
 
 ### Not Started
 
-- [ ] Camera system
-- [ ] Render layers
-- [ ] Asset pipeline
+- [ ] Input handling
+- [ ] Asset pipeline (texture loading, audio, fonts)
+- [ ] Serialization/persistence
 - [ ] CLI tooling
 - [ ] Visual editor
 - [ ] Performance profiling
@@ -52,8 +57,8 @@ This roadmap outlines the development path for Castrum, a 2D game engine built i
 | ----- | -------------------- | ------------------------------------------- | --------------- | ------------------ |
 | 0     | Foundation           | Bootstrap, window rendering, build pipeline | **Complete**    | 1-2 weeks          |
 | 1     | Core Data Structures | ECS implementation, entity lifecycle        | **In Progress** | 3-4 weeks          |
-| 2     | Simulation Loop      | Fixed timestep, input handling, determinism | **Not Started** | 2-3 weeks          |
-| 3     | Rendering & Scenes   | ECS rendering integration, scene management | **Not Started** | 3-4 weeks          |
+| 2     | Simulation Loop      | Fixed timestep, input handling, determinism | **In Progress** | 2-3 weeks          |
+| 3     | Rendering & Scenes   | ECS rendering integration, scene management | **In Progress** | 3-4 weeks          |
 | 4     | Persistence & Assets | Save/load, async asset loading              | **Not Started** | 3-4 weeks          |
 | 5     | Tooling & Polish     | CLI, editor, profiling, documentation       | **Not Started** | 4-6 weeks          |
 
@@ -163,6 +168,8 @@ Implement the Entity-Component-System foundation with efficient data structures.
 | Component storage fragmentation                 | Medium | Use generational indices for EntityID  |
 | Query performance with many entity types        | High   | Implement archetype-based storage      |
 
+> Note: archetype-based storage is now implemented (`internal/core/archetype.go`), so this risk is largely mitigated - the remaining cost is `World.Query`'s linear scan over archetypes, which is fine until the number of distinct archetypes grows large.
+
 ### Phase 1 Completion Checklist
 
 - [ ] All acceptance criteria tasks completed
@@ -173,7 +180,7 @@ Implement the Entity-Component-System foundation with efficient data structures.
 
 ---
 
-## Phase 2: Simulation Loop (The Heartbeat) ❌ NOT STARTED
+## Phase 2: Simulation Loop (The Heartbeat) 🟡 IN PROGRESS
 
 ### Objective
 
@@ -183,14 +190,14 @@ Implement the deterministic game loop with fixed timestep, input handling, and p
 
 | ID  | Task                                      | Status         | Effort | Priority |
 | --- | ----------------------------------------- | -------------- | ------ | -------- |
-| 2.1 | Fixed timestep accumulator implementation | ❌ Not Started | 4h     | High     |
-| 2.2 | Configurable fixed delta time             | ❌ Not Started | 2h     | Medium   |
+| 2.1 | Fixed timestep accumulator implementation | ✅ Done        | 4h     | High     |
+| 2.2 | Configurable fixed delta time             | ✅ Done        | 2h     | Medium   |
 | 2.3 | Input system with frame normalization     | ❌ Not Started | 6h     | High     |
 | 2.4 | Input buffer for deterministic replay     | ❌ Not Started | 4h     | Medium   |
 | 2.5 | Frame interpolation for smooth rendering  | ❌ Not Started | 4h     | Medium   |
 | 2.6 | Pause/resume simulation support           | ❌ Not Started | 3h     | Low      |
 | 2.7 | Time scaling (slow motion, fast forward)  | ❌ Not Started | 3h     | Low      |
-| 2.8 | Simulation step debugging hooks           | ❌ Not Started | 4h     | Medium   |
+| 2.8 | Simulation step debugging hooks           | 🟡 Partial     | 4h     | Medium   |
 
 ### Technical Details
 
@@ -240,9 +247,22 @@ Implement the deterministic game loop with fixed timestep, input handling, and p
 
 - Phase 1 (Core Data Structures) must be complete
 
+### Current Status
+
+**In Progress**. The fixed-timestep loop itself is real and working (`Game.Update` accumulates real elapsed time and steps `Systems`/`Timers` at `1/TicksPerSecond`), but everything gameplay-facing on top of it - input, pause/resume, time scaling, replay - hasn't started.
+
+⚠️ **Efficiency/robustness gap**: `Game.Update`'s accumulator has no clamp on a single frame's `delta`. If a frame stalls (window drag, GC pause, breakpoint), `delta` can be large and the `for accumulator >= fixedDelta` loop will burn through hundreds/thousands of catch-up ticks in one call - the "spiral of death" this phase's own risk table already calls out below. This is the highest-value fix before building anything else on the loop.
+
+### Next Steps
+
+- Clamp `delta` (or cap catch-up iterations per `Update()` call) before building anything else on the loop - cheap fix, prevents a real freeze under load.
+- Design a minimal `input` package: poll `ebiten.IsKeyPressed`/`inpututil` once per `Update()` tick, normalize into an `InputState` snapshot that systems read - don't let systems call ebiten input functions directly, so simulation logic stays testable without a real window.
+- Decide if frame interpolation is worth it yet - at a fixed high tick rate (e.g. 60 TPS) for a strategy/RTS game, popping between ticks is unlikely to be noticeable; I'd defer this until you have fast-moving units on screen.
+- Pause/resume and time scaling are both cheap once the accumulator is clamped - a `Paused bool` / `TimeScale float64` on `Game` that gates or scales the accumulator increment covers both.
+
 ---
 
-## Phase 3: Rendering & Scenes (The Visuals) ❌ NOT STARTED
+## Phase 3: Rendering & Scenes (The Visuals) 🟡 IN PROGRESS
 
 ### Objective
 
@@ -252,14 +272,14 @@ Integrate rendering with the ECS and implement scene management for logical game
 
 | ID   | Task                                     | Status         | Effort | Priority |
 | ---- | ---------------------------------------- | -------------- | ------ | -------- |
-| 3.1  | Render system as ECS system              | ❌ Not Started | 4h     | High     |
-| 3.2  | Sprite rendering component               | ❌ Not Started | 4h     | High     |
-| 3.3  | Camera system with viewport management   | ❌ Not Started | 6h     | High     |
-| 3.4  | Render layers and z-ordering             | ❌ Not Started | 4h     | High     |
-| 3.5  | Scene interface refinement               | 🟡 Partial     | 4h     | High     |
-| 3.6  | Scene manager with transition support    | 🟡 Partial     | 6h     | High     |
-| 3.7  | Scene lifecycle hooks (OnLoad, OnUnload) | ❌ Not Started | 4h     | High     |
-| 3.8  | Entity cleanup on scene unload           | ❌ Not Started | 3h     | Medium   |
+| 3.1  | Render system as ECS system              | 🟡 Partial     | 4h     | High     |
+| 3.2  | Sprite rendering component               | 🟡 Partial     | 4h     | High     |
+| 3.3  | Camera system with viewport management   | 🟡 Partial     | 6h     | High     |
+| 3.4  | Render layers and z-ordering             | 🟡 Partial     | 4h     | High     |
+| 3.5  | Scene interface refinement               | ✅ Done        | 4h     | High     |
+| 3.6  | Scene manager with transition support    | ✅ Done        | 6h     | High     |
+| 3.7  | Scene lifecycle hooks (OnLoad, OnUnload) | ✅ Done        | 4h     | High     |
+| 3.8  | Entity cleanup on scene unload           | 🟡 Partial     | 3h     | Medium   |
 | 3.9  | Scene stack for nested scenes            | ❌ Not Started | 4h     | Medium   |
 | 3.10 | UI rendering layer                       | ❌ Not Started | 8h     | Medium   |
 | 3.11 | Particle system                          | ❌ Not Started | 6h     | Low      |
@@ -320,6 +340,26 @@ Integrate rendering with the ECS and implement scene management for logical game
 
 - Phase 1 (Core Data Structures) must be complete
 - Phase 2 (Simulation Loop) should be complete
+
+### Current Status
+
+**In Progress**. Core rendering is real: `Renderer.DrawScene` draws every `Renderable`+`Transform` entity, dispatching to a textured-sprite path or an untextured primitive-shape path automatically based on whether `Renderable.TexturePath` is set - callers never choose a draw mode. Static render layers (`Layer0..Layer10`, plus `LayerDebug` drawn last) are implemented and bucketed once per frame. A debug overlay (FPS/TPS/camera position) is wired behind `Config.Engine.EnableDebug`. Scene load/unload/transition and lifecycle hooks all work (see `internal/scene`).
+
+⚠️ **Blocking gap**: `texture.Store.Load` is still a stub that returns `(nil, nil)` - there is currently no way to load an actual image file from disk. The sprite draw path is otherwise complete and exercised via primitives; textures just can't reach it yet.
+
+⚠️ **Efficiency notes** (found while reviewing `Renderer.DrawScene`):
+
+- Layer bucketing allocates a fresh `map[components.RenderLayer][]core.EntityID` every frame. Since layers are a small static range (`Layer0..LayerDebug`), a fixed-size array indexed by layer value would avoid the map allocation/hashing entirely - cheap win next time this code is touched.
+- `core.GetComponent[components.Renderable]` is currently called twice per entity per frame (once to bucket, once to draw), and each call re-walks the entity's archetype. Carrying the already-fetched `Renderable` into the draw pass (e.g. bucket a small struct instead of just the `EntityID`) would halve that lookup cost.
+- Neither is worth doing until there are enough on-screen entities for it to show up in a profile - noting these now so they're easy to find later rather than rediscovering them.
+
+### Next Steps
+
+- Implement `texture.Store.Load` (decode via `image.Decode`/`png` + `ebiten.NewImageFromImage`) - this is the one thing standing between "primitives only" and real sprite art.
+- Multi-camera/viewport design (minimap, split-screen) - a concrete design note is saved in repo memory from the camera-hardening session; worth a dedicated pass once you need more than one view.
+- Decide whether `Scene.OnUnload` should actually `DestroyEntity`+`Cleanup` its entities, or if untag-only is intentional (e.g. keeping entities alive across a scene swap). Right now it's untag-only - fine if deliberate, a leak if not.
+- `RenderSystem` (`internal/render/render_system.go`) only advances `Animation` frames - it doesn't draw anything (drawing happens directly in `Game.Draw` via `Renderer`, which is architecturally correct since Ebiten's `Draw` callback sits outside the fixed-timestep `Systems.Update` loop). Consider renaming it to `AnimationSystem` so the name matches what it does - a clarity fix, not a behavior change.
+- Scene stack (3.9), UI rendering layer (3.10), and particle system (3.11) are all still unstarted and reasonable to leave for later - none block the current on-screen milestone.
 
 ---
 

@@ -2,6 +2,7 @@ package castrum
 
 import (
 	"image/color"
+	"math"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -30,6 +31,8 @@ var (
 	HasComponent      = core.HasComponent[Component]
 	QueryForComponent = core.QueryFor[Component]
 )
+
+const MaxDelta = 0.25
 
 type Game struct {
 	World  *core.World
@@ -86,6 +89,8 @@ func (g *Game) Update() error {
 
 	// Fixed timestep accumulation
 	delta := time.Since(g.lastTime).Seconds()
+	delta = math.Min(delta, MaxDelta) // clamp delta to a maximum of 0.25 seconds
+
 	g.lastTime = time.Now()
 	g.accumulator += delta
 
