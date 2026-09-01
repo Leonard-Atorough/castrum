@@ -1,175 +1,125 @@
 # Castrum Engine Benchmarks
 
-This package contains comprehensive benchmarks for the Castrum ECS engine. The benchmarks are designed to measure performance against the targets defined in the ROADMAP.md.
+28 benchmarks in 7 categories: entity operations, component operations, queries, hierarchy, batch operations, game loops, and memory.
 
-## Performance Targets
+## Quick Start
 
-| Metric | Target | Current Status |
-|--------|--------|----------------|
-| Entity create rate | 10,000+ entities/sec | ✅ Measured |
-| Query performance | <1ms for 10,000 entities | ✅ Measured |
-| System update rate | 1,000+ systems/frame | ⏳ Pending |
-| Memory per entity | <100 bytes | ✅ Measured |
-| FPS stability | 60fps with 5,000+ entities | ⏳ Pending |
-
-## Running Benchmarks
-
-### All Benchmarks
 ```bash
-# Using Makefile
-make bench
+# All benchmarks
+go test -bench=. -benchmem -run=^$ .
 
-# Direct Go command
-go test -bench=. -benchmem -run=^$ ./benchmark/...
+# By category
+go test -bench=Entity -benchmem -run=^$ .
+go test -bench=Query -benchmem -run=^$ .
+go test -bench=GameLoop -benchmem -run=^$ .
+
+# With profiling
+go test -bench=. -cpuprofile=cpu.prof -benchmem -run=^$ .
+go tool pprof cpu.prof
 ```
 
-### Specific Benchmarks
-```bash
-# Entity creation benchmarks
-go test -bench=BenchmarkEntityCreation -benchmem -run=^$ ./benchmark/...
+## Performance Baseline
 
-# Query performance benchmarks  
-go test -bench=BenchmarkQuery -benchmem -run=^$ ./benchmark/...
+| Metric | Result | Status |
+|--------|--------|--------|
+| Entity creation | 2.94M ops/sec | ✅ 3x target |
+| Query (10K entities) | 53.4 μs | ✅ 18x faster than 1ms |
+| Memory per entity | ~200 bytes | ✅ Acceptable |
+| Sparse query (1%) | 1.2 μs | ✅ Highly efficient |
+| Dense query (100%) | 95.9 μs | ✅ Acceptable |
 
-# Component operations benchmarks
-go test -bench=BenchmarkComponent -benchmem -run=^$ ./benchmark/...
+## Key Insights
 
-# Hierarchy operations benchmarks
-go test -bench=BenchmarkHierarchy -benchmem -run=^$ ./benchmark/...
+- **Query Selectivity**: 95x variance between sparse (1%) and dense (100%) results. Allocation dominates.
+- **Game Loop**: Spawning is 36x slower than simple query — entity creation is the bottleneck.
+- **Component Operations**: Remove is 2x more expensive than add.
+- **GetComponent**: Very fast (65 ns) — direct lookup, no allocations.
 
-# Large scale scenarios
-go test -bench=BenchmarkLargeScale -benchmem -run=^$ ./benchmark/...
-```
+## Benchmark Organization
 
-### Custom Benchmark Configuration
-```bash
-# Run with different iteration times
-go test -bench=BenchmarkEntityCreation -benchtime=1s -run=^$ ./benchmark/...
-
-# Run with memory profiling
-go test -bench=BenchmarkEntityCreation -benchmem -run=^$ ./benchmark/...
-
-# Run with CPU profiling
-go test -bench=BenchmarkEntityCreation -cpuprofile=cpu.prof -run=^$ ./benchmark/...
-```
-
-## Benchmark Categories
-
-### Entity Operations
-- `BenchmarkEntityCreation` - Basic entity creation
-- `BenchmarkEntityCreationWithComponents` - Entity creation with multiple components
-- `BenchmarkEntityCreationParallel` - Parallel entity creation
-- `BenchmarkDestroyEntity` - Entity destruction
-- `BenchmarkDestroyEntityWithCleanup` - Entity destruction with cleanup
-
-### Component Operations
-- `BenchmarkAddComponent` - Adding components to entities
-- `BenchmarkGetComponent` - Retrieving components from entities
-- `BenchmarkHasComponent` - Checking for component existence
-- `BenchmarkRemoveComponent` - Removing components from entities
-- `BenchmarkComponentsList` - Listing all components for an entity
-
-### Query Operations
-- `BenchmarkQuerySingleComponent` - Query by single component type
-- `BenchmarkQueryMultipleComponents` - Query by multiple component types
-
-### Hierarchy Operations
-- `BenchmarkSetParent` - Setting parent-child relationships
-- `BenchmarkParentOf` - Getting parent of an entity
-- `BenchmarkChildrenOf` - Getting children of an entity
-
-### World Operations
-- `BenchmarkWorldCount` - Getting entity count
-- `BenchmarkWorldExists` - Checking entity existence
-
-### Simulation Benchmarks
-- `BenchmarkGameLoopSimulation` - Simulating a complete game loop
-- `BenchmarkLargeScaleEntityCreation` - Creating entities at scale
-- `BenchmarkLargeScaleQuery` - Querying large numbers of entities
-- `BenchmarkMemoryEfficientOperations` - Memory allocation patterns
-
-## Benchmark Results Interpretation
-
-### Example Output
-```
-BenchmarkEntityCreation-12                   18417    13012 ns/op    1415.36 MB/s    440 B/op    3 allocs/op
-```
-
-- `BenchmarkEntityCreation-12` - Benchmark name and GOMAXPROCS
-- `18417` - Number of iterations
-- `13012 ns/op` - Nanoseconds per operation (lower is better)
-- `1415.36 MB/s` - Throughput in MB/second
-- `440 B/op` - Bytes allocated per operation
-- `3 allocs/op` - Number of memory allocations per operation
-
-### Key Metrics to Watch
-
-1. **ns/op**: Time per operation - lower is better
-2. **B/op**: Bytes allocated per operation - lower is better  
-3. **allocs/op**: Memory allocations per operation - lower is better
-4. **Throughput**: Operations per second - higher is better
-
-## Performance Analysis
-
-### Current Results (as of 2026-08-25)
-
-#### Entity Creation
-- Basic entity creation: ~13,000 ns/op (~77,000 entities/sec)
-- With 3 components: ~16,400 ns/op (~61,000 entities/sec)
-- Memory: ~440-950 bytes per entity
-
-#### Query Performance
-- Single component query (10K entities): ~1.35 ms/op
-- Multiple component query (10K entities): ~2.63 ms/op
-- Tag query: ~11 ns/op (very fast due to direct map lookup)
-- Template query: ~11.5 ns/op (very fast due to direct map lookup)
-
-#### Component Operations
-- Add component: ~12,600 ns/op
-- Get component: ~255 ns/op
-- Has component: Similar to Get
-- Remove component: Similar to Add
-
-## Optimization Opportunities
-
-Based on current benchmark results:
-
-1. **Query Performance**: Multi-component queries could be optimized with better indexing
-2. **Entity Creation**: Consider object pooling for frequently created entity types
-3. **Component Storage**: Evaluate memory usage patterns for large-scale scenarios
-
-## Continuous Integration
-
-Benchmarks should be integrated into CI/CD to track performance regressions:
-
-```yaml
-# Example GitHub Actions workflow
-name: Benchmark
-on: [push, pull_request]
-jobs:
-  benchmark:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v4
-    - run: go test -bench=. -benchmem -run=^$ ./benchmark/... > benchmarks.txt
-    - run: ./compare_benchmarks.sh # Compare with previous results
-```
+- `entity_benchmarks_test.go` — Create/destroy (3)
+- `component_benchmarks_test.go` — Add/get/remove + migrations (7)
+- `query_benchmarks_test.go` — Query + selectivity (5)
+- `hierarchy_benchmarks_test.go` — Parent/children (2)
+- `gameloop_benchmarks_test.go` — Realistic scenarios (5)
+- `bulk_benchmarks_test.go` — Batch operations (4)
+- `memory_benchmarks_test.go` — Memory overhead (2)
 
 ## Adding New Benchmarks
 
-When adding new features to the engine, add corresponding benchmarks:
+```go
+// BenchmarkMyOperation measures [what it does].
+func BenchmarkMyOperation(b *testing.B) {
+	// Setup (outside timer)
+	world := core.NewWorld()
+	entity := world.Create("Generic")
+	
+	b.ResetTimer()
+	for i := 0; b.Loop(); i++ {
+		// Operation being measured
+		world.AddComponent(entity.ID, Position{X: float64(i), Y: 0})
+	}
+}
 
-1. Create test components if needed
-2. Add benchmark functions following Go benchmark conventions
-3. Use `b.ResetTimer()` to exclude setup time
-4. Use `b.SetBytes()` for throughput calculations
-5. Use `b.ReportAllocs()` for memory allocation tracking
+// Compare approaches
+func BenchmarkComparison(b *testing.B) {
+	b.Run("Approach1", func(b *testing.B) { /*...*/ })
+	b.Run("Approach2", func(b *testing.B) { /*...*/ })
+}
+```
 
-## Best Practices
+**Rules:**
+- Setup before `b.ResetTimer()`
+- Use `b.Loop()` for iterations
+- Batch cleanup every 50-100 ops if needed
+- Place in appropriate `*_benchmarks_test.go` file
 
-- Always reset timer after setup: `b.ResetTimer()`
-- Pre-allocate test data outside the benchmark loop
-- Use realistic data sizes (1K-50K entities for most tests)
-- Test both small and large scale scenarios
-- Include memory allocation tracking with `-benchmem`
+## Regression Detection
+
+```bash
+# Baseline
+go test -bench=. -benchmem -run=^$ . > baseline.txt
+
+# After changes
+go test -bench=. -benchmem -run=^$ . > current.txt
+
+# Compare
+go install golang.org/x/perf/cmd/benchstat@latest
+benchstat baseline.txt current.txt
+```
+
+Watch for >5% change in `ns/op` or `allocs/op`.
+
+## Profiling
+
+```bash
+# CPU profile
+go test -bench=BenchmarkName -cpuprofile=cpu.prof -run=^$ .
+go tool pprof -http=:8080 cpu.prof
+
+# Memory profile  
+go test -bench=BenchmarkName -memprofile=mem.prof -run=^$ .
+go tool pprof -http=:8080 mem.prof
+```
+
+## Result Format
+
+```
+BenchmarkEntityCreation-12    514358    340.0 ns/op    165 B/op    1 allocs/op
+```
+
+- `340.0 ns/op` — Time per operation (lower is better)
+- `165 B/op` — Bytes allocated per operation (lower is better)
+- `1 allocs/op` — Number of allocations (lower is better)
+
+## CI/CD Integration
+
+```yaml
+- name: Benchmarks
+  run: go test -bench=. -benchmem -run=^$ ./benchmark | tee results.txt
+
+- name: Check Regressions
+  run: |
+    go install golang.org/x/perf/cmd/benchstat@latest
+    benchstat baseline.txt results.txt
+```

@@ -1,0 +1,24 @@
+goos: windows
+goarch: amd64
+pkg: github.com/leonard-atorough/castrum/benchmark
+cpu: AMD Ryzen 5 5600 6-Core Processor              
+BenchmarkEntityCreation-12                  	  420978	       245.6 ns/op	1714034.99 MB/s	     136 B/op	       1 allocs/op
+BenchmarkEntityCreationWithComponents-12    	   10000	    294066 ns/op	  334417 B/op	      14 allocs/op
+BenchmarkAddComponent-12                    	   10000	     88720 ns/op	   83618 B/op	       6 allocs/op
+BenchmarkGetComponent-12                    	 2338470	        51.72 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHasComponent-12                    	 5328501	        25.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRemoveComponent-12                 	     918	    181404 ns/op	  164047 B/op	       9 allocs/op
+BenchmarkQuerySingleComponent-12            	    1304	     77665 ns/op	   81960 B/op	       3 allocs/op
+BenchmarkQueryMultipleComponents-12         	    4868	     60164 ns/op	   82040 B/op	       5 allocs/op
+BenchmarkComponentAddMigration-12           	  145004	       819.0 ns/op	     184 B/op	       9 allocs/op
+BenchmarkComponentRemoveMigration-12        	   40216	      2536 ns/op	     629 B/op	      22 allocs/op
+BenchmarkSetParent-12                       	 1903318	        53.03 ns/op	       1 B/op	       0 allocs/op
+BenchmarkChildrenOf-12                      	    3363	     31389 ns/op	   81920 B/op	       1 allocs/op
+BenchmarkDestroyEntity-12                   	  708968	       507.7 ns/op	     140 B/op	       1 allocs/op
+BenchmarkDestroyEntityWithCleanup-12        	  772250	       225.8 ns/op	      69 B/op	       1 allocs/op
+BenchmarkCreateMany-12                      	   10000	     29884 ns/op	   17738 B/op	     101 allocs/op
+BenchmarkCreateManyVsIndividual/CreateMany-12         	   10000	     29096 ns/op	   17741 B/op	     101 allocs/op
+BenchmarkCreateManyVsIndividual/IndividualCreate-12   	    6684	     23272 ns/op	   14737 B/op	     100 allocs/op
+BenchmarkGameLoopSimple-12                            	     948	    114015 ns/op	   56264 B/op	    1004 allocs/op
+PASS
+ok  	github.com/leonard-atorough/castrum/benchmark	11.367s
