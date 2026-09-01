@@ -16,6 +16,7 @@ import (
 )
 
 type (
+	World        = core.World
 	Entity       = core.Entity
 	EntityID     = core.EntityID
 	Timer        = timers.Timer
@@ -32,16 +33,30 @@ type (
 
 // re-export utility functions
 var (
-	GetComponent      = core.GetComponent[Component]
-	SetComponent      = core.SetComponent[Component]
-	HasComponent      = core.HasComponent[Component]
-	QueryForComponent = core.QueryFor[Component]
+	Types = core.Types
 )
+
+// Generic component accessors — forward to typed.go helpers
+func GetComponent[T Component](w *core.World, entityID EntityID) (T, error) {
+	return core.GetComponent[T](w, entityID)
+}
+
+func SetComponent[T Component](w *core.World, entityID EntityID, comp T) error {
+	return core.SetComponent[T](w, entityID, comp)
+}
+
+func HasComponent[T Component](w *core.World, entityID EntityID) bool {
+	return core.HasComponent[T](w, entityID)
+}
+
+func QueryFor[T Component](w *core.World) []EntityID {
+	return core.QueryFor[T](w)
+}
 
 const MaxDelta = 0.25
 
 type Game struct {
-	World  *core.World
+	World  *World
 	Config *Config
 
 	Systems *core.Manager
@@ -50,8 +65,8 @@ type Game struct {
 	Render  *render.Renderer
 	Camera  *render.Camera
 
-	Input     *input.Manager
-	Animation *animation.Manager
+	Input     *Input
+	Animation *Animation
 
 	Assets            *assets.Assets
 	ComponentRegistry *core.ComponentRegistry

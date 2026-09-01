@@ -4,27 +4,26 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum"
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/types"
 )
 
 // MovementSystem applies Velocity to Transform.Position for every entity that has both.
 type MovementSystem struct{}
 
-func (s *MovementSystem) Init(world *core.World) error {
+func (s *MovementSystem) Init(world *castrum.World) error {
 	return nil
 }
 
-func (s *MovementSystem) Update(world *core.World, delta float64) error {
+func (s *MovementSystem) Update(world *castrum.World, delta float64) error {
 	// Query for entities with both Velocity and Transform
-	entities := world.Query(core.Types(components.Transform{}, Velocity{})...)
+	entities := world.Query(castrum.Types(components.Transform{}, Velocity{})...)
 
 	for _, id := range entities {
-		vel, err := core.GetComponent[Velocity](world, id)
+		vel, err := castrum.GetComponent[Velocity](world, id)
 		if err != nil {
 			continue
 		}
-		transform, err := core.GetComponent[components.Transform](world, id)
+		transform, err := castrum.GetComponent[components.Transform](world, id)
 		if err != nil {
 			continue
 		}
@@ -33,14 +32,14 @@ func (s *MovementSystem) Update(world *core.World, delta float64) error {
 		transform.Position.X += vel.Linear.X * delta
 		transform.Position.Y += vel.Linear.Y * delta
 
-		if err := core.SetComponent(world, id, transform); err != nil {
+		if err := castrum.SetComponent(world, id, transform); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *MovementSystem) Shutdown(world *core.World) error {
+func (s *MovementSystem) Shutdown(world *castrum.World) error {
 	return nil
 }
 
@@ -53,16 +52,16 @@ func NewPlayerController(game *castrum.Game) *PlayerController {
 	return &PlayerController{input: game.Input}
 }
 
-func (pc *PlayerController) Init(world *core.World) error {
+func (pc *PlayerController) Init(world *castrum.World) error {
 	return nil
 }
 
-func (pc *PlayerController) Update(world *core.World, delta float64) error {
+func (pc *PlayerController) Update(world *castrum.World, delta float64) error {
 	// Query for player entities (those with Player + Velocity + Transform)
-	entities := world.Query(core.Types(Player{}, Velocity{}, components.Transform{})...)
+	entities := world.Query(castrum.Types(Player{}, Velocity{}, components.Transform{})...)
 
 	for _, id := range entities {
-		vel, err := core.GetComponent[Velocity](world, id)
+		vel, err := castrum.GetComponent[Velocity](world, id)
 		if err != nil {
 			continue
 		}
@@ -84,13 +83,13 @@ func (pc *PlayerController) Update(world *core.World, delta float64) error {
 			vel.Linear.X += speed
 		}
 
-		if err := core.SetComponent(world, id, vel); err != nil {
+		if err := castrum.SetComponent(world, id, vel); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (pc *PlayerController) Shutdown(world *core.World) error {
+func (pc *PlayerController) Shutdown(world *castrum.World) error {
 	return nil
 }

@@ -33,9 +33,14 @@ func main() {
 		log.Fatalf("failed to register movement system: %v", err)
 	}
 
-	// Register rotator system
-	if err := game.Systems.Register("rotator", 0, &RotatorSystem{}, game.World); err != nil {
-		log.Fatalf("failed to register rotator system: %v", err)
+	// // Register rotator system
+	// if err := game.Systems.Register("rotator", 0, &RotatorSystem{}, game.World); err != nil {
+	// 	log.Fatalf("failed to register rotator system: %v", err)
+	// }
+
+	// Register the pulse system
+	if err := game.Systems.Register("pulse", 0, &PulseSystem{}, game.World); err != nil {
+		log.Fatalf("failed to register pulse system: %v", err)
 	}
 
 	// Spawn a controllable circle on Layer1 at the center
@@ -55,10 +60,11 @@ func main() {
 	}
 
 	// Lets create a grid of squares around the center.
-	gridSize := 20
+	gridSizeH := 20
+	gridSizeW := 60
 	spacing := 20.0
-	for i := -gridSize; i <= gridSize; i++ {
-		for j := -gridSize; j <= gridSize; j++ {
+	for i := -gridSizeW; i <= gridSizeW; i++ {
+		for j := -gridSizeH; j <= gridSizeH; j++ {
 			if i == 0 && j == 0 {
 				continue // Skip the center square
 			}
@@ -70,7 +76,8 @@ func main() {
 					Color:    color.RGBA{R: 60, G: 220, B: 60, A: 255},
 				},
 				components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0},
-				components.Spin{AngularVelocity: 1.5 + 0.1*float64(i+j)},
+				// components.Spin{AngularVelocity: 1.5 + 0.1*float64(i+j)},
+				Pulse{StartScale: types.Vector2{X: 10, Y: 10}, Amplitude: 0.5, Frequency: 2.0, TimeOffset: float64(i+j) * 0.1},
 			)
 			if err != nil {
 				log.Fatalf("failed to spawn grid square: %v", err)

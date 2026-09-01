@@ -200,3 +200,13 @@ func (is *Manager) MouseReleased(button ebiten.MouseButton) bool {
 func (is *Manager) MousePosition() (x int, y int) {
 	return is.state.Mouse.X, is.state.Mouse.Y
 }
+
+/*
+Adding an input buffer:
+- Store recent input events in a buffer for later processing
+- Process buffered events in the order they occurred
+- Implement a fixed-size buffer to limit memory usage
+- Handle buffer overflow by discarding oldest events
+- Ensure that input events are processed consistently each frame
+- Integrate the input buffer with the existing input manager
+*/

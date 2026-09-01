@@ -272,7 +272,7 @@ Integrate rendering with the ECS and implement scene management for logical game
 
 | ID   | Task                                     | Status         | Effort | Priority |
 | ---- | ---------------------------------------- | -------------- | ------ | -------- |
-| 3.1  | Render system as ECS system              | 🟡 Partial     | 4h     | High     |
+| 3.1  | Renderer as standalone system            | 🟡 Partial     | 4h     | High     |
 | 3.2  | Sprite rendering component               | 🟡 Partial     | 4h     | High     |
 | 3.3  | Camera system with viewport management   | 🟡 Partial     | 6h     | High     |
 | 3.4  | Render layers and z-ordering             | 🟡 Partial     | 4h     | High     |
