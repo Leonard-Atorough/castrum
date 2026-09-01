@@ -21,13 +21,10 @@ const (
 )
 
 type RenderSystem struct {
-	renderer *Renderer
 }
 
 func NewRenderSystem(renderer *Renderer) *RenderSystem {
-	return &RenderSystem{
-		renderer: renderer,
-	}
+	return &RenderSystem{}
 }
 
 func (rs *RenderSystem) Init(world *core.World) error {
@@ -69,6 +66,8 @@ func (rs *RenderSystem) Update(world *core.World, delta float64) error {
 		}
 
 		renderComp.TexturePath = animComp.Frames[animComp.FrameIndex]
+		// Update the renderable component in the world
+		_ = world.SetComponent(entityID, core.Types(components.Renderable{})[0], renderComp)
 	}
 	return nil
 }

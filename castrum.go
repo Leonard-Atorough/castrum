@@ -4,10 +4,9 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/leonard-atorough/castrum/internal/blueprint"
+	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/scene"
-	"github.com/leonard-atorough/castrum/internal/system"
 	"github.com/leonard-atorough/castrum/internal/timers"
 )
 
@@ -16,8 +15,8 @@ type (
 	EntityID     = core.EntityID
 	Timer        = timers.Timer
 	TimerID      = timers.TimerID
-	System       = system.System
-	Layer        = system.Layer
+	System       = core.System
+	Layer        = core.Layer
 	Scene        = scene.Scene
 	SceneBuilder = scene.Builder
 	Component    = core.Component
@@ -27,11 +26,11 @@ type Game struct {
 	World  *core.World
 	Config *Config
 
-	Systems *system.Manager
+	Systems *core.Manager
 	Timers  *timers.Manager
 	Scenes  *scene.Manager
 
-	BlueprintLoader   *blueprint.Loader
+	Assets            *assets.Assets
 	ComponentRegistry *core.ComponentRegistry
 
 	// Timestep state
@@ -45,7 +44,7 @@ func NewGame(config *Config) *Game {
 	newWorld := core.NewWorld()
 
 	scenes := scene.NewManager(newWorld)
-	systems := system.NewManager()
+	systems := core.NewManager()
 	timers := timers.NewManager()
 
 	return &Game{
@@ -54,8 +53,8 @@ func NewGame(config *Config) *Game {
 		Systems:           systems,
 		Timers:            timers,
 		Scenes:            scenes,
-		BlueprintLoader:   blueprint.BlueprintLoader, // Use the global blueprint loader instance
-		ComponentRegistry: core.GlobalRegistry,       // Use the global component registry instance
+		Assets:            assets.GlobalAssets, // Use the global assets instance
+		ComponentRegistry: core.GlobalRegistry, // Use the global component registry instance
 	}
 }
 

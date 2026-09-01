@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"sync/atomic"
 )
 
@@ -277,13 +278,7 @@ func (w *World) GetComponent(entityID EntityID, compType reflect.Type) (Componen
 	}
 
 	// Check if the component type exists in the archetype
-	found := false
-	for _, t := range archetype.componentTypes {
-		if t == compType {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(archetype.componentTypes, compType)
 
 	if !found {
 		return nil, &EntityError{
@@ -322,6 +317,48 @@ func (w *World) HasComponent(entityID EntityID, compType reflect.Type) bool {
 		}
 	}
 	return false
+}
+
+func (w *World) SetComponent(entityID EntityID, compType reflect.Type, newComp Component) error {
+	entity, exists := w.entities[entityID]
+	if !exists {
+		return &EntityError{
+			EntityID: entityID,
+			Op:       "UpdateComponent",
+			Err:      ErrEntityNotFound,
+		}
+	}
+
+	archetype, exists := w.archetypeManager.GetArchetypeByID(entity.archetypeID)
+	if !exists {
+		return &EntityError{
+			EntityID: entityID,
+			Op:       "UpdateComponent",
+			Err:      ErrArchetypeNotFound,
+		}
+	}
+
+	// Check if the component type exists in the archetype
+	found := slices.Contains(archetype.componentTypes, compType)
+	if !found {
+		return &EntityError{
+			EntityID: entityID,
+			Op:       "UpdateComponent",
+			Err:      fmt.Errorf(ErrComponentNotFound.Error(), compType.String()),
+		}
+	}
+
+	slice, exists := archetype.componentData[compType]
+	if !exists || entity.archetypeIdx >= len(slice.([]Component)) {
+		return &EntityError{
+			EntityID: entityID,
+			Op:       "UpdateComponent",
+			Err:      ErrEntityNotFound,
+		}
+	}
+
+	slice.([]Component)[entity.archetypeIdx] = newComp
+	return nil
 }
 
 // AddTag adds a tag to an entity. The entity must exist in the world.
