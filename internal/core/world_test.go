@@ -328,43 +328,6 @@ func TestWorld_Query(t *testing.T) {
 	})
 }
 
-func TestWorld_TagAndTemplateQueries(t *testing.T) {
-	w := NewWorld()
-	province := w.Create("Province")
-	city := w.Create("City")
-	w.AddTag(city.ID, "capital")
-
-	t.Run("QueryByTemplate finds entities created with that template", func(t *testing.T) {
-		got := w.QueryByTemplate("Province")
-		if !idsMatchUnordered(got, []EntityID{province.ID}) {
-			t.Fatalf("unexpected result: %#v", got)
-		}
-	})
-
-	t.Run("QueryByTag finds entities carrying that tag", func(t *testing.T) {
-		got := w.QueryByTag("capital")
-		if !idsMatchUnordered(got, []EntityID{city.ID}) {
-			t.Fatalf("unexpected result: %#v", got)
-		}
-	})
-
-	t.Run("unknown tag or template returns no entities", func(t *testing.T) {
-		if got := w.QueryByTag("nonexistent"); len(got) != 0 {
-			t.Fatalf("expected no entities, got %#v", got)
-		}
-		if got := w.QueryByTemplate("nonexistent"); len(got) != 0 {
-			t.Fatalf("expected no entities, got %#v", got)
-		}
-	})
-
-	t.Run("RemoveTag drops the entity from future tag queries", func(t *testing.T) {
-		w.RemoveTag(city.ID, "capital")
-		if got := w.QueryByTag("capital"); len(got) != 0 {
-			t.Fatalf("expected no entities after tag removal, got %#v", got)
-		}
-	})
-}
-
 func TestWorld_TypedComponentHelpers(t *testing.T) {
 	w := NewWorld()
 	e := w.Create("Generic")
@@ -453,4 +416,21 @@ func TestWorld_Reset(t *testing.T) {
 	if !w.HasEntity(fresh.ID) {
 		t.Fatal("should be able to create entities after reset")
 	}
+}
+
+// idsMatchUnordered checks if two entity ID slices contain the same elements regardless of order.
+func idsMatchUnordered(got, want []EntityID) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	seen := make(map[EntityID]bool)
+	for _, id := range want {
+		seen[id] = true
+	}
+	for _, id := range got {
+		if !seen[id] {
+			return false
+		}
+	}
+	return true
 }

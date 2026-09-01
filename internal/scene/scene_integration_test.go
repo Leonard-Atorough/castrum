@@ -27,16 +27,22 @@ func TestScene_IntegrationWithRealWorld(t *testing.T) {
 		t.Fatalf("expected 2 entities in scene, got %d", len(entities))
 	}
 
-	// Verify entities have the scene tag
+	// Verify both entities are in the scene's list
+	foundEntity1, foundEntity2 := false, false
 	for _, id := range entities {
 		entity, exists := world.GetEntity(id)
 		if !exists {
 			t.Fatalf("entity %d does not exist in world", id)
 		}
-		hasTag := entity.HasTag("scene:integration-test")
-		if !hasTag {
-			t.Fatalf("entity %d should have scene tag", id)
+		if entity.ID == entity1.ID {
+			foundEntity1 = true
 		}
+		if entity.ID == entity2.ID {
+			foundEntity2 = true
+		}
+	}
+	if !foundEntity1 || !foundEntity2 {
+		t.Fatal("expected both entities to be in scene")
 	}
 
 	// Remove from scene

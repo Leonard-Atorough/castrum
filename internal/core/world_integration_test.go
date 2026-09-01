@@ -62,7 +62,6 @@ func TestWorld_EndToEndGameLoop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateWithComponents failed: %v", err)
 	}
-	world.AddTag(unit.ID, "moving")
 
 	turret, err := world.CreateWithComponents("Turret", TestPosition{X: 5, Y: 5})
 	if err != nil {
@@ -92,10 +91,6 @@ func TestWorld_EndToEndGameLoop(t *testing.T) {
 	}
 	if turretPos != (TestPosition{X: 5, Y: 5}) {
 		t.Fatalf("expected turret to stay put, got %#v", turretPos)
-	}
-
-	if got := world.QueryByTag("moving"); !idsMatchUnordered(got, []EntityID{unit.ID}) {
-		t.Fatalf("expected tag query to find the unit, got %#v", got)
 	}
 
 	if err := world.DestroyEntity(unit.ID, true); err != nil {

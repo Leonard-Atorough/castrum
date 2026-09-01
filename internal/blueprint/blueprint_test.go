@@ -13,14 +13,13 @@ type testComponent struct {
 func TestBlueprint_Spawn(t *testing.T) {
 	core.Register[testComponent]()
 
-	t.Run("spawns an entity with resolved components and tags", func(t *testing.T) {
+	t.Run("spawns an entity with resolved components", func(t *testing.T) {
 		world := core.NewWorld()
 		bp := &Blueprint{
 			Name: "Goblin",
 			Components: []ComponentData{
 				{Type: "testComponent", Properties: map[string]any{"Value": 5}},
 			},
-			Tags: []string{"enemy", "hostile"},
 		}
 
 		entity, err := bp.Spawn(world)
@@ -36,9 +35,6 @@ func TestBlueprint_Spawn(t *testing.T) {
 		}
 		if comp.Value != 5 {
 			t.Fatalf("component Value = %d, want 5", comp.Value)
-		}
-		if !entity.HasTag("enemy") || !entity.HasTag("hostile") {
-			t.Fatalf("expected both tags on spawned entity, got %#v", entity.Tags())
 		}
 	})
 

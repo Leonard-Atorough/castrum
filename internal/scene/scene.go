@@ -8,22 +8,21 @@ import (
 
 type SceneHook func(world *core.World) error
 
-// Scene is a ready-to-use scene with tag-based entity tracking.
-// Embed this for default behavior, or implement Scene directly.
-// A SceneBuilder is provided to help create scenes adhering to this struct in a fluent manner.
+// Scene manages a collection of entities and scene-specific state.
+// Entities are tracked directly within the scene; use AddToScene/RemoveFromScene to manage membership.
 type Scene struct {
-	ID         string         // Unique scene identifier
-	tag        string         // Internal tag used to track entities in this scene
-	data       map[string]any // Scene-specific data/state
-	loadHook   SceneHook      // Optional hook called when the scene is loaded
-	unloadHook SceneHook      // Optional hook called when the scene is unloaded
+	ID         string                 // Unique scene identifier
+	entities   map[core.EntityID]bool // Tracks entities in this scene
+	data       map[string]any         // Scene-specific data/state
+	loadHook   SceneHook              // Optional hook called when the scene is loaded
+	unloadHook SceneHook              // Optional hook called when the scene is unloaded
 }
 
 func NewScene(id string) *Scene {
 	return &Scene{
-		ID:   id,
-		tag:  fmt.Sprintf("scene:%s", id), // Use scene-prefixed tag for internal tracking
-		data: make(map[string]any),
+		ID:       id,
+		entities: make(map[core.EntityID]bool),
+		data:     make(map[string]any),
 	}
 }
 
@@ -31,20 +30,35 @@ func (s *Scene) Name() string {
 	return s.ID
 }
 
-// AddToScene adds an entity to this scene by tagging it.
+// AddToScene adds an entity to this scene.
 // The entity must already exist in the world.
 func (s *Scene) AddToScene(entityID core.EntityID, world *core.World) error {
-	return world.AddTag(entityID, s.tag)
+	if !world.HasEntity(entityID) {
+		return fmt.Errorf("entity %d does not exist in world", entityID)
+	}
+	s.entities[entityID] = true
+	return nil
 }
 
 // RemoveFromScene removes an entity from this scene.
 func (s *Scene) RemoveFromScene(entityID core.EntityID, world *core.World) error {
-	return world.RemoveTag(entityID, s.tag)
+	if !world.HasEntity(entityID) {
+		return fmt.Errorf("entity %d does not exist in world", entityID)
+	}
+	delete(s.entities, entityID)
+	return nil
 }
 
 // Entities returns all entities currently in this scene.
 func (s *Scene) Entities(world *core.World) []core.EntityID {
-	return world.QueryByTag(s.tag)
+	if len(s.entities) == 0 {
+		return nil
+	}
+	entities := make([]core.EntityID, 0, len(s.entities))
+	for entityID := range s.entities {
+		entities = append(entities, entityID)
+	}
+	return entities
 }
 
 func (s *Scene) SetLoadHook(hook SceneHook) {
@@ -69,10 +83,13 @@ func (s *Scene) OnLoad(world *core.World) error {
 // OnUnload is called when the scene is unloaded.
 // This cleans up all entities belonging to this scene.
 func (s *Scene) OnUnload(world *core.World) error {
-	// Get all entities in this scene
-	entities := s.Entities(world)
+	// Get all entities in this scene (make a copy of the list since RemoveFromScene modifies it)
+	entitiesList := make([]core.EntityID, 0, len(s.entities))
+	for entityID := range s.entities {
+		entitiesList = append(entitiesList, entityID)
+	}
 
-	for _, entityID := range entities {
+	for _, entityID := range entitiesList {
 		if err := s.RemoveFromScene(entityID, world); err != nil {
 			return fmt.Errorf("failed to remove entity %d from scene %s: %w", entityID, s.ID, err)
 		}

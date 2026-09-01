@@ -18,8 +18,12 @@ func TestNewScene(t *testing.T) {
 		t.Fatalf("expected Name() 'test-scene', got %q", scene.Name())
 	}
 
-	if scene.tag != "scene:test-scene" {
-		t.Fatalf("expected internal tag 'scene:test-scene', got %q", scene.tag)
+	if scene.entities == nil {
+		t.Fatal("expected entities map to be initialized")
+	}
+
+	if len(scene.entities) != 0 {
+		t.Fatalf("expected empty entities map, got %d items", len(scene.entities))
 	}
 
 	if scene.data == nil {
@@ -51,9 +55,17 @@ func TestScene_AddToScene(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	hasTag := entity.HasTag("scene:test")
-	if !hasTag {
-		t.Fatal("expected entity to have scene tag after AddToScene")
+	// Check that the entity is now tracked in the scene
+	entities := scene.Entities(world)
+	found := false
+	for _, id := range entities {
+		if id == entityID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected entity to be in scene after AddToScene")
 	}
 }
 
@@ -80,9 +92,12 @@ func TestScene_RemoveFromScene(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	hasTag := entity.HasTag("scene:test")
-	if hasTag {
-		t.Fatal("expected entity to not have scene tag after RemoveFromScene")
+	// Check that the entity is no longer in the scene
+	entities := scene.Entities(world)
+	for _, id := range entities {
+		if id == entityID {
+			t.Fatal("expected entity to not be in scene after RemoveFromScene")
+		}
 	}
 }
 

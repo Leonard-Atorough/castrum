@@ -82,7 +82,6 @@ func CreateBenchmarkHierarchy(world *core.World, config BenchmarkConfig) {
 	// Create root entity
 	root := world.Create("Root")
 	rootID = root.ID
-	world.AddTag(rootID, "Root")
 
 	// Create hierarchical structure
 	var currentLevel []core.EntityID
@@ -95,7 +94,7 @@ func CreateBenchmarkHierarchy(world *core.World, config BenchmarkConfig) {
 				child := world.Create("HierarchyNode")
 				childID := child.ID
 				world.SetParent(childID, parentID)
-				world.AddTag(childID, "HierarchyNode")
+
 				nextLevel = append(nextLevel, childID)
 			}
 		}

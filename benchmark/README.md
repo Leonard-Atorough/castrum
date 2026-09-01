@@ -72,18 +72,11 @@ go test -bench=BenchmarkEntityCreation -cpuprofile=cpu.prof -run=^$ ./benchmark/
 ### Query Operations
 - `BenchmarkQuerySingleComponent` - Query by single component type
 - `BenchmarkQueryMultipleComponents` - Query by multiple component types
-- `BenchmarkQueryByTag` - Query by tag
-- `BenchmarkQueryByTemplate` - Query by template
 
 ### Hierarchy Operations
 - `BenchmarkSetParent` - Setting parent-child relationships
 - `BenchmarkParentOf` - Getting parent of an entity
 - `BenchmarkChildrenOf` - Getting children of an entity
-
-### Tag Operations
-- `BenchmarkAddTag` - Adding tags to entities
-- `BenchmarkHasTag` - Checking for tag existence
-- `BenchmarkRemoveTag` - Removing tags from entities
 
 ### World Operations
 - `BenchmarkWorldCount` - Getting entity count

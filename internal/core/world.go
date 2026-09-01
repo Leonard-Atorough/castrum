@@ -7,20 +7,18 @@ import (
 	"sync/atomic"
 )
 
-// World represents the central manager for all ECS state, handling entities, components, tags, templates, and hierarchical relationships.
+// World represents the central manager for all ECS state, handling entities, components, and hierarchical relationships.
 type World struct {
 	entities         map[EntityID]*Entity
 	nextID           atomic.Uint64
 	destroyed        []*Entity
 	hierarchy        *Hierarchy
 	archetypeManager *ArchetypeManager
-	index            entityIndex
 }
 
 func NewWorld() *World {
 	return &World{
 		entities:         make(map[EntityID]*Entity),
-		index:            NewEntityIndex(),
 		hierarchy:        NewHierarchy(),
 		nextID:           atomic.Uint64{},
 		destroyed:        make([]*Entity, 0),
@@ -32,7 +30,6 @@ func NewWorld() *World {
 func (w *World) Reset() {
 	w.entities = make(map[EntityID]*Entity)
 	w.archetypeManager = NewArchetypeManager()
-	w.index = NewEntityIndex()
 	w.hierarchy = NewHierarchy()
 	w.nextID.Store(0)
 	w.destroyed = make([]*Entity, 0)
@@ -46,16 +43,11 @@ func (w *World) Cleanup() {
 		}
 
 		delete(w.entities, entity.ID)
-		w.index.RemoveTemplate(entity.ID, entity.Template())
-		for tag := range entity.tags {
-			w.index.RemoveTag(entity.ID, tag)
-		}
 
 		if parentID, hasParent := w.hierarchy.Parent(entity.ID); hasParent {
 			w.hierarchy.Remove(parentID, entity.ID)
 		}
 
-		entity.tags = nil
 		entity.template = ""
 	}
 	w.destroyed = make([]*Entity, 0)
@@ -106,9 +98,6 @@ func (w *World) createEntity(archetype *Archetype, blueprintName string) *Entity
 	entity.archetypeID = archetype.ID
 	entity.archetypeIdx = len(archetype.entities)
 	archetype.entities = append(archetype.entities, id)
-
-	// Defer tag/blueprint index maintenance until the first query or tag mutation.
-	w.index.lazyTagTemplateIndex = true
 
 	return entity
 }
@@ -355,45 +344,6 @@ func (w *World) SetComponent(entityID EntityID, compType reflect.Type, newComp C
 	return nil
 }
 
-// AddTag adds a tag to an entity. The entity must exist in the world.
-func (w *World) AddTag(entityID EntityID, tag string) error {
-	entity, exists := w.entities[entityID]
-	if !exists {
-		return &EntityError{
-			EntityID: entityID,
-			Op:       "AddTag",
-			Err:      ErrEntityNotFound,
-		}
-	}
-	entity.AddTag(tag)
-	if w.index.lazyTagTemplateIndex {
-		w.index.rebuildTagAndTemplateIndex(w.entities)
-	} else {
-		w.index.AddTag(entityID, tag)
-	}
-	return nil
-}
-
-// RemoveTag removes a tag from an entity. The entity must exist in the world.
-func (w *World) RemoveTag(entityID EntityID, tag string) error {
-	entity, exists := w.entities[entityID]
-	if !exists {
-		return &EntityError{
-			EntityID: entityID,
-			Op:       "RemoveTag",
-			Err:      ErrEntityNotFound,
-		}
-	}
-
-	entity.RemoveTag(tag)
-	if w.index.lazyTagTemplateIndex {
-		w.index.rebuildTagAndTemplateIndex(w.entities)
-	} else {
-		w.index.RemoveTag(entityID, tag)
-	}
-	return nil
-}
-
 // Query retrieves all entities that have all the specified component types.
 // Returns a slice of matching EntityIDs, or nil if none match.
 // This uses superset matching - entities with AT LEAST the specified components.
@@ -445,22 +395,6 @@ func (w *World) QueryAny(components ...reflect.Type) []EntityID {
 	}
 
 	return results
-}
-
-// QueryByTag retrieves all entities that have the specified tag.
-// Returns a slice of matching EntityIDs, or nil if none match.
-func (w *World) QueryByTag(tag string) []EntityID {
-	w.ensureTagAndTemplateIndex()
-	entityIDs := w.index.GetEntitiesWithTag(tag)
-	return entityIDs
-}
-
-// QueryByTemplate retrieves all entities that use the specified template.
-// Returns a slice of matching EntityIDs, or nil if none match.
-func (w *World) QueryByTemplate(template string) []EntityID {
-	w.ensureTagAndTemplateIndex()
-	entityIDs := w.index.GetEntitiesWithTemplate(template)
-	return entityIDs
 }
 
 // Components returns all components associated with an entity.
@@ -586,13 +520,6 @@ func (w *World) setComponentInArchetype(archetype *Archetype, index int, compTyp
 		archetype.componentData[compType] = compSlice
 	}
 	compSlice[index] = comp
-}
-
-func (w *World) ensureTagAndTemplateIndex() {
-	if !w.index.lazyTagTemplateIndex {
-		return
-	}
-	w.index.rebuildTagAndTemplateIndex(w.entities)
 }
 
 func Types(comps ...Component) []reflect.Type {

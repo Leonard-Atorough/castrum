@@ -149,7 +149,6 @@ func BenchmarkArchetypeQueryMultiple(b *testing.B) {
 	posType := reflect.TypeFor[Position]()
 	velType := reflect.TypeFor[Velocity]()
 
-	
 	for b.Loop() {
 		world.Query(posType, velType)
 	}
@@ -192,33 +191,6 @@ func BenchmarkArchetypeEntityCreation(b *testing.B) {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(entity.ID, Velocity{X: 0.1, Y: 0.1})
-	}
-}
-
-func BenchmarkQueryByTag(b *testing.B) {
-	world := core.NewWorld()
-
-	// Pre-Create entities with tags
-	for range 10000 {
-		entity := world.Create("Province")
-		world.AddTag(entity.ID, "Province")
-	}
-
-	for b.Loop() {
-		world.QueryByTag("Province")
-	}
-}
-
-func BenchmarkQueryByTemplate(b *testing.B) {
-	world := core.NewWorld()
-
-	// Pre-Create entities with specific template
-	for range 10000 {
-		world.Create("Province")
-	}
-
-	for b.Loop() {
-		world.QueryByTemplate("Province")
 	}
 }
 
@@ -342,45 +314,6 @@ func BenchmarkGameLoopSimulation(b *testing.B) {
 	}
 }
 
-// Benchmark tag operations
-func BenchmarkAddTag(b *testing.B) {
-	world := core.NewWorld()
-
-	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]*core.Entity, 10000)
-	for i := range 10000 {
-		entityPool[i] = world.Create("Generic")
-	}
-
-	for i := 0; b.Loop(); i++ {
-		entityID := entityPool[i%10000].ID
-		world.AddTag(entityID, "TestTag")
-		// Remove tag for next iteration
-		if i > 0 && i%10000 == 0 {
-			world.RemoveTag(entityID, "TestTag")
-		}
-	}
-}
-
-func BenchmarkRemoveTag(b *testing.B) {
-	world := core.NewWorld()
-
-	// Pre-Create a fixed pool of entities with tags
-	entityPool := make([]core.EntityID, 10000)
-	for i := range 10000 {
-		entity := world.Create("Generic")
-		world.AddTag(entity.ID, "TestTag")
-		entityPool[i] = entity.ID
-	}
-
-	for i := 0; b.Loop(); i++ {
-		entityID := entityPool[i%10000]
-		world.RemoveTag(entityID, "TestTag")
-		// Re-add tag for next iteration
-		world.AddTag(entityID, "TestTag")
-	}
-}
-
 // Benchmark world operations
 func BenchmarkWorldCount(b *testing.B) {
 	world := core.NewWorld()
@@ -452,11 +385,6 @@ func BenchmarkLargeScaleQuery(b *testing.B) {
 		id := world.Create("Generic").ID
 		world.AddComponent(id, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(id, Velocity{X: 1.0, Y: 1.0})
-		if i%2 == 0 {
-			world.AddTag(id, "Even")
-		} else {
-			world.AddTag(id, "Odd")
-		}
 	}
 
 	b.ResetTimer()

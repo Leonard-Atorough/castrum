@@ -7,7 +7,6 @@ import (
 type Blueprint struct {
 	Name       string          `yaml:"name"`
 	Components []ComponentData `yaml:"components"`
-	Tags       []string        `yaml:"tags"`
 	Version    string          `yaml:"version"`
 }
 
@@ -31,8 +30,5 @@ func (b *Blueprint) Spawn(world *core.World) (*core.Entity, error) {
 		return nil, err
 	}
 
-	for _, tag := range b.Tags {
-		world.AddTag(entity.ID, tag)
-	}
 	return entity, nil
 }
