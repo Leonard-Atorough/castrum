@@ -74,7 +74,9 @@ func Resolve(name string, props map[string]any) (Component, error) {
 
 	instance := reflect.New(typ).Elem()
 
-	if ser, ok := instance.Interface().(Serializable); ok {
+	// Deserialize needs a pointer receiver to mutate the instance, so the
+	// interface check must happen on Addr(), not the addressable value itself.
+	if ser, ok := instance.Addr().Interface().(Serializable); ok {
 		if err := ser.Deserialize(props); err != nil {
 			return nil, err
 		}

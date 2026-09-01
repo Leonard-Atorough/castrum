@@ -208,8 +208,7 @@ func (w *World) AddComponent(entityID EntityID, comp ...Component) error {
 
 	targetTypes := append(currentArchetype.componentTypes, newTypes...)
 	// migrate entity to a new archetype that includes the new component type
-	return w.migrateEntityToNewArchetype(entity, comp, targetTypes...)
-
+	return w.migrateEntityToNewArchetype(entity, toAdd, targetTypes...)
 }
 
 // RemoveComponent removes a component from an entity by type.
@@ -249,8 +248,7 @@ func (w *World) RemoveComponent(entityID EntityID, componentType reflect.Type) e
 
 	// Migrate the entity to a new archetype without the removed component type.
 	_ = w.migrateEntityToNewArchetype(entity, nil, newComponentTypes...)
-
-	return nil // silently ignore if component type not found
+	return nil
 }
 
 // GetComponent returns the first component of the specified type for an entity.
@@ -511,7 +509,7 @@ func (w *World) Detach(id EntityID) {
 	}
 }
 
-func (w *World) migrateEntityToNewArchetype(entity *Entity, newComp Component, newComponentTypes ...reflect.Type) error {
+func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component, newComponentTypes ...reflect.Type) error {
 	newArchetype := w.archetypeManager.GetOrCreateArchetype(newComponentTypes...)
 
 	// Copy existing components from current archetype before removing entity
@@ -550,9 +548,9 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComp Component, n
 	entity.archetypeIdx = len(newArchetype.entities)
 	newArchetype.entities = append(newArchetype.entities, entity.ID)
 
-	// Set the new Component if provided
-	if newComp != nil {
-		w.setComponentInArchetype(newArchetype, entity.archetypeIdx, reflect.TypeOf(newComp), newComp)
+	// Store each newly-added component under its own type.
+	for _, c := range newComps {
+		w.setComponentInArchetype(newArchetype, entity.archetypeIdx, reflect.TypeOf(c), c)
 	}
 
 	return nil

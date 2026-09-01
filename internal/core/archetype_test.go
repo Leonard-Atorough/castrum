@@ -197,6 +197,48 @@ func TestArchetypeKeyContainsAll(t *testing.T) {
 // Archetype Tests
 // =============================================================================
 
+func TestArchetype_RemoveEntity(t *testing.T) {
+	posType := reflect.TypeFor[TestPosition]()
+	arch := NewArchetype(1, NewArchetypeKey(posType))
+	arch.entities = []EntityID{10, 20, 30}
+	arch.componentData[posType] = []Component{
+		TestPosition{X: 1}, TestPosition{X: 2}, TestPosition{X: 3},
+	}
+
+	t.Run("removing a middle slot swaps in the last entity and keeps component data aligned", func(t *testing.T) {
+		movedID, moved := arch.removeEntity(1) // remove entity 20
+		if !moved || movedID != 30 {
+			t.Fatalf("expected entity 30 to be moved into slot 1, got movedID=%d moved=%v", movedID, moved)
+		}
+		if !reflect.DeepEqual(arch.entities, []EntityID{10, 30}) {
+			t.Fatalf("unexpected entities after removal: %#v", arch.entities)
+		}
+
+		got := arch.componentData[posType].([]Component)
+		want := []Component{TestPosition{X: 1}, TestPosition{X: 3}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("component data desynced from entities slice: got %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("removing the last slot needs no swap", func(t *testing.T) {
+		movedID, moved := arch.removeEntity(1)
+		if moved {
+			t.Fatalf("removing the last slot should report no move, got movedID=%d", movedID)
+		}
+		if !reflect.DeepEqual(arch.entities, []EntityID{10}) {
+			t.Fatalf("unexpected entities: %#v", arch.entities)
+		}
+	})
+
+	t.Run("out-of-range index is a no-op", func(t *testing.T) {
+		_, moved := arch.removeEntity(5)
+		if moved {
+			t.Fatal("out-of-range removal should report no move")
+		}
+	})
+}
+
 func TestArchetypeCreation(t *testing.T) {
 	posType := reflect.TypeFor[TestPosition]()
 	velType := reflect.TypeFor[TestVelocity]()
