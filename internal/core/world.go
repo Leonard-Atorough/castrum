@@ -380,17 +380,14 @@ func (w *World) QueryAny(components ...reflect.Type) []EntityID {
 	// We'll need to consider how to efficiently handle queries for "any" component type, especially as the number of archetypes grows.
 	for _, compType := range components {
 		for _, archetype := range w.archetypeManager.archetypes {
-			for _, t := range archetype.componentTypes {
-				if t == compType {
+			if slices.Contains(archetype.componentTypes, compType) {
 					for _, entityID := range archetype.entities {
 						if !seen[entityID] {
 							results = append(results, entityID)
 							seen[entityID] = true
 						}
 					}
-					break
 				}
-			}
 		}
 	}
 
@@ -491,7 +488,6 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component
 }
 
 func (w *World) updateComponentInArchetype(entity *Entity, comp Component, compType reflect.Type, archetype *Archetype) error {
-	// if no archetype passed in, try to get the current archetype of the entity
 	if archetype == nil {
 		var exists bool
 		archetype, exists = w.archetypeManager.GetArchetypeByID(entity.archetypeID)

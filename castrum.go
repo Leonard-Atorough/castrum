@@ -3,6 +3,7 @@ package castrum
 import (
 	"image/color"
 	"math"
+	"reflect"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -30,28 +31,6 @@ type (
 	Animation    = animation.Manager
 	Camera       = render.Camera
 )
-
-// re-export utility functions
-var (
-	Types = core.Types
-)
-
-// Generic component accessors — forward to typed.go helpers
-func GetComponent[T Component](w *core.World, entityID EntityID) (T, error) {
-	return core.GetComponent[T](w, entityID)
-}
-
-func SetComponent[T Component](w *core.World, entityID EntityID, comp T) error {
-	return core.SetComponent(w, entityID, comp)
-}
-
-func HasComponent[T Component](w *core.World, entityID EntityID) bool {
-	return core.HasComponent[T](w, entityID)
-}
-
-func QueryFor[T Component](w *core.World) []EntityID {
-	return core.QueryFor[T](w)
-}
 
 const MaxDelta = 0.25
 
@@ -147,4 +126,25 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	w, h := g.Config.Graphics.VirtualWidth, g.Config.Graphics.VirtualHeight
 	g.Camera.SetScreenSize(w, h)
 	return w, h
+}
+
+// Generic component accessors — forward to typed.go helpers
+func GetComponent[T Component](w *core.World, entityID EntityID) (T, error) {
+	return core.GetComponent[T](w, entityID)
+}
+
+func SetComponent[T Component](w *core.World, entityID EntityID, comp T) error {
+	return core.SetComponent(w, entityID, comp)
+}
+
+func HasComponent[T Component](w *core.World, entityID EntityID) bool {
+	return core.HasComponent[T](w, entityID)
+}
+
+func QueryFor[T Component](w *core.World) []EntityID {
+	return core.QueryFor[T](w)
+}
+
+func Types(comps ...Component) []reflect.Type {
+	return core.Types(comps...)
 }
