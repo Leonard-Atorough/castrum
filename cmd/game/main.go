@@ -43,6 +43,11 @@ func main() {
 		log.Fatalf("failed to register pulse system: %v", err)
 	}
 
+	// Register the camera system (runs after movement to update the camera position)
+	if err := game.Systems.Register("camera", 1, &CameraSystem{Camera: game.Camera}, game.World); err != nil {
+		log.Fatalf("failed to register camera system: %v", err)
+	}
+
 	// Spawn a controllable circle on Layer1 at the center
 	_, err := game.World.CreateWithComponents(
 		"player_circle",

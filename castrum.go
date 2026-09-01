@@ -26,9 +26,9 @@ type (
 	SceneBuilder = scene.Builder
 	SceneTag     = scene.SceneTag
 	Component    = core.Component
-
-	Input     = input.Manager
-	Animation = animation.Manager
+	Input        = input.Manager
+	Animation    = animation.Manager
+	Camera       = render.Camera
 )
 
 // re-export utility functions
@@ -42,7 +42,7 @@ func GetComponent[T Component](w *core.World, entityID EntityID) (T, error) {
 }
 
 func SetComponent[T Component](w *core.World, entityID EntityID, comp T) error {
-	return core.SetComponent[T](w, entityID, comp)
+	return core.SetComponent(w, entityID, comp)
 }
 
 func HasComponent[T Component](w *core.World, entityID EntityID) bool {
