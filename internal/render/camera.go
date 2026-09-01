@@ -1,6 +1,10 @@
 package render
 
-import "github.com/leonard-atorough/castrum/types"
+import (
+	"math"
+
+	"github.com/leonard-atorough/castrum/types"
+)
 
 type Camera struct {
 	// The position of the camera in world space.
@@ -13,6 +17,28 @@ type Camera struct {
 	Rotation float64
 	// The rectangular bounds within which the camera can move.
 	Bounds types.Rect
+}
+
+// NewCamera returns a camera centered on the world origin with no zoom and no
+// movement bounds. Call SetScreenSize once the render target size is known
+// (Game.Layout keeps this in sync); set Bounds explicitly to constrain movement.
+func NewCamera() *Camera {
+	return &Camera{
+		Zoom:   1,
+		Bounds: unboundedRect(),
+	}
+}
+
+func unboundedRect() types.Rect {
+	return types.Rect{
+		Min: types.Vector2{X: math.Inf(-1), Y: math.Inf(-1)},
+		Max: types.Vector2{X: math.Inf(1), Y: math.Inf(1)},
+	}
+}
+
+// SetScreenSize updates the render target size the camera converts against.
+func (c *Camera) SetScreenSize(width, height int) {
+	c.ScreenSize = types.Vector2I{X: width, Y: height}
 }
 
 // WorldToScreen converts a position in world space to screen space based on the camera's position, zoom, and screen size.

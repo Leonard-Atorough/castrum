@@ -46,3 +46,8 @@ func (a *Animation) Reset() {
 	a.FrameTime = 0
 	a.Playing = a.AutoPlay
 }
+
+// Spin rotates an entity's Transform by AngularVelocity radians per second.
+type Spin struct {
+	AngularVelocity float64
+}

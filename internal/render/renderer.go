@@ -10,12 +10,14 @@ import (
 )
 
 type Renderer struct {
-	Assets *assets.Assets
+	Assets    *assets.Assets
+	Primitive *PrimitiveRenderer
 }
 
 func NewRenderer(assets *assets.Assets) *Renderer {
 	return &Renderer{
-		Assets: assets,
+		Assets:    assets,
+		Primitive: NewPrimitiveRenderer(),
 	}
 }
 
@@ -23,52 +25,50 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 	screen.Fill(c)
 }
 
+// DrawScene renders every entity with a Renderable+Transform. A Renderable
+// with a TexturePath is drawn as a sprite; otherwise it's drawn as a
+// primitive shape - callers never need to say which.
 func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.World) {
 	entities := world.Query(core.Types(components.Renderable{}, components.Transform{})...)
 
 	for _, entityID := range entities {
-		renderable, err := world.GetComponent(entityID, core.Types(components.Renderable{})[0])
+		renderable, err := core.GetComponent[components.Renderable](world, entityID)
+		if err != nil || !renderable.Visible {
+			continue
+		}
+		transform, err := core.GetComponent[components.Transform](world, entityID)
 		if err != nil {
 			continue
 		}
-		transform, err := world.GetComponent(entityID, core.Types(components.Transform{})[0])
-		if err != nil {
-			continue
+
+		if renderable.TexturePath != "" {
+			r.drawSprite(screen, camera, transform, renderable)
+		} else {
+			r.Primitive.Draw(screen, camera, transform, renderable)
 		}
-
-		rend := renderable.(components.Renderable)
-
-		tx, err := r.Assets.Textures.GetTexture(rend.TexturePath)
-		if err != nil {
-			continue // silently skip entities with missing textures
-		}
-
-		sprite := &Sprite{
-			Texture:   tx,
-			Visible:   rend.Visible,
-			Transform: transform.(components.Transform),
-		}
-		if !sprite.Visible {
-			continue
-		}
-
-		op := &ebiten.DrawImageOptions{}
-
-		frameW := sprite.Texture.Width
-		frameH := sprite.Texture.Height
-
-		screenPos := camera.WorldToScreen(sprite.Transform.Position)
-
-		// first we set the position of the sprite on the screen by updating the DrawImageOptions
-		op.GeoM.Translate(-float64(frameW)/2, -float64(frameH)/2)
-		// Apply scaling, rotation, and other transforms from Sprite
-		op.GeoM.Scale(sprite.Transform.Scale.X, sprite.Transform.Scale.Y)
-		op.GeoM.Rotate(sprite.Transform.Rotation)
-		op.GeoM.Translate(screenPos.X, screenPos.Y)
-
-		op.ColorScale.Scale(float32(sprite.Transform.Color.(color.RGBA).R)/255, float32(sprite.Transform.Color.(color.RGBA).G)/255, float32(sprite.Transform.Color.(color.RGBA).B)/255, float32(sprite.Transform.Color.(color.RGBA).A)/255)
-
-		// Finally, draw the sprite's texture onto the screen using the options
-		screen.DrawImage(sprite.Texture.Image, op)
 	}
+}
+
+func (r *Renderer) drawSprite(screen *ebiten.Image, camera *Camera, transform components.Transform, renderable components.Renderable) {
+	tx, err := r.Assets.Textures.GetTexture(renderable.TexturePath)
+	if err != nil {
+		return // silently skip entities with missing textures
+	}
+
+	frameW, frameH := tx.Width, tx.Height
+	screenPos := camera.WorldToScreen(transform.Position)
+
+	op := &ebiten.DrawImageOptions{}
+	// first we set the position of the sprite on the screen by updating the DrawImageOptions
+	op.GeoM.Translate(-float64(frameW)/2, -float64(frameH)/2)
+	// Apply scaling, rotation, and other transforms from Transform
+	op.GeoM.Scale(transform.Scale.X, transform.Scale.Y)
+	op.GeoM.Rotate(transform.Rotation)
+	op.GeoM.Translate(screenPos.X, screenPos.Y)
+
+	cr, cg, cb, ca := colorOrDefault(transform.Color).RGBA()
+	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
+
+	// Finally, draw the sprite's texture onto the screen using the options
+	screen.DrawImage(tx.Image, op)
 }
