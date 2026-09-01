@@ -23,6 +23,7 @@ type (
 	System       = core.System
 	Scene        = scene.Scene
 	SceneBuilder = scene.Builder
+	SceneTag     = scene.SceneTag
 	Component    = core.Component
 
 	Input     = input.Manager

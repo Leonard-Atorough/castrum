@@ -1,5 +1,7 @@
 package core
 
+import "slices"
+
 // Hierarchy models a parent/child relationship between entities.
 // parentToChildren maps a parent entity ID to its children.
 // childToParent maps a child entity ID to its parent.
@@ -26,11 +28,9 @@ func (h *Hierarchy) Add(parentID, childID EntityID) {
 		h.parentToChildren[parentID] = nil
 	}
 
-	for _, id := range h.parentToChildren[parentID] {
-		if id == childID {
+	if slices.Contains(h.parentToChildren[parentID], childID) {
 			return
 		}
-	}
 
 	h.parentToChildren[parentID] = append(h.parentToChildren[parentID], childID)
 	h.childToParent[childID] = parentID
