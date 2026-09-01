@@ -2,9 +2,13 @@ package texture
 
 import (
 	"fmt"
-	"io"
+	"io/fs"
+
+	_ "image/jpeg"
+	_ "image/png"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 type Texture struct {
@@ -14,38 +18,45 @@ type Texture struct {
 }
 
 type Store struct {
+	fs       fs.FS
 	Textures map[string]*Texture
 }
 
-func NewStore() *Store {
+func NewStore(filesystem fs.FS) *Store {
 	return &Store{
+		fs:       filesystem,
 		Textures: make(map[string]*Texture),
 	}
 }
 
-func (s *Store) AddTexture(name string, texture *Texture) {
-	s.Textures[name] = texture
-}
-
-func (s *Store) GetTexture(name string) (*Texture, error) {
-	texture, exists := s.Textures[name]
-	if !exists {
-		return nil, fmt.Errorf("texture %s not found", name)
+func (s *Store) Load(path string) (*Texture, error) {
+	if tex, ok := s.Textures[path]; ok {
+		return tex, nil
 	}
-	return texture, nil
-}
 
-func (s *Store) Load(reader io.Reader) (*Texture, error) {
-	// Implement the loading logic here, for example using render.LoadTexture
-	// This is a placeholder implementation
-	return nil, nil
-}
+	if s.fs == nil {
+		return nil, fmt.Errorf("texture store has no filesystem configured")
+	}
 
-func (s *Store) LoadTexture(name string, reader io.Reader) (*Texture, error) {
-	texture, err := s.Load(reader)
+	// Load the texture from the filesystem
+	file, err := s.fs.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	s.AddTexture(name, texture)
-	return texture, nil
+	defer file.Close()
+
+	img, generic, err := ebitenutil.NewImageFromFileSystem(s.fs, path)
+	if err != nil {
+		return nil, err
+	}
+
+	bounds := generic.Bounds() // Get the bounds of the generic image.
+	tex := &Texture{
+		Path:   path,
+		Image:  img,
+		Width:  bounds.Dx(),
+		Height: bounds.Dy(),
+	}
+	s.Textures[path] = tex
+	return tex, nil
 }

@@ -1,60 +1,45 @@
 package blueprint
 
 import (
-	"bytes"
-	"io"
+	"io/fs"
 	"os"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
 
 type Store struct {
+	fs         fs.FS
 	Blueprints map[string]*Blueprint
 }
 
-func NewStore() *Store {
+func NewStore(filesystem fs.FS) *Store {
+	if filesystem == nil {
+		filesystem = os.DirFS(".")
+	}
 	return &Store{
+		fs:         filesystem,
 		Blueprints: make(map[string]*Blueprint),
 	}
 }
 
-func (s *Store) Load(reader io.Reader) (*Blueprint, error) {
-	var blueprint Blueprint
-	decoder := yaml.NewDecoder(reader)
-	err := decoder.Decode(&blueprint)
-	if err != nil {
-		return nil, err
+func (s *Store) Load(path string) (*Blueprint, error) {
+	// Check cache first
+	if bp, ok := s.Blueprints[path]; ok {
+		return bp, nil
 	}
-	s.AddBlueprint(blueprint.Name, &blueprint)
-	return &blueprint, nil
-}
 
-func (s *Store) LoadFromPath(path string) (*Blueprint, error) {
-	file, err := os.Open(path)
+	file, err := s.fs.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	return s.Load(file)
-}
+	var blueprint Blueprint
+	decoder := yaml.NewDecoder(file)
+	if err := decoder.Decode(&blueprint); err != nil {
+		return nil, err
+	}
 
-func (s *Store) LoadFromString(data string) (*Blueprint, error) {
-	return s.Load(strings.NewReader(data))
-}
-
-func (s *Store) LoadFromBytes(data []byte) (*Blueprint, error) {
-	return s.Load(bytes.NewReader(data))
-}
-
-
-
-func (s *Store) AddBlueprint(name string, blueprint *Blueprint) {
-	s.Blueprints[name] = blueprint
-}
-
-func (s *Store) GetBlueprint(name string) (*Blueprint, bool) {
-	blueprint, exists := s.Blueprints[name]
-	return blueprint, exists
+	s.Blueprints[path] = &blueprint // cache by path
+	return &blueprint, nil
 }

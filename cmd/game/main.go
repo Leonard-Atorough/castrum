@@ -6,6 +6,7 @@ package main
 import (
 	"image/color"
 	"log"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum"
@@ -21,7 +22,7 @@ func main() {
 	config.Graphics.VirtualHeight = 1080
 	config.Engine.EnableDebug = true
 
-	game := castrum.NewGame(config)
+	game := castrum.NewGame(config, os.DirFS("."))
 
 	// Register input controller (runs first to read input and set velocity)
 	if err := game.Systems.Register("player_controller", -1, NewPlayerController(game), game.World); err != nil {

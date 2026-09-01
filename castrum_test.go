@@ -14,7 +14,7 @@ func TestNewGame(t *testing.T) {
 		config.Graphics.VirtualHeight = 240
 		config.Engine.TicksPerSecond = 30
 
-		game := NewGame(config)
+		game := NewGame(config, nil)
 
 		if want := 1.0 / 30.0; game.fixedDelta != want {
 			t.Fatalf("fixedDelta = %v, want %v", game.fixedDelta, want)
@@ -28,7 +28,7 @@ func TestNewGame(t *testing.T) {
 	})
 
 	t.Run("validates a sparse config instead of dividing by zero", func(t *testing.T) {
-		game := NewGame(&Config{})
+		game := NewGame(&Config{}, nil)
 
 		if game.Config.Engine.TicksPerSecond <= 0 {
 			t.Fatalf("expected ValidateConfig to fill in TicksPerSecond, got %d", game.Config.Engine.TicksPerSecond)
@@ -43,7 +43,7 @@ func TestGame_Layout(t *testing.T) {
 	config := DefaultConfig()
 	config.Graphics.VirtualWidth = 640
 	config.Graphics.VirtualHeight = 480
-	game := NewGame(config)
+	game := NewGame(config, nil)
 
 	w, h := game.Layout(1920, 1080)
 
@@ -59,7 +59,7 @@ func TestGame_Layout(t *testing.T) {
 // Update()'s accumulator loop divides/subtracts by fixedDelta, so an
 // uninitialized fixedDelta caused an infinite loop the first time Update ran.
 func TestGame_Update_DoesNotHang(t *testing.T) {
-	game := NewGame(DefaultConfig())
+	game := NewGame(DefaultConfig(), nil)
 
 	done := make(chan error, 1)
 	go func() {
@@ -77,7 +77,7 @@ func TestGame_Update_DoesNotHang(t *testing.T) {
 }
 
 func TestGame_Draw_DoesNotPanic(t *testing.T) {
-	game := NewGame(DefaultConfig())
+	game := NewGame(DefaultConfig(), nil)
 	screen := ebiten.NewImage(game.Config.Graphics.VirtualWidth, game.Config.Graphics.VirtualHeight)
 
 	game.Draw(screen)
