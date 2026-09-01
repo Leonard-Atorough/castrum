@@ -44,7 +44,7 @@ func main() {
 	}
 
 	// Register the camera system (runs after movement to update the camera position)
-	if err := game.Systems.Register("camera", 1, &CameraSystem{Camera: game.Camera}, game.World); err != nil {
+	if err := game.Systems.Register("camera", 1, &CameraSystem{Camera: game.Camera, Input: game.Input}, game.World); err != nil {
 		log.Fatalf("failed to register camera system: %v", err)
 	}
 
@@ -65,7 +65,7 @@ func main() {
 	}
 
 	// Lets create a grid of squares around the center.
-	gridSizeH := 20
+	gridSizeH := 60
 	gridSizeW := 60
 	spacing := 20.0
 	for i := -gridSizeW; i <= gridSizeW; i++ {

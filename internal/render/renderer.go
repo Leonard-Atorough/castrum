@@ -9,6 +9,7 @@ import (
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/types"
 )
 
 type Renderer struct {
@@ -33,6 +34,9 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.World) {
 	entities := world.Query(core.Types(components.Renderable{}, components.Transform{})...)
 
+	// Get the camera's visible world-space bounds for frustum culling
+	viewportBounds := camera.ViewportBounds()
+
 	// Bucket entities by their render layer for proper draw order, no sub-sorting
 	layerBuckets := make(map[components.RenderLayer][]core.EntityID)
 	for _, entityID := range entities {
@@ -40,6 +44,20 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 		if err != nil || !renderable.Visible {
 			continue
 		}
+		transform, err := core.GetComponent[components.Transform](world, entityID)
+		if err != nil {
+			continue
+		}
+
+		// Frustum culling: skip entities outside the camera viewport
+		entityBounds := types.NewRect(
+			types.Vector2{X: transform.Position.X - transform.Scale.X, Y: transform.Position.Y - transform.Scale.Y},
+			types.Vector2{X: transform.Position.X + transform.Scale.X, Y: transform.Position.Y + transform.Scale.Y},
+		)
+		if !viewportBounds.Intersects(entityBounds) {
+			continue
+		}
+
 		layerBuckets[renderable.Layer] = append(layerBuckets[renderable.Layer], entityID)
 	}
 
