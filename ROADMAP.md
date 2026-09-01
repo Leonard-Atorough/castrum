@@ -358,7 +358,7 @@ Integrate rendering with the ECS and implement scene management for logical game
 - Implement `texture.Store.Load` (decode via `image.Decode`/`png` + `ebiten.NewImageFromImage`) - this is the one thing standing between "primitives only" and real sprite art.
 - Multi-camera/viewport design (minimap, split-screen) - a concrete design note is saved in repo memory from the camera-hardening session; worth a dedicated pass once you need more than one view.
 - Decide whether `Scene.OnUnload` should actually `DestroyEntity`+`Cleanup` its entities, or if untag-only is intentional (e.g. keeping entities alive across a scene swap). Right now it's untag-only - fine if deliberate, a leak if not.
-- `RenderSystem` (`internal/render/render_system.go`) only advances `Animation` frames - it doesn't draw anything (drawing happens directly in `Game.Draw` via `Renderer`, which is architecturally correct since Ebiten's `Draw` callback sits outside the fixed-timestep `Systems.Update` loop). Consider renaming it to `AnimationSystem` so the name matches what it does - a clarity fix, not a behavior change.
+- ✅ `AnimationManager` (`internal/animation/animation.go`) and `InputManager` (`internal/input/input.go`) are now correctly named—they're engine infrastructure (manager layer), not game systems.
 - Scene stack (3.9), UI rendering layer (3.10), and particle system (3.11) are all still unstarted and reasonable to leave for later - none block the current on-screen milestone.
 
 ---

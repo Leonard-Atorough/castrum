@@ -23,8 +23,35 @@ func main() {
 
 	game := castrum.NewGame(config)
 
+	// Register input controller (runs first to read input and set velocity)
+	if err := game.Systems.Register("player_controller", -1, NewPlayerController(game), game.World); err != nil {
+		log.Fatalf("failed to register player controller: %v", err)
+	}
+
+	// Register movement system (applies velocity to position)
+	if err := game.Systems.Register("movement", 0, &MovementSystem{}, game.World); err != nil {
+		log.Fatalf("failed to register movement system: %v", err)
+	}
+
+	// Register rotator system
 	if err := game.Systems.Register("rotator", 0, &RotatorSystem{}, game.World); err != nil {
 		log.Fatalf("failed to register rotator system: %v", err)
+	}
+
+	// Spawn a controllable circle on Layer1 at the center
+	_, err := game.World.CreateWithComponents(
+		"player_circle",
+		components.Transform{
+			Position: types.Vector2{X: 0, Y: 0},
+			Scale:    types.Vector2{X: 25, Y: 25},
+			Color:    color.RGBA{R: 255, G: 100, B: 100, A: 255},
+		},
+		components.Renderable{Primitive: components.PrimitiveKindCircle, Visible: true, Layer: components.Layer1},
+		Player{},
+		Velocity{Linear: types.Vector2{X: 0, Y: 0}},
+	)
+	if err != nil {
+		log.Fatalf("failed to spawn player circle: %v", err)
 	}
 
 	// Lets create a grid of squares around the center.
@@ -42,7 +69,7 @@ func main() {
 					Scale:    types.Vector2{X: 10, Y: 10},
 					Color:    color.RGBA{R: 60, G: 220, B: 60, A: 255},
 				},
-				components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true},
+				components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0},
 				components.Spin{AngularVelocity: 1.5 + 0.1*float64(i+j)},
 			)
 			if err != nil {

@@ -3,7 +3,7 @@ package core
 import "testing"
 
 // movementSystem advances TestPosition by TestVelocity each tick using the
-// generic typed helpers, mirroring how real game systems (e.g. RenderSystem)
+// generic typed helpers, mirroring how real game systems (e.g. RotatorSystem)
 // access components.
 type movementSystem struct {
 	initCalled     bool

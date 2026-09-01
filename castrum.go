@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/leonard-atorough/castrum/internal/animation"
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/input"
 	"github.com/leonard-atorough/castrum/internal/render"
 	"github.com/leonard-atorough/castrum/internal/scene"
 	"github.com/leonard-atorough/castrum/internal/timers"
@@ -22,6 +24,9 @@ type (
 	Scene        = scene.Scene
 	SceneBuilder = scene.Builder
 	Component    = core.Component
+
+	Input     = input.InputManager
+	Animation = animation.AnimationManager
 )
 
 // re-export utility functions
@@ -43,6 +48,9 @@ type Game struct {
 	Scenes  *scene.Manager
 	Render  *render.Renderer
 	Camera  *render.Camera
+
+	Input     *input.InputManager
+	Animation *animation.AnimationManager
 
 	Assets            *assets.Assets
 	ComponentRegistry *core.ComponentRegistry
@@ -76,6 +84,8 @@ func NewGame(config *Config) *Game {
 		ComponentRegistry: core.GlobalRegistry,                     // Use the global component registry instance
 		Render:            render.NewRenderer(assets.GlobalAssets), // Initialize the renderer
 		Camera:            camera,
+		Input:             input.NewInputManager(),
+		Animation:         animation.NewAnimationManager(),
 		fixedDelta:        1.0 / float64(config.Engine.TicksPerSecond),
 	}
 }
@@ -95,8 +105,11 @@ func (g *Game) Update() error {
 	g.accumulator += delta
 
 	for g.accumulator >= g.fixedDelta {
-		g.Systems.Update(g.World, g.fixedDelta)
 		g.Timers.Update(g.fixedDelta)
+		g.Input.Update(g.World, g.fixedDelta)
+		g.Animation.Update(g.World, g.fixedDelta)
+		// Systems run last
+		g.Systems.Update(g.World, g.fixedDelta)
 		g.accumulator -= g.fixedDelta
 	}
 
