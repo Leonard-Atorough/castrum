@@ -19,7 +19,7 @@ import (
 func newTestRenderer() *Renderer {
 	store := texture.NewStore()
 	store.AddTexture("square", &texture.Texture{Image: ebiten.NewImage(4, 4), Width: 4, Height: 4})
-	return NewRenderer(&assets.Assets{Textures: store})
+	return New(&assets.Assets{Textures: store})
 }
 
 func TestRenderer_DrawScene(t *testing.T) {

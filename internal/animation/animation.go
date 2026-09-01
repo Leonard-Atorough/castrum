@@ -5,14 +5,14 @@ import (
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
-type AnimationManager struct {
+type Manager struct {
 }
 
-func NewAnimationManager() *AnimationManager {
-	return &AnimationManager{}
+func NewManager() *Manager {
+	return &Manager{}
 }
 
-func (am *AnimationManager) Update(world *core.World, delta float64) error {
+func (am *Manager) Update(world *core.World, delta float64) error {
 	entities := world.Query(core.Types(components.Renderable{}, components.Transform{}, components.Animation{})...)
 
 	for _, entityID := range entities {

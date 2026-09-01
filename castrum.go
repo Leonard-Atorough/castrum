@@ -25,8 +25,8 @@ type (
 	SceneBuilder = scene.Builder
 	Component    = core.Component
 
-	Input     = input.InputManager
-	Animation = animation.AnimationManager
+	Input     = input.Manager
+	Animation = animation.Manager
 )
 
 // re-export utility functions
@@ -49,8 +49,8 @@ type Game struct {
 	Render  *render.Renderer
 	Camera  *render.Camera
 
-	Input     *input.InputManager
-	Animation *animation.AnimationManager
+	Input     *input.Manager
+	Animation *animation.Manager
 
 	Assets            *assets.Assets
 	ComponentRegistry *core.ComponentRegistry
@@ -80,12 +80,12 @@ func NewGame(config *Config) *Game {
 		Systems:           systems,
 		Timers:            timers,
 		Scenes:            scenes,
-		Assets:            assets.GlobalAssets,                     // Use the global assets instance
-		ComponentRegistry: core.GlobalRegistry,                     // Use the global component registry instance
-		Render:            render.NewRenderer(assets.GlobalAssets), // Initialize the renderer
+		Assets:            assets.GlobalAssets,             // Use the global assets instance
+		ComponentRegistry: core.GlobalRegistry,             // Use the global component registry instance
+		Render:            render.New(assets.GlobalAssets), // Initialize the renderer
 		Camera:            camera,
-		Input:             input.NewInputManager(),
-		Animation:         animation.NewAnimationManager(),
+		Input:             input.NewManager(),
+		Animation:         animation.NewManager(),
 		fixedDelta:        1.0 / float64(config.Engine.TicksPerSecond),
 	}
 }

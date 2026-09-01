@@ -70,17 +70,17 @@ func (i *InputState) Reset() {
 	}
 }
 
-type InputManager struct {
+type Manager struct {
 	state InputState
 }
 
-func NewInputManager() *InputManager {
-	return &InputManager{
+func NewManager() *Manager {
+	return &Manager{
 		state: NewInputState(),
 	}
 }
 
-func (is *InputManager) Update(world *core.World, delta float64) {
+func (is *Manager) Update(world *core.World, delta float64) {
 
 	justPressedKeys := inpututil.AppendJustPressedKeys(nil)
 	pressedKeys := inpututil.AppendPressedKeys(nil)
@@ -164,39 +164,39 @@ func (is *InputManager) Update(world *core.World, delta float64) {
 	}
 }
 
-func (is *InputManager) KeyPressed(key ebiten.Key, WithCtrl bool, WithShift bool, WithAlt bool) bool {
+func (is *Manager) KeyPressed(key ebiten.Key, WithCtrl bool, WithShift bool, WithAlt bool) bool {
 	return is.state.Keyboard[key].Pressed &&
 		(!WithCtrl || is.state.Ctrl) &&
 		(!WithShift || is.state.Shift) &&
 		(!WithAlt || is.state.Alt)
 }
 
-func (is *InputManager) KeyHeld(key ebiten.Key, WithCtrl bool, WithShift bool, WithAlt bool) bool {
+func (is *Manager) KeyHeld(key ebiten.Key, WithCtrl bool, WithShift bool, WithAlt bool) bool {
 	return is.state.Keyboard[key].Held &&
 		(!WithCtrl || is.state.Ctrl) &&
 		(!WithShift || is.state.Shift) &&
 		(!WithAlt || is.state.Alt)
 }
 
-func (is *InputManager) KeyReleased(key ebiten.Key, WithCtrl bool, WithShift bool, WithAlt bool) bool {
+func (is *Manager) KeyReleased(key ebiten.Key, WithCtrl bool, WithShift bool, WithAlt bool) bool {
 	return is.state.Keyboard[key].Released &&
 		(!WithCtrl || is.state.Ctrl) &&
 		(!WithShift || is.state.Shift) &&
 		(!WithAlt || is.state.Alt)
 }
 
-func (is *InputManager) MousePressed(button ebiten.MouseButton) bool {
+func (is *Manager) MousePressed(button ebiten.MouseButton) bool {
 	return is.state.Mouse.Buttons[button].Pressed
 }
 
-func (is *InputManager) MouseHeld(button ebiten.MouseButton) bool {
+func (is *Manager) MouseHeld(button ebiten.MouseButton) bool {
 	return is.state.Mouse.Buttons[button].Held
 }
 
-func (is *InputManager) MouseReleased(button ebiten.MouseButton) bool {
+func (is *Manager) MouseReleased(button ebiten.MouseButton) bool {
 	return is.state.Mouse.Buttons[button].Released
 }
 
-func (is *InputManager) MousePosition() (x int, y int) {
+func (is *Manager) MousePosition() (x int, y int) {
 	return is.state.Mouse.X, is.state.Mouse.Y
 }

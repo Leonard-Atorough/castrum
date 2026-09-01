@@ -16,7 +16,7 @@ type Renderer struct {
 	Primitive *PrimitiveRenderer
 }
 
-func NewRenderer(assets *assets.Assets) *Renderer {
+func New(assets *assets.Assets) *Renderer {
 	return &Renderer{
 		Assets:    assets,
 		Primitive: NewPrimitiveRenderer(),
