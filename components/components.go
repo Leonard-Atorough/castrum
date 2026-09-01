@@ -13,10 +13,28 @@ type Transform struct {
 	Color    color.Color
 }
 
+type RenderLayer int
+
+const (
+	Layer0 RenderLayer = iota
+	Layer1
+	Layer2
+	Layer3
+	Layer4
+	Layer5
+	Layer6
+	Layer7
+	Layer8
+	Layer9
+	Layer10
+	// Debug layer for rendering debug information
+	LayerDebug
+)
+
 type Renderable struct {
 	TexturePath string
 	Primitive   PrimitiveKind
-	Layer       int
+	Layer       RenderLayer
 	Visible     bool
 }
 
@@ -27,8 +45,6 @@ const (
 	PrimitiveKindCircle
 	PrimitiveKindLine
 )
-
-
 
 type Animation struct {
 	Frames     []string

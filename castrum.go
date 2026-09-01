@@ -25,10 +25,10 @@ type (
 
 // re-export utility functions
 var (
-	GetComponentFunc      = core.GetComponent[Component]
-	SetComponentFunc      = core.SetComponent[Component]
-	HasComponentFunc      = core.HasComponent[Component]
-	QueryForComponentFunc = core.QueryFor[Component]
+	GetComponent      = core.GetComponent[Component]
+	SetComponent      = core.SetComponent[Component]
+	HasComponent      = core.HasComponent[Component]
+	QueryForComponent = core.QueryFor[Component]
 )
 
 type Game struct {
@@ -101,6 +101,10 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.Render.Clear(screen, color.Black)
 	g.Render.DrawScene(screen, g.Camera, g.World)
+
+	if g.Config.Engine.EnableDebug {
+		g.Render.DrawDebugInfo(screen, g.Camera, g.World)
+	}
 }
 
 // Layout reports the engine's virtual resolution and keeps the camera's

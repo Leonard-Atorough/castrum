@@ -1,9 +1,11 @@
 package render
 
 import (
+	"fmt"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
@@ -31,6 +33,22 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.World) {
 	entities := world.Query(core.Types(components.Renderable{}, components.Transform{})...)
 
+	// Bucket entities by their render layer for proper draw order, no sub-sorting
+	layerBuckets := make(map[components.RenderLayer][]core.EntityID)
+	for _, entityID := range entities {
+		renderable, err := core.GetComponent[components.Renderable](world, entityID)
+		if err != nil || !renderable.Visible {
+			continue
+		}
+		layerBuckets[renderable.Layer] = append(layerBuckets[renderable.Layer], entityID)
+	}
+
+	// Flatten the buckets back into the entities slice in order of layers
+	entities = entities[:0]
+	for layer := components.Layer0; layer <= components.LayerDebug; layer++ {
+		entities = append(entities, layerBuckets[layer]...)
+	}
+
 	for _, entityID := range entities {
 		renderable, err := core.GetComponent[components.Renderable](world, entityID)
 		if err != nil || !renderable.Visible {
@@ -47,6 +65,10 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 			r.Primitive.Draw(screen, camera, transform, renderable)
 		}
 	}
+}
+
+func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, camera *Camera, world *core.World) {
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), camera.Position))
 }
 
 func (r *Renderer) drawSprite(screen *ebiten.Image, camera *Camera, transform components.Transform, renderable components.Renderable) {
