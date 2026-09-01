@@ -16,7 +16,6 @@ type (
 	Timer        = timers.Timer
 	TimerID      = timers.TimerID
 	System       = core.System
-	Layer        = core.Layer
 	Scene        = scene.Scene
 	SceneBuilder = scene.Builder
 	Component    = core.Component

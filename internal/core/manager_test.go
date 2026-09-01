@@ -13,6 +13,9 @@ type mockSystem struct {
 	initErr        error
 	updateErr      error
 	shutdownErr    error
+
+	name  string
+	order *[]string // if set, records name on Update/Shutdown to verify ordering
 }
 
 func (ms *mockSystem) Init(world *World) error {
@@ -22,11 +25,17 @@ func (ms *mockSystem) Init(world *World) error {
 
 func (ms *mockSystem) Update(world *World, deltaTime float64) error {
 	ms.updateCalled++
+	if ms.order != nil {
+		*ms.order = append(*ms.order, ms.name)
+	}
 	return ms.updateErr
 }
 
 func (ms *mockSystem) Shutdown(world *World) error {
 	ms.shutdownCalled++
+	if ms.order != nil {
+		*ms.order = append(*ms.order, ms.name)
+	}
 	return ms.shutdownErr
 }
 
@@ -36,7 +45,7 @@ func TestManager_Register(t *testing.T) {
 	world := NewWorld()
 	mockSys := &mockSystem{}
 
-	err := sm.Register(Core, "test", mockSys, world)
+	err := sm.Register("test", 0, mockSys, world)
 	if err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
@@ -47,10 +56,6 @@ func TestManager_Register(t *testing.T) {
 
 	if sm.Count() != 1 {
 		t.Fatalf("expected 1 system, got %d", sm.Count())
-	}
-
-	if sm.Len(Core) != 1 {
-		t.Fatalf("expected 1 core system, got %d", sm.Len(Core))
 	}
 
 	if !sm.Has("test") {
@@ -65,11 +70,11 @@ func TestManager_RegisterDuplicate(t *testing.T) {
 	mockSys1 := &mockSystem{}
 	mockSys2 := &mockSystem{}
 
-	sm.Register(Core, "test", mockSys1, world)
-	err := sm.Register(Player, "test", mockSys2, world)
+	sm.Register("test", 0, mockSys1, world)
+	err := sm.Register("test", 1, mockSys2, world)
 
-	if err == nil {
-		t.Fatal("expected error when registering duplicate name")
+	if !errors.Is(err, ErrSystemAlreadyRegistered) {
+		t.Fatalf("expected ErrSystemAlreadyRegistered, got %v", err)
 	}
 
 	if sm.Count() != 1 {
@@ -83,7 +88,7 @@ func TestManager_RegisterInitFails(t *testing.T) {
 	world := NewWorld()
 	mockSys := &mockSystem{initErr: errors.New("init failed")}
 
-	err := sm.Register(Core, "test", mockSys, world)
+	err := sm.Register("test", 0, mockSys, world)
 	if err == nil {
 		t.Fatal("expected error when Init fails")
 	}
@@ -99,7 +104,7 @@ func TestManager_Unregister(t *testing.T) {
 	world := NewWorld()
 	mockSys := &mockSystem{}
 
-	sm.Register(Core, "test", mockSys, world)
+	sm.Register("test", 0, mockSys, world)
 	err := sm.Unregister("test", world)
 
 	if err != nil {
@@ -125,12 +130,12 @@ func TestManager_UnregisterNotFound(t *testing.T) {
 	world := NewWorld()
 
 	err := sm.Unregister("nonexistent", world)
-	if err == nil {
-		t.Fatal("expected error when unregistering non-existent system")
+	if !errors.Is(err, ErrSystemNotFound) {
+		t.Fatalf("expected ErrSystemNotFound, got %v", err)
 	}
 }
 
-// TestManager_UnregisterIndexFix tests that indices are corrected after removal.
+// TestManager_UnregisterIndexFix tests that lookups stay correct after a middle system is removed.
 func TestManager_UnregisterIndexFix(t *testing.T) {
 	sm := NewManager()
 	world := NewWorld()
@@ -138,9 +143,9 @@ func TestManager_UnregisterIndexFix(t *testing.T) {
 	sys1 := &mockSystem{}
 	sys2 := &mockSystem{}
 
-	sm.Register(Player, "sys0", sys0, world)
-	sm.Register(Player, "sys1", sys1, world)
-	sm.Register(Player, "sys2", sys2, world)
+	sm.Register("sys0", 0, sys0, world)
+	sm.Register("sys1", 1, sys1, world)
+	sm.Register("sys2", 2, sys2, world)
 
 	// Remove middle system
 	sm.Unregister("sys1", world)
@@ -167,27 +172,27 @@ func TestManager_UnregisterIndexFix(t *testing.T) {
 	}
 }
 
-// TestManager_Update tests system update execution order.
+// TestManager_Update tests that Update runs every registered system.
 func TestManager_Update(t *testing.T) {
 	sm := NewManager()
 	world := NewWorld()
-	coreSys := &mockSystem{}
-	playerSys := &mockSystem{}
+	sys1 := &mockSystem{}
+	sys2 := &mockSystem{}
 
-	sm.Register(Core, "core", coreSys, world)
-	sm.Register(Player, "player", playerSys, world)
+	sm.Register("sys1", 0, sys1, world)
+	sm.Register("sys2", 10, sys2, world)
 
 	err := sm.Update(world, 0.016)
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
 
-	if coreSys.updateCalled != 1 {
-		t.Fatalf("expected core system update to be called, got %d", coreSys.updateCalled)
+	if sys1.updateCalled != 1 {
+		t.Fatalf("expected sys1 update to be called, got %d", sys1.updateCalled)
 	}
 
-	if playerSys.updateCalled != 1 {
-		t.Fatalf("expected player system update to be called, got %d", playerSys.updateCalled)
+	if sys2.updateCalled != 1 {
+		t.Fatalf("expected sys2 update to be called, got %d", sys2.updateCalled)
 	}
 }
 
@@ -199,9 +204,9 @@ func TestManager_UpdateError(t *testing.T) {
 	sys2 := &mockSystem{updateErr: errors.New("system 2 failed")}
 	sys3 := &mockSystem{}
 
-	sm.Register(Core, "sys1", sys1, world)
-	sm.Register(Core, "sys2", sys2, world)
-	sm.Register(Core, "sys3", sys3, world)
+	sm.Register("sys1", 0, sys1, world)
+	sm.Register("sys2", 1, sys2, world)
+	sm.Register("sys3", 2, sys3, world)
 
 	err := sm.Update(world, 0.016)
 	if err == nil {
@@ -221,72 +226,77 @@ func TestManager_UpdateError(t *testing.T) {
 	}
 }
 
-// TestManager_UpdateLayerOrder tests Core systems run before Player systems.
-func TestManager_UpdateLayerOrder(t *testing.T) {
+// TestManager_UpdatePriorityOrder tests that lower-priority systems run first,
+// and same-priority systems run in registration order.
+func TestManager_UpdatePriorityOrder(t *testing.T) {
 	sm := NewManager()
 	world := NewWorld()
+	var order []string
 
-	coreSys := &mockSystem{}
-	playerSys := &mockSystem{}
+	low := &mockSystem{name: "low", order: &order}
+	highA := &mockSystem{name: "highA", order: &order}
+	highB := &mockSystem{name: "highB", order: &order}
 
-	sm.Register(Core, "core", coreSys, world)
-	sm.Register(Player, "player", playerSys, world)
+	// Register out of priority order to prove sorting, not insertion order, wins.
+	sm.Register("highA", 10, highA, world)
+	sm.Register("low", 0, low, world)
+	sm.Register("highB", 10, highB, world)
 
-	sm.Update(world, 0.016)
-
-	// Both systems should be called in order (Core first, then Player)
-	// We verify they were both called
-	if coreSys.updateCalled != 1 {
-		t.Fatalf("expected core system to be called once, got %d", coreSys.updateCalled)
+	if err := sm.Update(world, 0.016); err != nil {
+		t.Fatalf("Update failed: %v", err)
 	}
-	if playerSys.updateCalled != 1 {
-		t.Fatalf("expected player system to be called once, got %d", playerSys.updateCalled)
+
+	want := []string{"low", "highA", "highB"}
+	if len(order) != len(want) {
+		t.Fatalf("expected order %v, got %v", want, order)
+	}
+	for i := range want {
+		if order[i] != want[i] {
+			t.Fatalf("expected order %v, got %v", want, order)
+		}
 	}
 }
 
-// TestManager_Shutdown tests system shutdown in reverse order.
+// TestManager_Shutdown tests system shutdown in reverse priority order.
 func TestManager_Shutdown(t *testing.T) {
 	sm := NewManager()
 	world := NewWorld()
-	playerSys1 := &mockSystem{}
-	playerSys2 := &mockSystem{}
-	coreSys1 := &mockSystem{}
+	var order []string
 
-	sm.Register(Core, "core1", coreSys1, world)
-	sm.Register(Player, "player1", playerSys1, world)
-	sm.Register(Player, "player2", playerSys2, world)
+	first := &mockSystem{name: "first", order: &order}
+	second := &mockSystem{name: "second", order: &order}
+	third := &mockSystem{name: "third", order: &order}
+
+	sm.Register("first", 0, first, world)
+	sm.Register("second", 1, second, world)
+	sm.Register("third", 2, third, world)
 
 	err := sm.Shutdown(world)
 	if err != nil {
 		t.Fatalf("Shutdown failed: %v", err)
 	}
 
-	// All should be shut down
-	if playerSys1.shutdownCalled != 1 {
-		t.Fatalf("expected playerSys1 shutdown, got %d calls", playerSys1.shutdownCalled)
-	}
-	if playerSys2.shutdownCalled != 1 {
-		t.Fatalf("expected playerSys2 shutdown, got %d calls", playerSys2.shutdownCalled)
-	}
-	if coreSys1.shutdownCalled != 1 {
-		t.Fatalf("expected coreSys1 shutdown, got %d calls", coreSys1.shutdownCalled)
+	want := []string{"third", "second", "first"}
+	for i := range want {
+		if order[i] != want[i] {
+			t.Fatalf("expected shutdown order %v, got %v", want, order)
+		}
 	}
 
-	// All systems should be cleared
 	if sm.Count() != 0 {
 		t.Fatalf("expected 0 systems after shutdown, got %d", sm.Count())
 	}
 }
 
-// TestManager_ShutdownError tests that Shutdown continues despite errors.
+// TestManager_ShutdownError tests that Shutdown continues despite errors and joins them.
 func TestManager_ShutdownError(t *testing.T) {
 	sm := NewManager()
 	world := NewWorld()
 	sys1 := &mockSystem{shutdownErr: errors.New("shutdown failed")}
 	sys2 := &mockSystem{}
 
-	sm.Register(Player, "sys1", sys1, world)
-	sm.Register(Player, "sys2", sys2, world)
+	sm.Register("sys1", 0, sys1, world)
+	sm.Register("sys2", 1, sys2, world)
 
 	err := sm.Shutdown(world)
 	// Shutdown should return error but complete all shutdowns
@@ -305,7 +315,7 @@ func TestManager_GetSystem(t *testing.T) {
 	world := NewWorld()
 	mockSys := &mockSystem{}
 
-	sm.Register(Core, "test", mockSys, world)
+	sm.Register("test", 0, mockSys, world)
 	retrieved, err := sm.GetSystem("test")
 
 	if err != nil {
@@ -322,35 +332,29 @@ func TestManager_GetSystemNotFound(t *testing.T) {
 	sm := NewManager()
 	_, err := sm.GetSystem("nonexistent")
 
-	if err == nil {
-		t.Fatal("expected error when getting non-existent system")
+	if !errors.Is(err, ErrSystemNotFound) {
+		t.Fatalf("expected ErrSystemNotFound, got %v", err)
 	}
 }
 
-// TestManager_GetSystems tests retrieving all systems by layer.
-func TestManager_GetSystems(t *testing.T) {
+// TestManager_Systems tests retrieving all systems in priority order.
+func TestManager_Systems(t *testing.T) {
 	sm := NewManager()
 	world := NewWorld()
 	sys1 := &mockSystem{}
 	sys2 := &mockSystem{}
 	sys3 := &mockSystem{}
 
-	sm.Register(Core, "sys1", sys1, world)
-	sm.Register(Core, "sys2", sys2, world)
-	sm.Register(Player, "sys3", sys3, world)
+	sm.Register("sys3", 2, sys3, world)
+	sm.Register("sys1", 0, sys1, world)
+	sm.Register("sys2", 1, sys2, world)
 
-	coreSystems := sm.GetSystems(Core)
-	if len(coreSystems) != 2 {
-		t.Fatalf("expected 2 core systems, got %d", len(coreSystems))
+	systems := sm.Systems()
+	if len(systems) != 3 {
+		t.Fatalf("expected 3 systems, got %d", len(systems))
 	}
-
-	playerSystems := sm.GetSystems(Player)
-	if len(playerSystems) != 1 {
-		t.Fatalf("expected 1 player system, got %d", len(playerSystems))
-	}
-
-	if playerSystems[0] != sys3 {
-		t.Fatal("expected sys3 in player systems")
+	if systems[0] != sys1 || systems[1] != sys2 || systems[2] != sys3 {
+		t.Fatal("Systems should be returned in priority order")
 	}
 }
 
@@ -365,8 +369,8 @@ func TestManager_Count(t *testing.T) {
 
 	sys1 := &mockSystem{}
 	sys2 := &mockSystem{}
-	sm.Register(Core, "sys1", sys1, world)
-	sm.Register(Player, "sys2", sys2, world)
+	sm.Register("sys1", 0, sys1, world)
+	sm.Register("sys2", 1, sys2, world)
 
 	if sm.Count() != 2 {
 		t.Fatalf("expected 2 systems, got %d", sm.Count())
@@ -375,27 +379,6 @@ func TestManager_Count(t *testing.T) {
 	sm.Unregister("sys1", world)
 	if sm.Count() != 1 {
 		t.Fatalf("expected 1 system after unregister, got %d", sm.Count())
-	}
-}
-
-// TestManager_Len tests counting systems per layer.
-func TestManager_Len(t *testing.T) {
-	sm := NewManager()
-	world := NewWorld()
-	sys1 := &mockSystem{}
-	sys2 := &mockSystem{}
-	sys3 := &mockSystem{}
-
-	sm.Register(Core, "sys1", sys1, world)
-	sm.Register(Core, "sys2", sys2, world)
-	sm.Register(Player, "sys3", sys3, world)
-
-	if sm.Len(Core) != 2 {
-		t.Fatalf("expected 2 core systems, got %d", sm.Len(Core))
-	}
-
-	if sm.Len(Player) != 1 {
-		t.Fatalf("expected 1 player system, got %d", sm.Len(Player))
 	}
 }
 
@@ -409,7 +392,7 @@ func TestManager_Has(t *testing.T) {
 		t.Fatal("new manager should not have any systems")
 	}
 
-	sm.Register(Core, "test", mockSys, world)
+	sm.Register("test", 0, mockSys, world)
 	if !sm.Has("test") {
 		t.Fatal("manager should have 'test' system after register")
 	}

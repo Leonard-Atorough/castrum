@@ -1,218 +1,132 @@
 package core
 
 import (
-	"fmt"
+	"errors"
+	"slices"
 )
 
 type systemEntry struct {
-	name   string
-	system System
+	name     string
+	priority int
+	system   System
 }
+
+// Manager schedules and runs Systems in ascending priority order — lower
+// priority values run first (and shut down last). Systems registered with
+// the same priority run in registration order.
 type Manager struct {
-	coreSystems   []systemEntry
-	playerSystems []systemEntry
-	nameToIndex   map[string]struct {
-		layer Layer
-		index int
-	}
+	systems     []systemEntry
+	nameToIndex map[string]int
 }
 
 func NewManager() *Manager {
 	return &Manager{
-		coreSystems:   []systemEntry{},
-		playerSystems: []systemEntry{},
-		nameToIndex: make(map[string]struct {
-			layer Layer
-			index int
-		}),
+		nameToIndex: make(map[string]int),
 	}
 }
 
-func (sm *Manager) Register(layer Layer, name string, sys System, world *World) error {
+// Register adds sys under name, scheduled at the given priority (lower runs
+// earlier). Init is called immediately; if it returns an error the system is
+// not added.
+func (sm *Manager) Register(name string, priority int, sys System, world *World) error {
 	if _, exists := sm.nameToIndex[name]; exists {
-		return fmt.Errorf("system with name %s already registered", name)
+		return &SystemError{Name: name, Op: "Register", Err: ErrSystemAlreadyRegistered}
 	}
 
-	// Call Init before adding to collection to avoid orphaned entries on failure
 	if err := sys.Init(world); err != nil {
-		return fmt.Errorf("failed to initialize system %s: %v", name, err)
+		return &SystemError{Name: name, Op: "Register", Err: err}
 	}
 
-	entry := systemEntry{
-		name:   name,
-		system: sys,
-	}
-
-	switch layer {
-	case Core:
-		sm.coreSystems = append(sm.coreSystems, entry)
-		sm.nameToIndex[name] = struct {
-			layer Layer
-			index int
-		}{
-			layer: Core,
-			index: len(sm.coreSystems) - 1,
+	idx := len(sm.systems)
+	for i, e := range sm.systems {
+		if e.priority > priority {
+			idx = i
+			break
 		}
-	case Player:
-		sm.playerSystems = append(sm.playerSystems, entry)
-		sm.nameToIndex[name] = struct {
-			layer Layer
-			index int
-		}{
-			layer: Player,
-			index: len(sm.playerSystems) - 1,
-		}
-	default:
-		return fmt.Errorf("unknown layer %v", layer)
 	}
+	sm.systems = slices.Insert(sm.systems, idx, systemEntry{name: name, priority: priority, system: sys})
+	sm.reindex()
 
 	return nil
 }
 
+// Unregister removes and shuts down the named system.
 func (sm *Manager) Unregister(name string, world *World) error {
-	info, exists := sm.nameToIndex[name]
+	idx, exists := sm.nameToIndex[name]
 	if !exists {
-		return fmt.Errorf("system with name %s not found", name)
+		return &SystemError{Name: name, Op: "Unregister", Err: ErrSystemNotFound}
 	}
 
-	var sys System
-	var systems *[]systemEntry
+	sys := sm.systems[idx].system
+	sm.systems = slices.Delete(sm.systems, idx, idx+1)
+	sm.reindex()
 
-	switch info.layer {
-	case Core:
-		sys = sm.coreSystems[info.index].system
-		sm.coreSystems = append(sm.coreSystems[:info.index], sm.coreSystems[info.index+1:]...)
-		systems = &sm.coreSystems
-	case Player:
-		sys = sm.playerSystems[info.index].system
-		sm.playerSystems = append(sm.playerSystems[:info.index], sm.playerSystems[info.index+1:]...)
-		systems = &sm.playerSystems
-	default:
-		return fmt.Errorf("unknown layer %v", info.layer)
-	}
-
-	// Rebuild indices for all systems in this layer (since indices shift after removal)
-	for i, entry := range *systems {
-		sm.nameToIndex[entry.name] = struct {
-			layer Layer
-			index int
-		}{
-			layer: info.layer,
-			index: i,
-		}
-	}
-
-	// Shutdown the system
 	if err := sys.Shutdown(world); err != nil {
-		return fmt.Errorf("failed to shutdown system %s: %v", name, err)
+		return &SystemError{Name: name, Op: "Unregister", Err: err}
 	}
-
-	delete(sm.nameToIndex, name)
 	return nil
 }
 
-// Update runs all systems in layer priority order: Core systems first, then Player systems.
-// Returns error if any system fails (stops execution at first error).
+// Update runs all systems in priority order. It stops and returns an error
+// at the first system that fails.
 func (sm *Manager) Update(world *World, deltaTime float64) error {
-	for _, entry := range sm.coreSystems {
+	for _, entry := range sm.systems {
 		if err := entry.system.Update(world, deltaTime); err != nil {
-			return fmt.Errorf("core system %s failed: %w", entry.name, err)
-		}
-	}
-	for _, entry := range sm.playerSystems {
-		if err := entry.system.Update(world, deltaTime); err != nil {
-			return fmt.Errorf("player system %s failed: %w", entry.name, err)
+			return &SystemError{Name: entry.name, Op: "Update", Err: err}
 		}
 	}
 	return nil
 }
 
-func (sm *Manager) GetSystem(name string) (System, error) {
-	info, exists := sm.nameToIndex[name]
-	if !exists {
-		return nil, fmt.Errorf("system with name %s not found", name)
-	}
-
-	switch info.layer {
-	case Core:
-		return sm.coreSystems[info.index].system, nil
-	case Player:
-		return sm.playerSystems[info.index].system, nil
-	default:
-		return nil, fmt.Errorf("unknown layer %v", info.layer)
-	}
-}
-
-func (sm *Manager) GetSystems(layer Layer) []System {
-	switch layer {
-	case Core:
-		systems := make([]System, len(sm.coreSystems))
-		for i, entry := range sm.coreSystems {
-			systems[i] = entry.system
-		}
-		return systems
-	case Player:
-		systems := make([]System, len(sm.playerSystems))
-		for i, entry := range sm.playerSystems {
-			systems[i] = entry.system
-		}
-		return systems
-	default:
-		return nil
-	}
-}
-
-// Shutdown shuts down all systems in reverse order (Player first, then Core).
-// Returns error if any system fails (continues shutdown of remaining systems).
+// Shutdown shuts down all systems in reverse priority order, continuing on
+// error and joining any failures into the returned error.
 func (sm *Manager) Shutdown(world *World) error {
-	var lastErr error
-
-	// Shutdown player systems in reverse order
-	for i := len(sm.playerSystems) - 1; i >= 0; i-- {
-		entry := sm.playerSystems[i]
+	var errs []error
+	for i := len(sm.systems) - 1; i >= 0; i-- {
+		entry := sm.systems[i]
 		if err := entry.system.Shutdown(world); err != nil {
-			lastErr = fmt.Errorf("failed to shutdown player system %s: %v", entry.name, err)
+			errs = append(errs, &SystemError{Name: entry.name, Op: "Shutdown", Err: err})
 		}
 	}
 
-	// Shutdown core systems in reverse order
-	for i := len(sm.coreSystems) - 1; i >= 0; i-- {
-		entry := sm.coreSystems[i]
-		if err := entry.system.Shutdown(world); err != nil {
-			lastErr = fmt.Errorf("failed to shutdown core system %s: %v", entry.name, err)
-		}
+	sm.systems = nil
+	sm.nameToIndex = make(map[string]int)
+
+	return errors.Join(errs...)
+}
+
+// GetSystem returns the named system.
+func (sm *Manager) GetSystem(name string) (System, error) {
+	idx, exists := sm.nameToIndex[name]
+	if !exists {
+		return nil, &SystemError{Name: name, Op: "GetSystem", Err: ErrSystemNotFound}
 	}
+	return sm.systems[idx].system, nil
+}
 
-	// Clear all systems and nameToIndex map
-	sm.coreSystems = nil
-	sm.playerSystems = nil
-	sm.nameToIndex = make(map[string]struct {
-		layer Layer
-		index int
-	})
-
-	return lastErr
+// Systems returns all registered systems in scheduled (priority) order.
+func (sm *Manager) Systems() []System {
+	systems := make([]System, len(sm.systems))
+	for i, e := range sm.systems {
+		systems[i] = e.system
+	}
+	return systems
 }
 
 // Count returns the total number of registered systems.
 func (sm *Manager) Count() int {
-	return len(sm.coreSystems) + len(sm.playerSystems)
-}
-
-// Len returns the number of systems in the specified layer.
-func (sm *Manager) Len(layer Layer) int {
-	switch layer {
-	case Core:
-		return len(sm.coreSystems)
-	case Player:
-		return len(sm.playerSystems)
-	default:
-		return 0
-	}
+	return len(sm.systems)
 }
 
 // Has checks if a system with the given name is registered.
 func (sm *Manager) Has(name string) bool {
 	_, exists := sm.nameToIndex[name]
 	return exists
+}
+
+func (sm *Manager) reindex() {
+	clear(sm.nameToIndex)
+	for i, e := range sm.systems {
+		sm.nameToIndex[e.name] = i
+	}
 }
