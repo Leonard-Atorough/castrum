@@ -373,11 +373,6 @@ func (w *World) QueryAny(components ...reflect.Type) []EntityID {
 	var results []EntityID
 	seen := make(map[EntityID]bool)
 
-	// This reads as:
-	// For each component type, check all archetypes to see if they contain that component type.
-	// If they do, add all entities from that archetype to the results, ensuring no duplicates.
-	// This is a brute-force approach and can be optimized with a better indexing strategy in the future.
-	// We'll need to consider how to efficiently handle queries for "any" component type, especially as the number of archetypes grows.
 	for _, compType := range components {
 		for _, archetype := range w.archetypeManager.archetypes {
 			if slices.Contains(archetype.componentTypes, compType) {
