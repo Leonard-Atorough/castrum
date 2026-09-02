@@ -3,13 +3,13 @@ package components
 import (
 	"image/color"
 
-	"github.com/leonard-atorough/castrum/types"
+	"github.com/leonard-atorough/castrum/geom"
 )
 
 type Transform struct {
-	Position types.Vector2
+	Position geom.Vector2
 	Rotation float64
-	Scale    types.Vector2
+	Scale    geom.Vector2
 	Color    color.Color
 }
 
@@ -57,12 +57,6 @@ type Animation struct {
 	Loop       bool
 	Playing    bool // indicates whether the animation is currently playing
 	AutoPlay   bool // indicates whether the animation should start playing automatically
-}
-
-func (a *Animation) Reset() {
-	a.FrameIndex = 0
-	a.FrameTime = 0
-	a.Playing = a.AutoPlay
 }
 
 // Spin rotates an entity's Transform by AngularVelocity radians per second.
