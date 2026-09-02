@@ -5,7 +5,7 @@ import (
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/types"
+	"github.com/leonard-atorough/castrum/geom"
 )
 
 // PlayerController reads input and updates velocity on entities with a Player marker.
@@ -33,7 +33,7 @@ func (pc *PlayerController) Update(world *castrum.World, delta float64) error {
 
 		// Read input and update velocity
 		speed := 300.0 // pixels per second
-		vel.Linear = types.Vector2{X: 0, Y: 0}
+		vel.Linear = geom.Vector2{X: 0, Y: 0}
 
 		if pc.input.KeyHeld(ebiten.KeyArrowUp, false, false, false) {
 			vel.Linear.Y -= speed

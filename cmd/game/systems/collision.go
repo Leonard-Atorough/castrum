@@ -1,6 +1,8 @@
 package systems
 
 import (
+	"fmt"
+
 	"github.com/leonard-atorough/castrum"
 	"github.com/leonard-atorough/castrum/cmd/game/components"
 )
@@ -17,7 +19,6 @@ func (c *CollisionSystem) Update(world *castrum.World, deltaTime float64) {
 
 	// iterate through all colliders against the player collider (expect for the collider that is the player collider and use a collider.)
 	// Each collider implements an interface which exposes a shape field via the Shape function and each collider implement the Shape function
-	// to return a shape type. All shape types implement an intersect check.
-
-
+	// to return a shape type. All shape geom implement an intersect check.
+	fmt.Printf("Colliders: %v, PlayerColliders: %v\n", colliders, playerCollider)
 }
