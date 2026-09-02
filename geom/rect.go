@@ -2,7 +2,6 @@ package geom
 
 import "fmt"
 
-//
 type Rect struct {
 	Min Vector2
 	Max Vector2
@@ -36,4 +35,8 @@ func (r Rect) Intersects(other Rect) bool {
 
 func (r Rect) String() string {
 	return fmt.Sprintf("Rect{Min: %v, Max: %v}", r.Min, r.Max)
+}
+
+func (r Rect) BoundingBox() Rect {
+	return r
 }

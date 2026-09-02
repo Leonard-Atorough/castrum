@@ -26,6 +26,7 @@ type Pulse struct {
 type Collider interface {
 	Kind() components.PrimitiveKind
 	Shape() any
+	BoundingBox() geom.Rect
 }
 
 type BoxCollider struct {
@@ -40,6 +41,10 @@ func (c BoxCollider) Shape() any {
 	return c.shape
 }
 
+func (c BoxCollider) BoundingBox() geom.Rect {
+	return c.shape
+}
+
 type CircleCollider struct {
 	shape geom.Circle
 }
@@ -50,4 +55,8 @@ func (c CircleCollider) Kind() components.PrimitiveKind {
 
 func (c CircleCollider) Shape() any {
 	return c.shape
+}
+
+func (c CircleCollider) BoundingBox() geom.Rect {
+	return c.shape.BoundingBox()
 }

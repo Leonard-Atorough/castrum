@@ -26,3 +26,16 @@ func (c Circle) Area() float64 {
 func (c Circle) Circumference() float64 {
 	return 2 * math.Pi * c.Radius
 }
+
+func (c Circle) BoundingBox() Rect {
+	return Rect{
+		Min: Vector2{
+			X: c.Center.X - c.Radius,
+			Y: c.Center.Y - c.Radius,
+		},
+		Max: Vector2{
+			X: c.Center.X + c.Radius,
+			Y: c.Center.Y + c.Radius,
+		},
+	}
+}

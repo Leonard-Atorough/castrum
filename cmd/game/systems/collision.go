@@ -1,24 +1,30 @@
 package systems
 
 import (
-	"fmt"
-
 	"github.com/leonard-atorough/castrum"
 	"github.com/leonard-atorough/castrum/cmd/game/components"
+	"github.com/leonard-atorough/castrum/geom"
 )
 
 type CollisionSystem struct {
 }
 
 func (c *CollisionSystem) Update(world *castrum.World, deltaTime float64) {
-	// first we query archetype for entites with Collider components
 	colliders := castrum.QueryFor[components.Collider](world)
+	players := castrum.QueryFor[components.Player](world)
 
-	// we want to check collision between the player (which has a marker component of player) and the other colliders so
-	playerCollider := castrum.QueryFor[components.Player](world)
+	for _, playerID := range players {
+		playerCollider, _ := castrum.GetComponent[components.Collider](world, playerID)
 
-	// iterate through all colliders against the player collider (expect for the collider that is the player collider and use a collider.)
-	// Each collider implements an interface which exposes a shape field via the Shape function and each collider implement the Shape function
-	// to return a shape type. All shape geom implement an intersect check.
-	fmt.Printf("Colliders: %v, PlayerColliders: %v\n", colliders, playerCollider)
+		for _, colliderID := range colliders {
+			if playerID != colliderID {
+				otherCollider, _ := castrum.GetComponent[components.Collider](world, colliderID)
+
+				if geom.IntersectsAny(playerCollider.Shape(), otherCollider.Shape()).Collided {
+					world.DestroyEntity(playerID, true)
+					break
+				}
+			}
+		}
+	}
 }
