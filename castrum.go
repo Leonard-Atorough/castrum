@@ -14,15 +14,14 @@ import (
 	"github.com/leonard-atorough/castrum/internal/input"
 	"github.com/leonard-atorough/castrum/internal/render"
 	"github.com/leonard-atorough/castrum/internal/scene"
+	"github.com/leonard-atorough/castrum/internal/spatial"
 	"github.com/leonard-atorough/castrum/internal/timers"
 )
 
 type (
 	World        = core.World
 	Entity       = core.Entity
-	EntityID     = core.EntityID
 	Timer        = timers.Timer
-	TimerID      = timers.TimerID
 	System       = core.System
 	Scene        = scene.Scene
 	SceneBuilder = scene.Builder
@@ -31,6 +30,8 @@ type (
 	Input        = input.Manager
 	Animation    = animation.Manager
 	Camera       = render.Camera
+	EntityID     = core.EntityID
+	TimerID      = timers.TimerID
 )
 
 const MaxDelta = 0.25
@@ -44,6 +45,7 @@ type Game struct {
 	Scenes  *scene.Manager
 	Render  *render.Renderer
 	Camera  *render.Camera
+	Spatial *spatial.Manager
 
 	Input     *Input
 	Animation *Animation
@@ -78,17 +80,16 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 		Systems:           systems,
 		Timers:            timers,
 		Scenes:            scenes,
-		Assets:            assets,              // Use the global assets instance
+		Assets:            assets,              
 		ComponentRegistry: core.GlobalRegistry, // Use the global component registry instance
 		Render:            render.New(assets),  // Initialize the renderer
 		Camera:            camera,
+		Spatial:           spatial.NewManager(config.World.GridCellSize),
 		Input:             input.NewManager(),
 		Animation:         animation.NewManager(),
 		fixedDelta:        1.0 / float64(config.Engine.TicksPerSecond),
 	}
 }
-
-// EBITEN INTERFACE IMPLEMENTATION
 
 func (g *Game) Update() error {
 	if g.lastTime.IsZero() {

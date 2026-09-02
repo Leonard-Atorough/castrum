@@ -3,20 +3,20 @@ package render
 import (
 	"math"
 
-	"github.com/leonard-atorough/castrum/types"
+	"github.com/leonard-atorough/castrum/geom"
 )
 
 type Camera struct {
 	// The position of the camera in world space.
-	Position types.Vector2
+	Position geom.Vector2
 	// The zoom level of the camera.
 	Zoom float64
 	// The size of the screen in pixels.
-	ScreenSize types.Vector2I
+	ScreenSize geom.Vector2I
 	// The rotation of the camera in radians.
 	Rotation float64
 	// The rectangular bounds within which the camera can move.
-	Bounds types.Rect
+	Bounds geom.Rect
 }
 
 // NewCamera returns a camera centered on the world origin with no zoom and no
@@ -29,47 +29,47 @@ func NewCamera() *Camera {
 	}
 }
 
-func unboundedRect() types.Rect {
-	return types.Rect{
-		Min: types.Vector2{X: math.Inf(-1), Y: math.Inf(-1)},
-		Max: types.Vector2{X: math.Inf(1), Y: math.Inf(1)},
+func unboundedRect() geom.Rect {
+	return geom.Rect{
+		Min: geom.Vector2{X: math.Inf(-1), Y: math.Inf(-1)},
+		Max: geom.Vector2{X: math.Inf(1), Y: math.Inf(1)},
 	}
 }
 
 // SetScreenSize updates the render target size the camera converts against.
 func (c *Camera) SetScreenSize(width, height int) {
-	c.ScreenSize = types.Vector2I{X: width, Y: height}
+	c.ScreenSize = geom.Vector2I{X: width, Y: height}
 }
 
 // WorldToScreen converts a position in world space to screen space based on the camera's position, zoom, and screen size.
-func (c *Camera) WorldToScreen(worldPos types.Vector2) types.Vector2 {
-	return types.Vector2{
+func (c *Camera) WorldToScreen(worldPos geom.Vector2) geom.Vector2 {
+	return geom.Vector2{
 		X: (worldPos.X-c.Position.X)*c.Zoom + float64(c.ScreenSize.X)/2,
 		Y: (worldPos.Y-c.Position.Y)*c.Zoom + float64(c.ScreenSize.Y)/2,
 	}
 }
 
 // ScreenToWorld converts a position in screen space to world space based on the camera's position, zoom, and screen size.
-func (c *Camera) ScreenToWorld(screenPos types.Vector2) types.Vector2 {
-	return types.Vector2{
+func (c *Camera) ScreenToWorld(screenPos geom.Vector2) geom.Vector2 {
+	return geom.Vector2{
 		X: (screenPos.X-float64(c.ScreenSize.X)/2)/c.Zoom + c.Position.X,
 		Y: (screenPos.Y-float64(c.ScreenSize.Y)/2)/c.Zoom + c.Position.Y,
 	}
 }
 
 // Get visible rectangle in world coordinates based on the camera's position, zoom, and screen size.
-func (c *Camera) ViewportBounds() types.Rect {
+func (c *Camera) ViewportBounds() geom.Rect {
 	halfWidth := float64(c.ScreenSize.X) / (2 * c.Zoom)
 	halfHeight := float64(c.ScreenSize.Y) / (2 * c.Zoom)
-	min := types.Vector2{
+	min := geom.Vector2{
 		X: c.Position.X - halfWidth,
 		Y: c.Position.Y - halfHeight,
 	}
-	max := types.Vector2{
+	max := geom.Vector2{
 		X: c.Position.X + halfWidth,
 		Y: c.Position.Y + halfHeight,
 	}
-	return types.Rect{Min: min, Max: max}
+	return geom.Rect{Min: min, Max: max}
 }
 
 // clamp camera position within the bounds.
@@ -90,7 +90,7 @@ func (c *Camera) ClampPosition() {
 }
 
 // check if a world space rectangle is within the camera's viewport.
-func (c *Camera) IsWorldRectVisible(worldRect types.Rect) bool {
+func (c *Camera) IsWorldRectVisible(worldRect geom.Rect) bool {
 	viewport := c.ViewportBounds()
 	return viewport.Intersects(worldRect)
 }

@@ -7,9 +7,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
-	"github.com/leonard-atorough/castrum/types"
 )
 
 type Renderer struct {
@@ -50,9 +50,9 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 		}
 
 		// Frustum culling: skip entities outside the camera viewport
-		entityBounds := types.NewRect(
-			types.Vector2{X: transform.Position.X - transform.Scale.X, Y: transform.Position.Y - transform.Scale.Y},
-			types.Vector2{X: transform.Position.X + transform.Scale.X, Y: transform.Position.Y + transform.Scale.Y},
+		entityBounds := geom.NewRect(
+			geom.Vector2{X: transform.Position.X - transform.Scale.X, Y: transform.Position.Y - transform.Scale.Y},
+			geom.Vector2{X: transform.Position.X + transform.Scale.X, Y: transform.Position.Y + transform.Scale.Y},
 		)
 		if !viewportBounds.Intersects(entityBounds) {
 			continue

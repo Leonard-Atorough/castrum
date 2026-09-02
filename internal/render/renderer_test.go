@@ -9,7 +9,7 @@ import (
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/texture"
-	"github.com/leonard-atorough/castrum/types"
+	"github.com/leonard-atorough/castrum/geom"
 )
 
 // These are smoke tests: ebiten images can't be read back outside a running
@@ -51,7 +51,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		}
 		for _, kind := range kinds {
 			_, err := world.CreateWithComponents("shape",
-				components.Transform{Scale: types.Vector2{X: 10, Y: 10}},
+				components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
 				components.Renderable{Primitive: kind, Visible: true},
 			)
 			if err != nil {
@@ -64,7 +64,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("a Transform with a nil Color does not panic (regression)", func(t *testing.T) {
 		world := core.NewWorld()
 		_, err := world.CreateWithComponents("shape",
-			components.Transform{Scale: types.Vector2{X: 10, Y: 10}, Color: nil},
+			components.Transform{Scale: geom.Vector2{X: 10, Y: 10}, Color: nil},
 			components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true},
 		)
 		if err != nil {
@@ -76,7 +76,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("sprite entities with a registered texture draw without panicking", func(t *testing.T) {
 		world := core.NewWorld()
 		_, err := world.CreateWithComponents("sprite",
-			components.Transform{Scale: types.Vector2{X: 1, Y: 1}, Color: color.White},
+			components.Transform{Scale: geom.Vector2{X: 1, Y: 1}, Color: color.White},
 			components.Renderable{TexturePath: "square", Visible: true},
 		)
 		if err != nil {
@@ -100,7 +100,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("invisible entities are skipped", func(t *testing.T) {
 		world := core.NewWorld()
 		id, err := world.CreateWithComponents("shape",
-			components.Transform{Scale: types.Vector2{X: 10, Y: 10}},
+			components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
 			components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: false},
 		)
 		if err != nil {
@@ -114,7 +114,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		world := core.NewWorld()
 		for _, layer := range []components.RenderLayer{components.LayerDebug, components.Layer0, components.Layer10} {
 			_, err := world.CreateWithComponents("shape",
-				components.Transform{Scale: types.Vector2{X: 10, Y: 10}},
+				components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
 				components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: layer},
 			)
 			if err != nil {

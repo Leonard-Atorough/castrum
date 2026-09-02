@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/leonard-atorough/castrum/geom"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -25,6 +26,7 @@ type Config struct {
 	Audio    AudioConfig    `yaml:"audio"`
 	Input    InputConfig    `yaml:"input"`
 	Engine   EngineConfig   `yaml:"engine"`
+	World    WorldConfig    `yaml:"world"`
 }
 
 type ProjectConfig struct {
@@ -76,6 +78,11 @@ type EngineConfig struct {
 	PauseOnFocusLost bool `yaml:"pause_on_focus_lost"`
 	EnableDebug      bool `yaml:"enable_debug"`
 	EnableLogging    bool `yaml:"enable_logging"`
+}
+
+type WorldConfig struct {
+	Bounds       geom.Rect `yaml:"bounds"`
+	GridCellSize float64   `yaml:"grid_cell_size"`
 }
 
 func LoadConfig(reader io.Reader) (*Config, error) {
@@ -156,6 +163,9 @@ func ValidateConfig(config *Config) {
 	if config.Engine.MaxFPS <= 0 {
 		config.Engine.MaxFPS = 60
 	}
+	if config.World.GridCellSize <= 0 {
+		config.World.GridCellSize = 64
+	}
 }
 
 func DefaultConfig() *Config {
@@ -202,6 +212,10 @@ func DefaultConfig() *Config {
 			PauseOnFocusLost: true,
 			EnableDebug:      false,
 			EnableLogging:    true,
+		},
+		World: WorldConfig{
+			Bounds:       geom.Rect{}, //default to unbounded
+			GridCellSize: 256,         // Used for spatial partitioning of the world grid
 		},
 	}
 	ValidateConfig(cfg)

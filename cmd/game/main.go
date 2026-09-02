@@ -13,7 +13,7 @@ import (
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	gamesystems "github.com/leonard-atorough/castrum/cmd/game/systems"
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/types"
+	"github.com/leonard-atorough/castrum/geom"
 )
 
 func main() {
@@ -40,7 +40,7 @@ func main() {
 	minY := -float64(gridSizeH)*spacing - squareRadius - cameraOverflow
 	maxY := float64(gridSizeH)*spacing + squareRadius + cameraOverflow
 
-	game.Camera.Bounds = types.NewRect(types.NewVector2(minX, minY), types.NewVector2(maxX, maxY))
+	game.Camera.Bounds = geom.NewRect(geom.NewVector2(minX, minY), geom.NewVector2(maxX, maxY))
 
 	// Register input controller (runs first to read input and set velocity)
 	if err := game.Systems.Register("player_controller", -1, gamesystems.NewPlayerController(game), game.World); err != nil {
@@ -71,12 +71,12 @@ func main() {
 	_, err := game.World.CreateWithComponents(
 		"player_circle",
 		components.Transform{
-			Position: types.Vector2{X: 0, Y: 0},
-			Scale:    types.Vector2{X: 1, Y: 1},
+			Position: geom.Vector2{X: 0, Y: 0},
+			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
 		components.Renderable{TexturePath: "cmd/game/example.png", Visible: true, Layer: components.Layer1},
 		gamecomponents.Player{},
-		gamecomponents.Velocity{Linear: types.Vector2{X: 0, Y: 0}},
+		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
 	)
 	if err != nil {
 		log.Fatalf("failed to spawn player circle: %v", err)
@@ -91,13 +91,13 @@ func main() {
 			_, err := game.World.CreateWithComponents(
 				"Square",
 				components.Transform{
-					Position: types.Vector2{X: float64(i) * spacing, Y: float64(j) * spacing},
-					Scale:    types.Vector2{X: 32, Y: 32},
+					Position: geom.Vector2{X: float64(i) * spacing, Y: float64(j) * spacing},
+					Scale:    geom.Vector2{X: 32, Y: 32},
 					Color:    color.RGBA{R: 60, G: 220, B: 60, A: 255},
 				},
 				components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0},
 				// components.Spin{AngularVelocity: 1.5 + 0.1*float64(i+j)},
-				gamecomponents.Pulse{StartScale: types.Vector2{X: 32, Y: 32}, Amplitude: 0.5, Frequency: 2.0, TimeOffset: float64(i+j) * 0.1},
+				gamecomponents.Pulse{StartScale: geom.Vector2{X: 32, Y: 32}, Amplitude: 0.5, Frequency: 2.0, TimeOffset: float64(i+j) * 0.1},
 			)
 			if err != nil {
 				log.Fatalf("failed to spawn grid square: %v", err)
