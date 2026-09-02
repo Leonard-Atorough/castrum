@@ -61,7 +61,7 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 		layerBuckets[renderable.Layer] = append(layerBuckets[renderable.Layer], entityID)
 	}
 
-	// Flatten the buckets back into the entities slice in order of layers
+	// Flatten the buckets back into the entities slice in order of layers. Could be improved as this is doing two passes over the entities.
 	entities = entities[:0]
 	for layer := components.Layer0; layer <= components.LayerDebug; layer++ {
 		entities = append(entities, layerBuckets[layer]...)
