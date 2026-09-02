@@ -68,11 +68,15 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 	scenes := scene.NewManager(newWorld)
 	systems := core.NewManager()
 	timers := timers.NewManager()
+	spatial := spatial.NewManager(config.World.GridCellSize, config.World.QueryRadius)
+	input := input.NewManager()
+	animation := animation.NewManager()
 
 	camera := render.NewCamera()
 	camera.SetScreenSize(config.Graphics.VirtualWidth, config.Graphics.VirtualHeight)
 
 	assets := assets.NewAssets(filesystem)
+	renderer := render.New(assets)
 
 	return &Game{
 		World:             newWorld,
@@ -80,13 +84,13 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 		Systems:           systems,
 		Timers:            timers,
 		Scenes:            scenes,
-		Assets:            assets,              
+		Assets:            assets,
 		ComponentRegistry: core.GlobalRegistry, // Use the global component registry instance
-		Render:            render.New(assets),  // Initialize the renderer
+		Render:            renderer,            // Initialize the renderer
 		Camera:            camera,
-		Spatial:           spatial.NewManager(config.World.GridCellSize),
-		Input:             input.NewManager(),
-		Animation:         animation.NewManager(),
+		Spatial:           spatial,
+		Input:             input,
+		Animation:         animation,
 		fixedDelta:        1.0 / float64(config.Engine.TicksPerSecond),
 	}
 }
@@ -106,6 +110,7 @@ func (g *Game) Update() error {
 	for g.accumulator >= g.fixedDelta {
 		g.Timers.Update(g.fixedDelta)
 		g.Input.Update(g.World, g.fixedDelta)
+		g.Spatial.Update(g.World, g.fixedDelta)
 		g.Animation.Update(g.World, g.fixedDelta)
 		// Systems run last
 		g.Systems.Update(g.World, g.fixedDelta)

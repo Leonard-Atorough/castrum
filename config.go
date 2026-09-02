@@ -83,6 +83,7 @@ type EngineConfig struct {
 type WorldConfig struct {
 	Bounds       geom.Rect `yaml:"bounds"`
 	GridCellSize float64   `yaml:"grid_cell_size"`
+	QueryRadius  float64   `yaml:"query_radius"`
 }
 
 func LoadConfig(reader io.Reader) (*Config, error) {
@@ -164,7 +165,10 @@ func ValidateConfig(config *Config) {
 		config.Engine.MaxFPS = 60
 	}
 	if config.World.GridCellSize <= 0 {
-		config.World.GridCellSize = 64
+		config.World.GridCellSize = 256
+	}
+	if config.World.QueryRadius <= 0 {
+		config.World.QueryRadius = 512
 	}
 }
 
@@ -216,6 +220,7 @@ func DefaultConfig() *Config {
 		World: WorldConfig{
 			Bounds:       geom.Rect{}, //default to unbounded
 			GridCellSize: 256,         // Used for spatial partitioning of the world grid
+			QueryRadius:  512,         // Radius used for spatial queries
 		},
 	}
 	ValidateConfig(cfg)
