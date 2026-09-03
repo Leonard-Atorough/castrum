@@ -49,17 +49,83 @@ const (
 )
 
 type Animation struct {
-	Frames     []string
-	FrameIndex int
-	FrameCount int
-	FrameTime  float64 // time elapsed since the last frame change
-	FrameSpeed float64 // seconds per frame
-	Loop       bool
-	Playing    bool // indicates whether the animation is currently playing
-	AutoPlay   bool // indicates whether the animation should start playing automatically
+	Frames      []string
+	FrameEvents map[int]func() // optional callbacks for specific frames
+	FrameIndex  int            // current frame index
+	Callback    func()         // optional callback function to be called when the animation finishes
+	FrameTime   float64        // time elapsed since the last frame change
+	FrameSpeed  float64        // seconds per frame
+	Loop        bool           // indicates whether the animation should loop
+	AutoPlay    bool           // indicates whether the animation should start playing automatically
+	Playing     bool           // indicates whether the animation is currently playing
+}
+
+type Animatable struct {
+	Animations       map[string]Animation
+	CurrentAnimation string // the name of the current animation
+
+}
+
+func NewAnimatable(frames map[string]Animation, currentAnimation string) Animatable {
+	defaultAnimation := "default"
+	if _, exists := frames[currentAnimation]; exists {
+		defaultAnimation = currentAnimation
+	}
+	return Animatable{
+		Animations:       frames,
+		CurrentAnimation: defaultAnimation,
+	}
 }
 
 // Spin rotates an entity's Transform by AngularVelocity radians per second.
 type Spin struct {
 	AngularVelocity float64
+}
+
+// Collider represents a collision shape for an entity.
+type Collider struct {
+	Shape   any    // geom.Circle or geom.Rect, defined in local space
+	Layer   uint32 // The layer this collider belongs to
+	Mask    uint32 // The collision masks determine which layers this collider can interact with.
+	Trigger bool   // Indicates if this collider is a trigger (does not generate physical collisions)
+	Active  bool   // Indicates if this collider is currently active
+}
+
+func NewCollider(shape any, active, trigger bool, layer uint32, collidesWith ...uint) Collider {
+	mask := layersToMask(collidesWith...)
+
+	return Collider{
+		Shape:   shape,
+		Layer:   layer,
+		Mask:    mask,
+		Active:  active,
+		Trigger: trigger,
+	}
+}
+
+func (c Collider) ColliderShape() any {
+	return c.Shape
+}
+
+func (c Collider) BoundingBox() geom.Rect {
+	switch s := c.Shape.(type) {
+	case geom.Circle:
+		return s.BoundingBox()
+	case geom.Rect:
+		return s
+	default:
+		return geom.Rect{}
+	}
+}
+
+func (c Collider) CanCollideWith(other *Collider) bool {
+	return (c.Mask&(1<<other.Layer)) != 0 && (other.Mask&(1<<c.Layer)) != 0
+}
+
+func layersToMask(layers ...uint) uint32 {
+	var mask uint32 = 0
+	for _, layer := range layers {
+		mask |= 1 << layer
+	}
+	return mask
 }

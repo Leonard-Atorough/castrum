@@ -1,122 +1,209 @@
 package animation
 
 import (
+	"fmt"
+
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
+type AnimationEventType int
+
+const (
+	FrameEventType AnimationEventType = iota
+	CompleteEventType
+)
+
+type AnimationEvent struct {
+	EntityID   core.EntityID
+	Type       AnimationEventType
+	FrameIndex int
+}
+
 type Manager struct {
+	events []AnimationEvent
 }
 
 func NewManager() *Manager {
-	return &Manager{}
+	return &Manager{
+		events: make([]AnimationEvent, 0, 64),
+	}
+}
+
+func (am *Manager) Events() []AnimationEvent {
+	return am.events
 }
 
 func (am *Manager) Update(world *core.World, delta float64) error {
-	entities := world.Query(core.Types(components.Renderable{}, components.Transform{}, components.Animation{})...)
+	am.events = am.events[:0] // clear previous frame events
+	entities := world.Query(core.Types(components.Animatable{})...)
 
 	for _, entityID := range entities {
-		animComp, err := core.GetComponent[components.Animation](world, entityID)
-		if err != nil {
-			continue
-		}
-		renderComp, err := core.GetComponent[components.Renderable](world, entityID)
+		animComp, err := core.GetComponent[components.Animatable](world, entityID)
 		if err != nil {
 			continue
 		}
 
-		if !animComp.Playing {
+		if _, exists := animComp.Animations[animComp.CurrentAnimation]; !exists {
 			continue
 		}
 
-		animComp.FrameTime += delta
+		if !animComp.Animations[animComp.CurrentAnimation].Playing {
+			continue
+		}
 
-		if animComp.FrameTime >= animComp.FrameSpeed {
-			animComp.FrameTime = 0
-			animComp.FrameIndex++
-			if animComp.FrameIndex >= len(animComp.Frames) {
-				if animComp.Loop {
-					animComp.FrameIndex = 0
+		current := animComp.Animations[animComp.CurrentAnimation]
+		current.FrameTime += delta
+
+		if current.FrameTime >= current.FrameSpeed {
+			current.FrameTime = 0
+			current.FrameIndex++
+
+			// Emit frame event
+			if current.FrameIndex < len(current.Frames) {
+				am.events = append(am.events, AnimationEvent{
+					EntityID:   entityID,
+					Type:       FrameEventType,
+					FrameIndex: current.FrameIndex,
+				})
+
+				// Trigger frame callback if defined
+				if current.FrameEvents != nil {
+					if callback, exists := current.FrameEvents[current.FrameIndex]; exists {
+						callback()
+					}
+				}
+			}
+
+			if current.FrameIndex >= len(current.Frames) {
+				if current.Loop {
+					current.FrameIndex = 0
 				} else {
-					animComp.FrameIndex = len(animComp.Frames) - 1
-					animComp.Playing = false
+					current.FrameIndex = len(current.Frames) - 1
+					current.Playing = false
+
+					// Emit completion event
+					am.events = append(am.events, AnimationEvent{
+						EntityID: entityID,
+						Type:     CompleteEventType,
+					})
+
+					// Trigger completion callback if defined
+					if current.Callback != nil {
+						current.Callback()
+					}
 				}
 			}
 		}
 
-		renderComp.TexturePath = animComp.Frames[animComp.FrameIndex]
-		_ = core.SetComponent(world, entityID, renderComp)
+		animComp.Animations[animComp.CurrentAnimation] = current
+		_ = core.SetComponent(world, entityID, animComp)
 	}
 	return nil
 }
 
 func (am *Manager) Play(world *core.World, entityID core.EntityID) error {
-	animComp, err := core.GetComponent[components.Animation](world, entityID)
+	animComp, err := core.GetComponent[components.Animatable](world, entityID)
 	if err != nil {
 		return err
 	}
-	animComp.Playing = true
-	animComp.FrameTime = 0
-	animComp.FrameIndex = 0
+	current := animComp.Animations[animComp.CurrentAnimation]
+	current.Playing = true
+	current.FrameTime = 0
+	current.FrameIndex = 0
+	animComp.Animations[animComp.CurrentAnimation] = current
+	return core.SetComponent(world, entityID, animComp)
+}
+
+func (am *Manager) Pause(world *core.World, entityID core.EntityID) error {
+	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	if err != nil {
+		return err
+	}
+	current := animComp.Animations[animComp.CurrentAnimation]
+	current.Playing = false
+	animComp.Animations[animComp.CurrentAnimation] = current
 	return core.SetComponent(world, entityID, animComp)
 }
 
 func (am *Manager) Stop(world *core.World, entityID core.EntityID) error {
-	animComp, err := core.GetComponent[components.Animation](world, entityID)
+	animComp, err := core.GetComponent[components.Animatable](world, entityID)
 	if err != nil {
 		return err
 	}
-	animComp.Playing = false
+	current := animComp.Animations[animComp.CurrentAnimation]
+	current.Playing = false
+	current.FrameTime = 0
+	current.FrameIndex = 0
+	animComp.Animations[animComp.CurrentAnimation] = current
 	return core.SetComponent(world, entityID, animComp)
 }
 
 func (am *Manager) Reset(world *core.World, entityID core.EntityID) error {
-	animComp, err := core.GetComponent[components.Animation](world, entityID)
+	animComp, err := core.GetComponent[components.Animatable](world, entityID)
 	if err != nil {
 		return err
 	}
-	animComp.Playing = false
-	animComp.FrameTime = 0
-	animComp.FrameIndex = 0
+	current := animComp.Animations[animComp.CurrentAnimation]
+	current.Playing = false
+	current.FrameTime = 0
+	current.FrameIndex = 0
+	animComp.Animations[animComp.CurrentAnimation] = current
+	return core.SetComponent(world, entityID, animComp)
+}
+
+func (am *Manager) SwitchAnimation(world *core.World, entityID core.EntityID, animationName string) error {
+	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	if err != nil {
+		return err
+	}
+	if _, exists := animComp.Animations[animationName]; !exists {
+		return fmt.Errorf("animation %s does not exist", animationName)
+	}
+	animComp.CurrentAnimation = animationName
 	return core.SetComponent(world, entityID, animComp)
 }
 
 func (am *Manager) IsPlaying(world *core.World, entityID core.EntityID) (bool, error) {
-	animComp, err := core.GetComponent[components.Animation](world, entityID)
+	animComp, err := core.GetComponent[components.Animatable](world, entityID)
 	if err != nil {
 		return false, err
 	}
-	return animComp.Playing, nil
+	return animComp.Animations[animComp.CurrentAnimation].Playing, nil
 }
 
 func (am *Manager) GetFrameIndex(world *core.World, entityID core.EntityID) (int, error) {
-	animComp, err := core.GetComponent[components.Animation](world, entityID)
+	animComp, err := core.GetComponent[components.Animatable](world, entityID)
 	if err != nil {
 		return 0, err
 	}
-	return animComp.FrameIndex, nil
+	return animComp.Animations[animComp.CurrentAnimation].FrameIndex, nil
 }
 
 func (am *Manager) GetFrameTime(world *core.World, entityID core.EntityID) (float64, error) {
-	animComp, err := core.GetComponent[components.Animation](world, entityID)
+	animComp, err := core.GetComponent[components.Animatable](world, entityID)
 	if err != nil {
 		return 0, err
 	}
-	return animComp.FrameTime, nil
+	return animComp.Animations[animComp.CurrentAnimation].FrameTime, nil
 }
 
 func (am *Manager) GetFrameSpeed(world *core.World, entityID core.EntityID) (float64, error) {
-	animComp, err := core.GetComponent[components.Animation](world, entityID)
+	animComp, err := core.GetComponent[components.Animatable](world, entityID)
 	if err != nil {
 		return 0, err
 	}
-	return animComp.FrameSpeed, nil
+	return animComp.Animations[animComp.CurrentAnimation].FrameSpeed, nil
 }
 
-func (am *Manager) GetFrames(world *core.World, entityID core.EntityID) ([]string, error) {
-	animComp, err := core.GetComponent[components.Animation](world, entityID)
+func (am *Manager) GetFrames(world *core.World, entityID core.EntityID, animationNames ...string) (map[string][]string, error) {
+	animComp, err := core.GetComponent[components.Animatable](world, entityID)
 	if err != nil {
 		return nil, err
 	}
-	return animComp.Frames, nil
+	result := make(map[string][]string)
+	for _, name := range animationNames {
+		result[name] = animComp.Animations[name].Frames
+	}
+	return result, nil
 }
