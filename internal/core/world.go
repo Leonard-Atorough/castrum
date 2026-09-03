@@ -347,6 +347,8 @@ func (w *World) SetComponent(entityID EntityID, compType reflect.Type, newComp C
 // Query retrieves all entities that have all the specified component types.
 // Returns a slice of matching EntityIDs, or nil if none match.
 // This uses superset matching - entities with AT LEAST the specified components.
+//NOTE: Big query improvements coming to support query iterator generation and on demand fetch, rather than bulk returns
+// NOTE: Query package with query builder pattern to support more complex queries.
 func (w *World) Query(components ...reflect.Type) []EntityID {
 	if len(components) == 0 {
 		return nil

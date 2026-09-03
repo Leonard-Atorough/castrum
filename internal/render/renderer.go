@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"image/color"
+	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -11,6 +12,12 @@ import (
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
+
+type renderItem struct {
+	entityID   core.EntityID
+	renderable components.Renderable
+	transform  components.Transform
+}
 
 type Renderer struct {
 	Assets    *assets.Assets
@@ -37,13 +44,19 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 	// Get the camera's visible world-space bounds for frustum culling
 	viewportBounds := camera.ViewportBounds()
 
-	// Bucket entities by their render layer for proper draw order, no sub-sorting
-	layerBuckets := make(map[components.RenderLayer][]core.EntityID)
+	// Single pass: collect, cull, and cache components
+	items := make([]renderItem, 0, len(entities))
 	for _, entityID := range entities {
+		entity, exists := world.GetEntity(entityID)
+		if !exists || !entity.IsAlive() {
+			continue
+		}
+
 		renderable, err := core.GetComponent[components.Renderable](world, entityID)
 		if err != nil || !renderable.Visible {
 			continue
 		}
+
 		transform, err := core.GetComponent[components.Transform](world, entityID)
 		if err != nil {
 			continue
@@ -58,29 +71,30 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 			continue
 		}
 
-		layerBuckets[renderable.Layer] = append(layerBuckets[renderable.Layer], entityID)
+		items = append(items, renderItem{
+			entityID:   entityID,
+			renderable: renderable,
+			transform:  transform,
+		})
 	}
 
-	// Flatten the buckets back into the entities slice in order of layers. Could be improved as this is doing two passes over the entities.
-	entities = entities[:0]
-	for layer := components.Layer0; layer <= components.LayerDebug; layer++ {
-		entities = append(entities, layerBuckets[layer]...)
-	}
-
-	for _, entityID := range entities {
-		renderable, err := core.GetComponent[components.Renderable](world, entityID)
-		if err != nil || !renderable.Visible {
-			continue
+	// Sort by layer once
+	slices.SortStableFunc(items, func(a, b renderItem) int {
+		if a.renderable.Layer < b.renderable.Layer {
+			return -1
 		}
-		transform, err := core.GetComponent[components.Transform](world, entityID)
-		if err != nil {
-			continue
+		if a.renderable.Layer > b.renderable.Layer {
+			return 1
 		}
+		return 0
+	})
 
-		if renderable.TexturePath != "" {
-			r.drawSprite(screen, camera, transform, renderable)
+	// Render
+	for _, item := range items {
+		if item.renderable.TexturePath != "" {
+			r.drawSprite(screen, camera, item.transform, item.renderable)
 		} else {
-			r.Primitive.Draw(screen, camera, transform, renderable)
+			r.Primitive.Draw(screen, camera, item.transform, item.renderable)
 		}
 	}
 }
