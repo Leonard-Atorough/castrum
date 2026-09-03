@@ -7,14 +7,12 @@ import (
 )
 
 type Manager struct {
-	index       *Index
-	queryRadius float64
+	index *Index
 }
 
-func NewManager(cellSize float64, radius float64) *Manager {
+func NewManager(cellSize float64) *Manager {
 	return &Manager{
-		index:       NewIndex(cellSize),
-		queryRadius: radius,
+		index: NewIndex(cellSize),
 	}
 }
 
@@ -27,6 +25,6 @@ func (mgr *Manager) Update(world *core.World, deltaTime float64) {
 	}
 }
 
-func (mgr *Manager) Query(position geom.Vector2) []core.EntityID {
-	return mgr.index.Query(position, mgr.queryRadius)
+func (mgr *Manager) Query(position geom.Vector2, radius float64) []core.EntityID {
+	return mgr.index.Query(position, radius)
 }
