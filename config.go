@@ -1,7 +1,3 @@
-// Package config provides the configuration structures and functions for the Castrum game engine.
-// It defines the configuration options for various aspects of the engine, including project settings,
-// window properties, graphics settings, audio settings, input configurations, and engine parameters.
-// The package also includes functions to load and validate configurations from YAML files, as well as to provide default configurations.
 package castrum
 
 import (
@@ -20,13 +16,13 @@ const (
 )
 
 type Config struct {
-	Project  ProjectConfig  `yaml:"project"`
-	Window   WindowConfig   `yaml:"window"`
-	Graphics GraphicsConfig `yaml:"graphics"`
-	Audio    AudioConfig    `yaml:"audio"`
-	Input    InputConfig    `yaml:"input"`
-	Engine   EngineConfig   `yaml:"engine"`
-	World    WorldConfig    `yaml:"world"`
+	Project  ProjectConfig   `yaml:"project"`
+	Window   WindowConfig    `yaml:"window"`
+	Graphics GraphicsConfig  `yaml:"graphics"`
+	Audio    AudioConfig     `yaml:"audio"`
+	Input    InputConfig     `yaml:"input"`
+	Engine   EngineConfig    `yaml:"engine"`
+	World    CollisionConfig `yaml:"world"`
 }
 
 type ProjectConfig struct {
@@ -80,10 +76,10 @@ type EngineConfig struct {
 	EnableLogging    bool `yaml:"enable_logging"`
 }
 
-type WorldConfig struct {
-	Bounds       geom.Rect `yaml:"bounds"`
-	GridCellSize float64   `yaml:"grid_cell_size"`
-	QueryRadius  float64   `yaml:"query_radius"`
+type CollisionConfig struct {
+	BoundingArea    geom.Rect `yaml:"bounds"`
+	GridCellSize    float64   `yaml:"grid_cell_size"`
+	EnableDebugDraw bool      `yaml:"enable_debug_draw"`
 }
 
 func LoadConfig(reader io.Reader) (*Config, error) {
@@ -167,9 +163,6 @@ func ValidateConfig(config *Config) {
 	if config.World.GridCellSize <= 0 {
 		config.World.GridCellSize = 256
 	}
-	if config.World.QueryRadius <= 0 {
-		config.World.QueryRadius = 512
-	}
 }
 
 func DefaultConfig() *Config {
@@ -217,10 +210,10 @@ func DefaultConfig() *Config {
 			EnableDebug:      false,
 			EnableLogging:    true,
 		},
-		World: WorldConfig{
-			Bounds:       geom.Rect{}, //default to unbounded
-			GridCellSize: 256,         // Used for spatial partitioning of the world grid
-			QueryRadius:  512,         // Radius used for spatial queries
+		World: CollisionConfig{
+			BoundingArea:    geom.Rect{}, //default to unbounded
+			GridCellSize:    256,         // Used for spatial partitioning of the world grid
+			EnableDebugDraw: false,
 		},
 	}
 	ValidateConfig(cfg)

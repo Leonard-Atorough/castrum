@@ -10,6 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/internal/animation"
 	"github.com/leonard-atorough/castrum/internal/assets"
+	"github.com/leonard-atorough/castrum/internal/collision"
 	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/input"
 	"github.com/leonard-atorough/castrum/internal/render"
@@ -29,6 +30,8 @@ type (
 	Component    = core.Component
 	Input        = input.Manager
 	Animation    = animation.Manager
+	Collision    = collision.Manager
+	Spatial      = spatial.Manager
 	Camera       = render.Camera
 	EntityID     = core.EntityID
 	TimerID      = timers.TimerID
@@ -49,6 +52,7 @@ type Game struct {
 
 	Input     *Input
 	Animation *Animation
+	Collision *Collision
 
 	Assets            *assets.Assets
 	ComponentRegistry *core.ComponentRegistry
@@ -68,9 +72,10 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 	scenes := scene.NewManager(newWorld)
 	systems := core.NewManager()
 	timers := timers.NewManager()
-	spatial := spatial.NewManager(config.World.GridCellSize, config.World.QueryRadius)
+	spatial := spatial.NewManager(config.World.GridCellSize)
 	input := input.NewManager()
 	animation := animation.NewManager()
+	collisionMgr := collision.NewManager(spatial, collision.DefaultConfig())
 
 	camera := render.NewCamera()
 	camera.SetScreenSize(config.Graphics.VirtualWidth, config.Graphics.VirtualHeight)
@@ -91,6 +96,7 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 		Spatial:           spatial,
 		Input:             input,
 		Animation:         animation,
+		Collision:         collisionMgr,
 		fixedDelta:        1.0 / float64(config.Engine.TicksPerSecond),
 	}
 }
@@ -111,6 +117,7 @@ func (g *Game) Update() error {
 		g.Timers.Update(g.fixedDelta)
 		g.Input.Update(g.World, g.fixedDelta)
 		g.Spatial.Update(g.World, g.fixedDelta)
+		g.Collision.Update(g.World, g.fixedDelta)
 		g.Animation.Update(g.World, g.fixedDelta)
 		// Systems run last
 		g.Systems.Update(g.World, g.fixedDelta)

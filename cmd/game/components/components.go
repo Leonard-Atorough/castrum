@@ -1,7 +1,6 @@
 package components
 
 import (
-	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
 )
 
@@ -20,43 +19,4 @@ type Pulse struct {
 	StartScale  geom.Vector2 // base scale to pulse from
 	TimeOffset  float64      // seconds, phase offset for the pulse, this allows rolling the animation in time
 	ElapsedTime float64      // seconds, keeps track of the elapsed time for the pulse
-}
-
-// colliders can have different shapes, so we need a way to support multiple geom.
-type Collider interface {
-	Kind() components.PrimitiveKind
-	Shape() any
-	BoundingBox() geom.Rect
-}
-
-type BoxCollider struct {
-	shape geom.Rect
-}
-
-func (c BoxCollider) Kind() components.PrimitiveKind {
-	return components.PrimitiveKindRectangle
-}
-
-func (c BoxCollider) Shape() any {
-	return c.shape
-}
-
-func (c BoxCollider) BoundingBox() geom.Rect {
-	return c.shape
-}
-
-type CircleCollider struct {
-	shape geom.Circle
-}
-
-func (c CircleCollider) Kind() components.PrimitiveKind {
-	return components.PrimitiveKindCircle
-}
-
-func (c CircleCollider) Shape() any {
-	return c.shape
-}
-
-func (c CircleCollider) BoundingBox() geom.Rect {
-	return c.shape.BoundingBox()
 }

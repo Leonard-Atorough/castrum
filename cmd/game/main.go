@@ -67,16 +67,22 @@ func main() {
 		log.Fatalf("failed to register camera system: %v", err)
 	}
 
+	// Register the collision system (runs after movement to handle collision response)
+	if err := game.Systems.Register("collision", 2, gamesystems.NewCollisionSystem(game.Collision), game.World); err != nil {
+		log.Fatalf("failed to register collision system: %v", err)
+	}
+
 	// Spawn a controllable circle on Layer1 at the center
 	_, err := game.World.CreateWithComponents(
-		"player_circle",
+		"player",
 		components.Transform{
 			Position: geom.Vector2{X: 0, Y: 0},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		components.Renderable{TexturePath: "cmd/game/example.png", Visible: true, Layer: components.Layer1},
+		components.Renderable{TexturePath: "example.png", Visible: true, Layer: components.Layer1},
 		gamecomponents.Player{},
 		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
+		components.NewCollider(geom.NewRect(geom.NewVector2(-16, -16), geom.NewVector2(16, 16)), true, false, 0, 1),
 	)
 	if err != nil {
 		log.Fatalf("failed to spawn player circle: %v", err)
@@ -97,11 +103,37 @@ func main() {
 				},
 				components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0},
 				// components.Spin{AngularVelocity: 1.5 + 0.1*float64(i+j)},
-				gamecomponents.Pulse{StartScale: geom.Vector2{X: 32, Y: 32}, Amplitude: 0.5, Frequency: 2.0, TimeOffset: float64(i+j) * 0.1},
+				gamecomponents.Pulse{StartScale: geom.Vector2{X: 32, Y: 32}, Amplitude: 0.5, Frequency: 1, TimeOffset: float64(i+j) * 0.1},
 			)
 			if err != nil {
 				log.Fatalf("failed to spawn grid square: %v", err)
 			}
+		}
+	}
+
+	// Spawn some circles with colliders for collision testing
+	circlePositions := []geom.Vector2{
+		{X: 200, Y: 200},
+		{X: -200, Y: 200},
+		{X: 200, Y: -200},
+		{X: -200, Y: -200},
+		{X: 400, Y: 0},
+		{X: -400, Y: 0},
+	}
+
+	for i, pos := range circlePositions {
+		_, err := game.World.CreateWithComponents(
+			"circle_obstacle",
+			components.Transform{
+				Position: pos,
+				Scale:    geom.Vector2{X: 30, Y: 30},
+				Color:    color.RGBA{R: 255, G: 100, B: 100, A: 255},
+			},
+			components.Renderable{Primitive: components.PrimitiveKindCircle, Visible: true, Layer: components.Layer1},
+			components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
+		)
+		if err != nil {
+			log.Fatalf("failed to spawn circle %d: %v", i, err)
 		}
 	}
 
