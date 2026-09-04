@@ -29,8 +29,8 @@ func (h *Hierarchy) Add(parentID, childID EntityID) {
 	}
 
 	if slices.Contains(h.parentToChildren[parentID], childID) {
-			return
-		}
+		return
+	}
 
 	h.parentToChildren[parentID] = append(h.parentToChildren[parentID], childID)
 	h.childToParent[childID] = parentID
