@@ -1,3 +1,41 @@
+## [v0.1.1] - 2026-09-04
+
+### Features
+
+- feat: Add issue templates for bug reports, feature requests, documentation updates, general questions, and security vulnerabilities
+- feat: enhance QueryCache with size, isEmpty, and contains methods; update world queries to utilize cache
+- feat: implement LRU query cache for optimized query results management
+- feat: implement lazy tag/template index maintenance for improved entity creation performance
+- feat: add benchmarking capabilities for Castrum ECS engine with comprehensive tests and utilities
+- feat: add unit and integration tests for scene and manager functionality
+- feat: update entity management terminology and enhance scene lifecycle hooks
+- feat: enhance SceneAPI and Manager with new scene management methods and interface adjustments
+- feat: enhance scene management with new SceneAPI methods and lifecycle hooks
+- refactor: rename TimerManager to Manager for consistency and update related references feat: implement game runtime with scene management and update methods
+- feat: add configuration management, scene and scene manager implementation
+- feat: add Scene and SceneManager interfaces for scene management
+- feat: add configuration management with validation and default settings
+- feat: implement error handling in TimerManager with custom TimerError type
+- feat: enhance TimerManager to auto-cleanup one-shot timers after expiry
+- feat: implement TimerManager and Timer functionality with unit tests
+- feat: implement system manager with registration, unregistration, and update functionality
+- feat: enhance ECS with component management, tag handling, and error handling
+- feat: implement error handling and lifecycle methods in ECS world
+- feat: add tag management to entity and implement tag handling in world
+
+### Bug Fixes
+
+- Merge pull request #3 from Leonard-Atorough/fix-sematic-versioning
+- fix: Refactor .releaserc.json for improved semantic versioning rules and formatting
+- fix: Update go vet command to skip specific packages requiring X11
+- fix: Update Go version format and refine test command to include additional packages
+- fix: Update test command to skip specific tests during coverage run
+- feat: Add issue templates for bug reports, feature requests, documentation updates, general questions, and security vulnerabilities
+- fix usage of reflection for passing components.
+- fix broken timer test
+- fix: correct spelling of "creating" in roadmap and update scene interface status to done
+
+
 # Changelog
 
 All notable changes to Castrum will be documented in this file.
