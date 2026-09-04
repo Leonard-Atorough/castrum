@@ -17,17 +17,11 @@ func (s *MovementSystem) Init(world *castrum.World) error {
 
 func (s *MovementSystem) Update(world *castrum.World, delta float64) error {
 	// Query for entities with both Velocity and Transform
-	entities := world.Query(castrum.Types(components.Transform{}, gamecomponents.Velocity{})...)
 
-	for _, id := range entities {
-		vel, err := castrum.GetComponent[gamecomponents.Velocity](world, id)
-		if err != nil {
-			continue
-		}
-		transform, err := castrum.GetComponent[components.Transform](world, id)
-		if err != nil {
-			continue
-		}
+	for entry := range world.NewQuery().WithRequiredComponents(components.Transform{}, gamecomponents.Velocity{}).Execute() {
+		id := entry.EntityID
+		vel := entry.Get[gamecomponents.Velocity]()
+		transform := entry.Get[components.Transform]()
 
 		// Apply velocity to position
 		transform.Position.X += vel.Linear.X * delta

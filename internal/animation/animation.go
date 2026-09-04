@@ -36,13 +36,11 @@ func (am *Manager) Events() []AnimationEvent {
 
 func (am *Manager) Update(world *core.World, delta float64) error {
 	am.events = am.events[:0] // clear previous frame events
-	entities := world.Query(core.Types(components.Animatable{})...)
 
-	for _, entityID := range entities {
-		animComp, err := core.GetComponent[components.Animatable](world, entityID)
-		if err != nil {
-			continue
-		}
+	// Use the new query builder to iterate over Animatable entities
+	for entry := range world.NewQuery().WithRequiredComponents(components.Animatable{}).Execute() {
+		animComp := entry.Get[components.Animatable]()
+		entityID := entry.EntityID
 
 		if _, exists := animComp.Animations[animComp.CurrentAnimation]; !exists {
 			continue

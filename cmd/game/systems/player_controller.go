@@ -22,11 +22,8 @@ func (pc *PlayerController) Init(world *castrum.World) error {
 }
 
 func (pc *PlayerController) Update(world *castrum.World, delta float64) error {
-	// Query for player entities (those with Player + Velocity + Transform)
-	entities := world.Query(castrum.Types(gamecomponents.Player{}, gamecomponents.Velocity{}, components.Transform{})...)
-
-	for _, id := range entities {
-		vel, err := castrum.GetComponent[gamecomponents.Velocity](world, id)
+	for entry := range world.NewQuery().WithRequiredComponents(gamecomponents.Player{}, gamecomponents.Velocity{}, components.Transform{}).Execute() {
+		vel, err := castrum.GetComponent[gamecomponents.Velocity](world, entry.EntityID)
 		if err != nil {
 			continue
 		}
@@ -48,7 +45,7 @@ func (pc *PlayerController) Update(world *castrum.World, delta float64) error {
 			vel.Linear.X += speed
 		}
 
-		if err := castrum.SetComponent(world, id, vel); err != nil {
+		if err := castrum.SetComponent(world, entry.EntityID, vel); err != nil {
 			return err
 		}
 	}

@@ -255,11 +255,11 @@ func RunStressTest(config StressTestConfig) (int, int, float64) {
 			world.AddComponent(entity.ID, Position{X: float64(op), Y: float64(op)})
 
 			// Query some entities
-			world.Query(reflect.TypeFor[Position]())
+			world.NewQuery().WithRequiredComponents(reflect.TypeFor[Position]()).EntityIDs()
 
 			// Remove some entities
 			if op%100 == 0 && world.Count() > config.InitialEntities/2 {
-				entities := world.Query(reflect.TypeFor[Position]())
+				entities := world.NewQuery().WithRequiredComponents(reflect.TypeFor[Position]()).EntityIDs()
 				if len(entities) > 0 {
 					world.DestroyEntity(entities[0], false)
 					world.Cleanup()

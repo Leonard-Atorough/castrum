@@ -347,8 +347,17 @@ func (w *World) SetComponent(entityID EntityID, compType reflect.Type, newComp C
 // Query retrieves all entities that have all the specified component types.
 // Returns a slice of matching EntityIDs, or nil if none match.
 // This uses superset matching - entities with AT LEAST the specified components.
-//NOTE: Big query improvements coming to support query iterator generation and on demand fetch, rather than bulk returns
-// NOTE: Query package with query builder pattern to support more complex queries.
+// NewQuery starts a new lazy query builder. Use WithRequiredComponents, WithExcludedComponents,
+// then Execute() to iterate, or All()/EntityIDs() to materialize results.
+func (w *World) NewQuery() *Query {
+	return NewQuery(w)
+}
+
+// Query returns all entities that have all of the specified components.
+//
+// Deprecated: use NewQuery().WithRequiredComponents(...).EntityIDs() or .All() instead.
+// The new Query builder provides lazy evaluation, better composability, and direct access
+// to component data without separate GetComponent calls.
 func (w *World) Query(components ...reflect.Type) []EntityID {
 	if len(components) == 0 {
 		return nil
@@ -367,6 +376,11 @@ func (w *World) Query(components ...reflect.Type) []EntityID {
 	return result
 }
 
+// QueryAny returns all entities that have any of the specified components.
+//
+// Deprecated: use the new Query builder NewQuery().WithRequiredComponents(...) for filtering,
+// or iterate through archetypes directly with NewQuery().Execute() for more complex queries.
+// QueryAny behavior can be replicated by querying each component type separately and deduplicating.
 func (w *World) QueryAny(components ...reflect.Type) []EntityID {
 	if len(components) == 0 {
 		return nil
@@ -378,13 +392,13 @@ func (w *World) QueryAny(components ...reflect.Type) []EntityID {
 	for _, compType := range components {
 		for _, archetype := range w.archetypeManager.archetypes {
 			if slices.Contains(archetype.componentTypes, compType) {
-					for _, entityID := range archetype.entities {
-						if !seen[entityID] {
-							results = append(results, entityID)
-							seen[entityID] = true
-						}
+				for _, entityID := range archetype.entities {
+					if !seen[entityID] {
+						results = append(results, entityID)
+						seen[entityID] = true
 					}
 				}
+			}
 		}
 	}
 

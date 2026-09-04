@@ -36,5 +36,6 @@ func HasComponent[T Component](w *World, entityID EntityID) bool {
 
 // QueryFor returns all entities that have at least a component of type T.
 func QueryFor[T Component](w *World) []EntityID {
-	return w.Query(reflect.TypeFor[T]())
+	var zero T
+	return w.NewQuery().WithRequiredComponents(zero).EntityIDs()
 }

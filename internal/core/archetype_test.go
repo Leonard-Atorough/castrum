@@ -391,7 +391,7 @@ func TestArchetypeEdgeCases(t *testing.T) {
 
 		world.Create("Generic")
 
-		result := world.Query(reflect.TypeFor[TestPosition](), reflect.TypeFor[TestVelocity]())
+		result := world.NewQuery().WithRequiredComponents(TestPosition{}, TestVelocity{}).EntityIDs()
 		if len(result) != 0 {
 			t.Error("Expected empty result for non-existent component combination")
 		}
