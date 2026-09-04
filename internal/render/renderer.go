@@ -93,7 +93,6 @@ func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, camera *Camera, world *co
 func (r *Renderer) drawSprite(screen *ebiten.Image, camera *Camera, transform components.Transform, renderable components.Renderable) {
 	tx, err := r.Assets.Textures.Load(renderable.TexturePath)
 	if err != nil {
-		fmt.Printf("Failed to load texture '%s': %v\n", renderable.TexturePath, err)
 		return // silently skip entities with missing textures
 	}
 
