@@ -2,13 +2,19 @@
 set -euo pipefail
 
 # Release script for semantic versioning
-# Usage: ./scripts/release.sh [patch|minor|major]
+# Usage: ./scripts/release.sh [patch|minor|major] [--prepare]
+# --prepare: only update files, don't commit/tag (for CI)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 VERSION_FILE="$PROJECT_DIR/VERSION"
 CHANGELOG_FILE="$PROJECT_DIR/CHANGELOG.md"
+
+PREPARE_ONLY=false
+if [[ "${2:-}" == "--prepare" ]]; then
+    PREPARE_ONLY=true
+fi
 
 # Parse current version
 if [[ ! -f "$VERSION_FILE" ]]; then
@@ -60,16 +66,15 @@ echo "$NEW_VERSION" > "$VERSION_FILE"
 # Generate changelog entry from git log since last tag
 LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 if [[ -z "$LAST_TAG" ]]; then
-    # No previous tags, get all commits
     COMMIT_RANGE="HEAD"
 else
     COMMIT_RANGE="${LAST_TAG}..HEAD"
 fi
 
-# Extract commit messages
-FEATURES=$(git log "$COMMIT_RANGE" --oneline --grep="^feat" 2>/dev/null | sed 's/^[^ ]* /- /' || true)
-FIXES=$(git log "$COMMIT_RANGE" --oneline --grep="^fix" 2>/dev/null | sed 's/^[^ ]* /- /' || true)
-PERF=$(git log "$COMMIT_RANGE" --oneline --grep="^perf" 2>/dev/null | sed 's/^[^ ]* /- /' || true)
+# Extract conventional commit messages
+FEATURES=$(git log "$COMMIT_RANGE" --pretty=format:"%s" 2>/dev/null | grep "^feat" | sed 's/^feat[:(].*): /- /' | head -20 || true)
+FIXES=$(git log "$COMMIT_RANGE" --pretty=format:"%s" 2>/dev/null | grep "^fix" | sed 's/^fix[:(].*): /- /' | head -20 || true)
+PERF=$(git log "$COMMIT_RANGE" --pretty=format:"%s" 2>/dev/null | grep "^perf" | sed 's/^perf[:(].*): /- /' | head -20 || true)
 
 # Build changelog entry
 CHANGELOG_ENTRY="## [$NEW_VERSION] - $(date +%Y-%m-%d)
@@ -111,11 +116,16 @@ else
     echo "$CHANGELOG_ENTRY" > "$CHANGELOG_FILE"
 fi
 
-# Commit and tag
+if [[ "$PREPARE_ONLY" == true ]]; then
+    echo "✓ Files prepared for release: $NEW_VERSION"
+    echo "  - VERSION file updated"
+    echo "  - CHANGELOG.md updated"
+    exit 0
+fi
+
+# Commit and tag (only if not in prepare mode)
 git add "$VERSION_FILE" "$CHANGELOG_FILE"
 git commit -m "chore(release): $NEW_VERSION"
-
-# Create annotated tag
 git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
 
 echo "✓ Released $NEW_VERSION"
@@ -124,3 +134,4 @@ echo "  - CHANGELOG.md updated"
 echo "  - Git tag created: $NEW_VERSION"
 echo ""
 echo "Next step: git push origin main && git push origin $NEW_VERSION"
+
