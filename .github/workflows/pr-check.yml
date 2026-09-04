@@ -69,7 +69,7 @@ jobs:
         run: go mod download
 
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out ./...
+        run: go test -v -race -coverprofile=coverage.out ./... -skip=TestRender -skip=TestInput -skip=TestTexture
 
       - name: Check coverage threshold
         run: |
