@@ -1,6 +1,5 @@
 package core
 
-
 type Component any
 
 type ComponentHooks interface {

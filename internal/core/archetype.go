@@ -3,7 +3,6 @@ package core
 import (
 	"reflect"
 	"sort"
-
 )
 
 type ArchetypeKey []reflect.Type

@@ -73,7 +73,7 @@ func (p *Polygon) Area() float64 {
 	return math.Abs(area) / 2.0
 }
 
-//Contains determines if a given point is inside the polygon using the ray-casting algorithm.
+// Contains determines if a given point is inside the polygon using the ray-casting algorithm.
 // It returns true if the point is inside the polygon, and false otherwise.
 func (p *Polygon) Contains(point Vector2) bool {
 	n := len(p.Points)
