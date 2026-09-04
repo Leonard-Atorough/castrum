@@ -1,3 +1,10 @@
+## [v0.1.2] - 2026-09-04
+
+### Features
+
+feat: Implement release preparation and publishing workflows with version bump options
+feat: Migrate from semantic-release to custom release script with version bump options
+
 ## [v0.1.1] - 2026-09-04
 
 ### Features
