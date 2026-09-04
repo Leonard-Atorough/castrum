@@ -307,6 +307,20 @@ func TestWorld_Query(t *testing.T) {
 		}
 	})
 
+	t.Run("Query required component matches archetypes with extra components", func(t *testing.T) {
+		got := w.NewQuery().WithRequiredComponents(TestPosition{}).EntityIDs()
+		if !idsMatchUnordered(got, []EntityID{posOnly.ID, posAndVel.ID}) {
+			t.Fatalf("expected entities with TestPosition including supersets, got %#v", got)
+		}
+	})
+
+	t.Run("Query excluded component filters out matching entities", func(t *testing.T) {
+		got := w.NewQuery().WithExcludedComponents(TestVelocity{}).EntityIDs()
+		if !idsMatchUnordered(got, []EntityID{posOnly.ID}) {
+			t.Fatalf("expected entities without TestVelocity, got %#v", got)
+		}
+	})
+
 	t.Run("Query for a component nobody has returns nothing", func(t *testing.T) {
 		if got := w.NewQuery().WithRequiredComponents(TestHealth{}).EntityIDs(); len(got) != 0 {
 			t.Fatalf("expected no matches, got %#v", got)
