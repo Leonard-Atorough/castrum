@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        uses: taiki-e/install-action@git-cliff
+
+      - name: Check for unreleased conventional commits
+        id: check
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="$LAST_TAG..HEAD"
+          fi
+          if ! git log "$RANGE" --pretty=format:'%B' | \
+               grep -qE '^(feat|fix|perf)(\(.+\))?!?:|BREAKING CHANGE'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine next version
+        if: steps.check.outputs.skip != 'true'
+        id: version
+        run: echo "version=$(git-cliff --bumped-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog for the new tag
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          git-cliff --bump --unreleased --with-tag-message "${{ steps.version.outputs.version }}" > CHANGELOG.md
+
+      - name: Create GitHub release
+        if: steps.check.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          body_path: CHANGELOG.md
