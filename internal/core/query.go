@@ -54,11 +54,24 @@ func (q *Query) Execute() iter.Seq[ResultEntry] {
 			}
 
 			for i, entityID := range archetype.entities {
-				components := make(map[reflect.Type]Component)
-				for compType, raw := range archetype.componentData {
-					comps := raw.([]Component)
-					if len(comps) > i {
-						components[compType] = comps[i]
+				var components map[reflect.Type]Component
+				if len(requiredTypes) > 0 {
+					components = make(map[reflect.Type]Component, len(requiredTypes))
+					for _, compType := range requiredTypes {
+						if raw, ok := archetype.componentData[compType]; ok {
+							comps := raw.([]Component)
+							if len(comps) > i {
+								components[compType] = comps[i]
+							}
+						}
+					}
+				} else {
+					components = make(map[reflect.Type]Component, len(archetype.componentData))
+					for compType, raw := range archetype.componentData {
+						comps := raw.([]Component)
+						if len(comps) > i {
+							components[compType] = comps[i]
+						}
 					}
 				}
 				entity, ok := q.world.GetEntity(entityID)
