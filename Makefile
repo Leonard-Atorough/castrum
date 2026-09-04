@@ -1,4 +1,4 @@
-.PHONY build test lint install clean run dev bench
+.PHONY build test lint install clean run dev bench release
 
 build:
 	@echo "Building the project..."
@@ -32,3 +32,8 @@ run:
 dev:
 	@echo "Running the project in development mode..."
 	@go run ./cmd/game/main.go run --watch
+
+release:
+	@echo "Cutting a release..."
+	@if [ -z "$(BUMP)" ]; then echo "Error: BUMP not specified. Usage: make release BUMP=[patch|minor|major]"; exit 1; fi
+	@bash scripts/release.sh $(BUMP)
