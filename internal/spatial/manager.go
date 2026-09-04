@@ -25,6 +25,6 @@ func (mgr *Manager) Update(world *core.World, deltaTime float64) {
 	}
 }
 
-func (mgr *Manager) Query(position geom.Vector2, radius float64) []core.EntityID {
+func (mgr *Manager) GetNearbyEntities(position geom.Vector2, radius float64) []core.EntityID {
 	return mgr.index.Query(position, radius)
 }

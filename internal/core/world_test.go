@@ -300,29 +300,29 @@ func TestWorld_Query(t *testing.T) {
 	velOnly := w.Create("Generic")
 	w.AddComponent(velOnly.ID, TestVelocity{X: 3})
 
-	t.Run("Query returns entities that have every requested component", func(t *testing.T) {
-		got := w.Query(reflect.TypeFor[TestPosition](), reflect.TypeFor[TestVelocity]())
+	t.Run("NewQuery Builder returns entities that have every requested component", func(t *testing.T) {
+		got := w.NewQuery().WithRequiredComponents(TestPosition{}, TestVelocity{}).EntityIDs()
 		if !idsMatchUnordered(got, []EntityID{posAndVel.ID}) {
 			t.Fatalf("expected only the entity with both components, got %#v", got)
 		}
 	})
 
-	t.Run("Query matches archetypes with extra components too", func(t *testing.T) {
-		got := w.Query(reflect.TypeFor[TestPosition]())
+	t.Run("Query required component matches archetypes with extra components", func(t *testing.T) {
+		got := w.NewQuery().WithRequiredComponents(TestPosition{}).EntityIDs()
 		if !idsMatchUnordered(got, []EntityID{posOnly.ID, posAndVel.ID}) {
-			t.Fatalf("expected all entities with at least Position, got %#v", got)
+			t.Fatalf("expected entities with TestPosition including supersets, got %#v", got)
 		}
 	})
 
-	t.Run("QueryAny returns entities matching at least one requested component", func(t *testing.T) {
-		got := w.QueryAny(reflect.TypeFor[TestPosition](), reflect.TypeFor[TestVelocity]())
-		if !idsMatchUnordered(got, []EntityID{posOnly.ID, posAndVel.ID, velOnly.ID}) {
-			t.Fatalf("expected all three entities, got %#v", got)
+	t.Run("Query excluded component filters out matching entities", func(t *testing.T) {
+		got := w.NewQuery().WithExcludedComponents(TestVelocity{}).EntityIDs()
+		if !idsMatchUnordered(got, []EntityID{posOnly.ID}) {
+			t.Fatalf("expected entities without TestVelocity, got %#v", got)
 		}
 	})
 
 	t.Run("Query for a component nobody has returns nothing", func(t *testing.T) {
-		if got := w.Query(reflect.TypeFor[TestHealth]()); len(got) != 0 {
+		if got := w.NewQuery().WithRequiredComponents(TestHealth{}).EntityIDs(); len(got) != 0 {
 			t.Fatalf("expected no matches, got %#v", got)
 		}
 	})

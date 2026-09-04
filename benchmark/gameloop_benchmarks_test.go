@@ -13,8 +13,6 @@ import (
 
 // BenchmarkGameLoopSimple measures a simple game loop: query and read only.
 func BenchmarkGameLoopSimple(b *testing.B) {
-	posType := reflect.TypeFor[Position]()
-	velType := reflect.TypeFor[Velocity]()
 	world := core.NewWorld()
 
 	// Pre-Create some entities
@@ -27,10 +25,9 @@ func BenchmarkGameLoopSimple(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		// Simulate a simple game frame: query and read
-		entities := world.Query(posType, velType)
-		for _, id := range entities {
-			pos, _ := world.GetComponent(id, posType)
-			vel, _ := world.GetComponent(id, velType)
+		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
+			pos := entry.Get[Position]()
+			vel := entry.Get[Velocity]()
 			_ = pos // Use to prevent optimization
 			_ = vel
 		}
@@ -40,8 +37,6 @@ func BenchmarkGameLoopSimple(b *testing.B) {
 // BenchmarkGameLoopWithUpdates measures game loop with query, read, and update operations.
 func BenchmarkGameLoopWithUpdates(b *testing.B) {
 	// Query, read, and update components (modify and store)
-	posType := reflect.TypeFor[Position]()
-	velType := reflect.TypeFor[Velocity]()
 	world := core.NewWorld()
 
 	for i := range 5000 {
@@ -52,17 +47,15 @@ func BenchmarkGameLoopWithUpdates(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		entities := world.Query(posType, velType)
-		for _, id := range entities {
-			pos, _ := world.GetComponent(id, posType)
-			vel, _ := world.GetComponent(id, velType)
-			if pos != nil && vel != nil {
-				p := pos.(Position)
-				v := vel.(Velocity)
-				p.X += v.X
-				p.Y += v.Y
-				world.SetComponent(id, posType, p)
-			}
+		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
+			id := entry.EntityID
+			posComp := entry.Get[Position]()
+			velComp := entry.Get[Velocity]()
+			p := posComp
+			v := velComp
+			p.X += v.X
+			p.Y += v.Y
+			world.SetComponent(id, reflect.TypeFor[Position](), p)
 		}
 	}
 }
@@ -70,8 +63,6 @@ func BenchmarkGameLoopWithUpdates(b *testing.B) {
 // BenchmarkGameLoopWithSpawning measures game loop with spawning (1% per frame).
 func BenchmarkGameLoopWithSpawning(b *testing.B) {
 	// Query, update, and spawn new entities (1% spawn rate per frame)
-	posType := reflect.TypeFor[Position]()
-	velType := reflect.TypeFor[Velocity]()
 	world := core.NewWorld()
 
 	for i := range 5000 {
@@ -83,17 +74,16 @@ func BenchmarkGameLoopWithSpawning(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		// Query and update
-		entities := world.Query(posType, velType)
-		for _, id := range entities {
-			pos, _ := world.GetComponent(id, posType)
-			vel, _ := world.GetComponent(id, velType)
-			if pos != nil && vel != nil {
-				p := pos.(Position)
-				v := vel.(Velocity)
-				p.X += v.X
-				p.Y += v.Y
-				world.SetComponent(id, posType, p)
-			}
+		var entities []core.EntityID
+		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
+			entities = append(entities, entry.EntityID)
+			pos := entry.Get[Position]()
+			vel := entry.Get[Velocity]()
+			p := pos
+			v := vel
+			p.X += v.X
+			p.Y += v.Y
+			world.SetComponent(entry.EntityID, reflect.TypeFor[Position](), p)
 		}
 
 		// Spawn new entities (1% of current count per frame)
@@ -109,8 +99,6 @@ func BenchmarkGameLoopWithSpawning(b *testing.B) {
 // BenchmarkGameLoopWithDestruction measures game loop with destruction (0.5% per frame).
 func BenchmarkGameLoopWithDestruction(b *testing.B) {
 	// Query, update, and destroy entities (0.5% destruction rate per frame)
-	posType := reflect.TypeFor[Position]()
-	velType := reflect.TypeFor[Velocity]()
 	world := core.NewWorld()
 
 	for i := range 5000 {
@@ -123,17 +111,16 @@ func BenchmarkGameLoopWithDestruction(b *testing.B) {
 	cleanupCount := 0
 	for b.Loop() {
 		// Query and update
-		entities := world.Query(posType, velType)
-		for _, id := range entities {
-			pos, _ := world.GetComponent(id, posType)
-			vel, _ := world.GetComponent(id, velType)
-			if pos != nil && vel != nil {
-				p := pos.(Position)
-				v := vel.(Velocity)
-				p.X += v.X
-				p.Y += v.Y
-				world.SetComponent(id, posType, p)
-			}
+		var entities []core.EntityID
+		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
+			entities = append(entities, entry.EntityID)
+			pos := entry.Get[Position]()
+			vel := entry.Get[Velocity]()
+			p := pos
+			v := vel
+			p.X += v.X
+			p.Y += v.Y
+			world.SetComponent(entry.EntityID, reflect.TypeFor[Position](), p)
 		}
 
 		// Destroy 0.5% of entities per frame
@@ -155,8 +142,6 @@ func BenchmarkGameLoopWithDestruction(b *testing.B) {
 // BenchmarkGameLoopMixed measures complete game loop with updates, spawning, and destruction.
 func BenchmarkGameLoopMixed(b *testing.B) {
 	// Complete realistic game loop: query, update, spawn, destroy
-	posType := reflect.TypeFor[Position]()
-	velType := reflect.TypeFor[Velocity]()
 	world := core.NewWorld()
 
 	for i := range 5000 {
@@ -169,17 +154,16 @@ func BenchmarkGameLoopMixed(b *testing.B) {
 	cleanupCount := 0
 	for b.Loop() {
 		// Query and update
-		entities := world.Query(posType, velType)
-		for _, id := range entities {
-			pos, _ := world.GetComponent(id, posType)
-			vel, _ := world.GetComponent(id, velType)
-			if pos != nil && vel != nil {
-				p := pos.(Position)
-				v := vel.(Velocity)
-				p.X += v.X
-				p.Y += v.Y
-				world.SetComponent(id, posType, p)
-			}
+		var entities []core.EntityID
+		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
+			entities = append(entities, entry.EntityID)
+			pos := entry.Get[Position]()
+			vel := entry.Get[Velocity]()
+			p := pos
+			v := vel
+			p.X += v.X
+			p.Y += v.Y
+			world.SetComponent(entry.EntityID, reflect.TypeFor[Position](), p)
 		}
 
 		// Spawn 1% per frame

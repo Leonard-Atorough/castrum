@@ -72,6 +72,28 @@ func (ak ArchetypeKey) ContainsAll(other ArchetypeKey) bool {
 	return true
 }
 
+func (ak ArchetypeKey) ContainsAny(other ArchetypeKey) bool {
+	if len(other) == 0 {
+		return false
+	}
+
+	if len(ak) == 0 {
+		return false
+	}
+
+	typeSet := make(map[reflect.Type]struct{}, len(ak))
+	for _, t := range ak {
+		typeSet[t] = struct{}{}
+	}
+
+	for _, t := range other {
+		if _, exists := typeSet[t]; exists {
+			return true
+		}
+	}
+	return false
+}
+
 type Archetype struct {
 	ID             uint64
 	componentTypes ArchetypeKey

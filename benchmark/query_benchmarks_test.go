@@ -21,11 +21,9 @@ func BenchmarkQuerySingleComponent(b *testing.B) {
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 	}
 
-	posType := reflect.TypeFor[Position]()
-
 	b.ResetTimer()
 	for b.Loop() {
-		world.Query(posType)
+		core.QueryFor[Position](world)
 	}
 }
 
@@ -34,18 +32,15 @@ func BenchmarkQueryMultipleComponents(b *testing.B) {
 	world := core.NewWorld()
 
 	// Pre-create entities with Position + Velocity
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(entity.ID, Velocity{X: 0.1, Y: 0.1})
 	}
 
-	posType := reflect.TypeFor[Position]()
-	velType := reflect.TypeFor[Velocity]()
-
 	b.ResetTimer()
 	for b.Loop() {
-		world.Query(posType, velType)
+		world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).EntityIDs()
 	}
 }
 
@@ -64,11 +59,9 @@ func BenchmarkQuerySparsely(b *testing.B) {
 		}
 	}
 
-	posType := reflect.TypeFor[Position]()
-
 	b.ResetTimer()
 	for b.Loop() {
-		world.Query(posType)
+		world.NewQuery().WithRequiredComponents(Position{}).EntityIDs()
 	}
 }
 
@@ -81,30 +74,25 @@ func BenchmarkQueryDensely(b *testing.B) {
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 	}
 
-	posType := reflect.TypeFor[Position]()
-
 	b.ResetTimer()
 	for b.Loop() {
-		world.Query(posType)
+		world.NewQuery().WithRequiredComponents(Position{}).EntityIDs()
 	}
 }
 
 // BenchmarkIterateQueryResults measures cost of iterating query results and accessing components.
 func BenchmarkIterateQueryResults(b *testing.B) {
-	// Measure cost of iterating query results and accessing components
 	world := core.NewWorld()
 	for i := range 10000 {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 	}
 
-	posType := reflect.TypeFor[Position]()
-
 	b.ResetTimer()
 	for b.Loop() {
-		entities := world.Query(posType)
-		for _, id := range entities {
-			world.GetComponent(id, posType)
+
+		for entry := range world.NewQuery().WithRequiredComponents(Position{}).Execute() {
+			world.GetComponent(entry.EntityID, reflect.TypeFor[Position]())
 		}
 	}
 }

@@ -142,7 +142,7 @@ func (m *Manager) QueryCollisions(world *core.World, entityID core.EntityID) ([]
 	if err != nil {
 		return nil, fmt.Errorf("entity %d: %w", entityID, err)
 	}
-	nearby := m.spatial.Query(transform.Position, m.config.QueryRadius)
+	nearby := m.spatial.GetNearbyEntities(transform.Position, m.config.QueryRadius)
 
 	var collisions []core.EntityID
 	for _, otherID := range nearby {
@@ -192,11 +192,10 @@ func (m *Manager) worldShape(world *core.World, entityID core.EntityID) (compone
 // Update call. Any change is enough to mark dirty - a smaller movement can
 // still start or end an overlap, so there is no "safe" distance threshold.
 func (m *Manager) markDirtyFromSpatial(world *core.World) {
-	entities := world.Query(core.Types(components.Transform{}, components.Collider{})...)
+	seen := make(map[core.EntityID]struct{}, len(m.lastPositions))
 
-	seen := make(map[core.EntityID]struct{}, len(entities))
-
-	for _, entityID := range entities {
+	for entry := range world.NewQuery().WithRequiredComponents(components.Transform{}, components.Collider{}).Execute() {
+		entityID := entry.EntityID
 		seen[entityID] = struct{}{}
 
 		collider, err := core.GetComponent[components.Collider](world, entityID)
@@ -246,7 +245,7 @@ func (m *Manager) broadphase(world *core.World) []PairKey {
 	for entityID := range m.dirty {
 		transform, _ := core.GetComponent[components.Transform](world, entityID)
 
-		for _, neighborID := range m.spatial.Query(transform.Position, m.config.QueryRadius) {
+		for _, neighborID := range m.spatial.GetNearbyEntities(transform.Position, m.config.QueryRadius) {
 			if neighborID == entityID {
 				continue
 			}

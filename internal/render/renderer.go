@@ -39,30 +39,17 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 // with a TexturePath is drawn as a sprite; otherwise it's drawn as a
 // primitive shape - callers never need to say which.
 func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.World) {
-	entities := world.Query(core.Types(components.Renderable{}, components.Transform{})...)
-
+	renderItems := make([]renderItem, 0)
 	// Get the camera's visible world-space bounds for frustum culling
 	viewportBounds := camera.ViewportBounds()
 
-	// Single pass: collect, cull, and cache components
-	items := make([]renderItem, 0, len(entities))
-	for _, entityID := range entities {
-		entity, exists := world.GetEntity(entityID)
-		if !exists || !entity.IsAlive() {
+	for entry := range world.NewQuery().WithRequiredComponents(components.Renderable{}, components.Transform{}).Execute() {
+		if !entry.Entity.IsAlive() {
 			continue
 		}
+		renderable := entry.Get[components.Renderable]()
+		transform := entry.Get[components.Transform]()
 
-		renderable, err := core.GetComponent[components.Renderable](world, entityID)
-		if err != nil || !renderable.Visible {
-			continue
-		}
-
-		transform, err := core.GetComponent[components.Transform](world, entityID)
-		if err != nil {
-			continue
-		}
-
-		// Frustum culling: skip entities outside the camera viewport
 		entityBounds := geom.NewRect(
 			geom.Vector2{X: transform.Position.X - transform.Scale.X, Y: transform.Position.Y - transform.Scale.Y},
 			geom.Vector2{X: transform.Position.X + transform.Scale.X, Y: transform.Position.Y + transform.Scale.Y},
@@ -71,15 +58,15 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 			continue
 		}
 
-		items = append(items, renderItem{
-			entityID:   entityID,
+		renderItems = append(renderItems, renderItem{
+			entityID:   entry.EntityID,
 			renderable: renderable,
 			transform:  transform,
 		})
 	}
 
 	// Sort by layer once
-	slices.SortStableFunc(items, func(a, b renderItem) int {
+	slices.SortStableFunc(renderItems, func(a, b renderItem) int {
 		if a.renderable.Layer < b.renderable.Layer {
 			return -1
 		}
@@ -90,7 +77,7 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 	})
 
 	// Render
-	for _, item := range items {
+	for _, item := range renderItems {
 		if item.renderable.TexturePath != "" {
 			r.drawSprite(screen, camera, item.transform, item.renderable)
 		} else {
