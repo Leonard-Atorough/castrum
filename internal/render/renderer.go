@@ -73,6 +73,12 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 		if a.renderable.Layer > b.renderable.Layer {
 			return 1
 		}
+		if a.transform.Position.Y < b.transform.Position.Y {
+			return -1
+		}
+		if a.transform.Position.Y > b.transform.Position.Y {
+			return 1
+		}
 		return 0
 	})
 
