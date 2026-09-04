@@ -32,7 +32,7 @@ jobs:
           else
             RANGE="$LAST_TAG..HEAD"
           fi
-          if ! git log "$RANGE" --pretty=format:'%s' | \
+          if ! git log "$RANGE" --pretty=format:'%B' | \
                grep -qE '^(feat|fix|perf)(\(.+\))?!?:|BREAKING CHANGE'; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
