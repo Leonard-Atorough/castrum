@@ -41,7 +41,7 @@ jobs:
           git add VERSION CHANGELOG.md
           git commit -m "chore(release): $(cat VERSION)"
           git push -u origin "$BRANCH"
-          
+
           # Create PR with gh CLI
           gh pr create \
             --title "chore(release): $(cat VERSION)" \
