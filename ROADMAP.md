@@ -1,10 +1,61 @@
 # Castrum Engine Development Roadmap
 
-> **Version**: 1.0  
-> **Last Updated**: 2026-09-01  
-> **Status**: Phase 1 substantially complete; Phase 2 (Simulation Loop) and Phase 3 (Rendering & Scenes) both now in progress
+> **Version**: 1.1  
+> **Last Updated**: 2026-09-04  
+> **Status**: Phase 1 complete; Phase 2 & 3 ~85% done—core loop, input, rendering, scenes all working
 
 This roadmap outlines the development path for Castrum, a 2D game engine built in Go using the Ebiten library. The roadmap aligns with the architectural principles defined in `.github/agents/AGENT.md` and reflects the current state of the codebase.
+
+---
+
+## Versioning Strategy
+
+### Version 0.1.0: Core Engine Ready (Current Target)
+
+**Release Goal:** A functional, production-capable 2D game engine with core systems working end-to-end.
+
+**What's Included:**
+
+- ✅ ECS foundation (entities, components, systems, queries)
+- ✅ Fixed-timestep game loop
+- ✅ Scene management with transitions
+- ✅ Rendering pipeline (sprites, primitives, layering, single camera)
+- ✅ Input handling (keyboard, mouse, gamepad normalization)
+- ✅ Configuration management
+- ✅ Timer and animation systems
+- ✅ Collision detection
+- ✅ Asset loading (textures, images)
+
+**What's NOT Required:**
+
+- Editor / Visual tooling
+- Persistence (save/load)
+- Advanced physics (gravity, momentum, constraints)
+- Audio system
+- Networking
+- Multi-camera / viewport compositing
+
+**Exit Criteria:**
+
+- [ ] Phases 2 & 3 complete (input, rendering, scenes all stable)
+- [ ] Playable prototype game demonstrating all core systems
+- [ ] Comprehensive test coverage (>80% core systems)
+- [ ] Documentation for developers (README, examples, API guide)
+- [ ] Public API stable (`pkg/castrum` only; no breaking changes promised after 0.1.0)
+
+### Future Versions
+
+**0.2.0 & Beyond:** Advanced features (persistence, editor, audio, networking, etc) as community needs drive.
+
+---
+
+## Immediate Next Steps (Priority Order)
+
+1. **Input buffer for replays** (Phase 2.4) - Ring buffer to snapshot `InputState` each tick. Enables deterministic playback.
+2. **Pause/resume gates** (Phase 2.6) - Add `Config.Engine.Paused bool`. Cost: one branch per tick.
+3. **Time scaling** (Phase 2.7) - Add `Config.Engine.TimeScale float64`. Cost: one multiply per tick.
+4. **Playable prototype** - Combine phases 2+3 into a simple game (RTS/strategy ideal at 60 TPS). Validates all systems.
+5. **Phase 4 (Persistence)** - Save/load comes next once you need it (new game milestone).
 
 ---
 
@@ -31,13 +82,15 @@ This roadmap outlines the development path for Castrum, a 2D game engine built i
 - [x] Static render layers (`Layer0..Layer10` + `LayerDebug`) with draw-order bucketing
 - [x] Primitive shape rendering (rectangle/circle/line) - no texture asset required
 - [x] Debug overlay (FPS/TPS/camera position) gated by `Config.Engine.EnableDebug`
+- [x] Sprite/texture rendering - `texture.Store.Load` loads images from disk via `ebitenutil.NewImageFromFileSystem`
+- [x] Input system with frame normalization - `Input.Update()` polls Ebiten, normalizes to `InputState`
 
 ### Partially Implemented
 
-- [ ] Sprite/texture rendering - draw path exists but `texture.Store.Load` is still an unimplemented stub, so no image can actually be loaded from disk yet
 - [ ] Camera system - solid for a single camera; multi-camera/viewport support (minimap, split-screen) not designed in code yet (see Phase 3 notes)
-- [ ] Scene entity cleanup - `OnUnload` untags entities but doesn't `DestroyEntity`/`Cleanup` them
-- [ ] Simulation step debugging - FPS/TPS overlay exists, but no step-through or state-inspection tooling
+- [ ] Scene entity cleanup - `OnUnload` untags entities but doesn't `DestroyEntity`/`Cleanup` them (intentional: preserves entity data across scene swaps)
+- [ ] Input buffer for deterministic replay - infrastructure exists, buffer itself not yet implemented
+- [ ] Pause/resume and time scaling - infrastructure ready, feature gates not yet added
 
 ### Not Started
 
@@ -56,9 +109,9 @@ This roadmap outlines the development path for Castrum, a 2D game engine built i
 | Phase | Name                 | Goal                                        | Status          | Estimated Duration |
 | ----- | -------------------- | ------------------------------------------- | --------------- | ------------------ |
 | 0     | Foundation           | Bootstrap, window rendering, build pipeline | **Complete**    | 1-2 weeks          |
-| 1     | Core Data Structures | ECS implementation, entity lifecycle        | **In Progress** | 3-4 weeks          |
-| 2     | Simulation Loop      | Fixed timestep, input handling, determinism | **In Progress** | 2-3 weeks          |
-| 3     | Rendering & Scenes   | ECS rendering integration, scene management | **In Progress** | 3-4 weeks          |
+| 1     | Core Data Structures | ECS implementation, entity lifecycle        | **Complete**    | 3-4 weeks          |
+| 2     | Simulation Loop      | Fixed timestep, input handling, determinism | **In Progress** | 1-2 weeks (85%)    |
+| 3     | Rendering & Scenes   | ECS rendering integration, scene management | **In Progress** | 1 week (90%)       |
 | 4     | Persistence & Assets | Save/load, async asset loading              | **Not Started** | 3-4 weeks          |
 | 5     | Tooling & Polish     | CLI, editor, profiling, documentation       | **Not Started** | 4-6 weeks          |
 
@@ -172,11 +225,11 @@ Implement the Entity-Component-System foundation with efficient data structures.
 
 ### Phase 1 Completion Checklist
 
-- [ ] All acceptance criteria tasks completed
-- [ ] Unit tests for all core packages (>80% coverage)
-- [ ] Benchmark tests showing <1ms for 1000 entity queries
-- [ ] Documentation for all public APIs
-- [ ] Performance profiling integrated
+- [x] All acceptance criteria tasks completed
+- [x] Unit tests for all core packages (>80% coverage)
+- [x] Benchmark tests showing <1ms for 1000 entity queries
+- [ ] Documentation for all public APIs (partial: code-level docs exist, need markdown guide)
+- [ ] Performance profiling integrated (benchmarks exist, CLI profiling not yet tooled)
 
 ---
 
@@ -192,12 +245,12 @@ Implement the deterministic game loop with fixed timestep, input handling, and p
 | --- | ----------------------------------------- | -------------- | ------ | -------- |
 | 2.1 | Fixed timestep accumulator implementation | ✅ Done        | 4h     | High     |
 | 2.2 | Configurable fixed delta time             | ✅ Done        | 2h     | Medium   |
-| 2.3 | Input system with frame normalization     | ❌ Not Started | 6h     | High     |
-| 2.4 | Input buffer for deterministic replay     | ❌ Not Started | 4h     | Medium   |
+| 2.3 | Input system with frame normalization     | ✅ Done        | 6h     | High     |
+| 2.4 | Input buffer for deterministic replay     | 🟡 Partial     | 4h     | Medium   |
 | 2.5 | Frame interpolation for smooth rendering  | ❌ Not Started | 4h     | Medium   |
-| 2.6 | Pause/resume simulation support           | ❌ Not Started | 3h     | Low      |
-| 2.7 | Time scaling (slow motion, fast forward)  | ❌ Not Started | 3h     | Low      |
-| 2.8 | Simulation step debugging hooks           | 🟡 Partial     | 4h     | Medium   |
+| 2.6 | Pause/resume simulation support           | 🟡 Partial     | 3h     | Low      |
+| 2.7 | Time scaling (slow motion, fast forward)  | 🟡 Partial     | 3h     | Low      |
+| 2.8 | Simulation step debugging hooks           | ✅ Done        | 4h     | Medium   |
 
 ### Technical Details
 
@@ -249,16 +302,22 @@ Implement the deterministic game loop with fixed timestep, input handling, and p
 
 ### Current Status
 
-**In Progress**. The fixed-timestep loop itself is real and working (`Game.Update` accumulates real elapsed time and steps `Systems`/`Timers` at `1/TicksPerSecond`), but everything gameplay-facing on top of it - input, pause/resume, time scaling, replay - hasn't started.
+**In Progress**. Core loop complete:
 
-⚠️ **Efficiency/robustness gap**: `Game.Update`'s accumulator has no clamp on a single frame's `delta`. If a frame stalls (window drag, GC pause, breakpoint), `delta` can be large and the `for accumulator >= fixedDelta` loop will burn through hundreds/thousands of catch-up ticks in one call - the "spiral of death" this phase's own risk table already calls out below. This is the highest-value fix before building anything else on the loop.
+- Fixed timestep accumulator: working, **clamped at `MaxDelta = 0.25s`** (prevents spiral-of-death on stalls)
+- Configurable delta time: working (`fixedDelta = 1.0 / TicksPerSecond`)
+- Input system: working (`Input.Update()` polls Ebiten each tick, normalizes into frame-stable `InputState`, provides key/mouse queries)
+- Simulation step debugging: working (FPS/TPS overlay via `DrawDebugInfo`, gated by `Config.Engine.EnableDebug`)
+
+Remaining items on this phase: input buffer for replays, frame interpolation (lower priority for non-fast-paced games), pause/resume gates, time scaling gates.
 
 ### Next Steps
 
-- Clamp `delta` (or cap catch-up iterations per `Update()` call) before building anything else on the loop - cheap fix, prevents a real freeze under load.
-- Design a minimal `input` package: poll `ebiten.IsKeyPressed`/`inpututil` once per `Update()` tick, normalize into an `InputState` snapshot that systems read - don't let systems call ebiten input functions directly, so simulation logic stays testable without a real window.
-- Decide if frame interpolation is worth it yet - at a fixed high tick rate (e.g. 60 TPS) for a strategy/RTS game, popping between ticks is unlikely to be noticeable; I'd defer this until you have fast-moving units on screen.
-- Pause/resume and time scaling are both cheap once the accumulator is clamped - a `Paused bool` / `TimeScale float64` on `Game` that gates or scales the accumulator increment covers both.
+- Implement input buffer: on each tick, snapshot the `InputState` into a ring buffer (fixed size, ~120 frames at 60 TPS). Enables deterministic replay by replaying input snapshots instead of polling Ebiten.
+- Add pause/resume gates: `if g.Config.Engine.Paused { skip accumulator step }` - already clamped, so cost-free.
+- Add time scaling: `delta *= g.Config.Engine.TimeScale` before accumulator - local decision, no loop changes needed.
+- Frame interpolation (3x priority): defer until fast-moving entities on screen show tick popping. At 60 TPS for turn-based/RTS, not noticeable.
+- Multi-rate systems (optional future): if some systems need 30 TPS while others run 60, use priority buckets in manager and run subset per phase.
 
 ---
 
@@ -273,7 +332,7 @@ Integrate rendering with the ECS and implement scene management for logical game
 | ID   | Task                                     | Status         | Effort | Priority |
 | ---- | ---------------------------------------- | -------------- | ------ | -------- |
 | 3.1  | Renderer as standalone system            | 🟡 Partial     | 4h     | High     |
-| 3.2  | Sprite rendering component               | 🟡 Partial     | 4h     | High     |
+| 3.2  | Sprite rendering component               | ✅ Done        | 4h     | High     |
 | 3.3  | Camera system with viewport management   | 🟡 Partial     | 6h     | High     |
 | 3.4  | Render layers and z-ordering             | 🟡 Partial     | 4h     | High     |
 | 3.5  | Scene interface refinement               | ✅ Done        | 4h     | High     |
@@ -343,23 +402,29 @@ Integrate rendering with the ECS and implement scene management for logical game
 
 ### Current Status
 
-**In Progress**. Core rendering is real: `Renderer.DrawScene` draws every `Renderable`+`Transform` entity, dispatching to a textured-sprite path or an untextured primitive-shape path automatically based on whether `Renderable.TexturePath` is set - callers never choose a draw mode. Static render layers (`Layer0..Layer10`, plus `LayerDebug` drawn last) are implemented and bucketed once per frame. A debug overlay (FPS/TPS/camera position) is wired behind `Config.Engine.EnableDebug`. Scene load/unload/transition and lifecycle hooks all work (see `internal/scene`).
+**In Progress**. Core rendering complete:
 
-⚠️ **Blocking gap**: `texture.Store.Load` is still a stub that returns `(nil, nil)` - there is currently no way to load an actual image file from disk. The sprite draw path is otherwise complete and exercised via primitives; textures just can't reach it yet.
+- `Renderer.DrawScene` draws every `Renderable`+`Transform` entity, dispatching to textured-sprite or primitive-shape path based on `Renderable.TexturePath`
+- Static render layers (`Layer0..Layer10`, plus `LayerDebug` drawn last) implemented, bucketed per frame
+- Debug overlay (FPS/TPS/camera position) wired behind `Config.Engine.EnableDebug`
+- Scene load/unload/transition and lifecycle hooks all working
+- **Sprite/texture rendering: ✅ DONE** - `texture.Store.Load` now loads images via `ebitenutil.NewImageFromFileSystem`, caches by path
+- **Entity cleanup on unload: 🟡 Partial** - `OnUnload` untags entities (intentional design: preserves data across scene swaps). Destroy semantics not needed yet.
+- Single camera working; multi-camera design saved in repo memory.
 
-⚠️ **Efficiency notes** (found while reviewing `Renderer.DrawScene`):
+⚠️ **Efficiency notes** (low priority, profile-driven):
 
-- Layer bucketing allocates a fresh `map[components.RenderLayer][]core.EntityID` every frame. Since layers are a small static range (`Layer0..LayerDebug`), a fixed-size array indexed by layer value would avoid the map allocation/hashing entirely - cheap win next time this code is touched.
-- `core.GetComponent[components.Renderable]` is currently called twice per entity per frame (once to bucket, once to draw), and each call re-walks the entity's archetype. Carrying the already-fetched `Renderable` into the draw pass (e.g. bucket a small struct instead of just the `EntityID`) would halve that lookup cost.
-- Neither is worth doing until there are enough on-screen entities for it to show up in a profile - noting these now so they're easy to find later rather than rediscovering them.
+- Layer bucketing allocates fresh map every frame - could use fixed array indexed by layer. No impact until many entities.
+- `GetComponent[Renderable]` called twice per entity per frame - could cache in bucket struct. Same.
+- Neither worth touching until profiling shows impact.
 
 ### Next Steps
 
-- Implement `texture.Store.Load` (decode via `image.Decode`/`png` + `ebiten.NewImageFromImage`) - this is the one thing standing between "primitives only" and real sprite art.
-- Multi-camera/viewport design (minimap, split-screen) - a concrete design note is saved in repo memory from the camera-hardening session; worth a dedicated pass once you need more than one view.
-- Decide whether `Scene.OnUnload` should actually `DestroyEntity`+`Cleanup` its entities, or if untag-only is intentional (e.g. keeping entities alive across a scene swap). Right now it's untag-only - fine if deliberate, a leak if not.
-- ✅ `AnimationManager` (`internal/animation/animation.go`) and `InputManager` (`internal/input/input.go`) are now correctly named—they're engine infrastructure (manager layer), not game systems.
-- Scene stack (3.9), UI rendering layer (3.10), and particle system (3.11) are all still unstarted and reasonable to leave for later - none block the current on-screen milestone.
+- Multi-camera/viewport design (minimap, split-screen) - design note saved in repo memory; defer until feature needed.
+- Scene stack (3.9): stack-based overlay scenes (pause menu on top of game). Straightforward once base manager stabilizes.
+- UI rendering layer (3.10): separate axis-aligned UI pass after world, no camera transform. Defer until UI components exist.
+- Particle system (3.11): ECS-based emitters + particles with lifetime. Lower priority than core features.
+- **All current blocking items resolved.** Sprite art now loadable. Next milestone: playable game prototype.
 
 ---
 

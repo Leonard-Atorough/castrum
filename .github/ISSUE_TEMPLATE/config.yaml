@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "Castrum Engine Support"
+    url: "https://github.com/CastrumEngine/Castrum/issues"
+    about: "For reporting issues or seeking help with the Castrum Engine"

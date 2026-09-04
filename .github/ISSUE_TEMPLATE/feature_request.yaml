@@ -1,0 +1,65 @@
+name: Feature Request
+description: Suggest a new feature for the Castrum engine.
+title: "[FEATURE] "
+labels: ['enhancement', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: "## Feature Proposal"
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve?
+      placeholder: "Currently developers cannot... because..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How should this feature work?
+      placeholder: |
+        Add a new API like:
+        ```go
+        castrum.DoSomething()
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Other approaches or workarounds
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - ECS Enhancement
+        - Rendering Feature
+        - Input System
+        - Scene System
+        - Physics/Collision
+        - Animation
+        - Tooling/CLI
+        - Documentation
+        - Performance
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Target Phase
+      options:
+        - "0.1.0 (Core Engine Ready)"
+        - "Post 0.1.0"
+        - "Unsure"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Examples, use cases, links
