@@ -50,8 +50,18 @@ jobs:
             exit 1
           fi
 
-      - name: Run go vet
-        run: go vet ./...
+      - name: Run go vet (skip graphics packages - require X11)
+        run: |
+          go vet \
+            ./geom \
+            ./internal/animation \
+            ./internal/blueprint \
+            ./internal/camera \
+            ./internal/collision \
+            ./internal/core \
+            ./internal/scene \
+            ./internal/spatial \
+            ./internal/timers
 
   test:
     name: Tests
