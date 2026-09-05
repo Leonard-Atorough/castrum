@@ -37,7 +37,10 @@ type (
 	TimerID      = timers.TimerID
 )
 
-const MaxDelta = 0.25
+const (
+	maxDelta              = 0.25
+	maxIterationsPerFrame = 5
+)
 
 type Game struct {
 	World  *World
@@ -113,7 +116,6 @@ func (g *Game) Update() error {
 
 	// Fixed timestep accumulation
 	delta := time.Since(g.lastTime).Seconds()
-	delta = math.Min(delta, MaxDelta) // clamp delta to a maximum of 0.25 seconds
 	g.lastTime = time.Now()
 
 	g.Input.Snapshot()
@@ -123,9 +125,12 @@ func (g *Game) Update() error {
 	}
 
 	delta *= g.Speed
+	delta = math.Min(delta, maxDelta) // clamp delta to a maximum of 0.25 seconds
 	g.accumulator += delta
 
-	for g.accumulator >= g.fixedDelta {
+	iterator := 0
+	for g.accumulator >= g.fixedDelta && iterator < maxIterationsPerFrame {
+		iterator++
 		g.Timers.Update(g.fixedDelta)
 		g.Spatial.Update(g.World, g.fixedDelta)
 		g.Collision.Update(g.World, g.fixedDelta)
