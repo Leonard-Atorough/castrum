@@ -28,7 +28,7 @@ type (
 	SceneBuilder = scene.Builder
 	SceneTag     = scene.SceneTag
 	Component    = core.Component
-	Input        = input.Manager
+	Input        = input.InputHandler
 	Animation    = animation.Manager
 	Collision    = collision.Manager
 	Spatial      = spatial.Manager
@@ -77,7 +77,7 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 	systems := core.NewManager()
 	timers := timers.NewManager()
 	spatial := spatial.NewManager(config.World.GridCellSize)
-	input := input.NewManager()
+	input := input.New()
 	animation := animation.NewManager()
 	collisionMgr := collision.NewManager(spatial, collision.DefaultConfig())
 
