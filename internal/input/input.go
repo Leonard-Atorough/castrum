@@ -2,6 +2,9 @@
 package input
 
 import (
+	"maps"
+	"time"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
@@ -14,22 +17,26 @@ type KeyState struct {
 	Duration float64 // Seconds held (accumulates while Held is true)
 }
 
-// InputState represents keyboard and mouse state for a single frame.
-type InputState struct {
-	Keyboard map[ebiten.Key]KeyState
-	Shift    bool
-	Ctrl     bool
-	Alt      bool
-	Mouse    struct {
+type Modifiers struct {
+	Shift bool
+	Ctrl  bool
+	Alt   bool
+}
+
+// InputSnapshot represents keyboard and mouse state for a single frame.
+type InputSnapshot struct {
+	Keyboard  map[ebiten.Key]KeyState
+	Modifiers Modifiers
+	Mouse     struct {
 		X       int
 		Y       int
 		Buttons map[ebiten.MouseButton]KeyState
 	}
 }
 
-// NewInputState creates a new InputState with initialized maps.
-func NewInputState() InputState {
-	return InputState{
+// NewInputSnapshot creates a new InputSnapshot with initialized maps.
+func NewInputSnapshot() InputSnapshot {
+	return InputSnapshot{
 		Keyboard: make(map[ebiten.Key]KeyState),
 		Mouse: struct {
 			X       int
@@ -42,37 +49,54 @@ func NewInputState() InputState {
 }
 
 // Reset clears all key and button states.
-func (i *InputState) Reset() {
+func (i *InputSnapshot) Reset() {
 	for key := range i.Keyboard {
 		i.Keyboard[key] = KeyState{}
 	}
-	i.Shift = false
-	i.Ctrl = false
-	i.Alt = false
+	i.Modifiers.Shift = false
+	i.Modifiers.Ctrl = false
+	i.Modifiers.Alt = false
 	for button := range i.Mouse.Buttons {
 		i.Mouse.Buttons[button] = KeyState{}
 	}
 }
 
+// Clone returns a deep copy of the InputState.
+// Maps are copied so buffered snapshots remain stable when currentState is updated.
+func (i *InputSnapshot) Clone() InputSnapshot {
+	cloned := *i
+	cloned.Keyboard = make(map[ebiten.Key]KeyState)
+	maps.Copy(cloned.Keyboard, i.Keyboard)
+	cloned.Mouse.Buttons = make(map[ebiten.MouseButton]KeyState)
+	maps.Copy(cloned.Mouse.Buttons, i.Mouse.Buttons)
+	return cloned
+}
+
 // InputBuffer is a ring buffer storing up to size input snapshots.
 // Used for input replay, rollback netcode, and replay recording.
 type InputBuffer struct {
-	states     []InputState
+	states     []InputSnapshot
 	head, tail int
 	size       int
 	count      int
 }
 
 // NewInputBuffer creates a new InputBuffer with given capacity.
+//
+// Returns a pointer to the newly created InputBuffer.
+// If the provided size is less than or equal to zero, a default size of 60 is used.
 func NewInputBuffer(size int) *InputBuffer {
+	if size <= 0 {
+		size = 60
+	}
 	return &InputBuffer{
-		states: make([]InputState, size),
+		states: make([]InputSnapshot, size),
 		size:   size,
 	}
 }
 
 // Push adds state to buffer. If full, oldest state is evicted.
-func (b *InputBuffer) Push(state InputState) {
+func (b *InputBuffer) Push(state InputSnapshot) {
 	b.states[b.head] = state
 	b.head = (b.head + 1) % b.size
 	if b.count < b.size {
@@ -83,9 +107,9 @@ func (b *InputBuffer) Push(state InputState) {
 }
 
 // Pop returns and removes the oldest buffered state. Returns false if empty.
-func (b *InputBuffer) Pop() (InputState, bool) {
+func (b *InputBuffer) Pop() (InputSnapshot, bool) {
 	if b.count == 0 {
-		return InputState{}, false
+		return InputSnapshot{}, false
 	}
 	state := b.states[b.tail]
 	b.tail = (b.tail + 1) % b.size
@@ -94,9 +118,9 @@ func (b *InputBuffer) Pop() (InputState, bool) {
 }
 
 // Peek returns the oldest buffered state without removing it. Returns false if empty.
-func (b *InputBuffer) Peek() (InputState, bool) {
+func (b *InputBuffer) Peek() (InputSnapshot, bool) {
 	if b.count == 0 {
-		return InputState{}, false
+		return InputSnapshot{}, false
 	}
 	return b.states[b.tail], true
 }
@@ -118,36 +142,47 @@ func (b *InputBuffer) Count() int {
 
 // InputHandler polls and tracks keyboard and mouse input, buffering for replay.
 type InputHandler struct {
-	currentState InputState
-	buffer       *InputBuffer
+	currentSnapshot InputSnapshot
+	buffer          *InputBuffer
+	lastFrameTime   time.Time
+	justPressedKeys []ebiten.Key
+	pressedKeys     []ebiten.Key
+	releasedKeys    []ebiten.Key
 }
 
 // New creates a new InputHandler with a 60-frame input buffer.
 func New() *InputHandler {
 	return &InputHandler{
-		currentState: NewInputState(),
-		buffer:       NewInputBuffer(60),
+		currentSnapshot: NewInputSnapshot(),
+		buffer:          NewInputBuffer(60),
 	}
 }
 
 // Snapshot polls Ebiten once per frame, updates state, and buffers the result.
 // Must be called once per frame before game logic updates.
 func (ih *InputHandler) Snapshot() {
-	justPressedKeys := inpututil.AppendJustPressedKeys(nil)
-	pressedKeys := inpututil.AppendPressedKeys(nil)
-	releasedKeys := inpututil.AppendJustReleasedKeys(nil)
+	now := time.Now()
+	frameDelta := 0.0
+	if !ih.lastFrameTime.IsZero() {
+		frameDelta = now.Sub(ih.lastFrameTime).Seconds()
+	}
+	ih.lastFrameTime = now
+
+	ih.justPressedKeys = inpututil.AppendJustPressedKeys(ih.justPressedKeys[:0])
+	ih.pressedKeys = inpututil.AppendPressedKeys(ih.pressedKeys[:0])
+	ih.releasedKeys = inpututil.AppendJustReleasedKeys(ih.releasedKeys[:0])
 
 	// Reset frame-specific flags
-	for key := range ih.currentState.Keyboard {
-		state := ih.currentState.Keyboard[key]
+	for key := range ih.currentSnapshot.Keyboard {
+		state := ih.currentSnapshot.Keyboard[key]
 		state.Pressed = false
 		state.Released = false
-		ih.currentState.Keyboard[key] = state
+		ih.currentSnapshot.Keyboard[key] = state
 	}
 
 	// Mark newly released keys
-	for _, key := range releasedKeys {
-		ih.currentState.Keyboard[key] = KeyState{
+	for _, key := range ih.releasedKeys {
+		ih.currentSnapshot.Keyboard[key] = KeyState{
 			Pressed:  false,
 			Held:     false,
 			Released: true,
@@ -156,52 +191,52 @@ func (ih *InputHandler) Snapshot() {
 	}
 
 	// Mark newly pressed keys
-	for _, key := range justPressedKeys {
-		old := ih.currentState.Keyboard[key]
-		ih.currentState.Keyboard[key] = KeyState{
+	for _, key := range ih.justPressedKeys {
+		old := ih.currentSnapshot.Keyboard[key]
+		ih.currentSnapshot.Keyboard[key] = KeyState{
 			Pressed:  true,
 			Held:     true,
 			Released: false,
-			Duration: old.Duration + 1.0/60.0,
+			Duration: old.Duration + frameDelta,
 		}
 	}
 
 	// Update held keys (not just pressed)
-	for _, key := range pressedKeys {
-		state := ih.currentState.Keyboard[key]
+	for _, key := range ih.pressedKeys {
+		state := ih.currentSnapshot.Keyboard[key]
 		if !state.Pressed {
 			state.Held = true
-			state.Duration += 1.0 / 60.0
-			ih.currentState.Keyboard[key] = state
+			state.Duration += frameDelta
+			ih.currentSnapshot.Keyboard[key] = state
 		}
 	}
 
-	ih.currentState.Shift = ebiten.IsKeyPressed(ebiten.KeyShift)
-	ih.currentState.Ctrl = ebiten.IsKeyPressed(ebiten.KeyControl)
-	ih.currentState.Alt = ebiten.IsKeyPressed(ebiten.KeyAlt)
+	ih.currentSnapshot.Modifiers.Shift = ebiten.IsKeyPressed(ebiten.KeyShift)
+	ih.currentSnapshot.Modifiers.Ctrl = ebiten.IsKeyPressed(ebiten.KeyControl)
+	ih.currentSnapshot.Modifiers.Alt = ebiten.IsKeyPressed(ebiten.KeyAlt)
 
-	ih.currentState.Mouse.X, ih.currentState.Mouse.Y = ebiten.CursorPosition()
+	ih.currentSnapshot.Mouse.X, ih.currentSnapshot.Mouse.Y = ebiten.CursorPosition()
 
 	// Reset mouse button frame-specific flags
 	for button := ebiten.MouseButtonLeft; button <= ebiten.MouseButtonMax; button++ {
-		state := ih.currentState.Mouse.Buttons[button]
+		state := ih.currentSnapshot.Mouse.Buttons[button]
 		state.Pressed = false
 		state.Released = false
-		ih.currentState.Mouse.Buttons[button] = state
+		ih.currentSnapshot.Mouse.Buttons[button] = state
 	}
 
 	// Update mouse button states
 	for button := ebiten.MouseButtonLeft; button <= ebiten.MouseButtonMax; button++ {
-		old := ih.currentState.Mouse.Buttons[button]
+		old := ih.currentSnapshot.Mouse.Buttons[button]
 		if ebiten.IsMouseButtonPressed(button) {
-			ih.currentState.Mouse.Buttons[button] = KeyState{
+			ih.currentSnapshot.Mouse.Buttons[button] = KeyState{
 				Pressed:  !old.Held,
 				Held:     true,
 				Released: false,
-				Duration: old.Duration + 1.0/60.0,
+				Duration: old.Duration + frameDelta,
 			}
 		} else {
-			ih.currentState.Mouse.Buttons[button] = KeyState{
+			ih.currentSnapshot.Mouse.Buttons[button] = KeyState{
 				Pressed:  false,
 				Held:     false,
 				Released: old.Held,
@@ -209,51 +244,51 @@ func (ih *InputHandler) Snapshot() {
 			}
 		}
 	}
-	ih.buffer.Push(ih.currentState)
+	ih.buffer.Push(ih.currentSnapshot.Clone())
 }
 
 // KeyPressed reports whether key was just pressed this frame, optionally with modifiers.
-func (ih *InputHandler) KeyPressed(key ebiten.Key, WithCtrl bool, WithShift bool, WithAlt bool) bool {
-	return ih.currentState.Keyboard[key].Pressed &&
-		(!WithCtrl || ih.currentState.Ctrl) &&
-		(!WithShift || ih.currentState.Shift) &&
-		(!WithAlt || ih.currentState.Alt)
+func (ih *InputHandler) KeyPressed(key ebiten.Key, WithModifiers Modifiers) bool {
+	return ih.currentSnapshot.Keyboard[key].Pressed &&
+		(!WithModifiers.Ctrl || ih.currentSnapshot.Modifiers.Ctrl) &&
+		(!WithModifiers.Shift || ih.currentSnapshot.Modifiers.Shift) &&
+		(!WithModifiers.Alt || ih.currentSnapshot.Modifiers.Alt)
 }
 
 // KeyHeld reports whether key is currently held, optionally with modifiers.
-func (ih *InputHandler) KeyHeld(key ebiten.Key, WithCtrl bool, WithShift bool, WithAlt bool) bool {
-	return ih.currentState.Keyboard[key].Held &&
-		(!WithCtrl || ih.currentState.Ctrl) &&
-		(!WithShift || ih.currentState.Shift) &&
-		(!WithAlt || ih.currentState.Alt)
+func (ih *InputHandler) KeyHeld(key ebiten.Key, WithModifiers Modifiers) bool {
+	return ih.currentSnapshot.Keyboard[key].Held &&
+		(!WithModifiers.Ctrl || ih.currentSnapshot.Modifiers.Ctrl) &&
+		(!WithModifiers.Shift || ih.currentSnapshot.Modifiers.Shift) &&
+		(!WithModifiers.Alt || ih.currentSnapshot.Modifiers.Alt)
 }
 
 // KeyReleased reports whether key was just released this frame, optionally with modifiers.
-func (ih *InputHandler) KeyReleased(key ebiten.Key, WithCtrl bool, WithShift bool, WithAlt bool) bool {
-	return ih.currentState.Keyboard[key].Released &&
-		(!WithCtrl || ih.currentState.Ctrl) &&
-		(!WithShift || ih.currentState.Shift) &&
-		(!WithAlt || ih.currentState.Alt)
+func (ih *InputHandler) KeyReleased(key ebiten.Key, WithModifiers Modifiers) bool {
+	return ih.currentSnapshot.Keyboard[key].Released &&
+		(!WithModifiers.Ctrl || ih.currentSnapshot.Modifiers.Ctrl) &&
+		(!WithModifiers.Shift || ih.currentSnapshot.Modifiers.Shift) &&
+		(!WithModifiers.Alt || ih.currentSnapshot.Modifiers.Alt)
 }
 
 // MousePressed reports whether button was just pressed this frame.
 func (ih *InputHandler) MousePressed(button ebiten.MouseButton) bool {
-	return ih.currentState.Mouse.Buttons[button].Pressed
+	return ih.currentSnapshot.Mouse.Buttons[button].Pressed
 }
 
 // MouseHeld reports whether button is currently held.
 func (ih *InputHandler) MouseHeld(button ebiten.MouseButton) bool {
-	return ih.currentState.Mouse.Buttons[button].Held
+	return ih.currentSnapshot.Mouse.Buttons[button].Held
 }
 
 // MouseReleased reports whether button was just released this frame.
 func (ih *InputHandler) MouseReleased(button ebiten.MouseButton) bool {
-	return ih.currentState.Mouse.Buttons[button].Released
+	return ih.currentSnapshot.Mouse.Buttons[button].Released
 }
 
 // MousePosition returns current cursor position.
 func (ih *InputHandler) MousePosition() (x int, y int) {
-	return ih.currentState.Mouse.X, ih.currentState.Mouse.Y
+	return ih.currentSnapshot.Mouse.X, ih.currentSnapshot.Mouse.Y
 }
 
 // Buffer returns the underlying input history buffer for replay or analysis.
