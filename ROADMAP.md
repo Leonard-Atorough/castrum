@@ -88,9 +88,9 @@ This roadmap outlines the development path for Castrum, a 2D game engine built i
 ### Partially Implemented
 
 - [ ] Camera system - solid for a single camera; multi-camera/viewport support (minimap, split-screen) not designed in code yet (see Phase 3 notes)
-- [ ] Scene entity cleanup - `OnUnload` untags entities but doesn't `DestroyEntity`/`Cleanup` them (intentional: preserves entity data across scene swaps)
-- [ ] Input buffer for deterministic replay - infrastructure exists, buffer itself not yet implemented
-- [ ] Pause/resume and time scaling - infrastructure ready, feature gates not yet added
+- [x] Scene entity cleanup - `OnUnload` untags entities but doesn't `DestroyEntity`/`Cleanup` them (intentional: preserves entity data across scene swaps)
+- [x] Input buffer for deterministic replay - infrastructure exists, buffer itself not yet implemented
+- [x] Pause/resume and time scaling - infrastructure ready, feature gates not yet added
 
 ### Not Started
 
@@ -246,10 +246,10 @@ Implement the deterministic game loop with fixed timestep, input handling, and p
 | 2.1 | Fixed timestep accumulator implementation | ✅ Done        | 4h     | High     |
 | 2.2 | Configurable fixed delta time             | ✅ Done        | 2h     | Medium   |
 | 2.3 | Input system with frame normalization     | ✅ Done        | 6h     | High     |
-| 2.4 | Input buffer for deterministic replay     | 🟡 Partial     | 4h     | Medium   |
+| 2.4 | Input buffer for deterministic replay     | ✅ Done        | 4h     | Medium   |
 | 2.5 | Frame interpolation for smooth rendering  | ❌ Not Started | 4h     | Medium   |
-| 2.6 | Pause/resume simulation support           | 🟡 Partial     | 3h     | Low      |
-| 2.7 | Time scaling (slow motion, fast forward)  | 🟡 Partial     | 3h     | Low      |
+| 2.6 | Pause/resume simulation support           | ✅ Done        | 3h     | Low      |
+| 2.7 | Time scaling (slow motion, fast forward)  | ✅ Done        | 3h     | Low      |
 | 2.8 | Simulation step debugging hooks           | ✅ Done        | 4h     | Medium   |
 
 ### Technical Details

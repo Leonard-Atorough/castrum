@@ -68,12 +68,13 @@ type InputConfig struct {
 }
 
 type EngineConfig struct {
-	TicksPerSecond   int  `yaml:"ticks_per_second"`
-	MaxFPS           int  `yaml:"max_fps"`
-	FixedDeltaTime   bool `yaml:"fixed_delta_time"`
-	PauseOnFocusLost bool `yaml:"pause_on_focus_lost"`
-	EnableDebug      bool `yaml:"enable_debug"`
-	EnableLogging    bool `yaml:"enable_logging"`
+	TicksPerSecond   int     `yaml:"ticks_per_second"`
+	MaxFPS           int     `yaml:"max_fps"`
+	FixedDeltaTime   bool    `yaml:"fixed_delta_time"`
+	TimeScale        float64 `yaml:"time_scale"`
+	PauseOnFocusLost bool    `yaml:"pause_on_focus_lost"`
+	EnableDebug      bool    `yaml:"enable_debug"`
+	EnableLogging    bool    `yaml:"enable_logging"`
 }
 
 type CollisionConfig struct {
@@ -163,6 +164,9 @@ func ValidateConfig(config *Config) {
 	if config.World.GridCellSize <= 0 {
 		config.World.GridCellSize = 256
 	}
+	if config.Engine.TimeScale <= 0 {
+		config.Engine.TimeScale = 1.0
+	}
 }
 
 func DefaultConfig() *Config {
@@ -206,6 +210,7 @@ func DefaultConfig() *Config {
 			TicksPerSecond:   60,
 			MaxFPS:           60,
 			FixedDeltaTime:   true,
+			TimeScale:        1.0,
 			PauseOnFocusLost: true,
 			EnableDebug:      false,
 			EnableLogging:    true,

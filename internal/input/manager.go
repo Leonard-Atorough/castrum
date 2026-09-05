@@ -3,7 +3,6 @@ package input
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 type Manager struct {
@@ -16,8 +15,9 @@ func NewManager() *Manager {
 	}
 }
 
-func (is *Manager) Update(world *core.World, delta float64) {
-
+// Snapshot polls Ebiten once per frame and stores the state.
+// Called once before the accumulator loop in castrum.Update().
+func (is *Manager) Snapshot() {
 	justPressedKeys := inpututil.AppendJustPressedKeys(nil)
 	pressedKeys := inpututil.AppendPressedKeys(nil)
 	releasedKeys := inpututil.AppendJustReleasedKeys(nil)
@@ -48,7 +48,7 @@ func (is *Manager) Update(world *core.World, delta float64) {
 			Pressed:  true,
 			Held:     true,
 			Released: false,
-			Duration: old.Duration + delta,
+			Duration: old.Duration + 1.0/60.0, // Accumulate real frame delta, not game delta
 		}
 	}
 
@@ -57,7 +57,8 @@ func (is *Manager) Update(world *core.World, delta float64) {
 		state := is.state.Keyboard[key]
 		if !state.Pressed { // Skip if this was just pressed (already handled above)
 			state.Held = true
-			is.state.Keyboard[key] = state
+			state.Duration += 1.0 / 60.0 // Accumulate real frame delta
+			is.currentState.Keyboard[key] = state
 		}
 	}
 
@@ -85,7 +86,7 @@ func (is *Manager) Update(world *core.World, delta float64) {
 				Pressed:  !old.Held,
 				Held:     true,
 				Released: false,
-				Duration: old.Duration + delta,
+				Duration: old.Duration + 1.0/60.0, // Accumulate real frame delta
 			}
 		} else {
 			// Button is not pressed
@@ -98,6 +99,8 @@ func (is *Manager) Update(world *core.World, delta float64) {
 			}
 		}
 	}
+	// Push the current state to the buffer at the end of the snapshot
+	is.buffer.Push(is.currentState)
 }
 
 func (is *Manager) KeyPressed(key ebiten.Key, WithCtrl bool, WithShift bool, WithAlt bool) bool {
