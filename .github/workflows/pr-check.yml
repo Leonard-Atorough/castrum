@@ -57,8 +57,9 @@ jobs:
             ./internal/animation \
             ./internal/assets \
             ./internal/camera \
-            ./internal/physics \
             ./internal/core \
+            ./internal/input \
+            ./internal/physics \
             ./internal/scene \
             ./internal/spatial \
             ./internal/timers
@@ -90,8 +91,9 @@ jobs:
             ./internal/animation \
             ./internal/assets \
             ./internal/camera \
-            ./internal/physics \
             ./internal/core \
+            ./internal/input \
+            ./internal/physics \
             ./internal/scene \
             ./internal/spatial \
             ./internal/timers
