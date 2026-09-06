@@ -88,7 +88,7 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 	camera.SetScreenSize(config.Graphics.VirtualWidth, config.Graphics.VirtualHeight)
 
 	assets := assets.NewAssets(filesystem)
-	renderer := render.New(assets)
+	renderer := render.New(assets.Textures)
 
 	return &Game{
 		World:             newWorld,

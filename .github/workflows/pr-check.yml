@@ -55,7 +55,7 @@ jobs:
           go vet \
             ./geom \
             ./internal/animation \
-            ./internal/blueprint \
+            ./internal/assets \
             ./internal/camera \
             ./internal/physics \
             ./internal/core \
@@ -83,7 +83,7 @@ jobs:
           go test -v -race -coverprofile=coverage.out \
             ./geom \
             ./internal/animation \
-            ./internal/blueprint \
+            ./internal/assets \
             ./internal/camera \
             ./internal/physics \
             ./internal/core \

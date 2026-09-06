@@ -3,9 +3,6 @@ package assets
 import (
 	"io/fs"
 	"os"
-
-	"github.com/leonard-atorough/castrum/internal/blueprint"
-	"github.com/leonard-atorough/castrum/internal/texture"
 )
 
 type fileExtension string
@@ -16,8 +13,8 @@ var (
 )
 
 type Assets struct {
-	Textures   *texture.Store
-	Blueprints *blueprint.Store
+	Textures   *textureStore
+	Blueprints *blueprintStore
 }
 
 func NewAssets(filesystem fs.FS) *Assets {
@@ -26,11 +23,16 @@ func NewAssets(filesystem fs.FS) *Assets {
 	}
 
 	return &Assets{
-		Textures:   texture.NewStore(filesystem),
-		Blueprints: blueprint.NewStore(filesystem),
+		Textures:   newTextureStore(filesystem),
+		Blueprints: newBlueprintStore(filesystem),
 	}
 }
 
+// Load is the single gateway for loading any asset type: it infers the
+// asset kind from path's extension, routes to the matching store, and
+// returns the cached, concretely-typed result as any. Callers that know
+// which type they want up front (e.g. render.TextureLoader) should depend
+// on the specific store instead of going through this router.
 func (a *Assets) Load(path string) (res any, err error) {
 	switch {
 	case hasTextureExtension(path):

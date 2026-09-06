@@ -1,9 +1,58 @@
-package blueprint
+package assets
 
 import (
 	"testing"
 	"testing/fstest"
+
+	"github.com/leonard-atorough/castrum/internal/core"
 )
+
+type testComponent struct {
+	Value int
+}
+
+func TestBlueprint_Spawn(t *testing.T) {
+	core.Register[testComponent]()
+
+	t.Run("spawns an entity with resolved components", func(t *testing.T) {
+		world := core.NewWorld()
+		bp := &blueprint{
+			Name: "Goblin",
+			Components: []componentData{
+				{Type: "testComponent", Properties: map[string]any{"Value": 5}},
+			},
+		}
+
+		entity, err := bp.spawn(world)
+		if err != nil {
+			t.Fatalf("Spawn failed: %v", err)
+		}
+
+		// core.Resolve returns the resolved value (not a pointer), matching
+		// GetComponent/SetComponent's value semantics used everywhere else.
+		comp, err := core.GetComponent[testComponent](world, entity.ID)
+		if err != nil {
+			t.Fatalf("GetComponent failed: %v", err)
+		}
+		if comp.Value != 5 {
+			t.Fatalf("component Value = %d, want 5", comp.Value)
+		}
+	})
+
+	t.Run("an unregistered component type fails the spawn", func(t *testing.T) {
+		world := core.NewWorld()
+		bp := &blueprint{
+			Name: "Broken",
+			Components: []componentData{
+				{Type: "doesNotExist", Properties: nil},
+			},
+		}
+
+		if _, err := bp.spawn(world); err == nil {
+			t.Fatal("expected an error for an unregistered component type")
+		}
+	})
+}
 
 const validBlueprintYAML = `name: Goblin
 version: "1.0"
@@ -20,7 +69,7 @@ func TestStore_Load(t *testing.T) {
 		fs := fstest.MapFS{
 			"goblin.yaml": {Data: []byte(validBlueprintYAML)},
 		}
-		s := NewStore(fs)
+		s := newBlueprintStore(fs)
 
 		bp, err := s.Load("goblin.yaml")
 		if err != nil {
@@ -44,7 +93,7 @@ func TestStore_Load(t *testing.T) {
 		fs := fstest.MapFS{
 			"broken.yaml": {Data: []byte(invalidBlueprintYAML)},
 		}
-		s := NewStore(fs)
+		s := newBlueprintStore(fs)
 
 		if _, err := s.Load("broken.yaml"); err == nil {
 			t.Fatal("expected an error for malformed YAML")
@@ -53,7 +102,7 @@ func TestStore_Load(t *testing.T) {
 
 	t.Run("a missing file returns an error", func(t *testing.T) {
 		fs := fstest.MapFS{}
-		s := NewStore(fs)
+		s := newBlueprintStore(fs)
 
 		if _, err := s.Load("missing.yaml"); err == nil {
 			t.Fatal("expected an error for a missing file")
@@ -64,7 +113,7 @@ func TestStore_Load(t *testing.T) {
 		fs := fstest.MapFS{
 			"hero.yaml": {Data: []byte(validBlueprintYAML)},
 		}
-		s := NewStore(fs)
+		s := newBlueprintStore(fs)
 
 		bp1, _ := s.Load("hero.yaml")
 		bp2, _ := s.Load("hero.yaml")
