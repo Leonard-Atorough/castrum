@@ -10,9 +10,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/internal/animation"
 	"github.com/leonard-atorough/castrum/internal/assets"
-	"github.com/leonard-atorough/castrum/internal/collision"
 	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/input"
+	"github.com/leonard-atorough/castrum/internal/physics"
 	"github.com/leonard-atorough/castrum/internal/render"
 	"github.com/leonard-atorough/castrum/internal/scene"
 	"github.com/leonard-atorough/castrum/internal/spatial"
@@ -30,7 +30,7 @@ type (
 	Component    = core.Component
 	Input        = input.InputHandler
 	Animation    = animation.Manager
-	Collision    = collision.Manager
+	Collision    = physics.Manager
 	Spatial      = spatial.Manager
 	Camera       = render.Camera
 	EntityID     = core.EntityID
@@ -82,7 +82,7 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 	spatial := spatial.NewManager(config.World.GridCellSize)
 	input := input.New()
 	animation := animation.NewManager()
-	collisionMgr := collision.NewManager(spatial, collision.DefaultConfig())
+	collisionMgr := physics.NewManager(spatial, physics.DefaultConfig())
 
 	camera := render.NewCamera()
 	camera.SetScreenSize(config.Graphics.VirtualWidth, config.Graphics.VirtualHeight)

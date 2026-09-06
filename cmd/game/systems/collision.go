@@ -3,7 +3,7 @@ package systems
 import (
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
-	"github.com/leonard-atorough/castrum/internal/collision"
+	"github.com/leonard-atorough/castrum/internal/physics"
 )
 
 // CollisionSystem handles collision response logic using event-based collision events
@@ -29,7 +29,7 @@ func (c *CollisionSystem) Update(world *castrum.World, deltaTime float64) error 
 	events := c.collision.Events()
 	for _, evt := range events {
 		switch evt.CollisionEventType {
-		case collision.CollisionEnter:
+		case physics.CollisionEnter:
 			// Contact detected: destroy the obstacle (non-player entity)
 			// In a real game, use evt.Point (contact location) and evt.Normal
 			// (surface direction) for knockback, vfx, or sound.
@@ -39,12 +39,12 @@ func (c *CollisionSystem) Update(world *castrum.World, deltaTime float64) error 
 				world.DestroyEntity(evt.PairKey.EntityA, true)
 			}
 
-		case collision.CollisionStay:
+		case physics.CollisionStay:
 			// Contact ongoing. Contact geometry is recomputed if either entity moved,
 			// or cached from previous frame if both static. Use for sustained effects.
 			_ = evt // Stay handling for game logic goes here (e.g., damage over time)
 
-		case collision.CollisionExit:
+		case physics.CollisionExit:
 			// Contact ended. Use for cleanup (remove burn effect, stop sound, etc).
 			_ = evt
 		}
