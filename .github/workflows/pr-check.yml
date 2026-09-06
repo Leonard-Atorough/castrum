@@ -57,7 +57,7 @@ jobs:
             ./internal/animation \
             ./internal/blueprint \
             ./internal/camera \
-            ./internal/collision \
+            ./internal/physics \
             ./internal/core \
             ./internal/scene \
             ./internal/spatial \
@@ -85,7 +85,7 @@ jobs:
             ./internal/animation \
             ./internal/blueprint \
             ./internal/camera \
-            ./internal/collision \
+            ./internal/physics \
             ./internal/core \
             ./internal/scene \
             ./internal/spatial \
