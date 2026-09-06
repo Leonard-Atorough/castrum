@@ -50,12 +50,12 @@ jobs:
             exit 1
           fi
 
-      - name: Run go vet (skip graphics packages - require X11)
+      - name: Run go vet
         run: |
           go vet \
             ./geom \
             ./internal/animation \
-            ./internal/blueprint \
+            ./internal/assets \
             ./internal/camera \
             ./internal/physics \
             ./internal/core \
@@ -75,15 +75,20 @@ jobs:
         with:
           go-version: ">=1.27"
 
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev
+
       - name: Download dependencies
         run: go mod download
 
-      - name: Run tests (skip graphics packages - require X11)
+      - name: Run tests
         run: |
-          go test -v -race -coverprofile=coverage.out \
+          xvfb-run -a go test -v -race -coverprofile=coverage.out \
             ./geom \
             ./internal/animation \
-            ./internal/blueprint \
+            ./internal/assets \
             ./internal/camera \
             ./internal/physics \
             ./internal/core \

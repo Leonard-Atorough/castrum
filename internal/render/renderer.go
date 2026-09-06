@@ -19,14 +19,21 @@ type renderItem struct {
 	transform  components.Transform
 }
 
+// TextureLoader is the texture-loading behavior Renderer depends on. Defined
+// here (the consumer) rather than in the assets package, so Renderer only
+// couples to the behavior it needs, not the full Assets struct.
+type TextureLoader interface {
+	Load(path string) (*assets.Texture, error)
+}
+
 type Renderer struct {
-	Assets    *assets.Assets
+	textures  TextureLoader
 	Primitive *PrimitiveRenderer
 }
 
-func New(assets *assets.Assets) *Renderer {
+func New(textures TextureLoader) *Renderer {
 	return &Renderer{
-		Assets:    assets,
+		textures:  textures,
 		Primitive: NewPrimitiveRenderer(),
 	}
 }
@@ -99,7 +106,7 @@ func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, camera *Camera, world *co
 }
 
 func (r *Renderer) drawSprite(screen *ebiten.Image, camera *Camera, transform components.Transform, renderable components.Renderable) {
-	tx, err := r.Assets.Textures.Load(renderable.TexturePath)
+	tx, err := r.textures.Load(renderable.TexturePath)
 	if err != nil {
 		return // silently skip entities with missing textures
 	}

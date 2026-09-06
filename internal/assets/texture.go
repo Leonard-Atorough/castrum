@@ -1,4 +1,4 @@
-package texture
+package assets
 
 import (
 	"fmt"
@@ -17,19 +17,19 @@ type Texture struct {
 	Height, Width int
 }
 
-type Store struct {
+type textureStore struct {
 	fs       fs.FS
 	Textures map[string]*Texture
 }
 
-func NewStore(filesystem fs.FS) *Store {
-	return &Store{
+func newTextureStore(filesystem fs.FS) *textureStore {
+	return &textureStore{
 		fs:       filesystem,
 		Textures: make(map[string]*Texture),
 	}
 }
 
-func (s *Store) Load(path string) (*Texture, error) {
+func (s *textureStore) Load(path string) (*Texture, error) {
 	if tex, ok := s.Textures[path]; ok {
 		return tex, nil
 	}

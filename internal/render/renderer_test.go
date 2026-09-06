@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"image/color"
 	"testing"
 
@@ -9,26 +10,35 @@ import (
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
-	"github.com/leonard-atorough/castrum/internal/texture"
 )
 
 // These are smoke tests: ebiten images can't be read back outside a running
 // ebiten.RunGame loop, so we can only assert DrawScene doesn't panic - which
 // is still a real regression guard (e.g. against the nil-Color type-assertion
 // panic this package used to have).
+
+// mockTextureLoader implements TextureLoader without any filesystem access.
+type mockTextureLoader struct {
+	textures map[string]*assets.Texture
+}
+
+func (m *mockTextureLoader) Load(path string) (*assets.Texture, error) {
+	tex, ok := m.textures[path]
+	if !ok {
+		return nil, fmt.Errorf("texture not found: %s", path)
+	}
+	return tex, nil
+}
+
 func newTestRenderer() *Renderer {
-	store := texture.NewStore(nil)
-	// Manually populate store with a test texture (we're not testing texture loading,
-	// just that rendering doesn't panic). Create a 1x1 ebiten.Image as a minimal sprite.
+	// Create a 1x1 ebiten.Image as a minimal sprite (we're not testing texture
+	// loading, just that rendering doesn't panic).
 	testImage := ebiten.NewImage(1, 1)
 	testImage.Fill(color.White)
-	store.Textures["square"] = &texture.Texture{
-		Path:   "square",
-		Image:  testImage,
-		Width:  1,
-		Height: 1,
-	}
-	return New(&assets.Assets{Textures: store})
+	loader := &mockTextureLoader{textures: map[string]*assets.Texture{
+		"square": {Path: "square", Image: testImage, Width: 1, Height: 1},
+	}}
+	return New(loader)
 }
 
 func TestRenderer_DrawScene(t *testing.T) {
