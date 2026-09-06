@@ -16,6 +16,11 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'release' && 
+       contains(fromJSON('["Leonard-Atorough"]'), github.event.release.author.login)) ||
+      (github.event_name == 'workflow_dispatch' && 
+       contains(fromJSON('["Leonard-Atorough"]'), github.actor))
     steps:
       - name: Checkout
         uses: actions/checkout@v6
