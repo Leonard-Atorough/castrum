@@ -24,7 +24,10 @@ func main() {
 	config.Graphics.VirtualHeight = 1080
 	config.Engine.EnableDebug = true
 
-	game := castrum.NewGame(config, os.DirFS("."))
+	game, err := castrum.NewGame(config, os.DirFS("."))
+	if err != nil {
+		log.Fatalf("failed to create game: %v", err)
+	}
 
 	// Set camera bounds to the grid extent
 	// Grid: 60×60 with spacing 34 pixels = -2040 to +2040 in each direction
@@ -73,7 +76,7 @@ func main() {
 	}
 
 	// Spawn a controllable circle on Layer1 at the center
-	_, err := game.World.CreateWithComponents(
+	_, createErr := game.World.CreateWithComponents(
 		"player",
 		components.Transform{
 			Position: geom.Vector2{X: 0, Y: 0},
@@ -84,8 +87,8 @@ func main() {
 		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
 		components.NewCollider(geom.NewRect(geom.NewVector2(-16, -16), geom.NewVector2(16, 16)), true, false, 0, 1),
 	)
-	if err != nil {
-		log.Fatalf("failed to spawn player circle: %v", err)
+	if createErr != nil {
+		log.Fatalf("failed to spawn player circle: %v", createErr)
 	}
 
 	// Lets create a grid of squares around the center.

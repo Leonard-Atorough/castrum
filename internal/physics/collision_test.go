@@ -11,7 +11,10 @@ import (
 
 func TestManager_RectCollision(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
 
 	if err := collisionMgr.Init(world); err != nil {
@@ -31,7 +34,9 @@ func TestManager_RectCollision(t *testing.T) {
 	)
 
 	// Update spatial index
-	spatialMgr.Update(world, 0)
+	if err := spatialMgr.Update(world, 0); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
 	// Test collision detection
 	result, err := collisionMgr.TestCollision(world, player.ID, obstacle.ID)
@@ -45,7 +50,10 @@ func TestManager_RectCollision(t *testing.T) {
 
 func TestManager_NoCollisionWhenFar(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
 
 	collisionMgr.Init(world)
@@ -75,7 +83,10 @@ func TestManager_NoCollisionWhenFar(t *testing.T) {
 
 func TestManager_CircleCollision(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
 
 	collisionMgr.Init(world)
@@ -92,7 +103,9 @@ func TestManager_CircleCollision(t *testing.T) {
 		components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
 	)
 
-	spatialMgr.Update(world, 0)
+	if err := spatialMgr.Update(world, 0); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
 	result, err := collisionMgr.TestCollision(world, player.ID, obstacle.ID)
 	if err != nil {
@@ -105,7 +118,10 @@ func TestManager_CircleCollision(t *testing.T) {
 
 func TestManager_CircleRectCollision(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
 
 	collisionMgr.Init(world)
@@ -122,7 +138,9 @@ func TestManager_CircleRectCollision(t *testing.T) {
 		components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 8}, true, false, 1, 0),
 	)
 
-	spatialMgr.Update(world, 0)
+	if err := spatialMgr.Update(world, 0); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
 	result, err := collisionMgr.TestCollision(world, rect.ID, circle.ID)
 	if err != nil {
@@ -135,7 +153,10 @@ func TestManager_CircleRectCollision(t *testing.T) {
 
 func TestManager_EventLifecycle(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
 	collisionMgr.Init(world)
 
@@ -159,7 +180,9 @@ func TestManager_EventLifecycle(t *testing.T) {
 
 	// Move enemy into collision range
 	core.SetComponent(world, enemy.ID, components.Transform{Position: geom.Vector2{X: 15, Y: 0}})
-	spatialMgr.Update(world, 0)
+	if err := spatialMgr.Update(world, 0); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
 	// Second update: should emit Enter
 	collisionMgr.Update(world, 0)
@@ -175,7 +198,9 @@ func TestManager_EventLifecycle(t *testing.T) {
 
 	// Move enemy away
 	core.SetComponent(world, enemy.ID, components.Transform{Position: geom.Vector2{X: 100, Y: 0}})
-	spatialMgr.Update(world, 0)
+	if err := spatialMgr.Update(world, 0); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
 	// Fourth update: should emit Exit
 	collisionMgr.Update(world, 0)
@@ -186,7 +211,10 @@ func TestManager_EventLifecycle(t *testing.T) {
 
 func TestManager_LayerMaskFiltering(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
 	collisionMgr.Init(world)
 
@@ -202,7 +230,9 @@ func TestManager_LayerMaskFiltering(t *testing.T) {
 		components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 2, 0),
 	)
 
-	spatialMgr.Update(world, 0)
+	if err := spatialMgr.Update(world, 0); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
 	// Should not collide due to layer mismatch
 	result, err := collisionMgr.TestCollision(world, player.ID, enemy.ID)
@@ -216,7 +246,10 @@ func TestManager_LayerMaskFiltering(t *testing.T) {
 
 func TestManager_InactiveColliderSkipped(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
 	collisionMgr.Init(world)
 
@@ -232,7 +265,9 @@ func TestManager_InactiveColliderSkipped(t *testing.T) {
 		components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, false, false, 1, 0),
 	)
 
-	spatialMgr.Update(world, 0)
+	if err := spatialMgr.Update(world, 0); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
 	// Should not collide because enemy is inactive
 	result, err := collisionMgr.TestCollision(world, player.ID, enemy.ID)
@@ -243,7 +278,10 @@ func TestManager_InactiveColliderSkipped(t *testing.T) {
 
 func TestManager_CircleCircleContact(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
 	collisionMgr.Init(world)
 
@@ -286,7 +324,10 @@ func TestManager_CircleCircleContact(t *testing.T) {
 
 func TestManager_QueryCollisions(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
 
 	collisionMgr.Init(world)
@@ -314,7 +355,9 @@ func TestManager_QueryCollisions(t *testing.T) {
 		components.NewCollider(geom.NewRect(geom.NewVector2(-5, -5), geom.NewVector2(5, 5)), true, false, 1, 0),
 	)
 
-	spatialMgr.Update(world, 0)
+	if err := spatialMgr.Update(world, 0); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
 	// Query collisions for player
 	collisions, err := collisionMgr.QueryCollisions(world, player.ID)
@@ -345,7 +388,10 @@ func TestManager_QueryCollisions(t *testing.T) {
 
 func TestManager_DisabledCollision(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: false})
 
 	collisionMgr.Init(world)
@@ -369,15 +415,18 @@ func TestManager_DisabledCollision(t *testing.T) {
 	}
 
 	// Obstacle should still exist (not destroyed)
-	_, err := core.GetComponent[components.Collider](world, obstacle.ID)
-	if err != nil {
+	_, getErr := core.GetComponent[components.Collider](world, obstacle.ID)
+	if getErr != nil {
 		t.Error("Expected obstacle to still exist when collision is disabled")
 	}
 }
 
 func TestManager_TestCollisionMissingComponent(t *testing.T) {
 	world := core.NewWorld()
-	spatialMgr := spatial.NewManager(100.0)
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
 
 	collisionMgr.Init(world)
@@ -388,8 +437,8 @@ func TestManager_TestCollisionMissingComponent(t *testing.T) {
 	)
 
 	// Should return error when entity has no collider
-	_, err := collisionMgr.TestCollision(world, entity.ID, entity.ID)
-	if err == nil {
+	_, testErr := collisionMgr.TestCollision(world, entity.ID, entity.ID)
+	if testErr == nil {
 		t.Error("Expected error when testing collision on entity without collider")
 	}
 }
