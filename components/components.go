@@ -31,10 +31,13 @@ const (
 	LayerDebug
 )
 
+type RenderDepth int
+
 type Renderable struct {
 	TexturePath string
 	Primitive   PrimitiveKind
 	Layer       RenderLayer
+	Depth       RenderDepth // [0..n], higher values render on top
 	Visible     bool
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }

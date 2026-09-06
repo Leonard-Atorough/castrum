@@ -65,18 +65,20 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 		})
 	}
 
-	// Sort by layer once
+	// Sort by layer > render depth > Y position (entityId too unstable)
 	slices.SortStableFunc(renderItems, func(a, b renderItem) int {
-		if a.renderable.Layer < b.renderable.Layer {
-			return -1
+		if a.renderable.Layer != b.renderable.Layer {
+			return int(a.renderable.Layer) - int(b.renderable.Layer)
 		}
-		if a.renderable.Layer > b.renderable.Layer {
-			return 1
+		// render depth comparison
+		if a.renderable.Depth != b.renderable.Depth {
+			return int(a.renderable.Depth) - int(b.renderable.Depth)
 		}
-		if a.transform.Position.Y < b.transform.Position.Y {
-			return -1
-		}
-		if a.transform.Position.Y > b.transform.Position.Y {
+		// can't use direct subtraction for float comparison, so we use conditional checks
+		if a.transform.Position.Y != b.transform.Position.Y {
+			if a.transform.Position.Y < b.transform.Position.Y {
+				return -1
+			}
 			return 1
 		}
 		return 0

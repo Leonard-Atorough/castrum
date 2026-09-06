@@ -123,6 +123,68 @@ func TestRenderer_DrawScene(t *testing.T) {
 		}
 		renderer.DrawScene(screen, camera, world)
 	})
+
+	t.Run("depth sorting within same layer and Y position", func(t *testing.T) {
+		world := core.NewWorld()
+		// Create three entities at same layer, same Y, different depths.
+		// Expected render order (first to last): depth 10, 50, 100
+		// Higher depth renders on top (drawn last).
+		depths := []components.RenderDepth{100, 10, 50}
+		for i, depth := range depths {
+			_, err := world.CreateWithComponents("shape",
+				components.Transform{Position: geom.Vector2{X: float64(i*20) - 20, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
+				components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: components.Layer0, Depth: depth},
+			)
+			if err != nil {
+				t.Fatalf("CreateWithComponents failed: %v", err)
+			}
+		}
+		renderer.DrawScene(screen, camera, world)
+	})
+
+	t.Run("depth takes priority over Y position within same layer", func(t *testing.T) {
+		world := core.NewWorld()
+		// Create two entities at same layer but different Y positions and depths.
+		// Higher depth should render on top regardless of Y.
+		// Entity 1: Y=100, Depth=50 (should render first)
+		// Entity 2: Y=50, Depth=100 (should render second, on top)
+		_, err := world.CreateWithComponents("back",
+			components.Transform{Position: geom.Vector2{X: 0, Y: 100}, Scale: geom.Vector2{X: 10, Y: 10}},
+			components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: components.Layer0, Depth: 50},
+		)
+		if err != nil {
+			t.Fatalf("CreateWithComponents failed: %v", err)
+		}
+		_, err = world.CreateWithComponents("front",
+			components.Transform{Position: geom.Vector2{X: 0, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
+			components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: components.Layer0, Depth: 100},
+		)
+		if err != nil {
+			t.Fatalf("CreateWithComponents failed: %v", err)
+		}
+		renderer.DrawScene(screen, camera, world)
+	})
+
+	t.Run("Y position is fallback when layer and depth are equal", func(t *testing.T) {
+		world := core.NewWorld()
+		// Create two entities at same layer, same depth, different Y.
+		// Should sort by Y (smaller Y renders first).
+		_, err := world.CreateWithComponents("lower",
+			components.Transform{Position: geom.Vector2{X: 0, Y: 30}, Scale: geom.Vector2{X: 10, Y: 10}},
+			components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: components.Layer0, Depth: 50},
+		)
+		if err != nil {
+			t.Fatalf("CreateWithComponents failed: %v", err)
+		}
+		_, err = world.CreateWithComponents("higher",
+			components.Transform{Position: geom.Vector2{X: 0, Y: 70}, Scale: geom.Vector2{X: 10, Y: 10}},
+			components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: components.Layer0, Depth: 50},
+		)
+		if err != nil {
+			t.Fatalf("CreateWithComponents failed: %v", err)
+		}
+		renderer.DrawScene(screen, camera, world)
+	})
 }
 
 func TestRenderer_DrawDebugInfo(t *testing.T) {
