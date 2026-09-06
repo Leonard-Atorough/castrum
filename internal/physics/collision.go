@@ -1,6 +1,6 @@
-// Package collision provides collision detection and resolution for entities
+// Package physics provides collision detection and resolution for entities
 // with Collider components using spatial indexing for efficient queries.
-package collision
+package physics
 
 import (
 	"fmt"
