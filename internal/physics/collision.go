@@ -9,7 +9,6 @@ import (
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/core"
-	"github.com/leonard-atorough/castrum/internal/spatial"
 )
 
 type CollisionEventType int
@@ -43,8 +42,12 @@ type CollisionState struct {
 	WasColliding bool
 }
 
+type spatialIndexer interface {
+	Query(position geom.Vector2, radius float64) []core.EntityID
+}
+
 type Manager struct {
-	spatial       *spatial.SpatialIndexHandler
+	spatial       spatialIndexer
 	config        Config
 	events        []CollisionEvent
 	previousPairs map[PairKey]*CollisionState
@@ -70,7 +73,7 @@ func DefaultConfig() Config {
 }
 
 // NewManager creates a collision manager with the given spatial manager
-func NewManager(spatialMgr *spatial.SpatialIndexHandler, cfg Config) *Manager {
+func NewManager(spatialMgr spatialIndexer, cfg Config) *Manager {
 	return &Manager{
 		spatial:       spatialMgr,
 		config:        cfg,
@@ -142,7 +145,7 @@ func (m *Manager) QueryCollisions(world *core.World, entityID core.EntityID) ([]
 	if err != nil {
 		return nil, fmt.Errorf("entity %d: %w", entityID, err)
 	}
-	nearby := m.spatial.Index.Query(transform.Position, m.config.QueryRadius)
+	nearby := m.spatial.Query(transform.Position, m.config.QueryRadius)
 
 	var collisions []core.EntityID
 	for _, otherID := range nearby {
@@ -245,7 +248,7 @@ func (m *Manager) broadphase(world *core.World) []PairKey {
 	for entityID := range m.dirty {
 		transform, _ := core.GetComponent[components.Transform](world, entityID)
 
-		for _, neighborID := range m.spatial.Index.Query(transform.Position, m.config.QueryRadius) {
+		for _, neighborID := range m.spatial.Query(transform.Position, m.config.QueryRadius) {
 			if neighborID == entityID {
 				continue
 			}
