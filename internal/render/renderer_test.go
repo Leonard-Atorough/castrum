@@ -9,6 +9,7 @@ import (
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/assets"
+	"github.com/leonard-atorough/castrum/internal/camera"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
@@ -43,7 +44,7 @@ func newTestRenderer() *Renderer {
 
 func TestRenderer_DrawScene(t *testing.T) {
 	renderer := newTestRenderer()
-	camera := NewCamera()
+	camera := camera.NewCamera()
 	camera.SetScreenSize(200, 200)
 	screen := ebiten.NewImage(200, 200)
 
@@ -199,7 +200,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 
 func TestRenderer_DrawDebugInfo(t *testing.T) {
 	renderer := newTestRenderer()
-	camera := NewCamera()
+	camera := camera.NewCamera()
 	camera.SetScreenSize(200, 200)
 	screen := ebiten.NewImage(200, 200)
 	world := core.NewWorld()

@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
+	"github.com/leonard-atorough/castrum/internal/camera"
 )
 
 // PrimitiveRenderer draws untextured shapes (rectangles, circles, lines)
@@ -18,7 +19,7 @@ func NewPrimitiveRenderer() *PrimitiveRenderer {
 	return &PrimitiveRenderer{}
 }
 
-func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, camera *Camera, transform components.Transform, renderable components.Renderable) {
+func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, camera *camera.Camera, transform components.Transform, renderable components.Renderable) {
 	pos := camera.WorldToScreen(transform.Position)
 	x, y := float32(pos.X), float32(pos.Y)
 	zoom := float32(camera.Zoom)
@@ -45,7 +46,7 @@ func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, camera *Camera, transfor
 	}
 }
 
-func drawPolygonPath(renderable components.Renderable, camera *Camera, clr color.Color, screen *ebiten.Image) int {
+func drawPolygonPath(renderable components.Renderable, camera *camera.Camera, clr color.Color, screen *ebiten.Image) int {
 	if polygon, ok := renderable.Data.(*geom.Polygon); ok {
 		if len(polygon.Points) < 3 {
 			return 1

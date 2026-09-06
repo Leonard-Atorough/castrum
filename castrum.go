@@ -10,6 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/internal/animation"
 	"github.com/leonard-atorough/castrum/internal/assets"
+	"github.com/leonard-atorough/castrum/internal/camera"
 	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/input"
 	"github.com/leonard-atorough/castrum/internal/physics"
@@ -31,8 +32,8 @@ type (
 	Input        = input.InputHandler
 	Animation    = animation.Manager
 	Collision    = physics.Manager
-	Spatial      = spatial.Manager
-	Camera       = render.Camera
+	Spatial      = spatial.SpatialIndexHandler
+	Camera       = camera.Camera
 	EntityID     = core.EntityID
 	TimerID      = timers.TimerID
 )
@@ -50,8 +51,8 @@ type Game struct {
 	Timers  *timers.Manager
 	Scenes  *scene.Manager
 	Render  *render.Renderer
-	Camera  *render.Camera
-	Spatial *spatial.Manager
+	Camera  *camera.Camera
+	Spatial *spatial.SpatialIndexHandler
 
 	Input     *Input
 	Animation *Animation
@@ -71,7 +72,7 @@ type Game struct {
 	Speed  float64
 }
 
-func NewGame(config *Config, filesystem fs.FS) *Game {
+func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	ValidateConfig(config)
 
 	newWorld := core.NewWorld()
@@ -79,12 +80,15 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 	scenes := scene.NewManager(newWorld)
 	systems := core.NewManager()
 	timers := timers.NewManager()
-	spatial := spatial.NewManager(config.World.GridCellSize)
+	spatial, err := spatial.NewManager(config.World.GridCellSize)
+	if err != nil {
+		return nil, err
+	}
 	input := input.New()
 	animation := animation.NewManager()
 	collisionMgr := physics.NewManager(spatial, physics.DefaultConfig())
 
-	camera := render.NewCamera()
+	camera := camera.NewCamera()
 	camera.SetScreenSize(config.Graphics.VirtualWidth, config.Graphics.VirtualHeight)
 
 	assets := assets.NewAssets(filesystem)
@@ -106,7 +110,7 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 		Collision:         collisionMgr,
 		fixedDelta:        1.0 / float64(config.Engine.TicksPerSecond),
 		Speed:             config.Engine.TimeScale,
-	}
+	}, nil
 }
 
 func (g *Game) Update() error {
@@ -132,7 +136,9 @@ func (g *Game) Update() error {
 	for g.accumulator >= g.fixedDelta && iterator < maxIterationsPerFrame {
 		iterator++
 		g.Timers.Update(g.fixedDelta)
-		g.Spatial.Update(g.World, g.fixedDelta)
+		if err := g.Spatial.Update(g.World, g.fixedDelta); err != nil {
+			return err
+		}
 		g.Collision.Update(g.World, g.fixedDelta)
 		g.Animation.Update(g.World, g.fixedDelta)
 		// Systems run last
