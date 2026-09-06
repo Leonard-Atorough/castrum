@@ -5,6 +5,7 @@ import (
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/internal/input"
 )
 
 // CameraSystem is responsible for managing the camera within the game world.
@@ -37,7 +38,7 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 		{ebiten.KeyZ, zoomFactor},     // Zoom in
 		{ebiten.KeyX, 1 / zoomFactor}, // Zoom out (multiply by 0.95)
 	} {
-		if cs.Input.KeyHeld(key.ebitenKey, false, true, false) {
+		if cs.Input.KeyHeld(key.ebitenKey, input.Modifiers{Shift: false, Ctrl: true, Alt: false}) {
 			cs.Camera.Zoom *= key.multiply
 			// Clamp to sensible bounds
 			if cs.Camera.Zoom < 0.1 {

@@ -28,7 +28,7 @@ type (
 	SceneBuilder = scene.Builder
 	SceneTag     = scene.SceneTag
 	Component    = core.Component
-	Input        = input.Manager
+	Input        = input.InputHandler
 	Animation    = animation.Manager
 	Collision    = collision.Manager
 	Spatial      = spatial.Manager
@@ -37,7 +37,10 @@ type (
 	TimerID      = timers.TimerID
 )
 
-const MaxDelta = 0.25
+const (
+	maxDelta              = 0.25
+	maxIterationsPerFrame = 5
+)
 
 type Game struct {
 	World  *World
@@ -62,6 +65,10 @@ type Game struct {
 	fixedDelta  float64
 	lastTime    time.Time
 	fpsTarget   int
+
+	// pause and speed
+	Paused bool
+	Speed  float64
 }
 
 func NewGame(config *Config, filesystem fs.FS) *Game {
@@ -73,7 +80,7 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 	systems := core.NewManager()
 	timers := timers.NewManager()
 	spatial := spatial.NewManager(config.World.GridCellSize)
-	input := input.NewManager()
+	input := input.New()
 	animation := animation.NewManager()
 	collisionMgr := collision.NewManager(spatial, collision.DefaultConfig())
 
@@ -98,6 +105,7 @@ func NewGame(config *Config, filesystem fs.FS) *Game {
 		Animation:         animation,
 		Collision:         collisionMgr,
 		fixedDelta:        1.0 / float64(config.Engine.TicksPerSecond),
+		Speed:             config.Engine.TimeScale,
 	}
 }
 
@@ -108,14 +116,22 @@ func (g *Game) Update() error {
 
 	// Fixed timestep accumulation
 	delta := time.Since(g.lastTime).Seconds()
-	delta = math.Min(delta, MaxDelta) // clamp delta to a maximum of 0.25 seconds
-
 	g.lastTime = time.Now()
+
+	g.Input.Snapshot()
+
+	if g.Paused {
+		return nil
+	}
+
+	delta *= g.Speed
+	delta = math.Min(delta, maxDelta) // clamp delta to a maximum of 0.25 seconds
 	g.accumulator += delta
 
-	for g.accumulator >= g.fixedDelta {
+	iterator := 0
+	for g.accumulator >= g.fixedDelta && iterator < maxIterationsPerFrame {
+		iterator++
 		g.Timers.Update(g.fixedDelta)
-		g.Input.Update(g.World, g.fixedDelta)
 		g.Spatial.Update(g.World, g.fixedDelta)
 		g.Collision.Update(g.World, g.fixedDelta)
 		g.Animation.Update(g.World, g.fixedDelta)
@@ -163,4 +179,23 @@ func QueryFor[T Component](w *core.World) []EntityID {
 
 func Types(comps ...Component) []reflect.Type {
 	return core.Types(comps...)
+}
+
+func (g *Game) SetPaused(paused bool) {
+	g.Paused = paused
+}
+
+func (g *Game) IsPaused() bool {
+	return g.Paused
+}
+
+func (g *Game) SetTimeScale(scale float64) {
+	if scale < 0 {
+		scale = 0 // Clamp to 0
+	}
+	g.Speed = scale
+}
+
+func (g *Game) GetTimeScale() float64 {
+	return g.Speed
 }
