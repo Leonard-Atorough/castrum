@@ -59,6 +59,8 @@ func (i *InputSnapshot) Reset() {
 	for button := range i.Mouse.Buttons {
 		i.Mouse.Buttons[button] = KeyState{}
 	}
+	i.Mouse.X = 0
+	i.Mouse.Y = 0
 }
 
 // Clone returns a deep copy of the InputState.
@@ -70,6 +72,34 @@ func (i *InputSnapshot) Clone() InputSnapshot {
 	cloned.Mouse.Buttons = make(map[ebiten.MouseButton]KeyState)
 	maps.Copy(cloned.Mouse.Buttons, i.Mouse.Buttons)
 	return cloned
+}
+
+func (i *InputSnapshot) Compare(other *InputSnapshot) bool {
+	if i.Modifiers != other.Modifiers {
+		return false
+	}
+	if i.Mouse.X != other.Mouse.X || i.Mouse.Y != other.Mouse.Y {
+		return false
+	}
+	if len(i.Keyboard) != len(other.Keyboard) {
+		return false
+	}
+	for key, state := range i.Keyboard {
+		otherState, exists := other.Keyboard[key]
+		if !exists || otherState != state {
+			return false
+		}
+	}
+	if len(i.Mouse.Buttons) != len(other.Mouse.Buttons) {
+		return false
+	}
+	for button, state := range i.Mouse.Buttons {
+		otherState, exists := other.Mouse.Buttons[button]
+		if !exists || otherState != state {
+			return false
+		}
+	}
+	return true
 }
 
 // InputBuffer is a ring buffer storing up to size input snapshots.

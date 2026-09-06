@@ -90,7 +90,7 @@ This roadmap outlines the development path for Castrum, a 2D game engine built i
 - [ ] Camera system - solid for a single camera; multi-camera/viewport support (minimap, split-screen) not designed in code yet (see Phase 3 notes)
 - [x] Scene entity cleanup - `OnUnload` untags entities but doesn't `DestroyEntity`/`Cleanup` them (intentional: preserves entity data across scene swaps)
 - [x] Input buffer for deterministic replay - infrastructure exists, buffer itself not yet implemented
-- [x] Pause/resume and time scaling - infrastructure ready, feature gates not yet added
+- [x] Pause/resume and time scaling
 
 ### Not Started
 
