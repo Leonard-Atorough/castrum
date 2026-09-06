@@ -15,7 +15,7 @@ func TestManager_RectCollision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
 
 	if err := collisionMgr.Init(world); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -54,7 +54,7 @@ func TestManager_NoCollisionWhenFar(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
 
 	collisionMgr.Init(world)
 
@@ -87,7 +87,7 @@ func TestManager_CircleCollision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
 
 	collisionMgr.Init(world)
 
@@ -122,7 +122,7 @@ func TestManager_CircleRectCollision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
 
 	collisionMgr.Init(world)
 
@@ -157,7 +157,7 @@ func TestManager_EventLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
 	collisionMgr.Init(world)
 
 	// Create two separated entities
@@ -215,7 +215,7 @@ func TestManager_LayerMaskFiltering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
 	collisionMgr.Init(world)
 
 	// Entity on layer 0, collides with [1]
@@ -250,7 +250,7 @@ func TestManager_InactiveColliderSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
 	collisionMgr.Init(world)
 
 	// Active collider
@@ -282,7 +282,7 @@ func TestManager_CircleCircleContact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
 	collisionMgr.Init(world)
 
 	// Two circles
@@ -328,7 +328,7 @@ func TestManager_QueryCollisions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
 
 	collisionMgr.Init(world)
 
@@ -392,7 +392,7 @@ func TestManager_DisabledCollision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: false})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: false})
 
 	collisionMgr.Init(world)
 
@@ -427,7 +427,7 @@ func TestManager_TestCollisionMissingComponent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
-	collisionMgr := NewManager(spatialMgr, Config{QueryRadius: 300, Enabled: true})
+	collisionMgr := NewManager(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
 
 	collisionMgr.Init(world)
 

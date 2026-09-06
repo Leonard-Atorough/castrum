@@ -86,7 +86,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	}
 	input := input.New()
 	animation := animation.NewManager()
-	collisionMgr := physics.NewManager(spatial, physics.DefaultConfig())
+	collisionMgr := physics.NewManager(spatial.Index, physics.DefaultConfig())
 
 	camera := camera.NewCamera()
 	camera.SetScreenSize(config.Graphics.VirtualWidth, config.Graphics.VirtualHeight)
