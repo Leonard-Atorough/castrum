@@ -10,6 +10,7 @@ import (
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/assets"
+	"github.com/leonard-atorough/castrum/internal/camera"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
@@ -45,7 +46,7 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 // DrawScene renders every entity with a Renderable+Transform. A Renderable
 // with a TexturePath is drawn as a sprite; otherwise it's drawn as a
 // primitive shape - callers never need to say which.
-func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.World) {
+func (r *Renderer) DrawScene(screen *ebiten.Image, camera *camera.Camera, world *core.World) {
 	renderItems := make([]renderItem, 0)
 	// Get the camera's visible world-space bounds for frustum culling
 	viewportBounds := camera.ViewportBounds()
@@ -101,11 +102,11 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *Camera, world *core.W
 	}
 }
 
-func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, camera *Camera, world *core.World) {
+func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, camera *camera.Camera, world *core.World) {
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), camera.Position))
 }
 
-func (r *Renderer) drawSprite(screen *ebiten.Image, camera *Camera, transform components.Transform, renderable components.Renderable) {
+func (r *Renderer) drawSprite(screen *ebiten.Image, camera *camera.Camera, transform components.Transform, renderable components.Renderable) {
 	tx, err := r.textures.Load(renderable.TexturePath)
 	if err != nil {
 		return // silently skip entities with missing textures
