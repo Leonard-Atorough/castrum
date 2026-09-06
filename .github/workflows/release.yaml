@@ -1,15 +1,17 @@
 name: Release
 
 on:
-  push:
-    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.2.0). Leave empty to auto-calculate.'
+        required: false
+        type: string
 
 permissions:
   contents: write
-
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
   release:
@@ -23,34 +25,38 @@ jobs:
       - name: Install git-cliff
         uses: taiki-e/install-action@git-cliff
 
-      - name: Check for unreleased conventional commits
-        id: check
-        run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            RANGE="HEAD"
-          else
-            RANGE="$LAST_TAG..HEAD"
-          fi
-          if ! git log "$RANGE" --pretty=format:'%B' | \
-               grep -qE '^(feat|fix|perf)(\(.+\))?!?:|BREAKING CHANGE'; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Determine next version
-        if: steps.check.outputs.skip != 'true'
-        id: version
+      - name: Determine version (if workflow_dispatch without explicit version)
+        if: github.event_name == 'workflow_dispatch' && !inputs.version
+        id: auto_version
         run: echo "version=$(git-cliff --bumped-version)" >> "$GITHUB_OUTPUT"
 
-      - name: Generate changelog for the new tag
-        if: steps.check.outputs.skip != 'true'
+      - name: Set release tag
+        id: release_tag
         run: |
-          git-cliff --bump --unreleased --with-tag-message "${{ steps.version.outputs.version }}" > CHANGELOG.md
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            TAG="${{ inputs.version || steps.auto_version.outputs.version }}"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub release
-        if: steps.check.outputs.skip != 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: ${{ steps.version.outputs.version }}
-          body_path: CHANGELOG.md
+      - name: Create release (if workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          gh release create "${{ steps.release_tag.outputs.tag }}" \
+            --generate-notes \
+            --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate changelog for the release
+        id: changelog
+        run: |
+          git-cliff "${{ steps.release_tag.outputs.tag }}" --with-tag-message > CHANGELOG.md
+
+      - name: Update release with generated changelog
+        run: |
+          gh release edit "${{ steps.release_tag.outputs.tag }}" \
+            --notes-file CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
