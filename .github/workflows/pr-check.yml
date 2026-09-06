@@ -78,14 +78,14 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl1-mesa-dev
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev
 
       - name: Download dependencies
         run: go mod download
 
       - name: Run tests
         run: |
-          go test -v -race -coverprofile=coverage.out \
+          xvfb-run -a go test -v -race -coverprofile=coverage.out \
             ./geom \
             ./internal/animation \
             ./internal/assets \
