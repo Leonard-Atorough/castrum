@@ -42,6 +42,11 @@ jobs:
         with:
           go-version: ">=1.27"
 
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev
+
       - name: Run go fmt
         run: |
           if [ -n "$(gofmt -l .)" ]; then
