@@ -79,7 +79,7 @@ func main() {
 			Position: geom.Vector2{X: 0, Y: 0},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		components.Renderable{TexturePath: "cmd/game/example.png", Visible: true, Layer: components.Layer1},
+		components.Renderable{TexturePath: "example.png", Visible: true, Layer: components.Layer1},
 		gamecomponents.Player{},
 		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
 		components.NewCollider(geom.NewRect(geom.NewVector2(-16, -16), geom.NewVector2(16, 16)), true, false, 0, 1),
@@ -130,7 +130,7 @@ func main() {
 				Color:    color.RGBA{R: 255, G: 100, B: 100, A: 255},
 			},
 			components.Renderable{Primitive: components.PrimitiveKindCircle, Visible: true, Layer: components.Layer1},
-			components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
+			// components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
 		)
 		if err != nil {
 			log.Fatalf("failed to spawn circle %d: %v", i, err)

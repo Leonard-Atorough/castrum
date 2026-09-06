@@ -329,19 +329,21 @@ Integrate rendering with the ECS and implement scene management for logical game
 
 ### Acceptance Criteria
 
-| ID   | Task                                     | Status         | Effort | Priority |
-| ---- | ---------------------------------------- | -------------- | ------ | -------- |
-| 3.1  | Renderer as standalone system            | 🟡 Partial     | 4h     | High     |
-| 3.2  | Sprite rendering component               | ✅ Done        | 4h     | High     |
-| 3.3  | Camera system with viewport management   | 🟡 Partial     | 6h     | High     |
-| 3.4  | Render layers and z-ordering             | 🟡 Partial     | 4h     | High     |
-| 3.5  | Scene interface refinement               | ✅ Done        | 4h     | High     |
-| 3.6  | Scene manager with transition support    | ✅ Done        | 6h     | High     |
-| 3.7  | Scene lifecycle hooks (OnLoad, OnUnload) | ✅ Done        | 4h     | High     |
-| 3.8  | Entity cleanup on scene unload           | 🟡 Partial     | 3h     | Medium   |
-| 3.9  | Scene stack for nested scenes            | ❌ Not Started | 4h     | Medium   |
-| 3.10 | UI rendering layer                       | ❌ Not Started | 8h     | Medium   |
-| 3.11 | Particle system                          | ❌ Not Started | 6h     | Low      |
+| ID   | Task                                     | Status          | Effort | Priority |
+| ---- | ---------------------------------------- | --------------- | ------ | -------- |
+| 3.1  | Renderer as standalone system            | ⚫ Not Required | 4h     | High     |
+| 3.2  | Sprite rendering component               | ✅ Done         | 4h     | High     |
+| 3.3  | Camera system with viewport management   | 🟡 Partial      | 6h     | High     |
+| 3.4  | Render layers and z-ordering             | ✅ Done         | 4h     | High     |
+| 3.5  | Renderer y-sorting                       | ✅ Done         | 4h     | High     |
+| 3.6  | Scene interface refinement               | ✅ Done         | 4h     | High     |
+| 3.7  | Scene manager with transition support    | ✅ Done         | 6h     | High     |
+| 3.8  | Scene lifecycle hooks (OnLoad, OnUnload) | ✅ Done         | 4h     | High     |
+| 3.9  | Entity cleanup on scene unload           | 🟡 Partial      | 3h     | Medium   |
+| 3.10 | Scene stack for nested scenes            | ❌ Not Started  | 4h     | Medium   |
+| 3.11 | UI rendering layer                       | ❌ Not Started  | 8h     | Medium   |
+| 3.12 | Particle system                          | ❌ Not Started  | 6h     | Low      |
+
 
 ### Technical Details
 
@@ -409,6 +411,8 @@ Integrate rendering with the ECS and implement scene management for logical game
 - Debug overlay (FPS/TPS/camera position) wired behind `Config.Engine.EnableDebug`
 - Scene load/unload/transition and lifecycle hooks all working
 - **Sprite/texture rendering: ✅ DONE** - `texture.Store.Load` now loads images via `ebitenutil.NewImageFromFileSystem`, caches by path
+- **Render layers and z-ordering: ✅ DONE** - Sorted by Layer primary, then Y position within same layer (isometric/top-down support)
+- **Renderer y-sorting: ✅ DONE** - Secondary sort key after Layer, handles depth-based visual ordering
 - **Entity cleanup on unload: 🟡 Partial** - `OnUnload` untags entities (intentional design: preserves data across scene swaps). Destroy semantics not needed yet.
 - Single camera working; multi-camera design saved in repo memory.
 
