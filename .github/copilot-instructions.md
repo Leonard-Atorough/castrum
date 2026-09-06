@@ -27,3 +27,4 @@ These instructions guide the Copilot AI on how to assist with the Castrum Game E
 - Hot paths (RenderSystem, Transform math): no heap allocs per frame, preallocate slices with capacity, concrete types over interface dispatch.
 - After changes: run `go vet ./... && go test ./...`, fix failures before responding.
 - Don't refactor beyond the scope of my request, except to fix failures revealed by vet/test.
+- Don't create documents when not asked to do so, if a document is deemed beneficial communicate this first. Aim to condense information into chat friendly messages.
