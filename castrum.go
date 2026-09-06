@@ -35,12 +35,12 @@ type (
 	Spatial      = spatial.SpatialIndexHandler
 	Camera       = camera.Camera
 	EntityID     = core.EntityID
-	TimerID      = timers.TimerID
 )
 
 const (
 	maxDelta              = 0.25
 	maxIterationsPerFrame = 5
+	timersToRemove        = 60
 )
 
 type Game struct {
@@ -48,7 +48,7 @@ type Game struct {
 	Config *Config
 
 	Systems *core.Manager
-	Timers  *timers.Manager
+	Timers  *timers.TimerSystem
 	Scenes  *scene.Manager
 	Render  *render.Renderer
 	Camera  *camera.Camera
@@ -79,7 +79,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 
 	scenes := scene.NewManager(newWorld)
 	systems := core.NewManager()
-	timers := timers.NewManager()
+	timers := timers.NewTimerSystem(timersToRemove)
 	spatial, err := spatial.NewManager(config.World.GridCellSize)
 	if err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func (g *Game) Update() error {
 	iterator := 0
 	for g.accumulator >= g.fixedDelta && iterator < maxIterationsPerFrame {
 		iterator++
-		g.Timers.Update(g.fixedDelta)
+		g.Timers.Update(g.World, g.fixedDelta)
 		if err := g.Spatial.Update(g.World, g.fixedDelta); err != nil {
 			return err
 		}

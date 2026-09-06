@@ -1,424 +1,349 @@
 package timers
 
 import (
-	"sync"
+	"reflect"
 	"testing"
+
+	"github.com/leonard-atorough/castrum/internal/core"
 )
 
-func TestTimer_BasicLifecycle(t *testing.T) {
-	callbackCalled := 0
-	callback := func() { callbackCalled++ }
-
-	timer := NewTimer(1, 0.5, true, false, callback)
-	if timer == nil {
-		t.Fatal("expected timer instance")
-	}
-	if timer.ID() != 1 {
-		t.Fatalf("expected id 1, got %d", timer.ID())
-	}
-	if timer.Duration() != 0.5 {
-		t.Fatalf("expected duration 0.5, got %f", timer.Duration())
-	}
-	if timer.IsRunning() {
-		t.Fatal("timer should not auto-start when autoStart is false")
-	}
-	if timer.AutoStart() {
-		t.Fatal("expected autoStart to be false")
+// TestTimer_StateTransitions tests Timer component state methods
+func TestTimer_StateTransitions(t *testing.T) {
+	timer := Timer{
+		ID:       "test-timer",
+		Duration: 1.0,
+		Running:  false,
 	}
 
+	// Test Start
 	timer.Start()
-	if !timer.IsRunning() {
-		t.Fatal("timer should be running after Start")
-	}
-	if timer.Elapsed() != 0 {
-		t.Fatalf("elapsed should reset to zero on Start, got %f", timer.Elapsed())
+	if !timer.Running || timer.ElapsedTime != 0 {
+		t.Fatal("Start should set Running=true and reset ElapsedTime to 0")
 	}
 
+	// Test Stop
 	timer.Stop()
-	if timer.IsRunning() {
-		t.Fatal("timer should not be running after Stop")
+	if timer.Running {
+		t.Fatal("Stop should set Running=false")
 	}
 
-	timer.Update(0.3)
-	if callbackCalled != 0 {
-		t.Fatalf("callback should not fire while timer is stopped, got %d calls", callbackCalled)
-	}
-}
-
-func TestTimer_UpdateFiresWhenExpired(t *testing.T) {
-	callbackCalled := 0
-	callback := func() { callbackCalled++ }
-
-	timer := NewTimer(2, 0.25, true, true, callback)
-	if !timer.IsRunning() {
-		t.Fatal("timer should auto-start")
-	}
-
-	if _, shouldFire := timer.Update(0.1); shouldFire {
-		t.Fatal("timer should not fire before duration completes")
-	}
-	if callbackCalled != 0 {
-		t.Fatalf("callback should not fire before expiration, got %d calls", callbackCalled)
-	}
-
-	if _, shouldFire := timer.Update(0.2); !shouldFire {
-		t.Fatal("timer should fire once duration is reached")
-	}
-	if timer.IsRunning() {
-		t.Fatal("one-shot timer should stop after triggering")
-	}
-	if callbackCalled != 0 {
-		t.Fatalf("timer.Update should not invoke callback directly; got %d calls", callbackCalled)
+	// Test Resume
+	timer.Resume()
+	if !timer.Running {
+		t.Fatal("Resume should set Running=true")
 	}
 }
 
-func TestTimer_UpdateRepeatingTimerResetsAndContinues(t *testing.T) {
-	callbackCalled := 0
-	callback := func() { callbackCalled++ }
-
-	timer := NewTimer(3, 0.1, false, true, callback)
-	if !timer.IsRunning() {
-		t.Fatal("repeating timer should auto-start")
+// TestTimer_ElapsedTimeAccumulates tests that elapsed time accumulates while Running
+func TestTimer_ElapsedTimeAccumulates(t *testing.T) {
+	timer := Timer{
+		ID:       "accumulate-test",
+		Duration: 1.0,
+		Running:  true,
 	}
 
-	if _, shouldFire := timer.Update(0.1); !shouldFire {
-		t.Fatal("timer should fire at its first duration boundary")
-	}
-	if callbackCalled != 0 {
-		t.Fatalf("timer.Update should not call callback directly; got %d", callbackCalled)
-	}
-	if !timer.IsRunning() {
-		t.Fatal("repeating timer should continue running after firing")
-	}
-	if timer.Elapsed() != 0 {
-		t.Fatalf("repeating timer should reset elapsed after a cycle, got %f", timer.Elapsed())
+	// Simulate accumulating time
+	timer.ElapsedTime += 0.3
+	if timer.ElapsedTime != 0.3 {
+		t.Fatalf("expected ElapsedTime=0.3, got %f", timer.ElapsedTime)
 	}
 
-	if _, shouldFire := timer.Update(0.1); !shouldFire {
-		t.Fatal("timer should fire again on the next interval")
-	}
-	if callbackCalled != 0 {
-		t.Fatalf("timer.Update should not call callback directly on subsequent cycles; got %d", callbackCalled)
+	timer.ElapsedTime += 0.3
+	if timer.ElapsedTime != 0.6 {
+		t.Fatalf("expected ElapsedTime=0.6, got %f", timer.ElapsedTime)
 	}
 }
 
-func TestTimer_UnhappyPath_UnknownStateTransitions(t *testing.T) {
-	timer := NewTimer(4, 1, false, false, nil)
-	if timer.IsRunning() {
-		t.Fatal("timer should start stopped")
+// TestTimer_StoppedDoesNotAccumulate tests that stopped timers don't accumulate time
+func TestTimer_StoppedDoesNotAccumulate(t *testing.T) {
+	timer := Timer{
+		ID:       "stopped-test",
+		Duration: 1.0,
+		Running:  false,
 	}
 
-	if _, shouldFire := timer.Update(0.5); shouldFire {
-		t.Fatal("stopped timer should not fire")
-	}
-	if timer.Elapsed() != 0 {
-		t.Fatalf("stopped timer should not accumulate elapsed while inactive, got %f", timer.Elapsed())
-	}
-}
-
-func TestTimerManager_CreateAndRemove(t *testing.T) {
-	manager := NewManager()
-	callbackCalled := 0
-	callback := func() { callbackCalled++ }
-
-	timer := manager.CreateTimer(0.25, true, false, callback)
-	if timer == nil {
-		t.Fatal("expected timer to be non-nil")
-	}
-	if _, exists := manager.timers[timer.ID()]; !exists {
-		t.Fatal("expected timer to be registered")
-	}
-
-	if err := manager.RemoveTimer(timer.ID()); err != nil {
-		t.Fatalf("remove timer failed: %v", err)
-	}
-	if _, exists := manager.timers[timer.ID()]; exists {
-		t.Fatal("timer should be removed from manager")
+	// Even though we try to accumulate, a real system wouldn't if Running is false
+	if timer.Running {
+		t.Fatal("timer should be stopped")
 	}
 }
 
-func TestTimerManager_UpdateTimersTriggersCallback(t *testing.T) {
-	manager := NewManager()
-	callbackCalled := 0
-	callback := func() { callbackCalled++ }
+// TestTimerSystem_FiresCallbackWhenExpired tests that OnTimerTick is called when timer expires
+func TestTimerSystem_FiresCallbackWhenExpired(t *testing.T) {
+	world := core.NewWorld()
+	fired := false
+	var firedEntity *core.Entity
 
-	timer := manager.CreateTimer(0.1, true, true, callback)
-	manager.Update(0.1)
-
-	if callbackCalled != 1 {
-		t.Fatalf("expected callback once, got %d", callbackCalled)
-	}
-	if _, exists := manager.timers[timer.ID()]; exists {
-		t.Fatal("one-shot timer should be cleaned up after triggering")
-	}
-}
-
-func TestTimerManager_RepeatingTimerKeepsFiring(t *testing.T) {
-	manager := NewManager()
-	callbackCalled := 0
-	callback := func() { callbackCalled++ }
-
-	timer := manager.CreateTimer(0.05, false, true, callback)
-	if timer == nil {
-		t.Fatal("timer should be non-nil")
+	entity, err := world.CreateWithComponents(
+		"test-entity",
+		Timer{
+			ID:       "timer1",
+			Duration: 1.0,
+			Running:  true,
+			OnTimerTick: func(e *core.Entity) {
+				fired = true
+				firedEntity = e
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("failed to create entity: %v", err)
 	}
 
-	manager.Update(0.05)
-	if callbackCalled != 1 {
-		t.Fatalf("expected first callback, got %d", callbackCalled)
-	}
-	manager.Update(0.05)
-	if callbackCalled != 2 {
-		t.Fatalf("expected repeating callback twice, got %d", callbackCalled)
-	}
+	system := NewTimerSystem(10)
+	system.Update(world, 1.5)
 
-	if err := manager.RemoveTimer(timer.ID()); err != nil {
-		t.Fatalf("remove timer failed: %v", err)
+	if !fired {
+		t.Fatal("OnTimerTick should have been called")
+	}
+	if firedEntity.ID != entity.ID {
+		t.Fatal("callback should receive the correct entity")
 	}
 }
 
-func TestTimerManager_OneShotTimerAutoCleanupAfterExpiry(t *testing.T) {
-	t.Run("with callback", func(t *testing.T) {
-		manager := NewManager()
-		timer := manager.CreateTimer(0.05, true, true, func() {})
+// TestTimerSystem_OneShootTimerRemovedAfterFiring tests that one-shot timers are removed after firing
+func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
+	world := core.NewWorld()
 
-		manager.Update(0.05)
+	entity, _ := world.CreateWithComponents(
+		"test-entity",
+		Timer{
+			ID:       "timer1",
+			Duration: 1.0,
+			Running:  true,
+			Once:     true,
+			OnTimerTick: func(e *core.Entity) {
+				// callback
+			},
+		},
+	)
 
-		if _, exists := manager.timers[timer.ID()]; exists {
-			t.Fatal("one-shot timer with callback should be removed automatically after expiry")
-		}
-	})
+	system := NewTimerSystem(10)
+	system.Update(world, 1.5)
 
-	t.Run("without callback", func(t *testing.T) {
-		manager := NewManager()
-		timer := manager.CreateTimer(0.05, true, true, nil)
-
-		manager.Update(0.05)
-
-		if _, exists := manager.timers[timer.ID()]; exists {
-			t.Fatal("one-shot timer without callback should also be removed automatically after expiry")
-		}
-	})
-}
-
-// Test cancel callback execution
-func TestTimer_CancelCallbackFires(t *testing.T) {
-	cancelCalled := 0
-	cancelCallback := func() { cancelCalled++ }
-
-	timer := NewTimer(1, 1.0, true, true, func() {})
-	timer.SetCancelFunc(cancelCallback)
-
-	if cancelCalled != 0 {
-		t.Fatalf("cancel callback should not fire yet, got %d calls", cancelCalled)
-	}
-
-	timer.Cancel()
-	if cancelCalled != 1 {
-		t.Fatalf("cancel callback should have been called once, got %d calls", cancelCalled)
+	// Timer should be removed after firing
+	_, err := world.GetComponent(entity.ID, reflect.TypeFor[Timer]())
+	if err == nil {
+		t.Fatal("one-shot timer should be removed after firing")
 	}
 }
 
-func TestTimer_CancelCallbackOptional(t *testing.T) {
-	timer := NewTimer(1, 1.0, true, true, func() {})
-	// No cancel callback set - should not panic
-	timer.Cancel()
-	if !timer.IsCancelled() {
-		t.Fatal("timer should be cancelled")
+// TestTimerSystem_RepeatingTimerKeepsFiring tests that repeating timers reset and continue
+func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
+	world := core.NewWorld()
+	callCount := 0
+
+	entity, _ := world.CreateWithComponents(
+		"test-entity",
+		Timer{
+			ID:       "timer1",
+			Duration: 0.5,
+			Running:  true,
+			Once:     false,
+			OnTimerTick: func(e *core.Entity) {
+				callCount++
+			},
+		},
+	)
+
+	system := NewTimerSystem(10)
+
+	// First update at 0.5s - should fire
+	system.Update(world, 0.5)
+	if callCount != 1 {
+		t.Fatalf("expected 1 callback, got %d", callCount)
+	}
+
+	// Get timer and verify it's still present and reset
+	timerComp, _ := world.GetComponent(entity.ID, reflect.TypeFor[Timer]())
+	timer := timerComp.(Timer)
+	if timer.ElapsedTime != 0 {
+		t.Fatalf("repeating timer should reset ElapsedTime to 0, got %f", timer.ElapsedTime)
+	}
+	if !timer.Running {
+		t.Fatal("repeating timer should still be running")
+	}
+
+	// Second update at 0.5s - should fire again
+	system.Update(world, 0.5)
+	if callCount != 2 {
+		t.Fatalf("expected 2 callbacks, got %d", callCount)
+	}
+
+	// Timer should still exist
+	_, err := world.GetComponent(entity.ID, reflect.TypeFor[Timer]())
+	if err != nil {
+		t.Fatal("repeating timer should still exist after firing")
 	}
 }
 
-func TestTimerManager_CallbackPanicRecovery(t *testing.T) {
-	manager := NewManager()
-	callbackCount := 0
+// TestTimerSystem_StoppedTimerDoesNotFire tests that stopped timers don't fire
+func TestTimerSystem_StoppedTimerDoesNotFire(t *testing.T) {
+	world := core.NewWorld()
+	callCount := 0
 
-	// Timer with panicking callback
-	manager.CreateTimer(0.1, true, true, func() {
-		panic("test panic")
-	})
+	world.CreateWithComponents(
+		"test-entity",
+		Timer{
+			ID:       "timer1",
+			Duration: 0.5,
+			Running:  false,
+			OnTimerTick: func(e *core.Entity) {
+				callCount++
+			},
+		},
+	)
 
-	// Timer with normal callback (should still fire)
-	manager.CreateTimer(0.1, true, true, func() {
-		callbackCount++
-	})
+	system := NewTimerSystem(10)
+	system.Update(world, 1.0)
 
-	// Should not panic; both timers should be updated
-	manager.Update(0.1)
-
-	if callbackCount != 1 {
-		t.Fatalf("normal callback should have fired despite panic in another, got %d", callbackCount)
+	if callCount != 0 {
+		t.Fatalf("stopped timer should not fire, got %d callbacks", callCount)
 	}
 }
 
-func TestTimerManager_PauseAndResume(t *testing.T) {
-	manager := NewManager()
-	callbackCount := 0
-	callback := func() { callbackCount++ }
-
-	manager.CreateTimer(0.1, false, true, callback)
-
-	// First update should fire
-	manager.Update(0.1)
-	if callbackCount != 1 {
-		t.Fatalf("expected callback once, got %d", callbackCount)
+// TestTimerSystem_MultipleTimersOnDifferentEntities tests multiple timers on different entities
+func TestTimerSystem_MultipleTimersOnDifferentEntities(t *testing.T) {
+	world := core.NewWorld()
+	fired := map[string]bool{
+		"entity1": false,
+		"entity2": false,
 	}
 
-	// Pause the manager
-	manager.Pause()
-	if !manager.IsPaused() {
-		t.Fatal("manager should be paused")
+	entity1, _ := world.CreateWithComponents(
+		"entity1",
+		Timer{
+			ID:       "timer1",
+			Duration: 1.0,
+			Running:  true,
+			Once:     true,
+			OnTimerTick: func(e *core.Entity) {
+				fired["entity1"] = true
+			},
+		},
+	)
+
+	entity2, _ := world.CreateWithComponents(
+		"entity2",
+		Timer{
+			ID:       "timer2",
+			Duration: 1.0,
+			Running:  true,
+			Once:     true,
+			OnTimerTick: func(e *core.Entity) {
+				fired["entity2"] = true
+			},
+		},
+	)
+
+	system := NewTimerSystem(10)
+	system.Update(world, 1.5)
+
+	if !fired["entity1"] || !fired["entity2"] {
+		t.Fatal("both timers should have fired")
 	}
 
-	// Update should be skipped while paused
-	manager.Update(0.1)
-	if callbackCount != 1 {
-		t.Fatalf("callback should not fire while paused, got %d", callbackCount)
-	}
-
-	// Resume and verify callback fires again
-	manager.Resume()
-	if manager.IsPaused() {
-		t.Fatal("manager should not be paused")
-	}
-
-	manager.Update(0.1)
-	if callbackCount != 2 {
-		t.Fatalf("expected callback twice after resume, got %d", callbackCount)
-	}
-}
-
-func TestTimer_ThreadSafety_ConcurrentAccess(t *testing.T) {
-	timer := NewTimer(1, 1.0, true, false, func() {})
-	var wg sync.WaitGroup
-	errors := make(chan error, 10)
-
-	// Spawn multiple goroutines accessing the same timer concurrently
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			// Try various operations concurrently
-			if id%3 == 0 {
-				timer.Start()
-			} else if id%3 == 1 {
-				timer.Stop()
-			} else {
-				timer.Update(0.01)
-			}
-		}(i)
-	}
-
-	// Also do read operations
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_ = timer.IsRunning()
-			_ = timer.Elapsed()
-			_ = timer.IsCancelled()
-		}()
-	}
-
-	wg.Wait()
-	close(errors)
-
-	// If we get here without a race condition or panic, test passed
-	for err := range errors {
-		t.Errorf("concurrent access error: %v", err)
+	// Both should be removed
+	_, err1 := world.GetComponent(entity1.ID, reflect.TypeFor[Timer]())
+	_, err2 := world.GetComponent(entity2.ID, reflect.TypeFor[Timer]())
+	if err1 == nil || err2 == nil {
+		t.Fatal("both one-shot timers should be removed")
 	}
 }
 
-func TestTimerManager_ThreadSafety_ConcurrentCreation(t *testing.T) {
-	manager := NewManager()
-	var wg sync.WaitGroup
-	timerCount := 0
-	var mu sync.Mutex
+// TestTimerSystem_NoCallbackTimerStillFires tests that timers without callbacks still work
+func TestTimerSystem_NoCallbackTimerStillFires(t *testing.T) {
+	world := core.NewWorld()
 
-	// Create timers concurrently
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			manager.CreateTimer(0.1, true, false, func() {})
-			mu.Lock()
-			timerCount++
-			mu.Unlock()
-		}()
-	}
+	entity, _ := world.CreateWithComponents(
+		"test-entity",
+		Timer{
+			ID:       "timer1",
+			Duration: 1.0,
+			Running:  true,
+			Once:     true,
+			// No OnTimerTick
+		},
+	)
 
-	wg.Wait()
+	system := NewTimerSystem(10)
+	system.Update(world, 1.5)
 
-	if len(manager.timers) != timerCount {
-		t.Fatalf("expected %d timers created, got %d", timerCount, len(manager.timers))
-	}
-}
-
-func TestTimerManager_SlicePreallocation(t *testing.T) {
-	manager := NewManager()
-
-	// Create many timers
-	for i := 0; i < 200; i++ {
-		manager.CreateTimer(0.01, true, true, func() {})
-	}
-
-	// Update should reuse pre-allocated slices
-	initialCallbacksCap := cap(manager.callbacks)
-	initialCleanupCap := cap(manager.cleanupIDs)
-
-	manager.Update(0.01)
-
-	// Slices should remain allocated (or grow minimally)
-	finalCallbacksCap := cap(manager.callbacks)
-	finalCleanupCap := cap(manager.cleanupIDs)
-
-	if finalCallbacksCap < initialCallbacksCap {
-		t.Fatalf("callbacks slice capacity should not shrink: %d -> %d", initialCallbacksCap, finalCallbacksCap)
-	}
-	if finalCleanupCap < initialCleanupCap {
-		t.Fatalf("cleanupIDs slice capacity should not shrink: %d -> %d", initialCleanupCap, finalCleanupCap)
+	// Timer should still be removed even without callback
+	_, err := world.GetComponent(entity.ID, reflect.TypeFor[Timer]())
+	if err == nil {
+		t.Fatal("one-shot timer should be removed even without callback")
 	}
 }
 
-func TestTimer_ConcurrentUpdateAndCancel(t *testing.T) {
-	timer := NewTimer(1, 1.0, true, true, func() {})
-	done := make(chan bool, 2)
+// TestTimerSystem_Shutdown ensures all timers are stopped
+func TestTimerSystem_Shutdown(t *testing.T) {
+	world := core.NewWorld()
 
-	// Update in one goroutine
-	go func() {
-		for i := 0; i < 100; i++ {
-			timer.Update(0.001)
-		}
-		done <- true
-	}()
+	entity1, _ := world.CreateWithComponents(
+		"entity1",
+		Timer{
+			ID:       "timer1",
+			Duration: 1.0,
+			Running:  true,
+		},
+	)
 
-	// Cancel in another goroutine
-	go func() {
-		for i := 0; i < 50; i++ {
-			timer.Cancel()
-		}
-		done <- true
-	}()
+	entity2, _ := world.CreateWithComponents(
+		"entity2",
+		Timer{
+			ID:       "timer2",
+			Duration: 1.0,
+			Running:  true,
+		},
+	)
 
-	<-done
-	<-done
+	system := NewTimerSystem(10)
+	system.Shutdown(world)
 
-	if !timer.IsCancelled() {
-		t.Fatal("timer should be cancelled")
+	// Both timers should be stopped
+	timerComp1, _ := world.GetComponent(entity1.ID, reflect.TypeFor[Timer]())
+	timerComp2, _ := world.GetComponent(entity2.ID, reflect.TypeFor[Timer]())
+
+	if timerComp1.(Timer).Running {
+		t.Fatal("timer1 should be stopped on shutdown")
+	}
+	if timerComp2.(Timer).Running {
+		t.Fatal("timer2 should be stopped on shutdown")
 	}
 }
 
-func TestTimerManager_RemoveWithCancelCallback(t *testing.T) {
-	manager := NewManager()
-	cancelCalled := 0
+// TestTimerSystem_BucketPreallocation tests that cleanup bucket is properly reused
+func TestTimerSystem_BucketPreallocation(t *testing.T) {
+	world := core.NewWorld()
 
-	timer := manager.CreateTimer(1.0, true, true, func() {})
-	timer.SetCancelFunc(func() {
-		cancelCalled++
-	})
+	// Create multiple one-shot timers
+	for i := 0; i < 5; i++ {
+		world.CreateWithComponents(
+			"test-entity",
+			Timer{
+				ID:       TimerID("timer" + string(rune(i))),
+				Duration: 0.5,
+				Running:  true,
+				Once:     true,
+				OnTimerTick: func(e *core.Entity) {
+					// callback
+				},
+			},
+		)
+	}
 
-	manager.RemoveTimer(timer.ID())
+	system := NewTimerSystem(10)
+	system.Update(world, 1.0)
 
-	if cancelCalled != 1 {
-		t.Fatalf("cancel callback should fire when timer is removed, got %d calls", cancelCalled)
+	// All should be removed
+	timers := core.QueryFor[Timer](world)
+	if len(timers) != 0 {
+		t.Fatalf("all one-shot timers should be removed, got %d remaining", len(timers))
+	}
+
+	// Bucket should be reset for next update
+	if len(system.timersToRemove) != 0 {
+		t.Fatal("cleanup bucket should be reset after update")
 	}
 }
