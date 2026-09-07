@@ -442,5 +442,3 @@ func TestSystem_TestCollisionMissingComponent(t *testing.T) {
 		t.Error("Expected error when testing collision on entity without collider")
 	}
 }
-
-
