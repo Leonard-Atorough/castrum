@@ -1,0 +1,125 @@
+name: Benchmark Regression Detection
+
+on:
+  pull_request:
+    paths:
+      - 'internal/**'
+      - 'components/**'
+      - 'benchmark/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/benchmark-regression.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  benchmark:
+    name: Performance Regression Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ">=1.27"
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run PR benchmarks
+        run: |
+          cd benchmark
+          go test -bench=. -benchmem -benchtime=1s -run=^$ ./... > /tmp/pr.txt 2>&1
+          cat /tmp/pr.txt
+
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Run baseline benchmarks
+        run: |
+          cd benchmark
+          go test -bench=. -benchmem -benchtime=1s -run=^$ ./... > /tmp/main.txt 2>&1
+          cat /tmp/main.txt
+
+      - name: Compare benchmarks
+        id: compare
+        run: |
+          benchstat -alpha=0.05 /tmp/main.txt /tmp/pr.txt > /tmp/comparison.txt || true
+          cat /tmp/comparison.txt
+          
+          # Extract pass/fail status
+          if grep -q "REGRESS" /tmp/comparison.txt; then
+            echo "has_regression=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_regression=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check for >10% regression on critical benchmarks
+          if grep -E "(BenchmarkQuery|BenchmarkGameLoop).*\+[1-9][0-9]" /tmp/comparison.txt; then
+            echo "critical_regression=true" >> $GITHUB_OUTPUT
+          else
+            echo "critical_regression=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment PR with results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comparison = fs.readFileSync('/tmp/comparison.txt', 'utf8');
+            
+            const hasRegression = '${{ steps.compare.outputs.has_regression }}' === 'true';
+            const isCritical = '${{ steps.compare.outputs.critical_regression }}' === 'true';
+            
+            const icon = hasRegression ? '⚠️' : '✅';
+            const status = isCritical ? 'FAIL - Critical regression' : (hasRegression ? 'WARNING - Regression detected' : 'PASS - No regressions');
+            
+            const comment = `## ${icon} Benchmark Results
+            ${status}
+                    
+            \`\`\`
+            ${comparison}
+            \`\`\`
+                    
+            **Interpretation:**
+            - \`~0%\` = No change (expected variance)
+            - \`+2% to +5%\` = Potential regression (investigate)
+            - \`+5% to +10%\` = Regression (document reason)
+            - \`>+10% on Query/GameLoop\` = Critical (requires approval)
+                    
+            See [benchmark/README.md](../benchmark/README.md) for profiling guide and optimization workflow.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Fail on critical regression
+        if: steps.compare.outputs.critical_regression == 'true'
+        run: |
+          echo "❌ Critical performance regression detected on Query or GameLoop benchmarks"
+          echo "Review the benchmark comparison above and optimize before merging"
+          exit 1
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            /tmp/main.txt
+            /tmp/pr.txt
+            /tmp/comparison.txt
+          retention-days: 30

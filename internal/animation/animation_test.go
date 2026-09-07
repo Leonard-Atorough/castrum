@@ -31,9 +31,6 @@ func createAnimatableEntity(world *core.World, animations map[string]components.
 
 func TestNewSystem(t *testing.T) {
 	sys := &System{}
-	if sys == nil {
-		t.Fatal("NewSystem returned nil")
-	}
 	if sys.Events() == nil {
 		t.Error("Events should return slice, not nil")
 	}
