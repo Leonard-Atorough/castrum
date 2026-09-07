@@ -239,14 +239,14 @@ func TestCamera_AspectRatio(t *testing.T) {
 // System tests
 
 func TestNewSystem(t *testing.T) {
-	sys := NewSystem()
+	sys := &System{}
 	if sys == nil {
 		t.Fatal("NewSystem returned nil")
 	}
 }
 
 func TestSystem_Init(t *testing.T) {
-	sys := NewSystem()
+	sys := &System{}
 	world := core.NewWorld()
 
 	err := sys.Init(world)
@@ -256,7 +256,7 @@ func TestSystem_Init(t *testing.T) {
 }
 
 func TestSystem_Shutdown(t *testing.T) {
-	sys := NewSystem()
+	sys := &System{}
 	world := core.NewWorld()
 
 	err := sys.Shutdown(world)
@@ -266,7 +266,7 @@ func TestSystem_Shutdown(t *testing.T) {
 }
 
 func TestSystem_Update_ClampsCamera(t *testing.T) {
-	sys := NewSystem()
+	sys := &System{}
 	world := core.NewWorld()
 
 	// Create a camera with bounds
@@ -306,7 +306,7 @@ func TestSystem_Update_ClampsCamera(t *testing.T) {
 }
 
 func TestSystem_Update_MultipleCamera(t *testing.T) {
-	sys := NewSystem()
+	sys := &System{}
 	world := core.NewWorld()
 
 	// Create first camera with bounds
@@ -361,7 +361,7 @@ func TestSystem_Update_MultipleCamera(t *testing.T) {
 }
 
 func TestSystem_Update_UnboundedCameraNotAffected(t *testing.T) {
-	sys := NewSystem()
+	sys := &System{}
 	world := core.NewWorld()
 
 	// Create unbounded camera (no explicit bounds = infinite)

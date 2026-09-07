@@ -80,7 +80,7 @@ func main() {
 	}
 
 	// Register the collision system (runs after movement to handle collision response)
-	if err := game.Systems.Register("collision", 2, gamesystems.NewCollisionSystem(game.Collision), game.World); err != nil {
+	if err := game.Systems.Register("collision", 2, gamesystems.NewCollisionSystem(game.Systems), game.World); err != nil {
 		log.Fatalf("failed to register collision system: %v", err)
 	}
 

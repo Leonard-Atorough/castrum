@@ -32,7 +32,7 @@ func TestNewGame(t *testing.T) {
 		if cam.ScreenSize.X != 320 || cam.ScreenSize.Y != 240 {
 			t.Fatalf("Camera.ScreenSize = %v, want {320 240}", cam.ScreenSize)
 		}
-		if game.Render == nil || game.World == nil || game.Systems == nil || game.Timers == nil {
+		if game.Render == nil || game.World == nil || game.Systems == nil {
 			t.Fatal("expected NewGame to wire all core subsystems")
 		}
 	})

@@ -79,18 +79,11 @@ func (t *Timer) Resume() {
 type TimerSystem struct {
 	// Preallocated bucket for cleanup to avoid allocations per update
 	timersToRemove []*core.Entity
-	capacity       int
-}
-
-func NewTimerSystem(capacity int) *TimerSystem {
-	return &TimerSystem{
-		timersToRemove: make([]*core.Entity, 0, capacity),
-		capacity:       capacity,
-	}
+	Capacity       int
 }
 
 func (ts *TimerSystem) Init(world *core.World) error {
-	// no initialization needed for now
+	ts.timersToRemove = make([]*core.Entity, 0, ts.Capacity)
 	return nil
 }
 

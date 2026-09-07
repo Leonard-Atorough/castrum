@@ -1,20 +1,37 @@
 package systems
 
 import (
+	"fmt"
+
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/internal/physics"
 )
 
 // CollisionSystem handles collision response logic using event-based collision events
-// and contact geometry from the collision manager. It demonstrates the collision
+// and contact geometry from the collision system. It demonstrates the collision
 // API by destroying obstacles on Enter, logging Stay events, and removing entities on Exit.
 type CollisionSystem struct {
+	systems   *castrum.Systems
 	collision *castrum.Collision
 }
 
-func NewCollisionSystem(collisionMgr *castrum.Collision) *CollisionSystem {
-	return &CollisionSystem{collision: collisionMgr}
+func NewCollisionSystem(systems *castrum.Systems) *CollisionSystem {
+	return &CollisionSystem{systems: systems}
+}
+
+func (c *CollisionSystem) Init(world *castrum.World) error {
+	// Lazy load the collision system
+	colSys, err := c.systems.GetSystem("collision")
+	if err != nil {
+		return err
+	}
+	var ok bool
+	c.collision, ok = colSys.(*castrum.Collision)
+	if !ok {
+		return fmt.Errorf("collision system is not of expected type")
+	}
+	return nil
 }
 
 // Update processes collision events emitted by the collision manager each frame.
@@ -53,16 +70,12 @@ func (c *CollisionSystem) Update(world *castrum.World, deltaTime float64) error 
 	return nil
 }
 
+func (c *CollisionSystem) Shutdown(world *castrum.World) error {
+	return nil
+}
+
 // isPlayer checks if an entity has a Player component.
 func (c *CollisionSystem) isPlayer(world *castrum.World, entityID castrum.EntityID) bool {
 	_, err := world.GetComponent[gamecomponents.Player](entityID)
 	return err == nil
-}
-
-func (c *CollisionSystem) Init(world *castrum.World) error {
-	return nil
-}
-
-func (c *CollisionSystem) Shutdown(world *castrum.World) error {
-	return nil
 }
