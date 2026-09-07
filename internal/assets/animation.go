@@ -10,13 +10,13 @@ import (
 
 // AnimationClip defines a reusable animation: immutable, shared across entities.
 type AnimationClip struct {
-	Frames    []string `yaml:"frames"`
-	FrameSpeed float64 `yaml:"frameSpeed"`
-	Loop      bool     `yaml:"loop"`
+	Frames     []string `yaml:"frames"`
+	FrameSpeed float64  `yaml:"frameSpeed"`
+	Loop       bool     `yaml:"loop"`
 }
 
 type animationStore struct {
-	fs        fs.FS
+	fs         fs.FS
 	Animations map[string]*AnimationClip
 }
 
@@ -25,7 +25,7 @@ func newAnimationStore(filesystem fs.FS) *animationStore {
 		filesystem = os.DirFS(".")
 	}
 	return &animationStore{
-		fs:        filesystem,
+		fs:         filesystem,
 		Animations: make(map[string]*AnimationClip),
 	}
 }

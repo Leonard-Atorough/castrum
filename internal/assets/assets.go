@@ -8,15 +8,15 @@ import (
 type fileExtension string
 
 var (
-	FileExtensionTexture    []fileExtension = []fileExtension{".png", ".jpg", ".jpeg"}
-	FileExtensionBlueprint  fileExtension   = ".yaml"
-	FileExtensionAnimation  fileExtension   = ".anim.yaml"
+	FileExtensionTexture   []fileExtension = []fileExtension{".png", ".jpg", ".jpeg"}
+	FileExtensionBlueprint fileExtension   = ".yaml"
+	FileExtensionAnimation fileExtension   = ".anim.yaml"
 )
 
 type Assets struct {
-	Textures    *textureStore
-	Blueprints  *blueprintStore
-	Animations  *animationStore
+	Textures   *textureStore
+	Blueprints *blueprintStore
+	Animations *animationStore
 }
 
 func NewAssets(filesystem fs.FS) *Assets {
@@ -25,9 +25,9 @@ func NewAssets(filesystem fs.FS) *Assets {
 	}
 
 	return &Assets{
-		Textures:    newTextureStore(filesystem),
-		Blueprints:  newBlueprintStore(filesystem),
-		Animations:  newAnimationStore(filesystem),
+		Textures:   newTextureStore(filesystem),
+		Blueprints: newBlueprintStore(filesystem),
+		Animations: newAnimationStore(filesystem),
 	}
 }
 
