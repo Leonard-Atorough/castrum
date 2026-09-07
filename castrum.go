@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/animation"
 	"github.com/leonard-atorough/castrum/internal/assets"
@@ -28,7 +29,7 @@ type (
 	Systems      = core.Manager
 	Scene        = scene.Scene
 	SceneBuilder = scene.Builder
-	SceneTag     = scene.SceneTag
+	SceneTag     = components.SceneTag
 	Component    = core.Component
 	Input        = input.InputHandler
 	Animation    = animation.System
@@ -57,7 +58,6 @@ type Game struct {
 	Config *Config
 
 	Systems *core.Manager
-	Scenes  *scene.Manager
 	Render  *render.Renderer
 	Spatial *spatial.SpatialIndexHandler
 
@@ -85,7 +85,10 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 
 	newWorld := core.NewWorld()
 
-	scenes := scene.NewManager(newWorld)
+	// SceneManager is registered as a World resource (not a typed struct field) so core
+	// never needs to import the scene package; see internal/core/resource.go.
+	core.SetResource(newWorld, scene.NewManager())
+
 	// all core systems are allowed a priority of -1 for now. Better to have a field for core system priorities in the future.
 	input := input.New()
 
@@ -130,7 +133,6 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		World:             newWorld,
 		Config:            config,
 		Systems:           systems,
-		Scenes:            scenes,
 		Assets:            assets,
 		ComponentRegistry: core.GlobalRegistry, // Use the global component registry instance
 		Render:            renderer,            // Initialize the renderer
@@ -140,6 +142,12 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		fixedDelta:        1.0 / float64(config.Engine.TicksPerSecond),
 		Speed:             config.Engine.TimeScale,
 	}, nil
+}
+
+// Scenes returns the scene manager registered on this game's world.
+func (g *Game) Scenes() *scene.Manager {
+	mgr, _ := core.GetResource[*scene.Manager](g.World)
+	return mgr
 }
 
 func (g *Game) Update() error {

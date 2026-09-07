@@ -3,6 +3,8 @@ package core
 import (
 	"iter"
 	"reflect"
+
+	"github.com/leonard-atorough/castrum/components"
 )
 
 type ResultEntry struct {
@@ -43,6 +45,7 @@ type Query struct {
 	world    *World
 	required []Component
 	excluded []Component
+	filter   func(ResultEntry) bool
 }
 
 func NewQuery(w *World) *Query {
@@ -53,14 +56,38 @@ func NewQuery(w *World) *Query {
 	}
 }
 
-func (q *Query) WithRequiredComponents(components ...Component) *Query {
-	q.required = append(q.required, components...)
+func (q *Query) WithRequiredComponents(comps ...Component) *Query {
+	q.required = append(q.required, comps...)
 	return q
 }
 
-func (q *Query) WithExcludedComponents(components ...Component) *Query {
-	q.excluded = append(q.excluded, components...)
+func (q *Query) WithExcludedComponents(comps ...Component) *Query {
+	q.excluded = append(q.excluded, comps...)
 	return q
+}
+
+// WithFilter adds a predicate evaluated per-entity after archetype matching.
+// Multiple filters compose: an entity must satisfy all of them.
+func (q *Query) WithFilter(fn func(ResultEntry) bool) *Query {
+	previous := q.filter
+	if previous == nil {
+		q.filter = fn
+		return q
+	}
+	q.filter = func(r ResultEntry) bool {
+		return previous(r) && fn(r)
+	}
+	return q
+}
+
+// InScene restricts results to entities tagged with the given scene ID via components.SceneTag.
+// Requiring SceneTag narrows the archetype search before the per-entity value check runs.
+func (q *Query) InScene(sceneID string) *Query {
+	q.required = append(q.required, components.SceneTag{})
+	return q.WithFilter(func(r ResultEntry) bool {
+		tag, err := r.Get[components.SceneTag]()
+		return err == nil && tag.SceneID == sceneID
+	})
 }
 
 func (q *Query) Execute() iter.Seq[ResultEntry] {
@@ -87,6 +114,9 @@ func (q *Query) Execute() iter.Seq[ResultEntry] {
 					Entity:     entity,
 					_archetype: archetype,
 					_idx:       i,
+				}
+				if q.filter != nil && !q.filter(resultEntry) {
+					continue
 				}
 				if !yield(resultEntry) {
 					return

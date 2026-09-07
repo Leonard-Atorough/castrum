@@ -13,6 +13,11 @@ type Transform struct {
 	Color    color.Color
 }
 
+// SceneTag marks which scene an entity belongs to, for query-time scene filtering.
+type SceneTag struct {
+	SceneID string
+}
+
 type RenderLayer int
 
 const (

@@ -14,6 +14,7 @@ type World struct {
 	destroyed        []*Entity
 	hierarchy        *Hierarchy
 	archetypeManager *ArchetypeManager
+	resources        map[reflect.Type]any
 }
 
 func NewWorld() *World {
@@ -23,6 +24,7 @@ func NewWorld() *World {
 		nextID:           atomic.Uint64{},
 		destroyed:        make([]*Entity, 0),
 		archetypeManager: NewArchetypeManager(),
+		resources:        make(map[reflect.Type]any),
 	}
 }
 
