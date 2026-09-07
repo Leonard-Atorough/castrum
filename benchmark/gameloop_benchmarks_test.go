@@ -25,8 +25,8 @@ func BenchmarkGameLoopSimple(b *testing.B) {
 	for b.Loop() {
 		// Simulate a simple game frame: query and read
 		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
-			pos := entry.Get[Position]()
-			vel := entry.Get[Velocity]()
+			pos, _ := entry.Get[Position]()
+			vel, _ := entry.Get[Velocity]()
 			_ = pos // Use to prevent optimization
 			_ = vel
 		}
@@ -48,8 +48,8 @@ func BenchmarkGameLoopWithUpdates(b *testing.B) {
 	for b.Loop() {
 		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
 			id := entry.EntityID
-			posComp := entry.Get[Position]()
-			velComp := entry.Get[Velocity]()
+			posComp, _ := entry.Get[Position]()
+			velComp, _ := entry.Get[Velocity]()
 			p := posComp
 			v := velComp
 			p.X += v.X
@@ -76,8 +76,8 @@ func BenchmarkGameLoopWithSpawning(b *testing.B) {
 		var entities []core.EntityID
 		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
 			entities = append(entities, entry.EntityID)
-			pos := entry.Get[Position]()
-			vel := entry.Get[Velocity]()
+			pos, _ := entry.Get[Position]()
+			vel, _ := entry.Get[Velocity]()
 			p := pos
 			v := vel
 			p.X += v.X
@@ -113,8 +113,8 @@ func BenchmarkGameLoopWithDestruction(b *testing.B) {
 		var entities []core.EntityID
 		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
 			entities = append(entities, entry.EntityID)
-			pos := entry.Get[Position]()
-			vel := entry.Get[Velocity]()
+			pos, _ := entry.Get[Position]()
+			vel, _ := entry.Get[Velocity]()
 			p := pos
 			v := vel
 			p.X += v.X
@@ -156,8 +156,8 @@ func BenchmarkGameLoopMixed(b *testing.B) {
 		var entities []core.EntityID
 		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
 			entities = append(entities, entry.EntityID)
-			pos := entry.Get[Position]()
-			vel := entry.Get[Velocity]()
+			pos, _ := entry.Get[Position]()
+			vel, _ := entry.Get[Velocity]()
 			p := pos
 			v := vel
 			p.X += v.X

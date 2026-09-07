@@ -50,7 +50,7 @@ func (as *System) Update(world *core.World, delta float64) error {
 
 	// Use the new query builder to iterate over Animatable entities
 	for entry := range as.query.Execute() {
-		animComp := entry.Get[components.Animatable]()
+		animComp, _ := entry.Get[components.Animatable]()
 		entityID := entry.EntityID
 
 		if _, exists := animComp.Animations[animComp.CurrentAnimation]; !exists {

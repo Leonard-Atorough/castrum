@@ -24,7 +24,7 @@ func (pc *PlayerController) Init(world *castrum.World) error {
 
 func (pc *PlayerController) Update(world *castrum.World, delta float64) error {
 	for entry := range world.NewQuery().WithRequiredComponents(gamecomponents.Player{}, gamecomponents.Velocity{}, components.Transform{}).Execute() {
-		vel, err := world.GetComponent[gamecomponents.Velocity](entry.EntityID)
+		vel, err := entry.Get[gamecomponents.Velocity]()
 		if err != nil {
 			continue
 		}

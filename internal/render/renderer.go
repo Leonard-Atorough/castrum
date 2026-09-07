@@ -78,8 +78,8 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
 		if !entry.Entity.IsAlive() {
 			continue
 		}
-		renderable := entry.Get[components.Renderable]()
-		transform := entry.Get[components.Transform]()
+		renderable, _ := entry.Get[components.Renderable]()
+		transform, _ := entry.Get[components.Transform]()
 
 		entityBounds := geom.NewRect(
 			geom.Vector2{X: transform.Position.X - transform.Scale.X, Y: transform.Position.Y - transform.Scale.Y},

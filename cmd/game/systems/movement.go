@@ -20,8 +20,8 @@ func (s *MovementSystem) Update(world *castrum.World, delta float64) error {
 
 	for entry := range world.NewQuery().WithRequiredComponents(components.Transform{}, gamecomponents.Velocity{}).Execute() {
 		id := entry.EntityID
-		vel := entry.Get[gamecomponents.Velocity]()
-		transform := entry.Get[components.Transform]()
+		vel, _ := entry.Get[gamecomponents.Velocity]()
+		transform, _ := entry.Get[components.Transform]()
 
 		// Apply velocity to position
 		transform.Position.X += vel.Linear.X * delta

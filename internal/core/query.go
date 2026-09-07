@@ -12,8 +12,30 @@ type ResultEntry struct {
 	Components map[reflect.Type]Component
 }
 
-func (r ResultEntry) Get[T any]() T {
-	return r.Components[reflect.TypeFor[T]()].(T)
+// Get retrieves a component from the result entry with error handling.
+// Use this instead of world.GetComponent when you already have a query result,
+// as the component data is pre-fetched and avoids redundant lookups.
+func (r ResultEntry) Get[T any]() (T, error) {
+	t := reflect.TypeFor[T]()
+	comp, ok := r.Components[t]
+	if !ok {
+		var zero T
+		return zero, &EntityError{
+			EntityID: r.EntityID,
+			Op:       "ResultEntry.Get",
+			Err:      ErrComponentNotFound,
+		}
+	}
+	typed, ok := comp.(T)
+	if !ok {
+		var zero T
+		return zero, &EntityError{
+			EntityID: r.EntityID,
+			Op:       "ResultEntry.Get",
+			Err:      ErrComponentNotFound,
+		}
+	}
+	return typed, nil
 }
 
 type Query struct {
@@ -92,7 +114,8 @@ func (q *Query) Execute() iter.Seq[ResultEntry] {
 
 // All materializes all results into a slice.
 func (q *Query) All() []ResultEntry {
-	var results []ResultEntry
+	count := q.Count()
+	results := make([]ResultEntry, 0, count)
 	for entry := range q.Execute() {
 		results = append(results, entry)
 	}
@@ -123,7 +146,8 @@ func (q *Query) Count() int {
 
 // EntityIDs returns just the entity IDs (no component data).
 func (q *Query) EntityIDs() []EntityID {
-	var ids []EntityID
+	count := q.Count()
+	ids := make([]EntityID, 0, count)
 	for entry := range q.Execute() {
 		ids = append(ids, entry.EntityID)
 	}

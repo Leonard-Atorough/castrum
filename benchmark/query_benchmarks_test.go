@@ -91,7 +91,7 @@ func BenchmarkIterateQueryResults(b *testing.B) {
 	for b.Loop() {
 
 		for entry := range world.NewQuery().WithRequiredComponents(Position{}).Execute() {
-			world.GetComponent[Position](entry.EntityID)
+			entry.Get[Position]()
 		}
 	}
 }
