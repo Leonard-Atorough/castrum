@@ -385,59 +385,6 @@ func (w *World) NewQuery() *Query {
 	return NewQuery(w)
 }
 
-// Query returns all entities that have all of the specified components.
-//
-// Deprecated: use NewQuery().WithRequiredComponents(...).EntityIDs() or .All() instead.
-// The new Query builder provides lazy evaluation, better composability, and direct access
-// to component data without separate GetComponent calls.
-func (w *World) Query(components ...reflect.Type) []EntityID {
-	if len(components) == 0 {
-		return nil
-	}
-
-	// Use superset matching to find all entities that have at least these components
-	queryKey := NewArchetypeKey(components...)
-	var result []EntityID
-
-	for _, archetype := range w.archetypeManager.archetypes {
-		if archetype.componentTypes.ContainsAll(queryKey) {
-			result = append(result, archetype.entities...)
-		}
-	}
-
-	return result
-}
-
-// QueryAny returns all entities that have any of the specified components.
-//
-// Deprecated: use the new Query builder NewQuery().WithRequiredComponents(...) for filtering,
-// or iterate through archetypes directly with NewQuery().Execute() for more complex queries.
-// QueryAny behavior can be replicated by querying each component type separately and deduplicating.
-func (w *World) QueryAny(components ...Component) []EntityID {
-	if len(components) == 0 {
-		return nil
-	}
-
-	var results []EntityID
-	seen := make(map[EntityID]bool)
-
-	for _, comp := range components {
-		compType := reflect.TypeOf(comp)
-		for _, archetype := range w.archetypeManager.archetypes {
-			if slices.Contains(archetype.componentTypes, compType) {
-				for _, entityID := range archetype.entities {
-					if !seen[entityID] {
-						results = append(results, entityID)
-						seen[entityID] = true
-					}
-				}
-			}
-		}
-	}
-
-	return results
-}
-
 // Components returns all components associated with an entity.
 func (w *World) Components(entityID EntityID) []Component {
 	entity, exists := w.entities[entityID]
