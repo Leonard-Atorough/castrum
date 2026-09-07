@@ -2,28 +2,30 @@ package animation
 
 import (
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 type AnimationEventType int
 
 const (
-	FrameEventType AnimationEventType = iota
-	CompleteEventType
+	EventClipFinished AnimationEventType = iota
+	EventClipLooped
 )
 
 type AnimationEvent struct {
-	EntityID   core.EntityID
-	Type       AnimationEventType
-	FrameIndex int
+	EntityID core.EntityID
+	ClipPath string
+	Type     AnimationEventType
 }
 
-// System is a lifecycle handler for animation components.
-// It processes all Animatable components and emits animation events.
-// To control animations, modify Animatable components directly via world.SetComponent.
+// System is a lifecycle handler for Animation components.
+// It processes all Animation components, advancing frame time against loaded AnimationClips,
+// and emits events when clips finish or loop.
 type System struct {
-	events []AnimationEvent
-	query  *core.Query
+	events      []AnimationEvent
+	query       *core.Query
+	assetLoader *assets.Assets
 }
 
 // Events returns animation events emitted during the last Update.
@@ -36,77 +38,68 @@ func (as *System) Events() []AnimationEvent {
 
 func (as *System) Init(world *core.World) error {
 	as.query = world.NewQuery().WithRequiredComponents(
-		components.Animatable{},
+		components.Animation{},
 		components.Renderable{},
 	)
 	as.events = make([]AnimationEvent, 0, 64)
 
+	// For now, create a default assets loader. In production, inject this from outside.
+	as.assetLoader = assets.NewAssets(nil)
+
 	return nil
 }
 
-// Update processes all Animatable components, advancing frame time and emitting events.
+// Update processes all Animation components, advancing frame time and emitting events.
 func (as *System) Update(world *core.World, delta float64) error {
 	as.events = as.events[:0] // clear previous frame events
 
-	// Use the new query builder to iterate over Animatable entities
 	for entry := range as.query.Execute() {
-		animComp, _ := entry.Get[components.Animatable]()
+		anim, _ := entry.Get[components.Animation]()
 		entityID := entry.EntityID
 
-		if _, exists := animComp.Animations[animComp.CurrentAnimation]; !exists {
+		if !anim.Playing {
 			continue
 		}
 
-		if !animComp.Animations[animComp.CurrentAnimation].Playing {
+		// Load the animation clip from assets
+		res, err := as.assetLoader.Load(anim.ClipPath)
+		if err != nil || res == nil {
+			// Skip if clip not found; log in production
 			continue
 		}
 
-		current := animComp.Animations[animComp.CurrentAnimation]
-		current.FrameTime += delta
+		clip := res.(*assets.AnimationClip)
 
-		if current.FrameTime >= current.FrameSpeed {
-			current.FrameTime = 0
-			current.FrameIndex++
+		// Advance frame time by delta * playback speed
+		anim.FrameTime += delta * anim.PlaybackSpeed
 
-			// Emit frame event
-			if current.FrameIndex < len(current.Frames) {
-				as.events = append(as.events, AnimationEvent{
-					EntityID:   entityID,
-					Type:       FrameEventType,
-					FrameIndex: current.FrameIndex,
-				})
+		// Advance frames
+		if anim.FrameTime >= clip.FrameSpeed {
+			anim.FrameTime -= clip.FrameSpeed
+			anim.FrameIndex++
 
-				// Trigger frame callback if defined
-				if current.FrameEvents != nil {
-					if callback, exists := current.FrameEvents[current.FrameIndex]; exists {
-						callback()
-					}
-				}
-			}
-
-			if current.FrameIndex >= len(current.Frames) {
-				if current.Loop {
-					current.FrameIndex = 0
-				} else {
-					current.FrameIndex = len(current.Frames) - 1
-					current.Playing = false
-
-					// Emit completion event
+			// Handle loop or stop
+			if anim.FrameIndex >= len(clip.Frames) {
+				if clip.Loop {
+					anim.FrameIndex = 0
 					as.events = append(as.events, AnimationEvent{
 						EntityID: entityID,
-						Type:     CompleteEventType,
+						ClipPath: anim.ClipPath,
+						Type:     EventClipLooped,
 					})
-
-					// Trigger completion callback if defined
-					if current.Callback != nil {
-						current.Callback()
-					}
+				} else {
+					anim.FrameIndex = len(clip.Frames) - 1
+					anim.Playing = false
+					as.events = append(as.events, AnimationEvent{
+						EntityID: entityID,
+						ClipPath: anim.ClipPath,
+						Type:     EventClipFinished,
+					})
 				}
 			}
 		}
 
-		animComp.Animations[animComp.CurrentAnimation] = current
-		_ = world.SetComponent(entityID, animComp)
+		_ = world.SetComponent(entityID, anim)
 	}
 	return nil
 }

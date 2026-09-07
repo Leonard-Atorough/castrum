@@ -51,33 +51,14 @@ const (
 	PrimitiveKindPolygon
 )
 
+// Animation holds playback state for an animating entity.
+// The animation definition (frames, frame speed, loop) is loaded separately as an asset (AnimationClip).
 type Animation struct {
-	Frames      []string
-	FrameEvents map[int]func() // optional callbacks for specific frames
-	FrameIndex  int            // current frame index
-	Callback    func()         // optional callback function to be called when the animation finishes
-	FrameTime   float64        // time elapsed since the last frame change
-	FrameSpeed  float64        // seconds per frame
-	Loop        bool           // indicates whether the animation should loop
-	AutoPlay    bool           // indicates whether the animation should start playing automatically
-	Playing     bool           // indicates whether the animation is currently playing
-}
-
-type Animatable struct {
-	Animations       map[string]Animation
-	CurrentAnimation string // the name of the current animation
-
-}
-
-func NewAnimatable(frames map[string]Animation, currentAnimation string) Animatable {
-	defaultAnimation := "default"
-	if _, exists := frames[currentAnimation]; exists {
-		defaultAnimation = currentAnimation
-	}
-	return Animatable{
-		Animations:       frames,
-		CurrentAnimation: defaultAnimation,
-	}
+	ClipPath      string  // path to the .anim.yaml asset
+	FrameIndex    int     // current frame
+	FrameTime     float64 // accumulated time for current frame (seconds)
+	Playing       bool    // is the animation running
+	PlaybackSpeed float64 // playback multiplier (1.0 = normal speed)
 }
 
 // Spin rotates an entity's Transform by AngularVelocity radians per second.

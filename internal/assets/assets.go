@@ -10,11 +10,13 @@ type fileExtension string
 var (
 	FileExtensionTexture   []fileExtension = []fileExtension{".png", ".jpg", ".jpeg"}
 	FileExtensionBlueprint fileExtension   = ".yaml"
+	FileExtensionAnimation fileExtension   = ".anim.yaml"
 )
 
 type Assets struct {
 	Textures   *textureStore
 	Blueprints *blueprintStore
+	Animations *animationStore
 }
 
 func NewAssets(filesystem fs.FS) *Assets {
@@ -25,6 +27,7 @@ func NewAssets(filesystem fs.FS) *Assets {
 	return &Assets{
 		Textures:   newTextureStore(filesystem),
 		Blueprints: newBlueprintStore(filesystem),
+		Animations: newAnimationStore(filesystem),
 	}
 }
 
@@ -37,6 +40,8 @@ func (a *Assets) Load(path string) (res any, err error) {
 	switch {
 	case hasTextureExtension(path):
 		res, err = a.Textures.Load(path)
+	case hasAnimationExtension(path):
+		res, err = a.Animations.Load(path)
 	case hasBlueprintExtension(path):
 		res, err = a.Blueprints.Load(path)
 	default:
@@ -52,6 +57,11 @@ func hasTextureExtension(path string) bool {
 		}
 	}
 	return false
+}
+
+func hasAnimationExtension(path string) bool {
+	ext := FileExtensionAnimation
+	return len(path) >= len(ext) && path[len(path)-len(ext):] == string(ext)
 }
 
 func hasBlueprintExtension(path string) bool {
