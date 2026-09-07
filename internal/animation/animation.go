@@ -105,7 +105,10 @@ func (am *Manager) Play(world *core.World, entityID core.EntityID) error {
 	if err != nil {
 		return err
 	}
-	current := animComp.Animations[animComp.CurrentAnimation]
+	current, exists := animComp.Animations[animComp.CurrentAnimation]
+	if !exists {
+		return fmt.Errorf("animation not found: %s", animComp.CurrentAnimation)
+	}
 	current.Playing = true
 	current.FrameTime = 0
 	current.FrameIndex = 0
@@ -118,7 +121,10 @@ func (am *Manager) Pause(world *core.World, entityID core.EntityID) error {
 	if err != nil {
 		return err
 	}
-	current := animComp.Animations[animComp.CurrentAnimation]
+	current, exists := animComp.Animations[animComp.CurrentAnimation]
+	if !exists {
+		return fmt.Errorf("animation not found: %s", animComp.CurrentAnimation)
+	}
 	current.Playing = false
 	animComp.Animations[animComp.CurrentAnimation] = current
 	return world.SetComponent(entityID, animComp)
@@ -129,7 +135,10 @@ func (am *Manager) Stop(world *core.World, entityID core.EntityID) error {
 	if err != nil {
 		return err
 	}
-	current := animComp.Animations[animComp.CurrentAnimation]
+	current, exists := animComp.Animations[animComp.CurrentAnimation]
+	if !exists {
+		return fmt.Errorf("animation not found: %s", animComp.CurrentAnimation)
+	}
 	current.Playing = false
 	current.FrameTime = 0
 	current.FrameIndex = 0
@@ -142,7 +151,10 @@ func (am *Manager) Reset(world *core.World, entityID core.EntityID) error {
 	if err != nil {
 		return err
 	}
-	current := animComp.Animations[animComp.CurrentAnimation]
+	current, exists := animComp.Animations[animComp.CurrentAnimation]
+	if !exists {
+		return fmt.Errorf("animation not found: %s", animComp.CurrentAnimation)
+	}
 	current.Playing = false
 	current.FrameTime = 0
 	current.FrameIndex = 0
