@@ -202,7 +202,7 @@ func (w *World) AddComponent(entityID EntityID, comp ...Component) error {
 
 // RemoveComponent removes a component from an entity by type.
 func (w *World) RemoveComponent[T Component](entityID EntityID) error {
-	componentType := reflect.TypeOf((*T)(nil)).Elem()
+	componentType := reflect.TypeFor[T]()
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return ErrEntityNotFound
@@ -217,13 +217,7 @@ func (w *World) RemoveComponent[T Component](entityID EntityID) error {
 		}
 	}
 
-	found := false
-	for _, t := range archetype.componentTypes {
-		if t == componentType {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(archetype.componentTypes, componentType)
 
 	if !found {
 		return nil // Component type not found in the entity's archetype; nothing to remove.
@@ -244,7 +238,7 @@ func (w *World) RemoveComponent[T Component](entityID EntityID) error {
 // GetComponent returns the first component of the specified type for an entity.
 func (w *World) GetComponent[T Component](entityID EntityID) (T, error) {
 	var zero T
-	compType := reflect.TypeOf((*T)(nil)).Elem()
+	compType := reflect.TypeFor[T]()
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return zero, &EntityError{
@@ -305,7 +299,7 @@ func (w *World) GetComponent[T Component](entityID EntityID) (T, error) {
 }
 
 func (w *World) HasComponent[T Component](entityID EntityID) bool {
-	compType := reflect.TypeOf((*T)(nil)).Elem()
+	compType := reflect.TypeFor[T]()
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return false
@@ -316,16 +310,11 @@ func (w *World) HasComponent[T Component](entityID EntityID) bool {
 		return false
 	}
 
-	for _, t := range archetype.componentTypes {
-		if t == compType {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(archetype.componentTypes, compType)
 }
 
 func (w *World) SetComponent[T Component](entityID EntityID, newComp T) error {
-	compType := reflect.TypeOf((*T)(nil)).Elem()
+	compType := reflect.TypeFor[T]()
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return &EntityError{
@@ -518,12 +507,4 @@ func (w *World) setComponentInArchetype(archetype *Archetype, index int, compTyp
 		archetype.componentData[compType] = compSlice
 	}
 	compSlice[index] = comp
-}
-
-func Types(comps ...Component) []reflect.Type {
-	var componentTypes []reflect.Type
-	for _, comp := range comps {
-		componentTypes = append(componentTypes, reflect.TypeOf(comp))
-	}
-	return componentTypes
 }

@@ -46,14 +46,14 @@ type spatialIndexer interface {
 	Query(position geom.Vector2, radius float64) []core.EntityID
 }
 
-type Manager struct {
+type System struct {
 	spatial       spatialIndexer
 	config        Config
 	events        []CollisionEvent
 	previousPairs map[PairKey]*CollisionState
-
 	lastPositions map[core.EntityID]geom.Vector2
 	dirty         map[core.EntityID]struct{}
+	query         *core.Query
 }
 
 // Config controls collision detection behavior
@@ -72,9 +72,9 @@ func DefaultConfig() Config {
 	}
 }
 
-// NewManager creates a collision manager with the given spatial manager
-func NewManager(spatialMgr spatialIndexer, cfg Config) *Manager {
-	return &Manager{
+// NewSystem creates a collision system with the given spatial manager
+func NewSystem(spatialMgr spatialIndexer, cfg Config) *System {
+	return &System{
 		spatial:       spatialMgr,
 		config:        cfg,
 		previousPairs: make(map[PairKey]*CollisionState),
@@ -83,46 +83,59 @@ func NewManager(spatialMgr spatialIndexer, cfg Config) *Manager {
 	}
 }
 
-// Init initializes the collision manager
-func (m *Manager) Init(world *core.World) error {
-	if m.spatial == nil {
-		return fmt.Errorf("collision manager requires a spatial manager")
+// Init initializes the collision system
+func (s *System) Init(world *core.World) error {
+	if s.spatial == nil {
+		return fmt.Errorf("collision system requires a spatial indexer")
 	}
+	s.query = world.NewQuery().WithRequiredComponents(
+		components.Collider{},
+		components.Transform{},
+	)
 	return nil
 }
 
-func (m *Manager) Events() []CollisionEvent {
-	return m.events
+func (s *System) Events() []CollisionEvent {
+	if s.events == nil {
+		return []CollisionEvent{}
+	}
+	return s.events
+}
+
+// Shutdown cleans up the collision system
+func (s *System) Shutdown(world *core.World) error {
+	return nil
 }
 
 // Update rebuilds the collision index for entities that moved since the last
 // frame, replays cached results for entities that did not, and emits
 // enter/stay/exit events for the frame. It does NOT apply game logic.
-func (m *Manager) Update(world *core.World, deltaTime float64) error {
-	if !m.config.Enabled || m.spatial == nil {
+func (s *System) Update(world *core.World, deltaTime float64) error {
+	if !s.config.Enabled || s.spatial == nil {
 		return nil
 	}
 
-	m.events = m.events[:0]
+	s.events = s.events[:0]
 
-	m.markDirtyFromSpatial(world)
+	s.markDirtyFromSpatial(world)
 
-	candidates := m.broadphase(world)
-	m.narrowphase(world, candidates)
+	candidates := s.broadphase(world)
+	s.narrowphase(world, candidates)
 
-	clear(m.dirty)
+	clear(s.dirty)
 	return nil
 }
 
 // TestCollision checks if two entities are colliding at this moment.
 // Returns the collision result with contact geometry (point, normal, penetration).
-func (m *Manager) TestCollision(world *core.World, entityA, entityB core.EntityID) (CollisionResult, error) {
-	colliderA, shapeA, err := m.worldShape(world, entityA)
+// This is a query helper used by systems to check collisions.
+func (s *System) TestCollision(world *core.World, entityA, entityB core.EntityID) (CollisionResult, error) {
+	colliderA, shapeA, err := s.worldShape(world, entityA)
 	if err != nil {
 		return CollisionResult{}, err
 	}
 
-	colliderB, shapeB, err := m.worldShape(world, entityB)
+	colliderB, shapeB, err := s.worldShape(world, entityB)
 	if err != nil {
 		return CollisionResult{}, err
 	}
@@ -134,9 +147,10 @@ func (m *Manager) TestCollision(world *core.World, entityA, entityB core.EntityI
 	return intersectsAny(shapeA, shapeB), nil
 }
 
-// QueryCollisions returns all entities colliding with the given entity
-func (m *Manager) QueryCollisions(world *core.World, entityID core.EntityID) ([]core.EntityID, error) {
-	collider, shapeA, err := m.worldShape(world, entityID)
+// QueryCollisions returns all entities colliding with the given entity.
+// This is a query helper used by systems to find all current collisions.
+func (s *System) QueryCollisions(world *core.World, entityID core.EntityID) ([]core.EntityID, error) {
+	collider, shapeA, err := s.worldShape(world, entityID)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +159,7 @@ func (m *Manager) QueryCollisions(world *core.World, entityID core.EntityID) ([]
 	if err != nil {
 		return nil, fmt.Errorf("entity %d: %w", entityID, err)
 	}
-	nearby := m.spatial.Query(transform.Position, m.config.QueryRadius)
+	nearby := s.spatial.Query(transform.Position, s.config.QueryRadius)
 
 	var collisions []core.EntityID
 	for _, otherID := range nearby {
@@ -153,7 +167,7 @@ func (m *Manager) QueryCollisions(world *core.World, entityID core.EntityID) ([]
 			continue
 		}
 
-		other, shapeB, err := m.worldShape(world, otherID)
+		other, shapeB, err := s.worldShape(world, otherID)
 		if err != nil {
 			continue
 		}
@@ -173,7 +187,7 @@ func (m *Manager) QueryCollisions(world *core.World, entityID core.EntityID) ([]
 // worldShape fetches an entity's Collider and its shape translated to world
 // space. Shared by every code path that needs to test an entity's collider,
 // so the fetch-and-translate logic lives in one place.
-func (m *Manager) worldShape(world *core.World, entityID core.EntityID) (components.Collider, any, error) {
+func (s *System) worldShape(world *core.World, entityID core.EntityID) (components.Collider, any, error) {
 	collider, err := world.GetComponent[components.Collider](entityID)
 	if err != nil {
 		return components.Collider{}, nil, fmt.Errorf("entity %d: %w", entityID, err)
@@ -194,10 +208,10 @@ func (m *Manager) worldShape(world *core.World, entityID core.EntityID) (compone
 // markDirtyFromSpatial flags entities whose position changed since the last
 // Update call. Any change is enough to mark dirty - a smaller movement can
 // still start or end an overlap, so there is no "safe" distance threshold.
-func (m *Manager) markDirtyFromSpatial(world *core.World) {
-	seen := make(map[core.EntityID]struct{}, len(m.lastPositions))
+func (s *System) markDirtyFromSpatial(world *core.World) {
+	seen := make(map[core.EntityID]struct{}, len(s.lastPositions))
 
-	for entry := range world.NewQuery().WithRequiredComponents(components.Transform{}, components.Collider{}).Execute() {
+	for entry := range s.query.Execute() {
 		entityID := entry.EntityID
 		seen[entityID] = struct{}{}
 
@@ -211,29 +225,29 @@ func (m *Manager) markDirtyFromSpatial(world *core.World) {
 			continue
 		}
 
-		lastPos, exists := m.lastPositions[entityID]
+		lastPos, exists := s.lastPositions[entityID]
 		if !exists || lastPos != transform.Position {
-			m.dirty[entityID] = struct{}{}
-			m.lastPositions[entityID] = transform.Position
+			s.dirty[entityID] = struct{}{}
+			s.lastPositions[entityID] = transform.Position
 		}
 	}
 
 	// Cleanup previousPairs entries for entities that no longer exist in the world.
-	for pair := range m.previousPairs {
+	for pair := range s.previousPairs {
 		if _, okA := seen[pair.EntityA]; !okA {
-			delete(m.previousPairs, pair)
+			delete(s.previousPairs, pair)
 			continue
 		}
 		if _, okB := seen[pair.EntityB]; !okB {
-			delete(m.previousPairs, pair)
+			delete(s.previousPairs, pair)
 		}
 	}
 
 	// Cleanup entries for entities that lost Collider component.
-	for entityID := range m.lastPositions {
+	for entityID := range s.lastPositions {
 		if _, ok := seen[entityID]; !ok {
-			delete(m.lastPositions, entityID)
-			delete(m.dirty, entityID)
+			delete(s.lastPositions, entityID)
+			delete(s.dirty, entityID)
 		}
 	}
 }
@@ -241,14 +255,14 @@ func (m *Manager) markDirtyFromSpatial(world *core.World) {
 // broadphase returns candidate pairs by querying the spatial index around
 // every dirty entity. Pairs are canonicalized (EntityA < EntityB) and
 // deduplicated so a pair moved by both members is only tested once.
-func (m *Manager) broadphase(world *core.World) []PairKey {
-	seen := make(map[PairKey]struct{}, len(m.dirty))
-	candidates := make([]PairKey, 0, len(m.dirty))
+func (s *System) broadphase(world *core.World) []PairKey {
+	seen := make(map[PairKey]struct{}, len(s.dirty))
+	candidates := make([]PairKey, 0, len(s.dirty))
 
-	for entityID := range m.dirty {
+	for entityID := range s.dirty {
 		transform, _ := world.GetComponent[components.Transform](entityID)
 
-		for _, neighborID := range m.spatial.Query(transform.Position, m.config.QueryRadius) {
+		for _, neighborID := range s.spatial.Query(transform.Position, s.config.QueryRadius) {
 			if neighborID == entityID {
 				continue
 			}
@@ -268,48 +282,48 @@ func (m *Manager) broadphase(world *core.World) []PairKey {
 // narrowphase tests each candidate pair, replays cached Stay events for pairs
 // that were colliding but untouched this frame, and emits Enter/Stay/Exit
 // events for every pair whose state changed or persists.
-func (m *Manager) narrowphase(world *core.World, candidates []PairKey) {
+func (s *System) narrowphase(world *core.World, candidates []PairKey) {
 	tested := make(map[PairKey]struct{}, len(candidates))
 
 	for _, pair := range candidates {
 		tested[pair] = struct{}{}
 
-		result, err := m.TestCollision(world, pair.EntityA, pair.EntityB)
+		result, err := s.TestCollision(world, pair.EntityA, pair.EntityB)
 		if err != nil {
-			delete(m.previousPairs, pair)
+			delete(s.previousPairs, pair)
 			continue
 		}
 
-		prev, wasColliding := m.previousPairs[pair]
+		prev, wasColliding := s.previousPairs[pair]
 		switch {
 		case result.Collided && (!wasColliding || !prev.WasColliding):
-			m.emit(CollisionEnter, pair, result)
+			s.emit(CollisionEnter, pair, result)
 		case result.Collided:
-			m.emit(CollisionStay, pair, result)
+			s.emit(CollisionStay, pair, result)
 		case wasColliding && prev.WasColliding:
-			m.emit(CollisionExit, pair, prev.CollisionResult)
+			s.emit(CollisionExit, pair, prev.CollisionResult)
 		}
 
 		if result.Collided {
-			m.previousPairs[pair] = &CollisionState{CollisionResult: result, WasColliding: true}
+			s.previousPairs[pair] = &CollisionState{CollisionResult: result, WasColliding: true}
 		} else {
-			delete(m.previousPairs, pair)
+			delete(s.previousPairs, pair)
 		}
 	}
 
 	// Pairs untouched this frame - neither member moved, so the cached result
 	// still holds. Replay Stay without re-testing geometry.
-	for pair, state := range m.previousPairs {
+	for pair, state := range s.previousPairs {
 		if _, ok := tested[pair]; ok {
 			continue
 		}
 
-		m.emit(CollisionStay, pair, state.CollisionResult)
+		s.emit(CollisionStay, pair, state.CollisionResult)
 	}
 }
 
-func (m *Manager) emit(eventType CollisionEventType, pair PairKey, result CollisionResult) {
-	m.events = append(m.events, CollisionEvent{
+func (s *System) emit(eventType CollisionEventType, pair PairKey, result CollisionResult) {
+	s.events = append(s.events, CollisionEvent{
 		CollisionEventType: eventType,
 		PairKey:            pair,
 		Point:              result.Point,

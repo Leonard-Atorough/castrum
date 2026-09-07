@@ -111,10 +111,6 @@ func (c Camera) AspectRatio() float64 {
 // It handles viewport clamping and other camera-specific logic.
 type System struct{}
 
-func NewSystem() *System {
-	return &System{}
-}
-
 func (cs *System) Init(world *core.World) error {
 	return nil
 }

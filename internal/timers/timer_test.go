@@ -89,7 +89,7 @@ func TestTimerSystem_FiresCallbackWhenExpired(t *testing.T) {
 		t.Fatalf("failed to create entity: %v", err)
 	}
 
-	system := NewTimerSystem(10)
+	system := &TimerSystem{Capacity: 10}
 	system.Update(world, 1.5)
 
 	if !fired {
@@ -117,7 +117,7 @@ func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
 		},
 	)
 
-	system := NewTimerSystem(10)
+	system := &TimerSystem{Capacity: 10}
 	system.Update(world, 1.5)
 
 	// Timer should be removed after firing
@@ -145,7 +145,7 @@ func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 		},
 	)
 
-	system := NewTimerSystem(10)
+	system := &TimerSystem{Capacity: 10}
 
 	// First update at 0.5s - should fire
 	system.Update(world, 0.5)
@@ -192,7 +192,7 @@ func TestTimerSystem_StoppedTimerDoesNotFire(t *testing.T) {
 		},
 	)
 
-	system := NewTimerSystem(10)
+	system := &TimerSystem{Capacity: 10}
 	system.Update(world, 1.0)
 
 	if callCount != 0 {
@@ -234,7 +234,7 @@ func TestTimerSystem_MultipleTimersOnDifferentEntities(t *testing.T) {
 		},
 	)
 
-	system := NewTimerSystem(10)
+	system := &TimerSystem{Capacity: 10}
 	system.Update(world, 1.5)
 
 	if !fired["entity1"] || !fired["entity2"] {
@@ -264,7 +264,7 @@ func TestTimerSystem_NoCallbackTimerStillFires(t *testing.T) {
 		},
 	)
 
-	system := NewTimerSystem(10)
+	system := &TimerSystem{Capacity: 10}
 	system.Update(world, 1.5)
 
 	// Timer should still be removed even without callback
@@ -296,7 +296,7 @@ func TestTimerSystem_Shutdown(t *testing.T) {
 		},
 	)
 
-	system := NewTimerSystem(10)
+	system := &TimerSystem{Capacity: 10}
 	system.Shutdown(world)
 
 	// Both timers should be stopped
@@ -331,7 +331,7 @@ func TestTimerSystem_BucketPreallocation(t *testing.T) {
 		)
 	}
 
-	system := NewTimerSystem(10)
+	system := &TimerSystem{Capacity: 10}
 	system.Update(world, 1.0)
 
 	// All should be removed

@@ -4,7 +4,6 @@ import (
 	"image/color"
 	"io/fs"
 	"math"
-	"reflect"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -26,13 +25,14 @@ type (
 	Entity       = core.Entity
 	Timer        = timers.Timer
 	System       = core.System
+	Systems      = core.Manager
 	Scene        = scene.Scene
 	SceneBuilder = scene.Builder
 	SceneTag     = scene.SceneTag
 	Component    = core.Component
 	Input        = input.InputHandler
-	Animation    = animation.Manager
-	Collision    = physics.Manager
+	Animation    = animation.System
+	Collision    = physics.System
 	Spatial      = spatial.SpatialIndexHandler
 	Camera       = camera.Camera
 	EntityID     = core.EntityID
@@ -57,15 +57,11 @@ type Game struct {
 	Config *Config
 
 	Systems *core.Manager
-	Timers  *timers.TimerSystem
-	Camera  *camera.System
 	Scenes  *scene.Manager
 	Render  *render.Renderer
 	Spatial *spatial.SpatialIndexHandler
 
-	Input     *Input
-	Animation *Animation
-	Collision *Collision
+	Input *Input
 
 	Assets            *assets.Assets
 	ComponentRegistry *core.ComponentRegistry
@@ -90,16 +86,28 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	newWorld := core.NewWorld()
 
 	scenes := scene.NewManager(newWorld)
+	// all core systems are allowed a priority of -1 for now. Better to have a field for core system priorities in the future.
+	input := input.New()
+
 	systems := core.NewManager()
-	timers := timers.NewTimerSystem(timersToRemove)
-	cameraSystem := camera.NewSystem()
+
+	var err error
+	if err = systems.Register("timer", -1, &timers.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
+		return nil, err
+	}
+	if err = systems.Register("camera", -1, &camera.System{}, newWorld); err != nil {
+		return nil, err
+	}
+	if err = systems.Register("animation", -1, &animation.System{}, newWorld); err != nil {
+		return nil, err
+	}
 	spatial, err := spatial.NewManager(config.World.GridCellSize)
 	if err != nil {
 		return nil, err
 	}
-	input := input.New()
-	animation := animation.NewManager()
-	collisionMgr := physics.NewManager(spatial.Index, physics.DefaultConfig())
+	if err = systems.Register("collision", -1, physics.NewSystem(spatial.Index, physics.DefaultConfig()), newWorld); err != nil {
+		return nil, err
+	}
 
 	assets := assets.NewAssets(filesystem)
 	renderer := render.New(assets.Textures)
@@ -122,8 +130,6 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		World:             newWorld,
 		Config:            config,
 		Systems:           systems,
-		Timers:            timers,
-		Camera:            cameraSystem,
 		Scenes:            scenes,
 		Assets:            assets,
 		ComponentRegistry: core.GlobalRegistry, // Use the global component registry instance
@@ -131,8 +137,6 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		CameraEntityID:    cameraEntity.ID,
 		Spatial:           spatial,
 		Input:             input,
-		Animation:         animation,
-		Collision:         collisionMgr,
 		fixedDelta:        1.0 / float64(config.Engine.TicksPerSecond),
 		Speed:             config.Engine.TimeScale,
 	}, nil
@@ -160,14 +164,9 @@ func (g *Game) Update() error {
 	iterator := 0
 	for g.accumulator >= g.fixedDelta && iterator < maxIterationsPerFrame {
 		iterator++
-		g.Timers.Update(g.World, g.fixedDelta)
-		g.Camera.Update(g.World, g.fixedDelta)
 		if err := g.Spatial.Update(g.World, g.fixedDelta); err != nil {
 			return err
 		}
-		g.Collision.Update(g.World, g.fixedDelta)
-		g.Animation.Update(g.World, g.fixedDelta)
-		// Systems run last
 		g.Systems.Update(g.World, g.fixedDelta)
 		g.accumulator -= g.fixedDelta
 	}
@@ -216,10 +215,6 @@ func (g *Game) SetCamera(cam camera.Camera) error {
 
 func QueryFor[T Component](w *core.World) []EntityID {
 	return core.QueryFor[T](w)
-}
-
-func Types(comps ...Component) []reflect.Type {
-	return core.Types(comps...)
 }
 
 func (g *Game) SetPaused(paused bool) {

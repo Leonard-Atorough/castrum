@@ -1,8 +1,6 @@
 package animation
 
 import (
-	"fmt"
-
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
@@ -20,25 +18,38 @@ type AnimationEvent struct {
 	FrameIndex int
 }
 
-type Manager struct {
+// System is a lifecycle handler for animation components.
+// It processes all Animatable components and emits animation events.
+// To control animations, modify Animatable components directly via world.SetComponent.
+type System struct {
 	events []AnimationEvent
+	query  *core.Query
 }
 
-func NewManager() *Manager {
-	return &Manager{
-		events: make([]AnimationEvent, 0, 64),
+// Events returns animation events emitted during the last Update.
+func (as *System) Events() []AnimationEvent {
+	if as.events == nil {
+		return []AnimationEvent{}
 	}
+	return as.events
 }
 
-func (am *Manager) Events() []AnimationEvent {
-	return am.events
+func (as *System) Init(world *core.World) error {
+	as.query = world.NewQuery().WithRequiredComponents(
+		components.Animatable{},
+		components.Renderable{},
+	)
+	as.events = make([]AnimationEvent, 0, 64)
+
+	return nil
 }
 
-func (am *Manager) Update(world *core.World, delta float64) error {
-	am.events = am.events[:0] // clear previous frame events
+// Update processes all Animatable components, advancing frame time and emitting events.
+func (as *System) Update(world *core.World, delta float64) error {
+	as.events = as.events[:0] // clear previous frame events
 
 	// Use the new query builder to iterate over Animatable entities
-	for entry := range world.NewQuery().WithRequiredComponents(components.Animatable{}).Execute() {
+	for entry := range as.query.Execute() {
 		animComp := entry.Get[components.Animatable]()
 		entityID := entry.EntityID
 
@@ -59,7 +70,7 @@ func (am *Manager) Update(world *core.World, delta float64) error {
 
 			// Emit frame event
 			if current.FrameIndex < len(current.Frames) {
-				am.events = append(am.events, AnimationEvent{
+				as.events = append(as.events, AnimationEvent{
 					EntityID:   entityID,
 					Type:       FrameEventType,
 					FrameIndex: current.FrameIndex,
@@ -81,7 +92,7 @@ func (am *Manager) Update(world *core.World, delta float64) error {
 					current.Playing = false
 
 					// Emit completion event
-					am.events = append(am.events, AnimationEvent{
+					as.events = append(as.events, AnimationEvent{
 						EntityID: entityID,
 						Type:     CompleteEventType,
 					})
@@ -100,120 +111,6 @@ func (am *Manager) Update(world *core.World, delta float64) error {
 	return nil
 }
 
-func (am *Manager) Play(world *core.World, entityID core.EntityID) error {
-	animComp, err := world.GetComponent[components.Animatable](entityID)
-	if err != nil {
-		return err
-	}
-	current, exists := animComp.Animations[animComp.CurrentAnimation]
-	if !exists {
-		return fmt.Errorf("animation not found: %s", animComp.CurrentAnimation)
-	}
-	current.Playing = true
-	current.FrameTime = 0
-	current.FrameIndex = 0
-	animComp.Animations[animComp.CurrentAnimation] = current
-	return world.SetComponent(entityID, animComp)
-}
-
-func (am *Manager) Pause(world *core.World, entityID core.EntityID) error {
-	animComp, err := world.GetComponent[components.Animatable](entityID)
-	if err != nil {
-		return err
-	}
-	current, exists := animComp.Animations[animComp.CurrentAnimation]
-	if !exists {
-		return fmt.Errorf("animation not found: %s", animComp.CurrentAnimation)
-	}
-	current.Playing = false
-	animComp.Animations[animComp.CurrentAnimation] = current
-	return world.SetComponent(entityID, animComp)
-}
-
-func (am *Manager) Stop(world *core.World, entityID core.EntityID) error {
-	animComp, err := world.GetComponent[components.Animatable](entityID)
-	if err != nil {
-		return err
-	}
-	current, exists := animComp.Animations[animComp.CurrentAnimation]
-	if !exists {
-		return fmt.Errorf("animation not found: %s", animComp.CurrentAnimation)
-	}
-	current.Playing = false
-	current.FrameTime = 0
-	current.FrameIndex = 0
-	animComp.Animations[animComp.CurrentAnimation] = current
-	return world.SetComponent(entityID, animComp)
-}
-
-func (am *Manager) Reset(world *core.World, entityID core.EntityID) error {
-	animComp, err := world.GetComponent[components.Animatable](entityID)
-	if err != nil {
-		return err
-	}
-	current, exists := animComp.Animations[animComp.CurrentAnimation]
-	if !exists {
-		return fmt.Errorf("animation not found: %s", animComp.CurrentAnimation)
-	}
-	current.Playing = false
-	current.FrameTime = 0
-	current.FrameIndex = 0
-	animComp.Animations[animComp.CurrentAnimation] = current
-	return world.SetComponent(entityID, animComp)
-}
-
-func (am *Manager) SwitchAnimation(world *core.World, entityID core.EntityID, animationName string) error {
-	animComp, err := world.GetComponent[components.Animatable](entityID)
-	if err != nil {
-		return err
-	}
-	if _, exists := animComp.Animations[animationName]; !exists {
-		return fmt.Errorf("animation %s does not exist", animationName)
-	}
-	animComp.CurrentAnimation = animationName
-	return world.SetComponent(entityID, animComp)
-}
-
-func (am *Manager) IsPlaying(world *core.World, entityID core.EntityID) (bool, error) {
-	animComp, err := world.GetComponent[components.Animatable](entityID)
-	if err != nil {
-		return false, err
-	}
-	return animComp.Animations[animComp.CurrentAnimation].Playing, nil
-}
-
-func (am *Manager) GetFrameIndex(world *core.World, entityID core.EntityID) (int, error) {
-	animComp, err := world.GetComponent[components.Animatable](entityID)
-	if err != nil {
-		return 0, err
-	}
-	return animComp.Animations[animComp.CurrentAnimation].FrameIndex, nil
-}
-
-func (am *Manager) GetFrameTime(world *core.World, entityID core.EntityID) (float64, error) {
-	animComp, err := world.GetComponent[components.Animatable](entityID)
-	if err != nil {
-		return 0, err
-	}
-	return animComp.Animations[animComp.CurrentAnimation].FrameTime, nil
-}
-
-func (am *Manager) GetFrameSpeed(world *core.World, entityID core.EntityID) (float64, error) {
-	animComp, err := world.GetComponent[components.Animatable](entityID)
-	if err != nil {
-		return 0, err
-	}
-	return animComp.Animations[animComp.CurrentAnimation].FrameSpeed, nil
-}
-
-func (am *Manager) GetFrames(world *core.World, entityID core.EntityID, animationNames ...string) (map[string][]string, error) {
-	animComp, err := world.GetComponent[components.Animatable](entityID)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string][]string)
-	for _, name := range animationNames {
-		result[name] = animComp.Animations[name].Frames
-	}
-	return result, nil
+func (as *System) Shutdown(world *core.World) error {
+	return nil
 }

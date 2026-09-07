@@ -42,8 +42,8 @@ func (q *Query) WithExcludedComponents(components ...Component) *Query {
 
 func (q *Query) Execute() iter.Seq[ResultEntry] {
 	return func(yield func(result ResultEntry) bool) {
-		requiredTypes := Types(q.required...)
-		excludedTypes := Types(q.excluded...)
+		requiredTypes := types(q.required...)
+		excludedTypes := types(q.excluded...)
 
 		for _, archetype := range q.world.archetypeManager.archetypes {
 			if len(q.required) > 0 && !archetype.componentTypes.ContainsAll(NewArchetypeKey(requiredTypes...)) {
@@ -128,4 +128,12 @@ func (q *Query) EntityIDs() []EntityID {
 		ids = append(ids, entry.EntityID)
 	}
 	return ids
+}
+
+func types(comps ...Component) []reflect.Type {
+	var componentTypes []reflect.Type
+	for _, comp := range comps {
+		componentTypes = append(componentTypes, reflect.TypeOf(comp))
+	}
+	return componentTypes
 }
