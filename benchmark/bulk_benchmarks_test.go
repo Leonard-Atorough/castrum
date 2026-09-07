@@ -1,7 +1,6 @@
 package benchmark
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/internal/core"
@@ -53,9 +52,9 @@ func BenchmarkBulkAddComponents(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
 		// Remove existing components
-		world.RemoveComponent(entity.ID, reflect.TypeFor[Position]())
-		world.RemoveComponent(entity.ID, reflect.TypeFor[Velocity]())
-		world.RemoveComponent(entity.ID, reflect.TypeFor[Health]())
+		world.RemoveComponent[Position](entity.ID)
+		world.RemoveComponent[Velocity](entity.ID)
+		world.RemoveComponent[Health](entity.ID)
 
 		// Add all components
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
@@ -73,15 +72,11 @@ func BenchmarkBulkRemoveComponents(b *testing.B) {
 	world.AddComponent(entity.ID, Velocity{X: 1, Y: 1})
 	world.AddComponent(entity.ID, Health{Value: 100})
 
-	posType := reflect.TypeFor[Position]()
-	velType := reflect.TypeFor[Velocity]()
-	healthType := reflect.TypeFor[Health]()
-
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
-		world.RemoveComponent(entity.ID, posType)
-		world.RemoveComponent(entity.ID, velType)
-		world.RemoveComponent(entity.ID, healthType)
+		world.RemoveComponent[Position](entity.ID)
+		world.RemoveComponent[Velocity](entity.ID)
+		world.RemoveComponent[Health](entity.ID)
 
 		// Re-add for next iteration
 		world.AddComponent(entity.ID, Position{X: 1, Y: 1})

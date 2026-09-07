@@ -1,7 +1,6 @@
 package benchmark
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/internal/core"
@@ -55,7 +54,7 @@ func BenchmarkGameLoopWithUpdates(b *testing.B) {
 			v := velComp
 			p.X += v.X
 			p.Y += v.Y
-			world.SetComponent(id, reflect.TypeFor[Position](), p)
+			world.SetComponent(id, p)
 		}
 	}
 }
@@ -83,7 +82,7 @@ func BenchmarkGameLoopWithSpawning(b *testing.B) {
 			v := vel
 			p.X += v.X
 			p.Y += v.Y
-			world.SetComponent(entry.EntityID, reflect.TypeFor[Position](), p)
+			world.SetComponent(entry.EntityID, p)
 		}
 
 		// Spawn new entities (1% of current count per frame)
@@ -120,7 +119,7 @@ func BenchmarkGameLoopWithDestruction(b *testing.B) {
 			v := vel
 			p.X += v.X
 			p.Y += v.Y
-			world.SetComponent(entry.EntityID, reflect.TypeFor[Position](), p)
+			world.SetComponent(entry.EntityID, p)
 		}
 
 		// Destroy 0.5% of entities per frame
@@ -163,7 +162,7 @@ func BenchmarkGameLoopMixed(b *testing.B) {
 			v := vel
 			p.X += v.X
 			p.Y += v.Y
-			world.SetComponent(entry.EntityID, reflect.TypeFor[Position](), p)
+			world.SetComponent(entry.EntityID, p)
 		}
 
 		// Spawn 1% per frame

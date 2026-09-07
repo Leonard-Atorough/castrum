@@ -17,20 +17,20 @@ func (s *movementSystem) Init(world *World) error {
 
 func (s *movementSystem) Update(world *World, delta float64) error {
 	for _, id := range QueryFor[TestPosition](world) {
-		if !HasComponent[TestVelocity](world, id) {
+		if !world.HasComponent[TestVelocity](id) {
 			continue
 		}
-		pos, err := GetComponent[TestPosition](world, id)
+		pos, err := world.GetComponent[TestPosition](id)
 		if err != nil {
 			return err
 		}
-		vel, err := GetComponent[TestVelocity](world, id)
+		vel, err := world.GetComponent[TestVelocity](id)
 		if err != nil {
 			return err
 		}
 		pos.X += vel.X * delta
 		pos.Y += vel.Y * delta
-		if err := SetComponent(world, id, pos); err != nil {
+		if err := world.SetComponent(id, pos); err != nil {
 			return err
 		}
 	}
@@ -76,7 +76,7 @@ func TestWorld_EndToEndGameLoop(t *testing.T) {
 		}
 	}
 
-	gotPos, err := GetComponent[TestPosition](world, unit.ID)
+	gotPos, err := world.GetComponent[TestPosition](unit.ID)
 	if err != nil {
 		t.Fatalf("GetComponent failed: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestWorld_EndToEndGameLoop(t *testing.T) {
 	}
 
 	// The turret has no velocity, so the movement system must leave it untouched.
-	turretPos, err := GetComponent[TestPosition](world, turret.ID)
+	turretPos, err := world.GetComponent[TestPosition](turret.ID)
 	if err != nil {
 		t.Fatalf("GetComponent failed: %v", err)
 	}

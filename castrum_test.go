@@ -1,7 +1,6 @@
 package castrum
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
@@ -26,11 +25,10 @@ func TestNewGame(t *testing.T) {
 		}
 
 		// Check camera entity
-		camComp, err := game.World.GetComponent(game.CameraEntityID, reflect.TypeFor[camera.Camera]())
+		cam, err := game.World.GetComponent[camera.Camera](game.CameraEntityID)
 		if err != nil {
 			t.Fatalf("Failed to get camera component: %v", err)
 		}
-		cam := camComp.(camera.Camera)
 		if cam.ScreenSize.X != 320 || cam.ScreenSize.Y != 240 {
 			t.Fatalf("Camera.ScreenSize = %v, want {320 240}", cam.ScreenSize)
 		}
@@ -70,11 +68,10 @@ func TestGame_Layout(t *testing.T) {
 	}
 
 	// Check camera entity after layout
-	camComp, err := game.World.GetComponent(game.CameraEntityID, reflect.TypeFor[camera.Camera]())
+	cam, err := game.World.GetComponent[camera.Camera](game.CameraEntityID)
 	if err != nil {
 		t.Fatalf("Failed to get camera component: %v", err)
 	}
-	cam := camComp.(camera.Camera)
 	if cam.ScreenSize.X != 640 || cam.ScreenSize.Y != 480 {
 		t.Fatalf("Camera.ScreenSize = %v, want {640 480}", cam.ScreenSize)
 	}

@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"reflect"
 	"slices"
 	"testing"
 )
@@ -40,14 +39,14 @@ func TestWorld_Create(t *testing.T) {
 			t.Fatalf("CreateWithComponents failed: %v", err)
 		}
 
-		got, err := GetComponent[TestPosition](w, e.ID)
+		got, err := w.GetComponent[TestPosition](e.ID)
 		if err != nil {
 			t.Fatalf("GetComponent failed: %v", err)
 		}
 		if got != pos {
 			t.Fatalf("expected position %#v, got %#v", pos, got)
 		}
-		if !HasComponent[TestVelocity](w, e.ID) {
+		if !w.HasComponent[TestVelocity](e.ID) {
 			t.Fatal("expected entity to have TestVelocity")
 		}
 	})
@@ -150,7 +149,7 @@ func TestWorld_DestroyEntity(t *testing.T) {
 		}
 		w.Cleanup()
 
-		gotA, err := GetComponent[TestPosition](w, a.ID)
+		gotA, err := w.GetComponent[TestPosition](a.ID)
 		if err != nil {
 			t.Fatalf("GetComponent(a) failed: %v", err)
 		}
@@ -158,7 +157,7 @@ func TestWorld_DestroyEntity(t *testing.T) {
 			t.Fatalf("entity a's position corrupted after sibling removal: got %#v", gotA)
 		}
 
-		gotC, err := GetComponent[TestPosition](w, c.ID)
+		gotC, err := w.GetComponent[TestPosition](c.ID)
 		if err != nil {
 			t.Fatalf("GetComponent(c) failed: %v", err)
 		}
@@ -176,11 +175,11 @@ func TestWorld_Components(t *testing.T) {
 		if err := w.AddComponent(e.ID, TestPosition{X: 1, Y: 2}); err != nil {
 			t.Fatalf("AddComponent failed: %v", err)
 		}
-		if !w.HasComponent(e.ID, reflect.TypeFor[TestPosition]()) {
+		if !w.HasComponent[TestPosition](e.ID) {
 			t.Fatal("entity should have TestPosition after AddComponent")
 		}
 
-		got, err := w.GetComponent(e.ID, reflect.TypeFor[TestPosition]())
+		got, err := w.GetComponent[TestPosition](e.ID)
 		if err != nil {
 			t.Fatalf("GetComponent failed: %v", err)
 		}
@@ -198,14 +197,14 @@ func TestWorld_Components(t *testing.T) {
 			t.Fatalf("AddComponent failed: %v", err)
 		}
 
-		for _, typ := range []reflect.Type{
-			reflect.TypeFor[TestPosition](),
-			reflect.TypeFor[TestVelocity](),
-			reflect.TypeFor[TestHealth](),
-		} {
-			if !w.HasComponent(e.ID, typ) {
-				t.Fatalf("expected entity to have component %s", typ)
-			}
+		if !w.HasComponent[TestPosition](e.ID) {
+			t.Fatalf("expected entity to have TestPosition component")
+		}
+		if !w.HasComponent[TestVelocity](e.ID) {
+			t.Fatalf("expected entity to have TestVelocity component")
+		}
+		if !w.HasComponent[TestHealth](e.ID) {
+			t.Fatalf("expected entity to have TestHealth component")
 		}
 	})
 
@@ -218,7 +217,7 @@ func TestWorld_Components(t *testing.T) {
 			t.Fatalf("AddComponent failed: %v", err)
 		}
 
-		got, _ := w.GetComponent(e.ID, reflect.TypeFor[TestHealth]())
+		got, _ := w.GetComponent[TestHealth](e.ID)
 		if got != (TestHealth{Value: 50}) {
 			t.Fatalf("expected updated health value, got %#v", got)
 		}
@@ -229,11 +228,11 @@ func TestWorld_Components(t *testing.T) {
 		e := w.Create("Generic")
 		w.AddComponent(e.ID, TestHealth{Value: 100})
 
-		if err := w.SetComponent(e.ID, reflect.TypeFor[TestHealth](), TestHealth{Value: 10}); err != nil {
+		if err := w.SetComponent(e.ID, TestHealth{Value: 10}); err != nil {
 			t.Fatalf("SetComponent failed: %v", err)
 		}
 
-		got, _ := w.GetComponent(e.ID, reflect.TypeFor[TestHealth]())
+		got, _ := w.GetComponent[TestHealth](e.ID)
 		if got != (TestHealth{Value: 10}) {
 			t.Fatalf("expected health 10, got %#v", got)
 		}
@@ -244,13 +243,13 @@ func TestWorld_Components(t *testing.T) {
 		e := w.Create("Generic")
 		w.AddComponent(e.ID, TestPosition{X: 1, Y: 2}, TestVelocity{X: 3, Y: 4})
 
-		if err := w.RemoveComponent(e.ID, reflect.TypeFor[TestPosition]()); err != nil {
+		if err := w.RemoveComponent[TestPosition](e.ID); err != nil {
 			t.Fatalf("RemoveComponent failed: %v", err)
 		}
-		if w.HasComponent(e.ID, reflect.TypeFor[TestPosition]()) {
+		if w.HasComponent[TestPosition](e.ID) {
 			t.Fatal("TestPosition should have been removed")
 		}
-		if !w.HasComponent(e.ID, reflect.TypeFor[TestVelocity]()) {
+		if !w.HasComponent[TestVelocity](e.ID) {
 			t.Fatal("TestVelocity should still be present")
 		}
 	})
@@ -259,7 +258,7 @@ func TestWorld_Components(t *testing.T) {
 		w := NewWorld()
 		e := w.Create("Generic")
 
-		if err := w.RemoveComponent(e.ID, reflect.TypeFor[TestPosition]()); err != nil {
+		if err := w.RemoveComponent[TestPosition](e.ID); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 	})
@@ -268,7 +267,7 @@ func TestWorld_Components(t *testing.T) {
 		w := NewWorld()
 		e := w.Create("Generic")
 
-		if _, err := w.GetComponent(e.ID, reflect.TypeFor[TestPosition]()); err == nil {
+		if _, err := w.GetComponent[TestPosition](e.ID); err == nil {
 			t.Fatal("expected an error getting a component the entity doesn't have")
 		}
 	})
@@ -280,10 +279,10 @@ func TestWorld_Components(t *testing.T) {
 		if err := w.AddComponent(unknown, TestPosition{}); !errors.Is(err, ErrEntityNotFound) {
 			t.Fatalf("AddComponent: expected ErrEntityNotFound, got %v", err)
 		}
-		if _, err := w.GetComponent(unknown, reflect.TypeFor[TestPosition]()); !errors.Is(err, ErrEntityNotFound) {
+		if _, err := w.GetComponent[TestPosition](unknown); !errors.Is(err, ErrEntityNotFound) {
 			t.Fatalf("GetComponent: expected ErrEntityNotFound, got %v", err)
 		}
-		if err := w.RemoveComponent(unknown, reflect.TypeFor[TestPosition]()); !errors.Is(err, ErrEntityNotFound) {
+		if err := w.RemoveComponent[TestPosition](unknown); !errors.Is(err, ErrEntityNotFound) {
 			t.Fatalf("RemoveComponent: expected ErrEntityNotFound, got %v", err)
 		}
 	})
@@ -334,11 +333,11 @@ func TestWorld_TypedComponentHelpers(t *testing.T) {
 	w.AddComponent(e.ID, TestPosition{X: 1, Y: 1})
 
 	t.Run("SetComponent updates an existing typed component", func(t *testing.T) {
-		if err := SetComponent(w, e.ID, TestPosition{X: 5, Y: 6}); err != nil {
+		if err := w.SetComponent(e.ID, TestPosition{X: 5, Y: 6}); err != nil {
 			t.Fatalf("SetComponent failed: %v", err)
 		}
 
-		got, err := GetComponent[TestPosition](w, e.ID)
+		got, err := w.GetComponent[TestPosition](e.ID)
 		if err != nil {
 			t.Fatalf("GetComponent failed: %v", err)
 		}
@@ -348,10 +347,10 @@ func TestWorld_TypedComponentHelpers(t *testing.T) {
 	})
 
 	t.Run("HasComponent reflects presence of the typed component", func(t *testing.T) {
-		if !HasComponent[TestPosition](w, e.ID) {
+		if !w.HasComponent[TestPosition](e.ID) {
 			t.Fatal("expected entity to have TestPosition")
 		}
-		if HasComponent[TestVelocity](w, e.ID) {
+		if w.HasComponent[TestVelocity](e.ID) {
 			t.Fatal("did not expect entity to have TestVelocity")
 		}
 	})
@@ -364,7 +363,7 @@ func TestWorld_TypedComponentHelpers(t *testing.T) {
 	})
 
 	t.Run("GetComponent returns an error for a type the entity doesn't have", func(t *testing.T) {
-		if _, err := GetComponent[TestVelocity](w, e.ID); err == nil {
+		if _, err := w.GetComponent[TestVelocity](e.ID); err == nil {
 			t.Fatal("expected an error")
 		}
 	})

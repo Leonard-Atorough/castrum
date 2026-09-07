@@ -55,7 +55,7 @@ func (c *CollisionSystem) Update(world *castrum.World, deltaTime float64) error 
 
 // isPlayer checks if an entity has a Player component.
 func (c *CollisionSystem) isPlayer(world *castrum.World, entityID castrum.EntityID) bool {
-	_, err := castrum.GetComponent[gamecomponents.Player](world, entityID)
+	_, err := world.GetComponent[gamecomponents.Player](entityID)
 	return err == nil
 }
 

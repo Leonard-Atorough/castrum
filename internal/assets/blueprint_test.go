@@ -30,7 +30,7 @@ func TestBlueprint_Spawn(t *testing.T) {
 
 		// core.Resolve returns the resolved value (not a pointer), matching
 		// GetComponent/SetComponent's value semantics used everywhere else.
-		comp, err := core.GetComponent[testComponent](world, entity.ID)
+		comp, err := world.GetComponent[testComponent](entity.ID)
 		if err != nil {
 			t.Fatalf("GetComponent failed: %v", err)
 		}

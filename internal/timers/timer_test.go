@@ -1,7 +1,6 @@
 package timers
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/internal/core"
@@ -122,7 +121,7 @@ func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
 	system.Update(world, 1.5)
 
 	// Timer should be removed after firing
-	_, err := world.GetComponent(entity.ID, reflect.TypeFor[Timer]())
+	_, err := world.GetComponent[Timer](entity.ID)
 	if err == nil {
 		t.Fatal("one-shot timer should be removed after firing")
 	}
@@ -155,8 +154,7 @@ func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 	}
 
 	// Get timer and verify it's still present and reset
-	timerComp, _ := world.GetComponent(entity.ID, reflect.TypeFor[Timer]())
-	timer := timerComp.(Timer)
+	timer, _ := world.GetComponent[Timer](entity.ID)
 	if timer.ElapsedTime != 0 {
 		t.Fatalf("repeating timer should reset ElapsedTime to 0, got %f", timer.ElapsedTime)
 	}
@@ -171,7 +169,7 @@ func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 	}
 
 	// Timer should still exist
-	_, err := world.GetComponent(entity.ID, reflect.TypeFor[Timer]())
+	_, err := world.GetComponent[Timer](entity.ID)
 	if err != nil {
 		t.Fatal("repeating timer should still exist after firing")
 	}
@@ -244,8 +242,8 @@ func TestTimerSystem_MultipleTimersOnDifferentEntities(t *testing.T) {
 	}
 
 	// Both should be removed
-	_, err1 := world.GetComponent(entity1.ID, reflect.TypeFor[Timer]())
-	_, err2 := world.GetComponent(entity2.ID, reflect.TypeFor[Timer]())
+	_, err1 := world.GetComponent[Timer](entity1.ID)
+	_, err2 := world.GetComponent[Timer](entity2.ID)
 	if err1 == nil || err2 == nil {
 		t.Fatal("both one-shot timers should be removed")
 	}
@@ -270,7 +268,7 @@ func TestTimerSystem_NoCallbackTimerStillFires(t *testing.T) {
 	system.Update(world, 1.5)
 
 	// Timer should still be removed even without callback
-	_, err := world.GetComponent(entity.ID, reflect.TypeFor[Timer]())
+	_, err := world.GetComponent[Timer](entity.ID)
 	if err == nil {
 		t.Fatal("one-shot timer should be removed even without callback")
 	}
@@ -302,13 +300,13 @@ func TestTimerSystem_Shutdown(t *testing.T) {
 	system.Shutdown(world)
 
 	// Both timers should be stopped
-	timerComp1, _ := world.GetComponent(entity1.ID, reflect.TypeFor[Timer]())
-	timerComp2, _ := world.GetComponent(entity2.ID, reflect.TypeFor[Timer]())
+	timerComp1, _ := world.GetComponent[Timer](entity1.ID)
+	timerComp2, _ := world.GetComponent[Timer](entity2.ID)
 
-	if timerComp1.(Timer).Running {
+	if timerComp1.Running {
 		t.Fatal("timer1 should be stopped on shutdown")
 	}
-	if timerComp2.(Timer).Running {
+	if timerComp2.Running {
 		t.Fatal("timer2 should be stopped on shutdown")
 	}
 }

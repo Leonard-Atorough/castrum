@@ -1,7 +1,6 @@
 package benchmark
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/internal/core"
@@ -92,7 +91,7 @@ func BenchmarkIterateQueryResults(b *testing.B) {
 	for b.Loop() {
 
 		for entry := range world.NewQuery().WithRequiredComponents(Position{}).Execute() {
-			world.GetComponent(entry.EntityID, reflect.TypeFor[Position]())
+			world.GetComponent[Position](entry.EntityID)
 		}
 	}
 }

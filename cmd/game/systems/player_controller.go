@@ -24,7 +24,7 @@ func (pc *PlayerController) Init(world *castrum.World) error {
 
 func (pc *PlayerController) Update(world *castrum.World, delta float64) error {
 	for entry := range world.NewQuery().WithRequiredComponents(gamecomponents.Player{}, gamecomponents.Velocity{}, components.Transform{}).Execute() {
-		vel, err := castrum.GetComponent[gamecomponents.Velocity](world, entry.EntityID)
+		vel, err := world.GetComponent[gamecomponents.Velocity](entry.EntityID)
 		if err != nil {
 			continue
 		}
@@ -46,7 +46,7 @@ func (pc *PlayerController) Update(world *castrum.World, delta float64) error {
 			vel.Linear.X += speed
 		}
 
-		if err := castrum.SetComponent(world, entry.EntityID, vel); err != nil {
+		if err := world.SetComponent(entry.EntityID, vel); err != nil {
 			return err
 		}
 	}

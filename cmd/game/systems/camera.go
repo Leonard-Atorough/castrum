@@ -1,8 +1,6 @@
 package systems
 
 import (
-	"reflect"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
@@ -26,11 +24,10 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 	var found bool
 
 	for _, eid := range cameras {
-		camComp, err := world.GetComponent(eid, reflect.TypeFor[camera.Camera]())
+		cam, err := world.GetComponent[camera.Camera](eid)
 		if err != nil {
 			continue
 		}
-		cam := camComp.(camera.Camera)
 		if cam.Primary {
 			cameraEntity = eid
 			found = true
@@ -47,13 +44,12 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 	if len(players) > 0 {
 		playerEntity := players[0]
 		// Get player position
-		if tx, err := castrum.GetComponent[components.Transform](world, playerEntity); err == nil {
+		if tx, err := world.GetComponent[components.Transform](playerEntity); err == nil {
 			// Get current camera
-			camComp, err := world.GetComponent(cameraEntity, reflect.TypeFor[camera.Camera]())
+			cam, err := world.GetComponent[camera.Camera](cameraEntity)
 			if err != nil {
 				return nil
 			}
-			cam := camComp.(camera.Camera)
 
 			// Update camera position to follow player
 			cam.Position = tx.Position
@@ -61,7 +57,7 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 			cam = cam.ClampPosition()
 
 			// Write camera back to world
-			if err := world.SetComponent(cameraEntity, reflect.TypeFor[camera.Camera](), cam); err != nil {
+			if err := world.SetComponent(cameraEntity, cam); err != nil {
 				return err
 			}
 		}
@@ -79,11 +75,10 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 	} {
 		if cs.Input.KeyHeld(key.ebitenKey, input.Modifiers{Shift: false, Ctrl: true, Alt: false}) {
 			// Get camera for zoom update
-			camComp, err := world.GetComponent(cameraEntity, reflect.TypeFor[camera.Camera]())
+			cam, err := world.GetComponent[camera.Camera](cameraEntity)
 			if err != nil {
 				continue
 			}
-			cam := camComp.(camera.Camera)
 
 			cam.Zoom *= key.multiply
 			// Clamp to sensible bounds
@@ -95,7 +90,7 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 			}
 
 			// Write camera back to world
-			if err := world.SetComponent(cameraEntity, reflect.TypeFor[camera.Camera](), cam); err != nil {
+			if err := world.SetComponent(cameraEntity, cam); err != nil {
 				continue
 			}
 		}

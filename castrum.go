@@ -190,11 +190,11 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	w, h := g.Config.Graphics.VirtualWidth, g.Config.Graphics.VirtualHeight
 
 	// Update camera screen size
-	camComp, err := g.World.GetComponent(g.CameraEntityID, reflect.TypeFor[camera.Camera]())
+	camComp, err := g.World.GetComponent[camera.Camera](g.CameraEntityID)
 	if err == nil {
-		cam := camComp.(camera.Camera)
+		cam := camComp
 		cam.ScreenSize = geom.Vector2I{X: w, Y: h}
-		g.World.SetComponent(g.CameraEntityID, reflect.TypeFor[camera.Camera](), cam)
+		g.World.SetComponent(g.CameraEntityID, cam)
 	}
 
 	return w, h
@@ -202,29 +202,16 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 // GetCamera returns the primary camera component from the world.
 func (g *Game) GetCamera() (camera.Camera, error) {
-	camComp, err := g.World.GetComponent(g.CameraEntityID, reflect.TypeFor[camera.Camera]())
+	cam, err := g.World.GetComponent[camera.Camera](g.CameraEntityID)
 	if err != nil {
 		return camera.Camera{}, err
 	}
-	return camComp.(camera.Camera), nil
+	return cam, nil
 }
 
 // SetCamera updates the primary camera component in the world.
 func (g *Game) SetCamera(cam camera.Camera) error {
-	return g.World.SetComponent(g.CameraEntityID, reflect.TypeFor[camera.Camera](), cam)
-}
-
-// Generic component accessors — forward to typed.go helpers
-func GetComponent[T Component](w *core.World, entityID EntityID) (T, error) {
-	return core.GetComponent[T](w, entityID)
-}
-
-func SetComponent[T Component](w *core.World, entityID EntityID, comp T) error {
-	return core.SetComponent(w, entityID, comp)
-}
-
-func HasComponent[T Component](w *core.World, entityID EntityID) bool {
-	return core.HasComponent[T](w, entityID)
+	return g.World.SetComponent(g.CameraEntityID, cam)
 }
 
 func QueryFor[T Component](w *core.World) []EntityID {

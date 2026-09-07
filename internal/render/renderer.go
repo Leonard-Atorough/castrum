@@ -3,7 +3,6 @@ package render
 import (
 	"fmt"
 	"image/color"
-	"reflect"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -55,11 +54,11 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
 
 	cameras := core.QueryFor[camera.Camera](world)
 	for _, cameraID := range cameras {
-		camComp, err := world.GetComponent(cameraID, reflect.TypeFor[camera.Camera]())
+		cam, err := world.GetComponent[camera.Camera](cameraID)
 		if err != nil {
 			continue
 		}
-		cam := camComp.(camera.Camera)
+
 		if cam.Primary {
 			primaryCamera = cam
 			cameraFound = true
@@ -133,11 +132,11 @@ func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *core.World) {
 
 	cameras := core.QueryFor[camera.Camera](world)
 	for _, cameraID := range cameras {
-		camComp, err := world.GetComponent(cameraID, reflect.TypeFor[camera.Camera]())
+		cam, err := world.GetComponent[camera.Camera](cameraID)
 		if err != nil {
 			continue
 		}
-		cam := camComp.(camera.Camera)
+
 		if cam.Primary {
 			primaryCamera = cam
 			cameraFound = true

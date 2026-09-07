@@ -201,7 +201,8 @@ func (w *World) AddComponent(entityID EntityID, comp ...Component) error {
 }
 
 // RemoveComponent removes a component from an entity by type.
-func (w *World) RemoveComponent(entityID EntityID, componentType reflect.Type) error {
+func (w *World) RemoveComponent[T Component](entityID EntityID) error {
+	componentType := reflect.TypeOf((*T)(nil)).Elem()
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return ErrEntityNotFound
@@ -241,10 +242,12 @@ func (w *World) RemoveComponent(entityID EntityID, componentType reflect.Type) e
 }
 
 // GetComponent returns the first component of the specified type for an entity.
-func (w *World) GetComponent(entityID EntityID, compType reflect.Type) (Component, error) {
+func (w *World) GetComponent[T Component](entityID EntityID) (T, error) {
+	var zero T
+	compType := reflect.TypeOf((*T)(nil)).Elem()
 	entity, exists := w.entities[entityID]
 	if !exists {
-		return nil, &EntityError{
+		return zero, &EntityError{
 			EntityID: entityID,
 			Op:       "GetComponent",
 			Err:      ErrEntityNotFound,
@@ -253,7 +256,7 @@ func (w *World) GetComponent(entityID EntityID, compType reflect.Type) (Componen
 
 	archetype, exists := w.archetypeManager.GetArchetypeByID(entity.archetypeID)
 	if !exists {
-		return nil, &EntityError{
+		return zero, &EntityError{
 			EntityID: entityID,
 			Op:       "GetComponent",
 			Err:      ErrArchetypeNotFound,
@@ -264,7 +267,7 @@ func (w *World) GetComponent(entityID EntityID, compType reflect.Type) (Componen
 	found := slices.Contains(archetype.componentTypes, compType)
 
 	if !found {
-		return nil, &EntityError{
+		return zero, &EntityError{
 			EntityID: entityID,
 			Op:       "GetComponent",
 			Err:      fmt.Errorf(ErrComponentNotFound.Error(), compType.String()),
@@ -273,17 +276,18 @@ func (w *World) GetComponent(entityID EntityID, compType reflect.Type) (Componen
 
 	slice, exists := archetype.componentData[compType]
 	if !exists || entity.archetypeIdx >= len(slice.([]Component)) {
-		return nil, &EntityError{
+		return zero, &EntityError{
 			EntityID: entityID,
 			Op:       "GetComponent",
 			Err:      ErrEntityNotFound,
 		}
 	}
 
-	return slice.([]Component)[entity.archetypeIdx], nil
+	return slice.([]Component)[entity.archetypeIdx].(T), nil
 }
 
-func (w *World) HasComponent(entityID EntityID, compType reflect.Type) bool {
+func (w *World) HasComponent[T Component](entityID EntityID) bool {
+	compType := reflect.TypeOf((*T)(nil)).Elem()
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return false
@@ -302,12 +306,13 @@ func (w *World) HasComponent(entityID EntityID, compType reflect.Type) bool {
 	return false
 }
 
-func (w *World) SetComponent(entityID EntityID, compType reflect.Type, newComp Component) error {
+func (w *World) SetComponent[T Component](entityID EntityID, newComp T) error {
+	compType := reflect.TypeOf((*T)(nil)).Elem()
 	entity, exists := w.entities[entityID]
 	if !exists {
 		return &EntityError{
 			EntityID: entityID,
-			Op:       "UpdateComponent",
+			Op:       "SetComponent",
 			Err:      ErrEntityNotFound,
 		}
 	}
@@ -316,7 +321,7 @@ func (w *World) SetComponent(entityID EntityID, compType reflect.Type, newComp C
 	if !exists {
 		return &EntityError{
 			EntityID: entityID,
-			Op:       "UpdateComponent",
+			Op:       "SetComponent",
 			Err:      ErrArchetypeNotFound,
 		}
 	}
@@ -326,7 +331,7 @@ func (w *World) SetComponent(entityID EntityID, compType reflect.Type, newComp C
 	if !found {
 		return &EntityError{
 			EntityID: entityID,
-			Op:       "UpdateComponent",
+			Op:       "SetComponent",
 			Err:      fmt.Errorf(ErrComponentNotFound.Error(), compType.String()),
 		}
 	}
@@ -335,7 +340,7 @@ func (w *World) SetComponent(entityID EntityID, compType reflect.Type, newComp C
 	if !exists || entity.archetypeIdx >= len(slice.([]Component)) {
 		return &EntityError{
 			EntityID: entityID,
-			Op:       "UpdateComponent",
+			Op:       "SetComponent",
 			Err:      ErrEntityNotFound,
 		}
 	}
@@ -381,7 +386,7 @@ func (w *World) Query(components ...reflect.Type) []EntityID {
 // Deprecated: use the new Query builder NewQuery().WithRequiredComponents(...) for filtering,
 // or iterate through archetypes directly with NewQuery().Execute() for more complex queries.
 // QueryAny behavior can be replicated by querying each component type separately and deduplicating.
-func (w *World) QueryAny(components ...reflect.Type) []EntityID {
+func (w *World) QueryAny(components ...Component) []EntityID {
 	if len(components) == 0 {
 		return nil
 	}
@@ -389,7 +394,8 @@ func (w *World) QueryAny(components ...reflect.Type) []EntityID {
 	var results []EntityID
 	seen := make(map[EntityID]bool)
 
-	for _, compType := range components {
+	for _, comp := range components {
+		compType := reflect.TypeOf(comp)
 		for _, archetype := range w.archetypeManager.archetypes {
 			if slices.Contains(archetype.componentTypes, compType) {
 				for _, entityID := range archetype.entities {

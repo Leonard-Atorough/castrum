@@ -179,7 +179,7 @@ func TestManager_EventLifecycle(t *testing.T) {
 	}
 
 	// Move enemy into collision range
-	core.SetComponent(world, enemy.ID, components.Transform{Position: geom.Vector2{X: 15, Y: 0}})
+	world.SetComponent(enemy.ID, components.Transform{Position: geom.Vector2{X: 15, Y: 0}})
 	if err := spatialMgr.Update(world, 0); err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestManager_EventLifecycle(t *testing.T) {
 	}
 
 	// Move enemy away
-	core.SetComponent(world, enemy.ID, components.Transform{Position: geom.Vector2{X: 100, Y: 0}})
+	world.SetComponent(enemy.ID, components.Transform{Position: geom.Vector2{X: 100, Y: 0}})
 	if err := spatialMgr.Update(world, 0); err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
@@ -415,7 +415,7 @@ func TestManager_DisabledCollision(t *testing.T) {
 	}
 
 	// Obstacle should still exist (not destroyed)
-	_, getErr := core.GetComponent[components.Collider](world, obstacle.ID)
+	_, getErr := world.GetComponent[components.Collider](obstacle.ID)
 	if getErr != nil {
 		t.Error("Expected obstacle to still exist when collision is disabled")
 	}
