@@ -5,6 +5,7 @@ import (
 
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
+	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
@@ -12,15 +13,18 @@ func setupTestWorld() *core.World {
 	return core.NewWorld()
 }
 
-func createAnimatableEntity(world *core.World, animations map[string]components.Animation) core.EntityID {
+func createAnimatingEntity(world *core.World, clipPath string) core.EntityID {
 	entity, _ := world.CreateWithComponents("test_entity",
 		components.Transform{
 			Position: geom.Vector2{X: 0, Y: 0},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		components.Animatable{
-			Animations:       animations,
-			CurrentAnimation: "default",
+		components.Animation{
+			ClipPath:      clipPath,
+			FrameIndex:    0,
+			FrameTime:     0,
+			Playing:       true,
+			PlaybackSpeed: 1.0,
 		},
 		components.Renderable{
 			Visible: true,
@@ -63,27 +67,26 @@ func TestSystem_Update_AdvancesFrameTime(t *testing.T) {
 	sys := &System{}
 	sys.Init(world)
 
-	anim := components.Animation{
+	// Setup mock clip
+	clip := &assets.AnimationClip{
 		Frames:     []string{"frame_0.png", "frame_1.png"},
 		FrameSpeed: 0.1,
-		Playing:    true,
-		FrameTime:  0,
-		FrameIndex: 0,
+		Loop:       false,
 	}
-	entity := createAnimatableEntity(world, map[string]components.Animation{
-		"default": anim,
-	})
+	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
+
+	entity := createAnimatingEntity(world, "test.anim.yaml")
 
 	err := sys.Update(world, 0.05)
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
 
-	animComp, _ := world.GetComponent[components.Animatable](entity)
-	if animComp.Animations["default"].FrameTime < 0.04 {
-		t.Errorf("FrameTime should advance, got %v", animComp.Animations["default"].FrameTime)
+	anim, _ := world.GetComponent[components.Animation](entity)
+	if anim.FrameTime < 0.04 {
+		t.Errorf("FrameTime should advance, got %v", anim.FrameTime)
 	}
-	if animComp.Animations["default"].FrameIndex != 0 {
+	if anim.FrameIndex != 0 {
 		t.Error("FrameIndex should still be 0 (threshold not met)")
 	}
 }
@@ -93,55 +96,51 @@ func TestSystem_Update_AdvancesFrame(t *testing.T) {
 	sys := &System{}
 	sys.Init(world)
 
-	anim := components.Animation{
+	clip := &assets.AnimationClip{
 		Frames:     []string{"frame_0.png", "frame_1.png"},
 		FrameSpeed: 0.1,
-		Playing:    true,
-		FrameTime:  0.05,
-		FrameIndex: 0,
+		Loop:       false,
 	}
-	entity := createAnimatableEntity(world, map[string]components.Animation{
-		"default": anim,
-	})
+	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
 
-	err := sys.Update(world, 0.1)
+	entity := createAnimatingEntity(world, "test.anim.yaml")
+
+	err := sys.Update(world, 0.15)
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
 
-	animComp, _ := world.GetComponent[components.Animatable](entity)
-	if animComp.Animations["default"].FrameIndex != 1 {
-		t.Errorf("FrameIndex = %d, want 1", animComp.Animations["default"].FrameIndex)
+	anim, _ := world.GetComponent[components.Animation](entity)
+	if anim.FrameIndex != 1 {
+		t.Errorf("FrameIndex = %d, want 1", anim.FrameIndex)
 	}
 }
 
-func TestSystem_Update_EmitsFrameEvent(t *testing.T) {
+func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 	world := setupTestWorld()
 	sys := &System{}
 	sys.Init(world)
 
-	anim := components.Animation{
+	clip := &assets.AnimationClip{
 		Frames:     []string{"frame_0.png", "frame_1.png"},
 		FrameSpeed: 0.1,
-		Playing:    true,
-		FrameTime:  0.05,
-		FrameIndex: 0,
+		Loop:       true,
 	}
-	_ = createAnimatableEntity(world, map[string]components.Animation{
-		"default": anim,
-	})
+	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
 
-	sys.Update(world, 0.1)
+	entity := createAnimatingEntity(world, "test.anim.yaml")
+	anim, _ := world.GetComponent[components.Animation](entity)
+	anim.FrameIndex = 1
+	world.SetComponent(entity, anim)
+
+	sys.Update(world, 0.15)
 
 	events := sys.Events()
 	if len(events) == 0 {
-		t.Fatal("expected frame event to be emitted")
+		t.Fatal("expected loop event to be emitted")
 	}
-	if events[0].Type != FrameEventType {
-		t.Errorf("Event type = %d, want FrameEventType", events[0].Type)
-	}
-	if events[0].FrameIndex != 1 {
-		t.Errorf("Event FrameIndex = %d, want 1", events[0].FrameIndex)
+	if events[0].Type != EventClipLooped {
+		t.Errorf("Event type = %d, want EventClipLooped (%d)", events[0].Type, EventClipLooped)
 	}
 }
 
@@ -150,21 +149,22 @@ func TestSystem_Update_IgnoresNonPlayingAnimations(t *testing.T) {
 	sys := &System{}
 	sys.Init(world)
 
-	anim := components.Animation{
+	clip := &assets.AnimationClip{
 		Frames:     []string{"frame_0.png", "frame_1.png"},
 		FrameSpeed: 0.1,
-		Playing:    false,
-		FrameTime:  0,
-		FrameIndex: 0,
+		Loop:       false,
 	}
-	entity := createAnimatableEntity(world, map[string]components.Animation{
-		"default": anim,
-	})
+	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
+
+	entity := createAnimatingEntity(world, "test.anim.yaml")
+	anim, _ := world.GetComponent[components.Animation](entity)
+	anim.Playing = false
+	world.SetComponent(entity, anim)
 
 	sys.Update(world, 1.0)
 
-	animComp, _ := world.GetComponent[components.Animatable](entity)
-	if animComp.Animations["default"].FrameTime != 0 {
+	anim, _ = world.GetComponent[components.Animation](entity)
+	if anim.FrameTime != 0 {
 		t.Error("FrameTime should not change for non-playing animation")
 	}
 }
@@ -174,25 +174,25 @@ func TestSystem_Update_LoopsAnimation(t *testing.T) {
 	sys := &System{}
 	sys.Init(world)
 
-	anim := components.Animation{
+	clip := &assets.AnimationClip{
 		Frames:     []string{"frame_0.png", "frame_1.png"},
 		FrameSpeed: 0.1,
-		Playing:    true,
-		FrameTime:  0.05,
-		FrameIndex: 1,
 		Loop:       true,
 	}
-	entity := createAnimatableEntity(world, map[string]components.Animation{
-		"default": anim,
-	})
+	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
 
-	sys.Update(world, 0.1)
+	entity := createAnimatingEntity(world, "test.anim.yaml")
+	anim, _ := world.GetComponent[components.Animation](entity)
+	anim.FrameIndex = 1
+	world.SetComponent(entity, anim)
 
-	animComp, _ := world.GetComponent[components.Animatable](entity)
-	if animComp.Animations["default"].FrameIndex != 0 {
-		t.Errorf("FrameIndex = %d, want 0 after loop", animComp.Animations["default"].FrameIndex)
+	sys.Update(world, 0.15)
+
+	anim, _ = world.GetComponent[components.Animation](entity)
+	if anim.FrameIndex != 0 {
+		t.Errorf("FrameIndex = %d, want 0 after loop", anim.FrameIndex)
 	}
-	if !animComp.Animations["default"].Playing {
+	if !anim.Playing {
 		t.Error("Animation should still be playing after loop")
 	}
 }
@@ -202,178 +202,147 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 	sys := &System{}
 	sys.Init(world)
 
-	anim := components.Animation{
+	clip := &assets.AnimationClip{
 		Frames:     []string{"frame_0.png", "frame_1.png"},
 		FrameSpeed: 0.1,
-		Playing:    true,
-		FrameTime:  0.05,
-		FrameIndex: 1,
 		Loop:       false,
 	}
-	entity := createAnimatableEntity(world, map[string]components.Animation{
-		"default": anim,
-	})
+	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
 
-	sys.Update(world, 0.1)
+	entity := createAnimatingEntity(world, "test.anim.yaml")
+	anim, _ := world.GetComponent[components.Animation](entity)
+	anim.FrameIndex = 1
+	world.SetComponent(entity, anim)
 
-	animComp, _ := world.GetComponent[components.Animatable](entity)
-	if animComp.Animations["default"].Playing {
-		t.Error("Animation should stop when reaching end with Loop=false")
+	sys.Update(world, 0.15)
+
+	events := sys.Events()
+	if len(events) == 0 {
+		t.Fatal("expected completion event to be emitted")
 	}
-	if animComp.Animations["default"].FrameIndex != 1 {
-		t.Errorf("FrameIndex = %d, want 1", animComp.Animations["default"].FrameIndex)
+	if events[0].Type != EventClipFinished {
+		t.Errorf("Event type = %d, want EventClipFinished (%d)", events[0].Type, EventClipFinished)
+	}
+
+	anim, _ = world.GetComponent[components.Animation](entity)
+	if anim.Playing {
+		t.Error("Animation should stop after reaching end")
 	}
 }
 
-func TestSystem_Update_EmitsCompleteEvent(t *testing.T) {
+func TestSystem_Update_RespectPlaybackSpeed(t *testing.T) {
 	world := setupTestWorld()
 	sys := &System{}
 	sys.Init(world)
 
-	anim := components.Animation{
-		Frames:     []string{"frame_0.png", "frame_1.png"},
+	clip := &assets.AnimationClip{
+		Frames:     []string{"frame_0.png", "frame_1.png", "frame_2.png"},
 		FrameSpeed: 0.1,
-		Playing:    true,
-		FrameTime:  0.05,
-		FrameIndex: 1,
 		Loop:       false,
 	}
-	_ = createAnimatableEntity(world, map[string]components.Animation{
-		"default": anim,
-	})
+	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
 
-	sys.Update(world, 0.1)
+	entity := createAnimatingEntity(world, "test.anim.yaml")
+	anim, _ := world.GetComponent[components.Animation](entity)
+	anim.PlaybackSpeed = 2.0 // double speed
+	world.SetComponent(entity, anim)
 
-	events := sys.Events()
-	hasComplete := false
-	for _, e := range events {
-		if e.Type == CompleteEventType {
-			hasComplete = true
-			break
-		}
+	// At 2x speed, 0.05 delta should advance frame time by 0.1 (threshold for 0.1 frame speed)
+	sys.Update(world, 0.05)
+
+	anim, _ = world.GetComponent[components.Animation](entity)
+	if anim.FrameIndex != 1 {
+		t.Errorf("At 2x speed, FrameIndex = %d, want 1", anim.FrameIndex)
 	}
-	if !hasComplete {
-		t.Fatal("expected complete event to be emitted")
+}
+
+func TestSystem_Update_SkipsMissingClips(t *testing.T) {
+	world := setupTestWorld()
+	sys := &System{}
+	sys.Init(world)
+
+	// Don't add clip to asset loader
+	entity := createAnimatingEntity(world, "missing.anim.yaml")
+
+	err := sys.Update(world, 0.1)
+	if err != nil {
+		t.Fatalf("Update should not fail on missing clip: %v", err)
+	}
+
+	// Animation should remain unchanged
+	anim, _ := world.GetComponent[components.Animation](entity)
+	if anim.FrameIndex != 0 {
+		t.Error("Frame index should not change when clip is missing")
 	}
 }
 
 func TestComponentControl_Play(t *testing.T) {
 	world := setupTestWorld()
-	anim := components.Animation{
-		Frames:     []string{"frame_0.png", "frame_1.png"},
-		FrameSpeed: 0.1,
-		Playing:    false,
-	}
-	entity := createAnimatableEntity(world, map[string]components.Animation{
-		"default": anim,
-	})
+	entity := createAnimatingEntity(world, "test.anim.yaml")
 
 	// Direct component modification to play
-	animComp, _ := world.GetComponent[components.Animatable](entity)
-	current := animComp.Animations["default"]
-	current.Playing = true
-	current.FrameTime = 0
-	current.FrameIndex = 0
-	animComp.Animations["default"] = current
-	world.SetComponent(entity, animComp)
+	anim, _ := world.GetComponent[components.Animation](entity)
+	anim.Playing = true
+	anim.FrameTime = 0
+	anim.FrameIndex = 0
+	world.SetComponent(entity, anim)
 
 	// Verify
-	animComp, _ = world.GetComponent[components.Animatable](entity)
-	if !animComp.Animations["default"].Playing {
+	anim, _ = world.GetComponent[components.Animation](entity)
+	if !anim.Playing {
 		t.Error("Animation should be playing after modification")
 	}
-	if animComp.Animations["default"].FrameIndex != 0 {
+	if anim.FrameIndex != 0 {
 		t.Error("FrameIndex should be 0")
 	}
 }
 
 func TestComponentControl_Pause(t *testing.T) {
 	world := setupTestWorld()
-	anim := components.Animation{
-		Frames:     []string{"frame_0.png", "frame_1.png"},
-		FrameSpeed: 0.1,
-		Playing:    true,
-		FrameIndex: 1,
-	}
-	entity := createAnimatableEntity(world, map[string]components.Animation{
-		"default": anim,
-	})
+	entity := createAnimatingEntity(world, "test.anim.yaml")
+	anim, _ := world.GetComponent[components.Animation](entity)
+	anim.FrameIndex = 1
+	world.SetComponent(entity, anim)
 
 	// Direct component modification to pause
-	animComp, _ := world.GetComponent[components.Animatable](entity)
-	current := animComp.Animations["default"]
-	current.Playing = false
-	animComp.Animations["default"] = current
-	world.SetComponent(entity, animComp)
+	anim, _ = world.GetComponent[components.Animation](entity)
+	anim.Playing = false
+	world.SetComponent(entity, anim)
 
 	// Verify
-	animComp, _ = world.GetComponent[components.Animatable](entity)
-	if animComp.Animations["default"].Playing {
+	anim, _ = world.GetComponent[components.Animation](entity)
+	if anim.Playing {
 		t.Error("Animation should not be playing after pause")
 	}
-	if animComp.Animations["default"].FrameIndex != 1 {
+	if anim.FrameIndex != 1 {
 		t.Error("FrameIndex should remain at 1 after pause")
 	}
 }
 
 func TestComponentControl_Stop(t *testing.T) {
 	world := setupTestWorld()
-	anim := components.Animation{
-		Frames:     []string{"frame_0.png", "frame_1.png"},
-		FrameSpeed: 0.1,
-		Playing:    true,
-		FrameIndex: 1,
-		FrameTime:  0.05,
-	}
-	entity := createAnimatableEntity(world, map[string]components.Animation{
-		"default": anim,
-	})
+	entity := createAnimatingEntity(world, "test.anim.yaml")
+	anim, _ := world.GetComponent[components.Animation](entity)
+	anim.FrameIndex = 1
+	anim.FrameTime = 0.05
+	world.SetComponent(entity, anim)
 
 	// Direct component modification to stop
-	animComp, _ := world.GetComponent[components.Animatable](entity)
-	current := animComp.Animations["default"]
-	current.Playing = false
-	current.FrameIndex = 0
-	current.FrameTime = 0
-	animComp.Animations["default"] = current
-	world.SetComponent(entity, animComp)
+	anim, _ = world.GetComponent[components.Animation](entity)
+	anim.Playing = false
+	anim.FrameIndex = 0
+	anim.FrameTime = 0
+	world.SetComponent(entity, anim)
 
 	// Verify
-	animComp, _ = world.GetComponent[components.Animatable](entity)
-	if animComp.Animations["default"].Playing {
+	anim, _ = world.GetComponent[components.Animation](entity)
+	if anim.Playing {
 		t.Error("Animation should not be playing")
 	}
-	if animComp.Animations["default"].FrameIndex != 0 {
+	if anim.FrameIndex != 0 {
 		t.Error("FrameIndex should be reset to 0")
 	}
-	if animComp.Animations["default"].FrameTime != 0 {
+	if anim.FrameTime != 0 {
 		t.Error("FrameTime should be reset to 0")
-	}
-}
-
-func TestComponentControl_SwitchAnimation(t *testing.T) {
-	world := setupTestWorld()
-	anim1 := components.Animation{
-		Frames:     []string{"a1.png", "a2.png"},
-		FrameSpeed: 0.1,
-	}
-	anim2 := components.Animation{
-		Frames:     []string{"b1.png", "b2.png"},
-		FrameSpeed: 0.2,
-	}
-	entity := createAnimatableEntity(world, map[string]components.Animation{
-		"anim1": anim1,
-		"anim2": anim2,
-	})
-
-	// Direct component modification to switch animation
-	animComp, _ := world.GetComponent[components.Animatable](entity)
-	animComp.CurrentAnimation = "anim2"
-	world.SetComponent(entity, animComp)
-
-	// Verify
-	animComp, _ = world.GetComponent[components.Animatable](entity)
-	if animComp.CurrentAnimation != "anim2" {
-		t.Errorf("CurrentAnimation = %s, want anim2", animComp.CurrentAnimation)
 	}
 }
