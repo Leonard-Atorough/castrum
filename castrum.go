@@ -24,7 +24,7 @@ import (
 type (
 	World        = core.World
 	Entity       = core.Entity
-	Timer        = timers.Timer
+	Timer        = components.Timer
 	System       = core.System
 	Systems      = core.Manager
 	Scene        = scene.Scene
@@ -37,7 +37,9 @@ type (
 	Spatial      = spatial.SpatialIndexHandler
 	Camera       = camera.Camera
 	EntityID     = core.EntityID
-	TimerID      = timers.TimerID
+	TimerID      = components.TimerID
+	Query        = core.Query
+	QueryResult  = core.ResultEntry
 )
 
 // Sentinel errors returned by engine operations. Use errors.Is() for checking.
@@ -110,7 +112,9 @@ type Game struct {
 }
 
 func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
-	ValidateConfig(config)
+	if err := ValidateConfig(config); err != nil {
+		return nil, err
+	}
 
 	newWorld := core.NewWorld()
 
@@ -173,10 +177,6 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 }
 
 // Scenes returns the scene manager registered on this game's world.
-func (g *Game) Scenes() *scene.Manager {
-	mgr, _ := core.GetResource[*scene.Manager](g.World)
-	return mgr
-}
 
 func (g *Game) Update() error {
 	if g.lastTime.IsZero() {
@@ -218,6 +218,32 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.Render.DrawDebugInfo(screen, g.World)
 	}
 }
+func (g *Game) Scenes() *scene.Manager {
+	mgr, _ := core.GetResource[*scene.Manager](g.World)
+	return mgr
+}
+
+// PushScene activates a pre-loaded scene on top of the stack (useful for overlays/pause menus).
+// The scene must have been loaded via Scenes().LoadScene() first.
+func (g *Game) PushScene(id string) error {
+	return g.Scenes().Push(g.World, id)
+}
+
+// PopScene deactivates and removes the top scene from the stack.
+func (g *Game) PopScene() error {
+	return g.Scenes().Pop(g.World)
+}
+
+// TransitionToScene unloads all active scenes and loads a new one.
+// The scene must have been loaded via Scenes().LoadScene() first.
+func (g *Game) TransitionToScene(id string) error {
+	return g.Scenes().TransitionTo(g.World, id)
+}
+
+// UnloadScene removes a scene from the registry.
+func (g *Game) UnloadScene(id string) error {
+	return g.Scenes().UnloadScene(g.World, id)
+}
 
 // Layout reports the engine's virtual resolution and keeps the camera's
 // screen size in sync with it.
@@ -249,8 +275,44 @@ func (g *Game) SetCamera(cam camera.Camera) error {
 	return g.World.SetComponent(g.CameraEntityID, cam)
 }
 
+// GetCameraViewport returns the visible rectangle in world coordinates (what the camera can see).
+// Useful for culling, spawning entities at screen edges, etc.
+func (g *Game) GetCameraViewport() (geom.Rect, error) {
+	cam, err := g.GetCamera()
+	if err != nil {
+		return geom.Rect{}, err
+	}
+	return cam.ViewportBounds(), nil
+}
+
 func QueryFor[T Component](w *core.World) []EntityID {
 	return core.QueryFor[T](w)
+}
+
+// FindAll returns all entities that have at least a component of type T.
+// Each QueryResult includes component access via result.Get[ComponentType]().
+func FindAll[T Component](w *World) []QueryResult {
+	var zero T
+	return w.NewQuery().WithRequiredComponents(zero).All()
+}
+
+// FindOne returns the first entity with a component of type T, or false if none found.
+func FindOne[T Component](w *World) (QueryResult, bool) {
+	var zero T
+	return w.NewQuery().WithRequiredComponents(zero).First()
+}
+
+// CountWith returns the number of entities that have a component of type T.
+func CountWith[T Component](w *World) int {
+	var zero T
+	return w.NewQuery().WithRequiredComponents(zero).Count()
+}
+
+// RegisterSystem registers a system with the game.
+// Priority controls execution order: lower values run first. Use negative values for systems
+// that should run before core systems (e.g., shader prep), 0 for most game logic, positive for post-processing.
+func (g *Game) RegisterSystem(name string, priority int, system System) error {
+	return g.Systems.Register(name, priority, system, g.World)
 }
 
 func (g *Game) SetPaused(paused bool) {

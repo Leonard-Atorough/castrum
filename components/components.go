@@ -13,6 +13,26 @@ type Transform struct {
 	Color    color.Color
 }
 
+// NewTransform creates a Transform with position, rotation, scale, and optional color.
+func NewTransform(position geom.Vector2, rotation float64, scale geom.Vector2) Transform {
+	return Transform{
+		Position: position,
+		Rotation: rotation,
+		Scale:    scale,
+		Color:    nil,
+	}
+}
+
+// NewTransformWithColor creates a Transform with all fields specified.
+func NewTransformWithColor(position geom.Vector2, rotation float64, scale geom.Vector2, c color.Color) Transform {
+	return Transform{
+		Position: position,
+		Rotation: rotation,
+		Scale:    scale,
+		Color:    c,
+	}
+}
+
 // SceneTag marks which scene an entity belongs to, for query-time scene filtering.
 type SceneTag struct {
 	SceneID string
@@ -47,6 +67,24 @@ type Renderable struct {
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
+// NewRenderable creates a Renderable with texture path and layer.
+func NewRenderable(texturePath string, layer RenderLayer) Renderable {
+	return Renderable{
+		TexturePath: texturePath,
+		Layer:       layer,
+		Visible:     true,
+	}
+}
+
+// NewRenderablePrimitive creates a Renderable for a procedural shape (Rectangle, Circle, etc).
+func NewRenderablePrimitive(primitive PrimitiveKind, layer RenderLayer) Renderable {
+	return Renderable{
+		Primitive: primitive,
+		Layer:     layer,
+		Visible:   true,
+	}
+}
+
 type PrimitiveKind int
 
 const (
@@ -66,9 +104,23 @@ type Animation struct {
 	PlaybackSpeed float64 // playback multiplier (1.0 = normal speed)
 }
 
+// NewAnimation creates an Animation for a given clip path.
+func NewAnimation(clipPath string) Animation {
+	return Animation{
+		ClipPath:      clipPath,
+		PlaybackSpeed: 1.0,
+		Playing:       false,
+	}
+}
+
 // Spin rotates an entity's Transform by AngularVelocity radians per second.
 type Spin struct {
 	AngularVelocity float64
+}
+
+// NewSpin creates a Spin component with the given angular velocity (radians per second).
+func NewSpin(angularVelocity float64) Spin {
+	return Spin{AngularVelocity: angularVelocity}
 }
 
 // Collider represents a collision shape for an entity.
@@ -117,4 +169,43 @@ func layersToMask(layers ...uint) uint32 {
 		mask |= 1 << layer
 	}
 	return mask
+}
+
+// TimerID uniquely identifies a timer within a Manager.
+type TimerID string
+
+// Timer is a component that tracks elapsed time and fires a callback when
+// its duration is reached. Timers can be one-shot (fires once then is removed)
+// or repeating (resets and continues firing).
+//
+// Timer is a value type and should be attached to entities via AddComponent.
+// The TimerSystem handles update logic and callback firing.
+type Timer struct {
+	// Unique identifier for this timer (useful for multiple timers per entity)
+	ID TimerID
+	// Duration for which the timer runs
+	Duration float64
+	// Elapsed time since the timer started (accumulated by TimerSystem)
+	ElapsedTime float64
+	// Whether the timer is currently running
+	Running bool
+	// Whether this is a one-shot timer (fires once then stops)
+	Once bool
+}
+
+// Start begins the timer, resetting elapsed time to zero.
+func (t *Timer) Start() {
+	t.Running = true
+	t.ElapsedTime = 0
+}
+
+// Stop pauses the timer without resetting elapsed time.
+// Resume can be called to continue from the same elapsed time.
+func (t *Timer) Stop() {
+	t.Running = false
+}
+
+// Resume continues a stopped timer from its current elapsed time.
+func (t *Timer) Resume() {
+	t.Running = true
 }
