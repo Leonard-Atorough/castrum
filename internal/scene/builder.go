@@ -8,15 +8,13 @@ import (
 // This helps connect the threads: create scene -> add entities -> bind to world.
 type Builder struct {
 	scene     *Scene
-	world     *core.World
 	entityIDs []core.EntityID
 }
 
 // NewBuilder creates a new scene builder.
-func NewBuilder(sceneID string, world *core.World) *Builder {
+func NewBuilder(sceneID string) *Builder {
 	return &Builder{
 		scene:     NewScene(sceneID),
-		world:     world,
 		entityIDs: []core.EntityID{},
 	}
 }
@@ -29,9 +27,9 @@ func (b *Builder) WithEntity(entityID core.EntityID) *Builder {
 
 // Build creates the scene and registers all staged entities.
 // Returns the scene and any error encountered during entity registration.
-func (b *Builder) Build() (*Scene, error) {
+func (b *Builder) Build(world *core.World) (*Scene, error) {
 	for _, entityID := range b.entityIDs {
-		if err := b.scene.AddToScene(entityID, b.world); err != nil {
+		if err := b.scene.AddToScene(entityID, world); err != nil {
 			return nil, err
 		}
 	}

@@ -55,7 +55,7 @@ func TestScene_IntegrationWithRealWorld(t *testing.T) {
 
 func TestManager_IntegrationWithRealWorld(t *testing.T) {
 	world := core.NewWorld()
-	manager := NewManager(world)
+	manager := NewManager()
 
 	// Create scenes with entities
 	scene1 := NewScene("level-1")
@@ -72,14 +72,14 @@ func TestManager_IntegrationWithRealWorld(t *testing.T) {
 	_ = manager.LoadScene("level-2", scene2)
 
 	// Transition to level-1
-	_ = manager.TransitionTo("level-1")
+	_ = manager.TransitionTo(world, "level-1")
 
 	if manager.CurrentScene() != scene1 {
 		t.Fatal("expected current scene to be level-1")
 	}
 
 	// Transition to level-2
-	_ = manager.TransitionTo("level-2")
+	_ = manager.TransitionTo(world, "level-2")
 
 	if manager.CurrentScene() != scene2 {
 		t.Fatal("expected current scene to be level-2")
@@ -100,10 +100,10 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 	entity2 := world.Create("enemy")
 
 	// Build scene with entities
-	builder := NewBuilder("builder-test", world)
+	builder := NewBuilder("builder-test")
 	builder.WithEntity(entity1.ID).WithEntity(entity2.ID)
 
-	scene, err := builder.Build()
+	scene, err := builder.Build(world)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -116,13 +116,13 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 
 	// Test with hooks
 	loadCalled := false
-	builder2 := NewBuilder("builder-test-2", world)
+	builder2 := NewBuilder("builder-test-2")
 	builder2.WithEntity(entity1.ID).WithLoadHook(func(w *core.World) error {
 		loadCalled = true
 		return nil
 	})
 
-	scene2, _ := builder2.Build()
+	scene2, _ := builder2.Build(world)
 	_ = scene2.OnLoad(world)
 
 	if !loadCalled {
@@ -132,7 +132,7 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 
 func TestSceneManager_IntegrationWithRealWorld(t *testing.T) {
 	world := core.NewWorld()
-	manager := NewManager(world)
+	manager := NewManager()
 
 	// Create entities
 	player := world.Create("player")
@@ -140,14 +140,14 @@ func TestSceneManager_IntegrationWithRealWorld(t *testing.T) {
 	boss := world.Create("boss")
 
 	// Create scenes using builder
-	builder1 := NewBuilder("level-1", world)
+	builder1 := NewBuilder("level-1")
 	builder1.WithEntity(player.ID).WithEntity(enemy.ID)
 
-	builder2 := NewBuilder("level-2", world)
+	builder2 := NewBuilder("level-2")
 	builder2.WithEntity(boss.ID)
 
-	scene1, _ := builder1.Build()
-	scene2, _ := builder2.Build()
+	scene1, _ := builder1.Build(world)
+	scene2, _ := builder2.Build(world)
 
 	// Load scenes
 	_ = manager.LoadScene("level-1", scene1)
@@ -162,13 +162,13 @@ func TestSceneManager_IntegrationWithRealWorld(t *testing.T) {
 	}
 
 	// Transition to level-1
-	_ = manager.TransitionTo("level-1")
+	_ = manager.TransitionTo(world, "level-1")
 	if manager.CurrentScene() != scene1 {
 		t.Fatal("expected current scene to be level-1")
 	}
 
 	// Transition to level-2
-	_ = manager.TransitionTo("level-2")
+	_ = manager.TransitionTo(world, "level-2")
 	if manager.CurrentScene() != scene2 {
 		t.Fatal("expected current scene to be level-2")
 	}
@@ -179,7 +179,7 @@ func TestSceneManager_IntegrationWithRealWorld(t *testing.T) {
 	}
 
 	// Unload level-2
-	_ = manager.UnloadScene("level-2")
+	_ = manager.UnloadScene(world, "level-2")
 	if manager.CurrentScene() != nil {
 		t.Fatal("expected no current scene after unloading level-2")
 	}
