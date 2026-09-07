@@ -1,0 +1,50 @@
+goos: windows
+goarch: amd64
+pkg: github.com/leonard-atorough/castrum/benchmark
+cpu: AMD Ryzen 5 5600 6-Core Processor              
+BenchmarkExecuteAllocSources/1000MapAllocations-12                 70442             8343 ns/op        0 B/op          0 allocs/op
+BenchmarkExecuteAllocSources/TypesWithAppend-12                 12089534               47.90 ns/op            48 B/op          2 allocs/op
+BenchmarkExecuteAllocSources/TypesPreallocated-12               127376986               4.758 ns/op            0 B/op          0 allocs/op
+BenchmarkExecuteAllocSources/FullQueryIteration-12                 55144            11109 ns/op      392 B/op         13 allocs/op
+BenchmarkCreateMany-12                                             27484            22522 ns/op    15222 B/op        101 allocs/op
+BenchmarkCreateManyVsIndividual/CreateMany-12                      28680            21434 ns/op    15792 B/op        101 allocs/op
+BenchmarkCreateManyVsIndividual/IndividualCreate-12                31668            21104 ns/op    13943 B/op        100 allocs/op
+BenchmarkBulkAddComponents-12                                     177152             3554 ns/op     1208 B/op         47 allocs/op
+BenchmarkBulkRemoveComponents-12                                  163263             3621 ns/op     1192 B/op         46 allocs/op
+BenchmarkAddComponent-12                                           13022            61302 ns/op   102286 B/op          6 allocs/op
+BenchmarkGetComponent-12                                        17665138               35.40 ns/op             0 B/op          0 allocs/op
+BenchmarkHasComponent-12                                        35246223               17.30 ns/op             0 B/op          0 allocs/op
+BenchmarkRemoveComponent-12                                         4101           127720 ns/op   164067 B/op          9 allocs/op
+BenchmarkDestroyEntityWithCleanup-12                             3411949              172.9 ns/op             69 B/op          1 allocs/op
+BenchmarkComponentAddMigration-12                                1000000              541.0 ns/op            184 B/op          9 allocs/op
+BenchmarkComponentRemoveMigration-12                              360741             1696 ns/op      629 B/op         22 allocs/op
+BenchmarkEntityCreation-12                                       2899257              217.3 ns/op             147 B/op          1 allocs/op
+BenchmarkEntityCreationWithComponents-12                           10000           341911 ns/op   334416 B/op         14 allocs/op
+BenchmarkDestroyEntity-12                                        1926042              359.3 ns/op            169 B/op          1 allocs/op
+BenchmarkGameLoopSimple-12                                          9291            65721 ns/op    48344 B/op       1012 allocs/op
+BenchmarkGameLoopWithUpdates-12                                      883           652822 ns/op   480312 B/op      10012 allocs/op
+BenchmarkGameLoopWithSpawning-12                                     100         14575974 ns/op 13921828 B/op      18193 allocs/op
+BenchmarkGameLoopWithDestruction-12                                13006            38782 ns/op    32094 B/op        556 allocs/op
+BenchmarkGameLoopMixed-12                                            100          7594912 ns/op  7924130 B/op      13896 allocs/op
+BenchmarkGameLoopSimpleDebug/QueryOnly-12                       21712776               29.12 ns/op            32 B/op          1 allocs/op
+BenchmarkGameLoopSimpleDebug/QueryFirstOnly-12                   1000000              538.6 ns/op            346 B/op         11 allocs/op
+BenchmarkGameLoopSimpleDebug/QueryIterateNoAccess-12               58398            10424 ns/op      392 B/op         13 allocs/op
+BenchmarkGameLoopSimpleDebug/QueryIterateWithGet-12                 9620            63666 ns/op    48344 B/op       1012 allocs/op
+BenchmarkGameLoopSimpleDebug/QueryCount-12                         72930             8176 ns/op      392 B/op         13 allocs/op
+BenchmarkComponentMapAllocation/MapAlloc2-12                    84546338                7.289 ns/op            0 B/op          0 allocs/op
+BenchmarkComponentMapAllocation/MapAlloc8-12                    80727624                7.373 ns/op            0 B/op          0 allocs/op
+BenchmarkComponentMapAllocation/MapAlloc16-12                    1000000              747.6 ns/op           1192 B/op          3 allocs/op
+BenchmarkSetParent-12                                           15072120               36.63 ns/op             0 B/op          0 allocs/op
+BenchmarkChildrenOf-12                                             17842            32488 ns/op    81920 B/op          1 allocs/op
+BenchmarkMemoryPerEntity-12                                     1000000000              0.0008903 ns/op        0 B/op          0 allocs/op
+BenchmarkMemoryPerEntityWithComponents-12                       1000000000              0.002296 ns/op         0 B/op          0 allocs/op
+BenchmarkGameLoopProfile/FullLoop-12                               10000            62359 ns/op    48344 B/op       1012 allocs/op
+BenchmarkGameLoopProfile/IterationOnly-12                          54145            10853 ns/op      392 B/op         13 allocs/op
+BenchmarkGameLoopProfile/GetComponentDirect-12                      7828            79743 ns/op    47952 B/op        999 allocs/op
+BenchmarkAccessPattern/WorldGetComponent-12                        85904             7066 ns/op     4752 B/op         99 allocs/op
+BenchmarkAccessPattern/QueryResultGet-12                           85596             6473 ns/op     5144 B/op        112 allocs/op
+BenchmarkQuerySingleComponent-12                                    2403           229290 ns/op    82112 B/op         11 allocs/op
+BenchmarkQueryMultipleComponents-12                                 2730           224560 ns/op    82672 B/op         26 allocs/op
+BenchmarkQuerySparsely-12                                         234547             2644 ns/op     1072 B/op         10 allocs/op
+BenchmarkQueryDensely-12                                            2584           216863 ns/op    82096 B/op         10 allocs/op
+BenchmarkIterateQueryResults-12                                     1795           330175 ns/op       96 B/op          5 allocs/op

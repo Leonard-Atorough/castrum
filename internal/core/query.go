@@ -9,33 +9,34 @@ type ResultEntry struct {
 	Archetype  *Archetype
 	EntityID   EntityID
 	Entity     *Entity
-	Components map[reflect.Type]Component
+	_archetype *Archetype // Private: for lazy component access
+	_idx       int        // Private: entity index in archetype
 }
 
 // Get retrieves a component from the result entry with error handling.
 // Use this instead of world.GetComponent when you already have a query result,
-// as the component data is pre-fetched and avoids redundant lookups.
+// as the component data is accessed directly from the archetype cache.
 func (r ResultEntry) Get[T any]() (T, error) {
 	t := reflect.TypeFor[T]()
-	comp, ok := r.Components[t]
-	if !ok {
-		var zero T
-		return zero, &EntityError{
-			EntityID: r.EntityID,
-			Op:       "ResultEntry.Get",
-			Err:      ErrComponentNotFound,
+
+	// Access directly from archetype (no allocation)
+	if r._archetype != nil {
+		if raw, ok := r._archetype.componentData[t]; ok {
+			if comps, ok := raw.([]Component); ok && len(comps) > r._idx {
+				typed, ok := comps[r._idx].(T)
+				if ok {
+					return typed, nil
+				}
+			}
 		}
 	}
-	typed, ok := comp.(T)
-	if !ok {
-		var zero T
-		return zero, &EntityError{
-			EntityID: r.EntityID,
-			Op:       "ResultEntry.Get",
-			Err:      ErrComponentNotFound,
-		}
+
+	var zero T
+	return zero, &EntityError{
+		EntityID: r.EntityID,
+		Op:       "ResultEntry.Get",
+		Err:      ErrComponentNotFound,
 	}
-	return typed, nil
 }
 
 type Query struct {
@@ -76,24 +77,6 @@ func (q *Query) Execute() iter.Seq[ResultEntry] {
 			}
 
 			for i, entityID := range archetype.entities {
-				var components map[reflect.Type]Component
-				if len(requiredTypes) > 0 {
-					components = make(map[reflect.Type]Component, len(requiredTypes))
-					for _, compType := range requiredTypes {
-						if raw, ok := archetype.componentData[compType]; ok {
-							if comps, ok := raw.([]Component); ok && len(comps) > i {
-								components[compType] = comps[i]
-							}
-						}
-					}
-				} else {
-					components = make(map[reflect.Type]Component, len(archetype.componentData))
-					for compType, raw := range archetype.componentData {
-						if comps, ok := raw.([]Component); ok && len(comps) > i {
-							components[compType] = comps[i]
-						}
-					}
-				}
 				entity, ok := q.world.GetEntity(entityID)
 				if !ok {
 					continue
@@ -102,7 +85,8 @@ func (q *Query) Execute() iter.Seq[ResultEntry] {
 					Archetype:  archetype,
 					EntityID:   entityID,
 					Entity:     entity,
-					Components: components,
+					_archetype: archetype,
+					_idx:       i,
 				}
 				if !yield(resultEntry) {
 					return
@@ -155,7 +139,7 @@ func (q *Query) EntityIDs() []EntityID {
 }
 
 func types(comps ...Component) []reflect.Type {
-	var componentTypes []reflect.Type
+	componentTypes := make([]reflect.Type, 0, len(comps))
 	for _, comp := range comps {
 		componentTypes = append(componentTypes, reflect.TypeOf(comp))
 	}
