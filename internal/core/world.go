@@ -275,7 +275,7 @@ func (w *World) GetComponent[T Component](entityID EntityID) (T, error) {
 	}
 
 	slice, exists := archetype.componentData[compType]
-	if !exists || entity.archetypeIdx >= len(slice.([]Component)) {
+	if !exists {
 		return zero, &EntityError{
 			EntityID: entityID,
 			Op:       "GetComponent",
@@ -283,7 +283,25 @@ func (w *World) GetComponent[T Component](entityID EntityID) (T, error) {
 		}
 	}
 
-	return slice.([]Component)[entity.archetypeIdx].(T), nil
+	compSlice, ok := slice.([]Component)
+	if !ok || entity.archetypeIdx >= len(compSlice) {
+		return zero, &EntityError{
+			EntityID: entityID,
+			Op:       "GetComponent",
+			Err:      ErrEntityNotFound,
+		}
+	}
+
+	comp, ok := compSlice[entity.archetypeIdx].(T)
+	if !ok {
+		return zero, &EntityError{
+			EntityID: entityID,
+			Op:       "GetComponent",
+			Err:      fmt.Errorf("component type mismatch: expected %T", zero),
+		}
+	}
+
+	return comp, nil
 }
 
 func (w *World) HasComponent[T Component](entityID EntityID) bool {
@@ -337,7 +355,7 @@ func (w *World) SetComponent[T Component](entityID EntityID, newComp T) error {
 	}
 
 	slice, exists := archetype.componentData[compType]
-	if !exists || entity.archetypeIdx >= len(slice.([]Component)) {
+	if !exists {
 		return &EntityError{
 			EntityID: entityID,
 			Op:       "SetComponent",
@@ -345,7 +363,16 @@ func (w *World) SetComponent[T Component](entityID EntityID, newComp T) error {
 		}
 	}
 
-	slice.([]Component)[entity.archetypeIdx] = newComp
+	compSlice, ok := slice.([]Component)
+	if !ok || entity.archetypeIdx >= len(compSlice) {
+		return &EntityError{
+			EntityID: entityID,
+			Op:       "SetComponent",
+			Err:      ErrEntityNotFound,
+		}
+	}
+
+	compSlice[entity.archetypeIdx] = newComp
 	return nil
 }
 
@@ -466,14 +493,20 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component
 		// Copy all existing components to new archetype
 		for _, compType := range currentArchetype.componentTypes {
 			if slice, sliceExists := currentArchetype.componentData[compType]; sliceExists {
-				compSlice := slice.([]Component)
+				compSlice, ok := slice.([]Component)
+				if !ok {
+					continue // skip invalid component data
+				}
 				if entity.archetypeIdx < len(compSlice) {
 					// Ensure new archetype has storage for this component type
 					if _, newSliceExists := newArchetype.componentData[compType]; !newSliceExists {
 						newArchetype.componentData[compType] = make([]Component, 0)
 					}
 					// Add component to new archetype
-					newSlice := newArchetype.componentData[compType].([]Component)
+					newSlice, ok := newArchetype.componentData[compType].([]Component)
+					if !ok {
+						continue // skip if type assertion fails
+					}
 					if len(newSlice) <= entity.archetypeIdx {
 						newSlice = append(newSlice, make([]Component, entity.archetypeIdx-len(newSlice)+1)...)
 						newArchetype.componentData[compType] = newSlice
@@ -524,7 +557,12 @@ func (w *World) setComponentInArchetype(archetype *Archetype, index int, compTyp
 	if _, exists := archetype.componentData[compType]; !exists {
 		archetype.componentData[compType] = make([]Component, len(archetype.entities))
 	}
-	compSlice := archetype.componentData[compType].([]Component)
+	raw := archetype.componentData[compType]
+	compSlice, ok := raw.([]Component)
+	if !ok {
+		// Invalid component storage type; skip this component
+		return
+	}
 
 	if index >= len(compSlice) {
 		newSlice := make([]Component, len(archetype.entities))

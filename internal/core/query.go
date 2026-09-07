@@ -59,8 +59,7 @@ func (q *Query) Execute() iter.Seq[ResultEntry] {
 					components = make(map[reflect.Type]Component, len(requiredTypes))
 					for _, compType := range requiredTypes {
 						if raw, ok := archetype.componentData[compType]; ok {
-							comps := raw.([]Component)
-							if len(comps) > i {
+							if comps, ok := raw.([]Component); ok && len(comps) > i {
 								components[compType] = comps[i]
 							}
 						}
@@ -68,8 +67,7 @@ func (q *Query) Execute() iter.Seq[ResultEntry] {
 				} else {
 					components = make(map[reflect.Type]Component, len(archetype.componentData))
 					for compType, raw := range archetype.componentData {
-						comps := raw.([]Component)
-						if len(comps) > i {
+						if comps, ok := raw.([]Component); ok && len(comps) > i {
 							components[compType] = comps[i]
 						}
 					}
