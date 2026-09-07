@@ -40,6 +40,15 @@ type (
 	TimerID      = timers.TimerID
 )
 
+// Sentinel errors returned by engine operations. Use errors.Is() for checking.
+var (
+	ErrEntityNotFound          = core.ErrEntityNotFound
+	ErrInvalidEntity           = core.ErrInvalidEntity
+	ErrComponentNotFound       = core.ErrComponentNotFound
+	ErrSystemNotFound          = core.ErrSystemNotFound
+	ErrSystemAlreadyRegistered = core.ErrSystemAlreadyRegistered
+)
+
 const (
 	maxDelta              = 0.25
 	maxIterationsPerFrame = 5
@@ -54,30 +63,50 @@ func unboundedRect() geom.Rect {
 }
 
 type Game struct {
-	World  *World
+	// World is the ECS container managing all entities and components.
+	// Use World to create/destroy entities, add/remove components, and query entities.
+	World *World
+
+	// Config is the engine configuration (graphics, audio, input, engine settings).
+	// Generally immutable after NewGame.
 	Config *Config
 
+	// Systems is the system manager (lifecycle: init, update, shutdown).
+	// Use Systems.Register to add custom game logic systems.
+	// Note: Core systems (physics, animation, rendering) are auto-registered.
 	Systems *core.Manager
-	Render  *render.Renderer
+
+	// Render is the rendering backend (advanced use only).
+	// Most games should not interact with this directly; rendering is automatic.
+	// Exposed for custom rendering (e.g., debug overlays, post-processing).
+	Render *render.Renderer
+
+	// Spatial is the spatial index for efficient entity queries by position (advanced use only).
+	// Most games should not interact with this directly; it's managed by the collision system.
 	Spatial *spatial.SpatialIndexHandler
 
+	// Input is the input handler for keyboard, mouse, and gamepad state.
+	// Use Input.KeyPressed, MouseHeld, etc. to poll input state.
 	Input *Input
 
-	Assets            *assets.Assets
-	ComponentRegistry *core.ComponentRegistry
+	// Assets is the asset manager for loading and caching textures, animations, and blueprints.
+	// Use Assets to load game resources.
+	Assets *assets.Assets
 
-	// Camera entity ID for updating screen size and accessing camera state
+	// CameraEntityID is the entity ID of the primary camera (internal, do not modify).
 	CameraEntityID EntityID
 
-	// Timestep state
+	// Timestep state (internal, do not modify).
 	accumulator float64
 	fixedDelta  float64
 	lastTime    time.Time
 	fpsTarget   int
 
-	// pause and speed
+	// Paused controls whether the game loop advances (game logic stops, but rendering continues).
 	Paused bool
-	Speed  float64
+
+	// Speed is the time scale multiplier (1.0 = normal speed, 0.5 = half speed, etc.).
+	Speed float64
 }
 
 func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
@@ -130,17 +159,16 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	}
 
 	return &Game{
-		World:             newWorld,
-		Config:            config,
-		Systems:           systems,
-		Assets:            assets,
-		ComponentRegistry: core.GlobalRegistry, // Use the global component registry instance
-		Render:            renderer,            // Initialize the renderer
-		CameraEntityID:    cameraEntity.ID,
-		Spatial:           spatial,
-		Input:             input,
-		fixedDelta:        1.0 / float64(config.Engine.TicksPerSecond),
-		Speed:             config.Engine.TimeScale,
+		World:          newWorld,
+		Config:         config,
+		Systems:        systems,
+		Assets:         assets,
+		Render:         renderer,
+		CameraEntityID: cameraEntity.ID,
+		Spatial:        spatial,
+		Input:          input,
+		fixedDelta:     1.0 / float64(config.Engine.TicksPerSecond),
+		Speed:          config.Engine.TimeScale,
 	}, nil
 }
 

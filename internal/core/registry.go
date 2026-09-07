@@ -6,13 +6,13 @@ import (
 	"sync"
 )
 
-type ComponentRegistry struct {
+type componentRegistry struct {
 	mu         sync.RWMutex
-	types      map[reflect.Type]*ComponentType
+	types      map[reflect.Type]*componentType
 	nameToType map[string]reflect.Type
 }
 
-type ComponentType struct {
+type componentType struct {
 	Type           reflect.Type
 	Name           string
 	Size           int
@@ -20,54 +20,54 @@ type ComponentType struct {
 	HasHooks       bool
 }
 
-var GlobalRegistry = &ComponentRegistry{
-	types:      make(map[reflect.Type]*ComponentType),
+var globalRegistry = &componentRegistry{
+	types:      make(map[reflect.Type]*componentType),
 	nameToType: make(map[string]reflect.Type),
 }
 
-func Register[T any]() *ComponentType {
+func Register[T any]() *componentType {
 	typ := reflect.TypeFor[T]()
-	GlobalRegistry.mu.Lock()
-	defer GlobalRegistry.mu.Unlock()
+	globalRegistry.mu.Lock()
+	defer globalRegistry.mu.Unlock()
 
-	if info, exists := GlobalRegistry.types[typ]; exists {
+	if info, exists := globalRegistry.types[typ]; exists {
 		return info
 	}
 
-	info := &ComponentType{
+	info := &componentType{
 		Type:           typ,
 		Name:           typ.Name(),
 		Size:           int(typ.Size()),
 		IsSerializable: reflect.PointerTo(typ).Implements(reflect.TypeFor[Serializable]()),
 		HasHooks:       reflect.PointerTo(typ).Implements(reflect.TypeFor[ComponentHooks]()),
 	}
-	GlobalRegistry.types[typ] = info
-	GlobalRegistry.nameToType[info.Name] = typ
+	globalRegistry.types[typ] = info
+	globalRegistry.nameToType[info.Name] = typ
 	return info
 }
 
 func RegisterMultiple(types ...reflect.Type) {
 	for _, typ := range types {
-		GlobalRegistry.mu.Lock()
-		if _, exists := GlobalRegistry.types[typ]; !exists {
-			info := &ComponentType{
+		globalRegistry.mu.Lock()
+		if _, exists := globalRegistry.types[typ]; !exists {
+			info := &componentType{
 				Type:           typ,
 				Name:           typ.Name(),
 				Size:           int(typ.Size()),
 				IsSerializable: reflect.PointerTo(typ).Implements(reflect.TypeFor[Serializable]()),
 				HasHooks:       reflect.PointerTo(typ).Implements(reflect.TypeFor[ComponentHooks]()),
 			}
-			GlobalRegistry.types[typ] = info
-			GlobalRegistry.nameToType[info.Name] = typ
+			globalRegistry.types[typ] = info
+			globalRegistry.nameToType[info.Name] = typ
 		}
-		GlobalRegistry.mu.Unlock()
+		globalRegistry.mu.Unlock()
 	}
 }
 
 func Resolve(name string, props map[string]any) (Component, error) {
-	GlobalRegistry.mu.RLock()
-	typ, exists := GlobalRegistry.nameToType[name]
-	GlobalRegistry.mu.RUnlock()
+	globalRegistry.mu.RLock()
+	typ, exists := globalRegistry.nameToType[name]
+	globalRegistry.mu.RUnlock()
 	if !exists {
 		return nil, fmt.Errorf("type %s not registered", name)
 	}
@@ -97,19 +97,19 @@ func Resolve(name string, props map[string]any) (Component, error) {
 	return instance.Interface().(Component), nil
 }
 
-func GetTypeInfo(typ reflect.Type) *ComponentType {
-	GlobalRegistry.mu.RLock()
-	defer GlobalRegistry.mu.RUnlock()
+func GetTypeInfo(typ reflect.Type) *componentType {
+	globalRegistry.mu.RLock()
+	defer globalRegistry.mu.RUnlock()
 
-	return GlobalRegistry.types[typ]
+	return globalRegistry.types[typ]
 }
 
-func ListTypeInfo() []*ComponentType {
-	GlobalRegistry.mu.RLock()
-	defer GlobalRegistry.mu.RUnlock()
+func ListTypeInfo() []*componentType {
+	globalRegistry.mu.RLock()
+	defer globalRegistry.mu.RUnlock()
 
-	list := make([]*ComponentType, 0, len(GlobalRegistry.types))
-	for _, info := range GlobalRegistry.types {
+	list := make([]*componentType, 0, len(globalRegistry.types))
+	for _, info := range globalRegistry.types {
 		list = append(list, info)
 	}
 	return list
