@@ -117,7 +117,7 @@ func (s *System) Update(world *core.World, deltaTime float64) error {
 
 	s.events = s.events[:0]
 
-	s.markDirtyFromSpatial(world)
+	s.markDirtyFromSpatial()
 
 	candidates := s.broadphase(world)
 	s.narrowphase(world, candidates)
@@ -208,19 +208,19 @@ func (s *System) worldShape(world *core.World, entityID core.EntityID) (componen
 // markDirtyFromSpatial flags entities whose position changed since the last
 // Update call. Any change is enough to mark dirty - a smaller movement can
 // still start or end an overlap, so there is no "safe" distance threshold.
-func (s *System) markDirtyFromSpatial(world *core.World) {
+func (s *System) markDirtyFromSpatial() {
 	seen := make(map[core.EntityID]struct{}, len(s.lastPositions))
 
 	for entry := range s.query.Execute() {
 		entityID := entry.EntityID
 		seen[entityID] = struct{}{}
 
-		collider, err := world.GetComponent[components.Collider](entityID)
+		collider, err := entry.Get[components.Collider]()
 		if err != nil || !collider.Active {
 			continue
 		}
 
-		transform, err := world.GetComponent[components.Transform](entityID)
+		transform, err := entry.Get[components.Transform]()
 		if err != nil {
 			continue
 		}
