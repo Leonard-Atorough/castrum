@@ -4,7 +4,10 @@ import (
 	"math"
 	"testing"
 
+	"reflect"
+
 	"github.com/leonard-atorough/castrum/geom"
+	"github.com/leonard-atorough/castrum/internal/core"
 )
 
 func TestNewCamera(t *testing.T) {
@@ -15,6 +18,9 @@ func TestNewCamera(t *testing.T) {
 	}
 	if !math.IsInf(c.Bounds.Min.X, -1) || !math.IsInf(c.Bounds.Max.X, 1) {
 		t.Fatalf("Bounds = %v, want unbounded", c.Bounds)
+	}
+	if c.Primary {
+		t.Fatal("expected new camera to not be Primary by default")
 	}
 }
 
@@ -50,6 +56,36 @@ func TestCamera_WorldToScreenAndBack(t *testing.T) {
 			t.Fatalf("round-trip mismatch: got %v, want %v", back, world)
 		}
 	})
+
+	t.Run("zoomed out camera (zoom < 1) maps correctly", func(t *testing.T) {
+		c := NewCamera()
+		c.SetScreenSize(800, 600)
+		c.Position = geom.Vector2{X: 100, Y: 100}
+		c.Zoom = 0.5
+
+		world := geom.Vector2{X: 200, Y: 150}
+		screen := c.WorldToScreen(world)
+		back := c.ScreenToWorld(screen)
+
+		if !vecAlmostEqual(back, world) {
+			t.Fatalf("zoomed-out round-trip failed: got %v, want %v", back, world)
+		}
+	})
+
+	t.Run("high zoom level converts correctly", func(t *testing.T) {
+		c := NewCamera()
+		c.SetScreenSize(800, 600)
+		c.Position = geom.Vector2{X: 0, Y: 0}
+		c.Zoom = 10
+
+		world := geom.Vector2{X: 5, Y: -3}
+		screen := c.WorldToScreen(world)
+		back := c.ScreenToWorld(screen)
+
+		if !vecAlmostEqual(back, world) {
+			t.Fatalf("high zoom round-trip failed: got %v, want %v", back, world)
+		}
+	})
 }
 
 func vecAlmostEqual(a, b geom.Vector2) bool {
@@ -71,6 +107,21 @@ func TestCamera_ViewportBounds(t *testing.T) {
 	if !vecAlmostEqual(got.Min, want.Min) || !vecAlmostEqual(got.Max, want.Max) {
 		t.Fatalf("ViewportBounds() = %v, want %v", got, want)
 	}
+
+	t.Run("viewport with zoom 1", func(t *testing.T) {
+		c := NewCamera()
+		c.SetScreenSize(800, 600)
+		c.Position = geom.Vector2{X: 0, Y: 0}
+		c.Zoom = 1
+
+		vb := c.ViewportBounds()
+		if !vecAlmostEqual(vb.Min, geom.Vector2{X: -400, Y: -300}) {
+			t.Fatalf("Min = %v, want {-400 -300}", vb.Min)
+		}
+		if !vecAlmostEqual(vb.Max, geom.Vector2{X: 400, Y: 300}) {
+			t.Fatalf("Max = %v, want {400 300}", vb.Max)
+		}
+	})
 }
 
 func TestCamera_ClampPosition(t *testing.T) {
@@ -79,7 +130,7 @@ func TestCamera_ClampPosition(t *testing.T) {
 		c.SetScreenSize(800, 600)
 		c.Position = geom.Vector2{X: 1e6, Y: -1e6}
 
-		c.ClampPosition()
+		c = c.ClampPosition()
 
 		if c.Position != (geom.Vector2{X: 1e6, Y: -1e6}) {
 			t.Fatalf("Position changed under unbounded Bounds: %v", c.Position)
@@ -92,11 +143,48 @@ func TestCamera_ClampPosition(t *testing.T) {
 		c.Bounds = geom.Rect{Min: geom.Vector2{X: 0, Y: 0}, Max: geom.Vector2{X: 1000, Y: 1000}}
 		c.Position = geom.Vector2{X: -500, Y: 2000}
 
-		c.ClampPosition()
+		c = c.ClampPosition()
 
 		viewport := c.ViewportBounds()
-		if viewport.Min.X < c.Bounds.Min.X-epsilonRect || viewport.Max.Y > c.Bounds.Max.Y+epsilonRect {
+		if viewport.Min.X < c.Bounds.Min.X-epsilonRect || viewport.Max.X > c.Bounds.Max.X+epsilonRect ||
+			viewport.Min.Y < c.Bounds.Min.Y-epsilonRect || viewport.Max.Y > c.Bounds.Max.Y+epsilonRect {
 			t.Fatalf("viewport %v escapes bounds %v after clamping", viewport, c.Bounds)
+		}
+	})
+
+	t.Run("clamping preserves other fields", func(t *testing.T) {
+		c := NewCamera()
+		c.SetScreenSize(100, 100)
+		c.Zoom = 2.5
+		c.Rotation = 0.5
+		c.Primary = true
+		c.Bounds = geom.Rect{Min: geom.Vector2{X: 0, Y: 0}, Max: geom.Vector2{X: 100, Y: 100}}
+		c.Position = geom.Vector2{X: -100, Y: -100}
+
+		clamped := c.ClampPosition()
+
+		if clamped.Zoom != 2.5 {
+			t.Fatalf("Zoom changed after clamp: %v", clamped.Zoom)
+		}
+		if clamped.Rotation != 0.5 {
+			t.Fatalf("Rotation changed after clamp: %v", clamped.Rotation)
+		}
+		if !clamped.Primary {
+			t.Fatalf("Primary flag changed after clamp")
+		}
+	})
+
+	t.Run("clamp at exactly the bounds edge", func(t *testing.T) {
+		c := NewCamera()
+		c.SetScreenSize(200, 200)
+		c.Zoom = 1
+		c.Bounds = geom.Rect{Min: geom.Vector2{X: -100, Y: -100}, Max: geom.Vector2{X: 100, Y: 100}}
+		c.Position = geom.Vector2{X: 0, Y: 0}
+
+		clamped := c.ClampPosition()
+		// At center, should be fine
+		if clamped.Position != (geom.Vector2{X: 0, Y: 0}) {
+			t.Fatalf("Position at center changed: %v", clamped.Position)
 		}
 	})
 }
@@ -114,6 +202,7 @@ func TestCamera_IsWorldRectVisible(t *testing.T) {
 	}{
 		{"overlapping viewport", geom.Rect{Min: geom.Vector2{X: -10, Y: -10}, Max: geom.Vector2{X: 10, Y: 10}}, true},
 		{"far outside viewport", geom.Rect{Min: geom.Vector2{X: 10000, Y: 10000}, Max: geom.Vector2{X: 10010, Y: 10010}}, false},
+		{"touching edge", geom.Rect{Min: geom.Vector2{X: 399, Y: 299}, Max: geom.Vector2{X: 401, Y: 301}}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -130,5 +219,180 @@ func TestCamera_AspectRatio(t *testing.T) {
 
 	if got, want := c.AspectRatio(), 800.0/600.0; got != want {
 		t.Fatalf("AspectRatio() = %v, want %v", got, want)
+	}
+
+	t.Run("square screen", func(t *testing.T) {
+		c := NewCamera()
+		c.SetScreenSize(512, 512)
+		if got := c.AspectRatio(); got != 1.0 {
+			t.Fatalf("Square aspect ratio = %v, want 1.0", got)
+		}
+	})
+
+	t.Run("wide screen", func(t *testing.T) {
+		c := NewCamera()
+		c.SetScreenSize(1920, 1080)
+		if got, want := c.AspectRatio(), 1920.0/1080.0; got != want {
+			t.Fatalf("Wide aspect ratio = %v, want %v", got, want)
+		}
+	})
+}
+
+// System tests
+
+func TestNewSystem(t *testing.T) {
+	sys := NewSystem()
+	if sys == nil {
+		t.Fatal("NewSystem returned nil")
+	}
+}
+
+func TestSystem_Init(t *testing.T) {
+	sys := NewSystem()
+	world := core.NewWorld()
+
+	err := sys.Init(world)
+	if err != nil {
+		t.Fatalf("Init returned error: %v", err)
+	}
+}
+
+func TestSystem_Shutdown(t *testing.T) {
+	sys := NewSystem()
+	world := core.NewWorld()
+
+	err := sys.Shutdown(world)
+	if err != nil {
+		t.Fatalf("Shutdown returned error: %v", err)
+	}
+}
+
+func TestSystem_Update_ClampsCamera(t *testing.T) {
+	sys := NewSystem()
+	world := core.NewWorld()
+
+	// Create a camera with bounds
+	cam := NewCamera()
+	cam.SetScreenSize(800, 600)
+	cam.Bounds = geom.Rect{
+		Min: geom.Vector2{X: 0, Y: 0},
+		Max: geom.Vector2{X: 1000, Y: 1000},
+	}
+	// Position it outside bounds
+	cam.Position = geom.Vector2{X: -500, Y: 2000}
+	cam.Primary = true
+
+	// Create entity with camera
+	eid, err := world.CreateWithComponents("camera", cam)
+	if err != nil {
+		t.Fatalf("CreateWithComponents failed: %v", err)
+	}
+
+	// Update the system
+	err = sys.Update(world, 0.016)
+	if err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	// Retrieve camera and check it was clamped
+	camComp, err := world.GetComponent(eid.ID, reflect.TypeFor[Camera]())
+	if err != nil {
+		t.Fatalf("GetComponent failed: %v", err)
+	}
+	updated := camComp.(Camera)
+
+	viewport := updated.ViewportBounds()
+	if viewport.Min.X < updated.Bounds.Min.X-epsilonRect || viewport.Max.X > updated.Bounds.Max.X+epsilonRect ||
+		viewport.Min.Y < updated.Bounds.Min.Y-epsilonRect || viewport.Max.Y > updated.Bounds.Max.Y+epsilonRect {
+		t.Fatalf("viewport %v escapes bounds %v after system update", viewport, updated.Bounds)
+	}
+}
+
+func TestSystem_Update_MultipleCamera(t *testing.T) {
+	sys := NewSystem()
+	world := core.NewWorld()
+
+	// Create first camera with bounds
+	cam1 := NewCamera()
+	cam1.SetScreenSize(800, 600)
+	cam1.Bounds = geom.Rect{
+		Min: geom.Vector2{X: 0, Y: 0},
+		Max: geom.Vector2{X: 500, Y: 500},
+	}
+	cam1.Position = geom.Vector2{X: -200, Y: -200}
+	cam1.Primary = true
+
+	eid1, err := world.CreateWithComponents("camera1", cam1)
+	if err != nil {
+		t.Fatalf("CreateWithComponents failed: %v", err)
+	}
+
+	// Create second camera with different bounds
+	cam2 := NewCamera()
+	cam2.SetScreenSize(800, 600)
+	cam2.Bounds = geom.Rect{
+		Min: geom.Vector2{X: 1000, Y: 1000},
+		Max: geom.Vector2{X: 2000, Y: 2000},
+	}
+	cam2.Position = geom.Vector2{X: 500, Y: 500}
+	cam2.Primary = false
+
+	eid2, err := world.CreateWithComponents("camera2", cam2)
+	if err != nil {
+		t.Fatalf("CreateWithComponents failed: %v", err)
+	}
+
+	// Update system - should clamp both cameras
+	err = sys.Update(world, 0.016)
+	if err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	// Check first camera was clamped
+	camComp1, _ := world.GetComponent(eid1.ID, reflect.TypeFor[Camera]())
+	cam1Updated := camComp1.(Camera)
+	vp1 := cam1Updated.ViewportBounds()
+	if vp1.Min.X < cam1Updated.Bounds.Min.X-epsilonRect {
+		t.Fatalf("camera1 viewport min escapes bounds after update")
+	}
+
+	// Check second camera was clamped
+	camComp2, _ := world.GetComponent(eid2.ID, reflect.TypeFor[Camera]())
+	cam2Updated := camComp2.(Camera)
+	vp2 := cam2Updated.ViewportBounds()
+	if vp2.Min.X < cam2Updated.Bounds.Min.X-epsilonRect {
+		t.Fatalf("camera2 viewport min escapes bounds after update")
+	}
+}
+
+func TestSystem_Update_UnboundedCameraNotAffected(t *testing.T) {
+	sys := NewSystem()
+	world := core.NewWorld()
+
+	// Create unbounded camera (no explicit bounds = infinite)
+	cam := NewCamera()
+	cam.SetScreenSize(800, 600)
+	cam.Position = geom.Vector2{X: 1e6, Y: 1e6}
+	cam.Primary = true
+
+	eid, err := world.CreateWithComponents("camera", cam)
+	if err != nil {
+		t.Fatalf("CreateWithComponents failed: %v", err)
+	}
+
+	originalPos := cam.Position
+
+	// Update system
+	err = sys.Update(world, 0.016)
+	if err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	// Check position was not modified
+	camComp, _ := world.GetComponent(eid.ID, reflect.TypeFor[Camera]())
+	updated := camComp.(Camera)
+
+	if updated.Position != originalPos {
+		t.Fatalf("unbounded camera position changed from %v to %v", originalPos, updated.Position)
 	}
 }

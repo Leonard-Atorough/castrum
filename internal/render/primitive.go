@@ -19,10 +19,10 @@ func NewPrimitiveRenderer() *PrimitiveRenderer {
 	return &PrimitiveRenderer{}
 }
 
-func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, camera *camera.Camera, transform components.Transform, renderable components.Renderable) {
-	pos := camera.WorldToScreen(transform.Position)
+func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam camera.Camera, transform components.Transform, renderable components.Renderable) {
+	pos := cam.WorldToScreen(transform.Position)
 	x, y := float32(pos.X), float32(pos.Y)
-	zoom := float32(camera.Zoom)
+	zoom := float32(cam.Zoom)
 	clr := colorOrDefault(transform.Color)
 
 	switch renderable.Primitive {
@@ -36,7 +36,7 @@ func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, camera *camera.Camera, t
 		vector.StrokeLine(screen, x-dx*half, y-dy*half, x+dx*half, y+dy*half, strokeWidth, clr, true)
 	case components.PrimitiveKindPolygon:
 		// using vector.Path to draw the polygon
-		ctrl := drawPolygonPath(renderable, camera, clr, screen)
+		ctrl := drawPolygonPath(renderable, cam, clr, screen)
 		switch ctrl {
 		case 1:
 			break
@@ -46,16 +46,16 @@ func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, camera *camera.Camera, t
 	}
 }
 
-func drawPolygonPath(renderable components.Renderable, camera *camera.Camera, clr color.Color, screen *ebiten.Image) int {
+func drawPolygonPath(renderable components.Renderable, cam camera.Camera, clr color.Color, screen *ebiten.Image) int {
 	if polygon, ok := renderable.Data.(*geom.Polygon); ok {
 		if len(polygon.Points) < 3 {
 			return 1
 		}
 		var path vector.Path
-		first := camera.WorldToScreen(polygon.Points[0])
+		first := cam.WorldToScreen(polygon.Points[0])
 		path.MoveTo(float32(first.X), float32(first.Y))
 		for _, point := range polygon.Points[1:] {
-			p := camera.WorldToScreen(point)
+			p := cam.WorldToScreen(point)
 			path.LineTo(float32(p.X), float32(p.Y))
 		}
 		path.Close()

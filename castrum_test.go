@@ -1,10 +1,12 @@
 package castrum
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/leonard-atorough/castrum/internal/camera"
 )
 
 func TestNewGame(t *testing.T) {
@@ -22,8 +24,15 @@ func TestNewGame(t *testing.T) {
 		if want := 1.0 / 30.0; game.fixedDelta != want {
 			t.Fatalf("fixedDelta = %v, want %v", game.fixedDelta, want)
 		}
-		if game.Camera.ScreenSize.X != 320 || game.Camera.ScreenSize.Y != 240 {
-			t.Fatalf("Camera.ScreenSize = %v, want {320 240}", game.Camera.ScreenSize)
+
+		// Check camera entity
+		camComp, err := game.World.GetComponent(game.CameraEntityID, reflect.TypeFor[camera.Camera]())
+		if err != nil {
+			t.Fatalf("Failed to get camera component: %v", err)
+		}
+		cam := camComp.(camera.Camera)
+		if cam.ScreenSize.X != 320 || cam.ScreenSize.Y != 240 {
+			t.Fatalf("Camera.ScreenSize = %v, want {320 240}", cam.ScreenSize)
 		}
 		if game.Render == nil || game.World == nil || game.Systems == nil || game.Timers == nil {
 			t.Fatal("expected NewGame to wire all core subsystems")
@@ -59,8 +68,15 @@ func TestGame_Layout(t *testing.T) {
 	if w != 640 || h != 480 {
 		t.Fatalf("Layout() = (%d, %d), want (640, 480)", w, h)
 	}
-	if game.Camera.ScreenSize.X != 640 || game.Camera.ScreenSize.Y != 480 {
-		t.Fatalf("Camera.ScreenSize = %v, want {640 480}", game.Camera.ScreenSize)
+
+	// Check camera entity after layout
+	camComp, err := game.World.GetComponent(game.CameraEntityID, reflect.TypeFor[camera.Camera]())
+	if err != nil {
+		t.Fatalf("Failed to get camera component: %v", err)
+	}
+	cam := camComp.(camera.Camera)
+	if cam.ScreenSize.X != 640 || cam.ScreenSize.Y != 480 {
+		t.Fatalf("Camera.ScreenSize = %v, want {640 480}", cam.ScreenSize)
 	}
 }
 

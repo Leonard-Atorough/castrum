@@ -1,34 +1,73 @@
 package systems
 
 import (
+	"reflect"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/internal/camera"
+	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/input"
 )
 
 // CameraSystem is responsible for managing the camera within the game world.
 type CameraSystem struct {
-	Camera *castrum.Camera
-	Input  *castrum.Input
+	Input *castrum.Input
 }
 
-// We can demo here how we can use the query system to find the player entity and update the camera accordingly.
+// Update finds the player and updates the primary camera to follow it.
+// Camera is now an ECS component, so we query it from the world.
 func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
-	player := castrum.QueryFor[gamecomponents.Player](world)
+	// Query for the primary camera
+	cameras := core.QueryFor[camera.Camera](world)
+	var cameraEntity castrum.EntityID
+	var found bool
 
-	if len(player) > 0 {
-		playerEntity := player[0]
-		// Assuming the player has a Position component
-		if tx, err := castrum.GetComponent[components.Transform](world, playerEntity); err == nil {
-			pos := tx.Position
-			cs.Camera.Position = pos
-			// Apply camera bounds clamping
-			cs.Camera.ClampPosition()
+	for _, eid := range cameras {
+		camComp, err := world.GetComponent(eid, reflect.TypeFor[camera.Camera]())
+		if err != nil {
+			continue
+		}
+		cam := camComp.(camera.Camera)
+		if cam.Primary {
+			cameraEntity = eid
+			found = true
+			break
 		}
 	}
 
+	if !found {
+		return nil // No primary camera found
+	}
+
+	// Query for the player
+	players := castrum.QueryFor[gamecomponents.Player](world)
+	if len(players) > 0 {
+		playerEntity := players[0]
+		// Get player position
+		if tx, err := castrum.GetComponent[components.Transform](world, playerEntity); err == nil {
+			// Get current camera
+			camComp, err := world.GetComponent(cameraEntity, reflect.TypeFor[camera.Camera]())
+			if err != nil {
+				return nil
+			}
+			cam := camComp.(camera.Camera)
+
+			// Update camera position to follow player
+			cam.Position = tx.Position
+			// Apply camera bounds clamping
+			cam = cam.ClampPosition()
+
+			// Write camera back to world
+			if err := world.SetComponent(cameraEntity, reflect.TypeFor[camera.Camera](), cam); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Handle zoom input
 	zoomFactor := 1.015 // 5% per frame
 
 	for _, key := range []struct {
@@ -39,13 +78,25 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 		{ebiten.KeyX, 1 / zoomFactor}, // Zoom out (multiply by 0.95)
 	} {
 		if cs.Input.KeyHeld(key.ebitenKey, input.Modifiers{Shift: false, Ctrl: true, Alt: false}) {
-			cs.Camera.Zoom *= key.multiply
-			// Clamp to sensible bounds
-			if cs.Camera.Zoom < 0.1 {
-				cs.Camera.Zoom = 0.1
+			// Get camera for zoom update
+			camComp, err := world.GetComponent(cameraEntity, reflect.TypeFor[camera.Camera]())
+			if err != nil {
+				continue
 			}
-			if cs.Camera.Zoom > 10.0 {
-				cs.Camera.Zoom = 10.0
+			cam := camComp.(camera.Camera)
+
+			cam.Zoom *= key.multiply
+			// Clamp to sensible bounds
+			if cam.Zoom < 0.1 {
+				cam.Zoom = 0.1
+			}
+			if cam.Zoom > 10.0 {
+				cam.Zoom = 10.0
+			}
+
+			// Write camera back to world
+			if err := world.SetComponent(cameraEntity, reflect.TypeFor[camera.Camera](), cam); err != nil {
+				continue
 			}
 		}
 	}
