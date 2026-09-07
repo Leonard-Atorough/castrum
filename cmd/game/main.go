@@ -43,7 +43,15 @@ func main() {
 	minY := -float64(gridSizeH)*spacing - squareRadius - cameraOverflow
 	maxY := float64(gridSizeH)*spacing + squareRadius + cameraOverflow
 
-	game.Camera.Bounds = geom.NewRect(geom.NewVector2(minX, minY), geom.NewVector2(maxX, maxY))
+	// Get the camera entity and update its bounds
+	cam, err := game.GetCamera()
+	if err != nil {
+		log.Fatalf("failed to get camera: %v", err)
+	}
+	cam.Bounds = geom.NewRect(geom.NewVector2(minX, minY), geom.NewVector2(maxX, maxY))
+	if err := game.SetCamera(cam); err != nil {
+		log.Fatalf("failed to set camera: %v", err)
+	}
 
 	// Register input controller (runs first to read input and set velocity)
 	if err := game.Systems.Register("player_controller", -1, gamesystems.NewPlayerController(game), game.World); err != nil {
@@ -51,7 +59,7 @@ func main() {
 	}
 
 	// Register movement system (applies velocity to position)
-	if err := game.Systems.Register("movement", 0, gamesystems.NewMovementSystem(game.Camera), game.World); err != nil {
+	if err := game.Systems.Register("movement", 0, gamesystems.NewMovementSystem(&cam), game.World); err != nil {
 		log.Fatalf("failed to register movement system: %v", err)
 	}
 
@@ -66,7 +74,8 @@ func main() {
 	}
 
 	// Register the camera system (runs after movement to update the camera position)
-	if err := game.Systems.Register("camera", 1, &gamesystems.CameraSystem{Camera: game.Camera, Input: game.Input}, game.World); err != nil {
+	// CameraSystem now queries the camera from the world, no need to pass it
+	if err := game.Systems.Register("camera", 1, &gamesystems.CameraSystem{Input: game.Input}, game.World); err != nil {
 		log.Fatalf("failed to register camera system: %v", err)
 	}
 

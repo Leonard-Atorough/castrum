@@ -79,7 +79,7 @@ func TestCamera_ClampPosition(t *testing.T) {
 		c.SetScreenSize(800, 600)
 		c.Position = geom.Vector2{X: 1e6, Y: -1e6}
 
-		c.ClampPosition()
+		c = c.ClampPosition()
 
 		if c.Position != (geom.Vector2{X: 1e6, Y: -1e6}) {
 			t.Fatalf("Position changed under unbounded Bounds: %v", c.Position)
@@ -92,10 +92,11 @@ func TestCamera_ClampPosition(t *testing.T) {
 		c.Bounds = geom.Rect{Min: geom.Vector2{X: 0, Y: 0}, Max: geom.Vector2{X: 1000, Y: 1000}}
 		c.Position = geom.Vector2{X: -500, Y: 2000}
 
-		c.ClampPosition()
+		c = c.ClampPosition()
 
 		viewport := c.ViewportBounds()
-		if viewport.Min.X < c.Bounds.Min.X-epsilonRect || viewport.Max.Y > c.Bounds.Max.Y+epsilonRect {
+		if viewport.Min.X < c.Bounds.Min.X-epsilonRect || viewport.Max.X > c.Bounds.Max.X+epsilonRect ||
+			viewport.Min.Y < c.Bounds.Min.Y-epsilonRect || viewport.Max.Y > c.Bounds.Max.Y+epsilonRect {
 			t.Fatalf("viewport %v escapes bounds %v after clamping", viewport, c.Bounds)
 		}
 	})

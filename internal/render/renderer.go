@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"image/color"
+	"reflect"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -46,10 +47,33 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 // DrawScene renders every entity with a Renderable+Transform. A Renderable
 // with a TexturePath is drawn as a sprite; otherwise it's drawn as a
 // primitive shape - callers never need to say which.
-func (r *Renderer) DrawScene(screen *ebiten.Image, camera *camera.Camera, world *core.World) {
+// The primary camera is queried from the world.
+func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
+	// Query for the primary camera
+	var primaryCamera camera.Camera
+	var cameraFound bool
+
+	cameras := core.QueryFor[camera.Camera](world)
+	for _, cameraID := range cameras {
+		camComp, err := world.GetComponent(cameraID, reflect.TypeFor[camera.Camera]())
+		if err != nil {
+			continue
+		}
+		cam := camComp.(camera.Camera)
+		if cam.Primary {
+			primaryCamera = cam
+			cameraFound = true
+			break
+		}
+	}
+
+	if !cameraFound {
+		return // No primary camera, nothing to render
+	}
+
 	renderItems := make([]renderItem, 0)
 	// Get the camera's visible world-space bounds for frustum culling
-	viewportBounds := camera.ViewportBounds()
+	viewportBounds := primaryCamera.ViewportBounds()
 
 	for entry := range world.NewQuery().WithRequiredComponents(components.Renderable{}, components.Transform{}).Execute() {
 		if !entry.Entity.IsAlive() {
@@ -95,32 +119,54 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, camera *camera.Camera, world 
 	// Render
 	for _, item := range renderItems {
 		if item.renderable.TexturePath != "" {
-			r.drawSprite(screen, camera, item.transform, item.renderable)
+			r.drawSprite(screen, primaryCamera, item.transform, item.renderable)
 		} else {
-			r.Primitive.Draw(screen, camera, item.transform, item.renderable)
+			r.Primitive.Draw(screen, primaryCamera, item.transform, item.renderable)
 		}
 	}
 }
 
-func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, camera *camera.Camera, world *core.World) {
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), camera.Position))
+func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *core.World) {
+	// Query for the primary camera
+	var primaryCamera camera.Camera
+	var cameraFound bool
+
+	cameras := core.QueryFor[camera.Camera](world)
+	for _, cameraID := range cameras {
+		camComp, err := world.GetComponent(cameraID, reflect.TypeFor[camera.Camera]())
+		if err != nil {
+			continue
+		}
+		cam := camComp.(camera.Camera)
+		if cam.Primary {
+			primaryCamera = cam
+			cameraFound = true
+			break
+		}
+	}
+
+	if !cameraFound {
+		return
+	}
+
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), primaryCamera.Position))
 }
 
-func (r *Renderer) drawSprite(screen *ebiten.Image, camera *camera.Camera, transform components.Transform, renderable components.Renderable) {
+func (r *Renderer) drawSprite(screen *ebiten.Image, cam camera.Camera, transform components.Transform, renderable components.Renderable) {
 	tx, err := r.textures.Load(renderable.TexturePath)
 	if err != nil {
 		return // silently skip entities with missing textures
 	}
 
 	frameW, frameH := tx.Width, tx.Height
-	screenPos := camera.WorldToScreen(transform.Position)
+	screenPos := cam.WorldToScreen(transform.Position)
 
 	op := &ebiten.DrawImageOptions{}
 	// first we set the position of the sprite on the screen by updating the DrawImageOptions
 	op.GeoM.Translate(-float64(frameW)/2, -float64(frameH)/2)
 	// Apply scaling (including camera zoom), rotation, and other transforms from Transform
-	scaleX := transform.Scale.X * camera.Zoom
-	scaleY := transform.Scale.Y * camera.Zoom
+	scaleX := transform.Scale.X * cam.Zoom
+	scaleY := transform.Scale.Y * cam.Zoom
 	op.GeoM.Scale(scaleX, scaleY)
 	op.GeoM.Rotate(transform.Rotation)
 	op.GeoM.Translate(screenPos.X, screenPos.Y)

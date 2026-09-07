@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/animation"
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/camera"
@@ -35,6 +36,7 @@ type (
 	Spatial      = spatial.SpatialIndexHandler
 	Camera       = camera.Camera
 	EntityID     = core.EntityID
+	TimerID      = timers.TimerID
 )
 
 const (
@@ -43,15 +45,22 @@ const (
 	timersToRemove        = 60
 )
 
+func unboundedRect() geom.Rect {
+	return geom.Rect{
+		Min: geom.Vector2{X: math.Inf(-1), Y: math.Inf(-1)},
+		Max: geom.Vector2{X: math.Inf(1), Y: math.Inf(1)},
+	}
+}
+
 type Game struct {
 	World  *World
 	Config *Config
 
 	Systems *core.Manager
 	Timers  *timers.TimerSystem
+	Camera  *camera.System
 	Scenes  *scene.Manager
 	Render  *render.Renderer
-	Camera  *camera.Camera
 	Spatial *spatial.SpatialIndexHandler
 
 	Input     *Input
@@ -60,6 +69,9 @@ type Game struct {
 
 	Assets            *assets.Assets
 	ComponentRegistry *core.ComponentRegistry
+
+	// Camera entity ID for updating screen size and accessing camera state
+	CameraEntityID EntityID
 
 	// Timestep state
 	accumulator float64
@@ -80,6 +92,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	scenes := scene.NewManager(newWorld)
 	systems := core.NewManager()
 	timers := timers.NewTimerSystem(timersToRemove)
+	cameraSystem := camera.NewSystem()
 	spatial, err := spatial.NewManager(config.World.GridCellSize)
 	if err != nil {
 		return nil, err
@@ -88,22 +101,34 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	animation := animation.NewManager()
 	collisionMgr := physics.NewManager(spatial.Index, physics.DefaultConfig())
 
-	camera := camera.NewCamera()
-	camera.SetScreenSize(config.Graphics.VirtualWidth, config.Graphics.VirtualHeight)
-
 	assets := assets.NewAssets(filesystem)
 	renderer := render.New(assets.Textures)
+
+	// Create primary camera as an entity
+	cameraEntity, err := newWorld.CreateWithComponents(
+		"PrimaryCamera",
+		camera.Camera{
+			Zoom:       1.0,
+			Primary:    true,
+			Bounds:     unboundedRect(),
+			ScreenSize: geom.Vector2I{X: config.Graphics.VirtualWidth, Y: config.Graphics.VirtualHeight},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Game{
 		World:             newWorld,
 		Config:            config,
 		Systems:           systems,
 		Timers:            timers,
+		Camera:            cameraSystem,
 		Scenes:            scenes,
 		Assets:            assets,
 		ComponentRegistry: core.GlobalRegistry, // Use the global component registry instance
 		Render:            renderer,            // Initialize the renderer
-		Camera:            camera,
+		CameraEntityID:    cameraEntity.ID,
 		Spatial:           spatial,
 		Input:             input,
 		Animation:         animation,
@@ -136,6 +161,7 @@ func (g *Game) Update() error {
 	for g.accumulator >= g.fixedDelta && iterator < maxIterationsPerFrame {
 		iterator++
 		g.Timers.Update(g.World, g.fixedDelta)
+		g.Camera.Update(g.World, g.fixedDelta)
 		if err := g.Spatial.Update(g.World, g.fixedDelta); err != nil {
 			return err
 		}
@@ -151,10 +177,10 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.Render.Clear(screen, color.Black)
-	g.Render.DrawScene(screen, g.Camera, g.World)
+	g.Render.DrawScene(screen, g.World)
 
 	if g.Config.Engine.EnableDebug {
-		g.Render.DrawDebugInfo(screen, g.Camera, g.World)
+		g.Render.DrawDebugInfo(screen, g.World)
 	}
 }
 
@@ -162,8 +188,30 @@ func (g *Game) Draw(screen *ebiten.Image) {
 // screen size in sync with it.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	w, h := g.Config.Graphics.VirtualWidth, g.Config.Graphics.VirtualHeight
-	g.Camera.SetScreenSize(w, h)
+
+	// Update camera screen size
+	camComp, err := g.World.GetComponent(g.CameraEntityID, reflect.TypeFor[camera.Camera]())
+	if err == nil {
+		cam := camComp.(camera.Camera)
+		cam.ScreenSize = geom.Vector2I{X: w, Y: h}
+		g.World.SetComponent(g.CameraEntityID, reflect.TypeFor[camera.Camera](), cam)
+	}
+
 	return w, h
+}
+
+// GetCamera returns the primary camera component from the world.
+func (g *Game) GetCamera() (camera.Camera, error) {
+	camComp, err := g.World.GetComponent(g.CameraEntityID, reflect.TypeFor[camera.Camera]())
+	if err != nil {
+		return camera.Camera{}, err
+	}
+	return camComp.(camera.Camera), nil
+}
+
+// SetCamera updates the primary camera component in the world.
+func (g *Game) SetCamera(cam camera.Camera) error {
+	return g.World.SetComponent(g.CameraEntityID, reflect.TypeFor[camera.Camera](), cam)
 }
 
 // Generic component accessors — forward to typed.go helpers
