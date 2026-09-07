@@ -60,7 +60,7 @@ func TestManager(t *testing.T) {
 				t.Fatalf("Play failed: %v", err)
 			}
 
-			animComp, _ := core.GetComponent[components.Animatable](world, entity)
+			animComp, _ := world.GetComponent[components.Animatable](entity)
 			if !animComp.Animations["default"].Playing {
 				t.Error("Animation should be playing after Play()")
 			}
@@ -98,7 +98,7 @@ func TestManager(t *testing.T) {
 				t.Fatalf("Pause failed: %v", err)
 			}
 
-			animComp, _ := core.GetComponent[components.Animatable](world, entity)
+			animComp, _ := world.GetComponent[components.Animatable](entity)
 			if animComp.Animations["default"].Playing {
 				t.Error("Animation should not be playing after Pause()")
 			}
@@ -123,7 +123,7 @@ func TestManager(t *testing.T) {
 				t.Fatalf("Stop failed: %v", err)
 			}
 
-			animComp, _ := core.GetComponent[components.Animatable](world, entity)
+			animComp, _ := world.GetComponent[components.Animatable](entity)
 			current := animComp.Animations["default"]
 			if current.Playing {
 				t.Error("Animation should not be playing after Stop()")
@@ -155,7 +155,7 @@ func TestManager(t *testing.T) {
 				t.Fatalf("Reset failed: %v", err)
 			}
 
-			animComp, _ := core.GetComponent[components.Animatable](world, entity)
+			animComp, _ := world.GetComponent[components.Animatable](entity)
 			current := animComp.Animations["default"]
 			if current.Playing {
 				t.Error("Animation should not be playing after Reset()")
@@ -195,7 +195,7 @@ func TestManager(t *testing.T) {
 				t.Fatalf("SwitchAnimation failed: %v", err)
 			}
 
-			animComp, _ := core.GetComponent[components.Animatable](world, entity)
+			animComp, _ := world.GetComponent[components.Animatable](entity)
 			if animComp.CurrentAnimation != "jump" {
 				t.Errorf("CurrentAnimation should be 'jump', got %s", animComp.CurrentAnimation)
 			}
@@ -238,14 +238,14 @@ func TestManager(t *testing.T) {
 
 			// Insufficient delta
 			am.Update(world, 0.05)
-			animComp, _ := core.GetComponent[components.Animatable](world, entity)
+			animComp, _ := world.GetComponent[components.Animatable](entity)
 			if animComp.Animations["default"].FrameIndex != 0 {
 				t.Error("Frame should not advance with delta < FrameSpeed")
 			}
 
 			// Sufficient delta
 			am.Update(world, 0.1)
-			animComp, _ = core.GetComponent[components.Animatable](world, entity)
+			animComp, _ = world.GetComponent[components.Animatable](entity)
 			if animComp.Animations["default"].FrameIndex != 1 {
 				t.Errorf("Frame should advance to 1, got %d", animComp.Animations["default"].FrameIndex)
 			}
@@ -268,7 +268,7 @@ func TestManager(t *testing.T) {
 			})
 
 			am.Update(world, 0.1)
-			animComp, _ := core.GetComponent[components.Animatable](world, entity)
+			animComp, _ := world.GetComponent[components.Animatable](entity)
 			if animComp.Animations["default"].FrameIndex != 0 {
 				t.Errorf("Looping animation should reset to 0, got %d", animComp.Animations["default"].FrameIndex)
 			}
@@ -294,7 +294,7 @@ func TestManager(t *testing.T) {
 			})
 
 			am.Update(world, 0.1)
-			animComp, _ := core.GetComponent[components.Animatable](world, entity)
+			animComp, _ := world.GetComponent[components.Animatable](entity)
 			if animComp.Animations["default"].FrameIndex != 1 {
 				t.Errorf("Non-looping animation should stay at last frame, got %d", animComp.Animations["default"].FrameIndex)
 			}
@@ -393,11 +393,11 @@ func TestManager(t *testing.T) {
 			}
 
 			// Second update with stopped animation
-			animComp, _ := core.GetComponent[components.Animatable](world, entity)
+			animComp, _ := world.GetComponent[components.Animatable](entity)
 			current := animComp.Animations["default"]
 			current.Playing = false
 			animComp.Animations["default"] = current
-			core.SetComponent(world, entity, animComp)
+			world.SetComponent(entity, animComp)
 
 			am.Update(world, 0.1)
 			if len(am.Events()) != 0 {
@@ -624,9 +624,9 @@ func TestManager(t *testing.T) {
 				"default": anim,
 			})
 
-			animComp, _ := core.GetComponent[components.Animatable](world, entity)
+			animComp, _ := world.GetComponent[components.Animatable](entity)
 			animComp.CurrentAnimation = "nonexistent"
-			core.SetComponent(world, entity, animComp)
+			world.SetComponent(entity, animComp)
 
 			err := am.Update(world, 0.1)
 			if err != nil {

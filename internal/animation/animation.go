@@ -95,13 +95,13 @@ func (am *Manager) Update(world *core.World, delta float64) error {
 		}
 
 		animComp.Animations[animComp.CurrentAnimation] = current
-		_ = core.SetComponent(world, entityID, animComp)
+		_ = world.SetComponent(entityID, animComp)
 	}
 	return nil
 }
 
 func (am *Manager) Play(world *core.World, entityID core.EntityID) error {
-	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	animComp, err := world.GetComponent[components.Animatable](entityID)
 	if err != nil {
 		return err
 	}
@@ -110,22 +110,22 @@ func (am *Manager) Play(world *core.World, entityID core.EntityID) error {
 	current.FrameTime = 0
 	current.FrameIndex = 0
 	animComp.Animations[animComp.CurrentAnimation] = current
-	return core.SetComponent(world, entityID, animComp)
+	return world.SetComponent(entityID, animComp)
 }
 
 func (am *Manager) Pause(world *core.World, entityID core.EntityID) error {
-	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	animComp, err := world.GetComponent[components.Animatable](entityID)
 	if err != nil {
 		return err
 	}
 	current := animComp.Animations[animComp.CurrentAnimation]
 	current.Playing = false
 	animComp.Animations[animComp.CurrentAnimation] = current
-	return core.SetComponent(world, entityID, animComp)
+	return world.SetComponent(entityID, animComp)
 }
 
 func (am *Manager) Stop(world *core.World, entityID core.EntityID) error {
-	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	animComp, err := world.GetComponent[components.Animatable](entityID)
 	if err != nil {
 		return err
 	}
@@ -134,11 +134,11 @@ func (am *Manager) Stop(world *core.World, entityID core.EntityID) error {
 	current.FrameTime = 0
 	current.FrameIndex = 0
 	animComp.Animations[animComp.CurrentAnimation] = current
-	return core.SetComponent(world, entityID, animComp)
+	return world.SetComponent(entityID, animComp)
 }
 
 func (am *Manager) Reset(world *core.World, entityID core.EntityID) error {
-	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	animComp, err := world.GetComponent[components.Animatable](entityID)
 	if err != nil {
 		return err
 	}
@@ -147,11 +147,11 @@ func (am *Manager) Reset(world *core.World, entityID core.EntityID) error {
 	current.FrameTime = 0
 	current.FrameIndex = 0
 	animComp.Animations[animComp.CurrentAnimation] = current
-	return core.SetComponent(world, entityID, animComp)
+	return world.SetComponent(entityID, animComp)
 }
 
 func (am *Manager) SwitchAnimation(world *core.World, entityID core.EntityID, animationName string) error {
-	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	animComp, err := world.GetComponent[components.Animatable](entityID)
 	if err != nil {
 		return err
 	}
@@ -159,11 +159,11 @@ func (am *Manager) SwitchAnimation(world *core.World, entityID core.EntityID, an
 		return fmt.Errorf("animation %s does not exist", animationName)
 	}
 	animComp.CurrentAnimation = animationName
-	return core.SetComponent(world, entityID, animComp)
+	return world.SetComponent(entityID, animComp)
 }
 
 func (am *Manager) IsPlaying(world *core.World, entityID core.EntityID) (bool, error) {
-	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	animComp, err := world.GetComponent[components.Animatable](entityID)
 	if err != nil {
 		return false, err
 	}
@@ -171,7 +171,7 @@ func (am *Manager) IsPlaying(world *core.World, entityID core.EntityID) (bool, e
 }
 
 func (am *Manager) GetFrameIndex(world *core.World, entityID core.EntityID) (int, error) {
-	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	animComp, err := world.GetComponent[components.Animatable](entityID)
 	if err != nil {
 		return 0, err
 	}
@@ -179,7 +179,7 @@ func (am *Manager) GetFrameIndex(world *core.World, entityID core.EntityID) (int
 }
 
 func (am *Manager) GetFrameTime(world *core.World, entityID core.EntityID) (float64, error) {
-	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	animComp, err := world.GetComponent[components.Animatable](entityID)
 	if err != nil {
 		return 0, err
 	}
@@ -187,7 +187,7 @@ func (am *Manager) GetFrameTime(world *core.World, entityID core.EntityID) (floa
 }
 
 func (am *Manager) GetFrameSpeed(world *core.World, entityID core.EntityID) (float64, error) {
-	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	animComp, err := world.GetComponent[components.Animatable](entityID)
 	if err != nil {
 		return 0, err
 	}
@@ -195,7 +195,7 @@ func (am *Manager) GetFrameSpeed(world *core.World, entityID core.EntityID) (flo
 }
 
 func (am *Manager) GetFrames(world *core.World, entityID core.EntityID, animationNames ...string) (map[string][]string, error) {
-	animComp, err := core.GetComponent[components.Animatable](world, entityID)
+	animComp, err := world.GetComponent[components.Animatable](entityID)
 	if err != nil {
 		return nil, err
 	}

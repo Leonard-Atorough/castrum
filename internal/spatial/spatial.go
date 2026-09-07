@@ -81,8 +81,8 @@ func (idx *SpatialIndex) Query(pos geom.Vector2, radius float64) []core.EntityID
 
 func (idx *SpatialIndex) worldToGrid(pos geom.Vector2) GridCell {
 	return GridCell{
-		X: int(pos.X / idx.cellSize),
-		Y: int(pos.Y / idx.cellSize),
+		X: int(math.Floor(pos.X / idx.cellSize)),
+		Y: int(math.Floor(pos.Y / idx.cellSize)),
 	}
 }
 
@@ -116,7 +116,7 @@ func (mgr *SpatialIndexHandler) Update(world *core.World, deltaTime float64) err
 	transforms := core.QueryFor[components.Transform](world)
 
 	for _, entityID := range transforms {
-		transform, _ := core.GetComponent[components.Transform](world, entityID)
+		transform, _ := world.GetComponent[components.Transform](entityID)
 		if err := mgr.Index.Update(entityID, transform.Position); err != nil {
 			return err
 		}

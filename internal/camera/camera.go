@@ -2,7 +2,6 @@ package camera
 
 import (
 	"math"
-	"reflect"
 
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/core"
@@ -124,16 +123,15 @@ func (cs *System) Init(world *core.World) error {
 func (cs *System) Update(world *core.World, deltaTime float64) error {
 	cameras := core.QueryFor[Camera](world)
 	for _, entityID := range cameras {
-		camComp, err := world.GetComponent(entityID, reflect.TypeFor[Camera]())
+		cam, err := world.GetComponent[Camera](entityID)
 		if err != nil {
 			continue
 		}
 
-		cam := camComp.(Camera)
 		// Clamp position within bounds
 		cam = cam.ClampPosition()
 		// Update component back in world
-		world.SetComponent(entityID, reflect.TypeFor[Camera](), cam)
+		world.SetComponent(entityID, cam)
 	}
 
 	return nil

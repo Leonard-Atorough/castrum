@@ -287,36 +287,6 @@ func BenchmarkComponentTypeRegistry(b *testing.B) {
 	}
 }
 
-// BenchmarkReflectionOverhead benchmarks the overhead of using reflection
-func BenchmarkReflectionOverhead(b *testing.B) {
-	world := core.NewWorld()
-
-	// Create entity with components
-	entity := world.Create("Generic")
-	world.AddComponent(entity.ID, Position{X: 1.0, Y: 2.0})
-
-	// Direct access (no reflection)
-	b.Run("Direct", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			comp, _ := world.GetComponent(entity.ID, reflect.TypeFor[Position]())
-			if comp != nil {
-				_ = comp.(Position)
-			}
-		}
-	})
-
-	// Cached reflection
-	posType := reflect.TypeFor[Position]()
-	b.Run("Cached", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			comp, _ := world.GetComponent(entity.ID, posType)
-			if comp != nil {
-				_ = comp.(Position)
-			}
-		}
-	})
-}
-
 // BenchmarkEntityReuse benchmarks entity reuse patterns
 func BenchmarkEntityReuse(b *testing.B) {
 	world := core.NewWorld()
@@ -334,7 +304,7 @@ func BenchmarkEntityReuse(b *testing.B) {
 		world.AddComponent(entityID, Velocity{X: 1.0, Y: 1.0})
 
 		// Clean up components for next use
-		world.RemoveComponent(entityID, reflect.TypeFor[Position]())
-		world.RemoveComponent(entityID, reflect.TypeFor[Velocity]())
+		world.RemoveComponent[Position](entityID)
+		world.RemoveComponent[Velocity](entityID)
 	}
 }

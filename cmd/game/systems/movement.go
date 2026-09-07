@@ -41,7 +41,7 @@ func (s *MovementSystem) Update(world *castrum.World, delta float64) error {
 			transform.Position.Y = s.camera.Bounds.Max.Y
 		}
 
-		if err := castrum.SetComponent(world, id, transform); err != nil {
+		if err := world.SetComponent(id, transform); err != nil {
 			return err
 		}
 	}

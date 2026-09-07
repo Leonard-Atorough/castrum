@@ -26,8 +26,6 @@
 package timers
 
 import (
-	"reflect"
-
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
@@ -99,7 +97,7 @@ func (ts *TimerSystem) Init(world *core.World) error {
 func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
 	timers := core.QueryFor[Timer](world)
 	for _, entityID := range timers {
-		timer, err := world.GetComponent(entityID, reflect.TypeFor[Timer]())
+		timer, err := world.GetComponent[Timer](entityID)
 		if err != nil {
 			continue
 		}
@@ -109,27 +107,26 @@ func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
 			continue
 		}
 
-		rt := timer.(Timer)
-		if rt.Running == false {
+		if timer.Running == false {
 			continue
 		}
-		rt.ElapsedTime += deltaTime
-		if rt.ElapsedTime >= rt.Duration {
-			if rt.OnTimerTick != nil {
-				rt.OnTimerTick(entity)
+		timer.ElapsedTime += deltaTime
+		if timer.ElapsedTime >= timer.Duration {
+			if timer.OnTimerTick != nil {
+				timer.OnTimerTick(entity)
 			}
-			if rt.Once {
+			if timer.Once {
 				ts.timersToRemove = append(ts.timersToRemove, entity)
 			} else {
-				rt.ElapsedTime = 0
+				timer.ElapsedTime = 0
 			}
 		}
 		// Update the component back in the world since Timer is a value type
-		world.SetComponent(entityID, reflect.TypeFor[Timer](), rt)
+		world.SetComponent(entityID, timer)
 	}
 
 	for _, entity := range ts.timersToRemove {
-		world.RemoveComponent(entity.ID, reflect.TypeFor[Timer]())
+		world.RemoveComponent[Timer](entity.ID)
 	}
 	ts.timersToRemove = ts.timersToRemove[:0]
 	return nil
@@ -138,11 +135,10 @@ func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
 func (ts *TimerSystem) Shutdown(world *core.World) error {
 	timers := core.QueryFor[Timer](world)
 	for _, entityID := range timers {
-		timer, _ := world.GetComponent(entityID, reflect.TypeFor[Timer]())
-		timerComp := timer.(Timer)
-		timerComp.Stop()
+		timer, _ := world.GetComponent[Timer](entityID)
+		timer.Stop()
 		// Update the component back in the world since Timer is a value type
-		world.SetComponent(entityID, reflect.TypeFor[Timer](), timerComp)
+		world.SetComponent(entityID, timer)
 	}
 	// this helps in the future where timers need to be serialised and restored with their current state
 	return nil

@@ -2,7 +2,6 @@ package scene
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/leonard-atorough/castrum/internal/core"
 )
@@ -64,7 +63,7 @@ func (s *Scene) RemoveFromScene(entityID core.EntityID, world *core.World) error
 	}
 	delete(s.entities, entityID)
 	// Remove the SceneTag component (RemoveComponent is a no-op if not found)
-	_ = world.RemoveComponent(entityID, reflect.TypeOf(SceneTag{}))
+	_ = world.RemoveComponent[SceneTag](entityID)
 	return nil
 }
 

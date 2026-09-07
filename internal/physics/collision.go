@@ -141,7 +141,7 @@ func (m *Manager) QueryCollisions(world *core.World, entityID core.EntityID) ([]
 		return nil, err
 	}
 
-	transform, err := core.GetComponent[components.Transform](world, entityID)
+	transform, err := world.GetComponent[components.Transform](entityID)
 	if err != nil {
 		return nil, fmt.Errorf("entity %d: %w", entityID, err)
 	}
@@ -174,7 +174,7 @@ func (m *Manager) QueryCollisions(world *core.World, entityID core.EntityID) ([]
 // space. Shared by every code path that needs to test an entity's collider,
 // so the fetch-and-translate logic lives in one place.
 func (m *Manager) worldShape(world *core.World, entityID core.EntityID) (components.Collider, any, error) {
-	collider, err := core.GetComponent[components.Collider](world, entityID)
+	collider, err := world.GetComponent[components.Collider](entityID)
 	if err != nil {
 		return components.Collider{}, nil, fmt.Errorf("entity %d: %w", entityID, err)
 	}
@@ -183,7 +183,7 @@ func (m *Manager) worldShape(world *core.World, entityID core.EntityID) (compone
 		return components.Collider{}, nil, fmt.Errorf("collider inactive")
 	}
 
-	transform, err := core.GetComponent[components.Transform](world, entityID)
+	transform, err := world.GetComponent[components.Transform](entityID)
 	if err != nil {
 		return components.Collider{}, nil, fmt.Errorf("entity %d: %w", entityID, err)
 	}
@@ -201,12 +201,12 @@ func (m *Manager) markDirtyFromSpatial(world *core.World) {
 		entityID := entry.EntityID
 		seen[entityID] = struct{}{}
 
-		collider, err := core.GetComponent[components.Collider](world, entityID)
+		collider, err := world.GetComponent[components.Collider](entityID)
 		if err != nil || !collider.Active {
 			continue
 		}
 
-		transform, err := core.GetComponent[components.Transform](world, entityID)
+		transform, err := world.GetComponent[components.Transform](entityID)
 		if err != nil {
 			continue
 		}
@@ -246,7 +246,7 @@ func (m *Manager) broadphase(world *core.World) []PairKey {
 	candidates := make([]PairKey, 0, len(m.dirty))
 
 	for entityID := range m.dirty {
-		transform, _ := core.GetComponent[components.Transform](world, entityID)
+		transform, _ := world.GetComponent[components.Transform](entityID)
 
 		for _, neighborID := range m.spatial.Query(transform.Position, m.config.QueryRadius) {
 			if neighborID == entityID {

@@ -15,17 +15,17 @@ func (s *RotatorSystem) Init(world *castrum.World) error {
 
 func (s *RotatorSystem) Update(world *castrum.World, delta float64) error {
 	for _, id := range castrum.QueryFor[components.Spin](world) {
-		spin, err := castrum.GetComponent[components.Spin](world, id)
+		spin, err := world.GetComponent[components.Spin](id)
 		if err != nil {
 			continue
 		}
-		transform, err := castrum.GetComponent[components.Transform](world, id)
+		transform, err := world.GetComponent[components.Transform](id)
 		if err != nil {
 			continue
 		}
 
 		transform.Rotation += spin.AngularVelocity * delta
-		if err := castrum.SetComponent(world, id, transform); err != nil {
+		if err := world.SetComponent(id, transform); err != nil {
 			return err
 		}
 	}

@@ -4,8 +4,6 @@ import (
 	"math"
 	"testing"
 
-	"reflect"
-
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
@@ -295,11 +293,10 @@ func TestSystem_Update_ClampsCamera(t *testing.T) {
 	}
 
 	// Retrieve camera and check it was clamped
-	camComp, err := world.GetComponent(eid.ID, reflect.TypeFor[Camera]())
+	updated, err := world.GetComponent[Camera](eid.ID)
 	if err != nil {
 		t.Fatalf("GetComponent failed: %v", err)
 	}
-	updated := camComp.(Camera)
 
 	viewport := updated.ViewportBounds()
 	if viewport.Min.X < updated.Bounds.Min.X-epsilonRect || viewport.Max.X > updated.Bounds.Max.X+epsilonRect ||
@@ -349,16 +346,14 @@ func TestSystem_Update_MultipleCamera(t *testing.T) {
 	}
 
 	// Check first camera was clamped
-	camComp1, _ := world.GetComponent(eid1.ID, reflect.TypeFor[Camera]())
-	cam1Updated := camComp1.(Camera)
+	cam1Updated, _ := world.GetComponent[Camera](eid1.ID)
 	vp1 := cam1Updated.ViewportBounds()
 	if vp1.Min.X < cam1Updated.Bounds.Min.X-epsilonRect {
 		t.Fatalf("camera1 viewport min escapes bounds after update")
 	}
 
 	// Check second camera was clamped
-	camComp2, _ := world.GetComponent(eid2.ID, reflect.TypeFor[Camera]())
-	cam2Updated := camComp2.(Camera)
+	cam2Updated, _ := world.GetComponent[Camera](eid2.ID)
 	vp2 := cam2Updated.ViewportBounds()
 	if vp2.Min.X < cam2Updated.Bounds.Min.X-epsilonRect {
 		t.Fatalf("camera2 viewport min escapes bounds after update")
@@ -389,8 +384,7 @@ func TestSystem_Update_UnboundedCameraNotAffected(t *testing.T) {
 	}
 
 	// Check position was not modified
-	camComp, _ := world.GetComponent(eid.ID, reflect.TypeFor[Camera]())
-	updated := camComp.(Camera)
+	updated, _ := world.GetComponent[Camera](eid.ID)
 
 	if updated.Position != originalPos {
 		t.Fatalf("unbounded camera position changed from %v to %v", originalPos, updated.Position)

@@ -1,7 +1,6 @@
 package benchmark
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/internal/core"
@@ -24,7 +23,7 @@ func BenchmarkAddComponent(b *testing.B) {
 	for i := 0; b.Loop(); i++ {
 		// Reuse entities from pool, remove old component if exists
 		entity := entityPool[i%10000]
-		world.RemoveComponent(entity.ID, reflect.TypeFor[Position]())
+		world.RemoveComponent[Position](entity.ID)
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 	}
 }
@@ -32,7 +31,6 @@ func BenchmarkAddComponent(b *testing.B) {
 // BenchmarkGetComponent measures the time to retrieve a component from an entity.
 func BenchmarkGetComponent(b *testing.B) {
 	world := core.NewWorld()
-	posType := reflect.TypeFor[Position]()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
 	entityPool := make([]core.EntityID, 10000)
@@ -43,14 +41,13 @@ func BenchmarkGetComponent(b *testing.B) {
 	}
 
 	for i := 0; b.Loop(); i++ {
-		world.GetComponent(entityPool[i%10000], posType)
+		world.GetComponent[Position](entityPool[i%10000])
 	}
 }
 
 // BenchmarkHasComponent measures the time to check for component existence.
 func BenchmarkHasComponent(b *testing.B) {
 	world := core.NewWorld()
-	posType := reflect.TypeFor[Position]()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
 	entityPool := make([]core.EntityID, 10000)
@@ -61,14 +58,13 @@ func BenchmarkHasComponent(b *testing.B) {
 	}
 
 	for i := 0; b.Loop(); i++ {
-		world.HasComponent(entityPool[i%10000], posType)
+		world.HasComponent[Position](entityPool[i%10000])
 	}
 }
 
 // BenchmarkRemoveComponent measures the time to remove a component from an entity.
 func BenchmarkRemoveComponent(b *testing.B) {
 	world := core.NewWorld()
-	posType := reflect.TypeFor[Position]()
 
 	// Pre-Create a fixed pool of entities with components
 	entityPool := make([]core.EntityID, 10000)
@@ -80,7 +76,7 @@ func BenchmarkRemoveComponent(b *testing.B) {
 
 	for i := 0; b.Loop(); i++ {
 		entityID := entityPool[i%10000]
-		world.RemoveComponent(entityID, posType)
+		world.RemoveComponent[Position](entityID)
 		// Re-add component for next iteration
 		world.AddComponent(entityID, Position{X: float64(i), Y: float64(i)})
 	}
@@ -130,7 +126,7 @@ func BenchmarkComponentAddMigration(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
 		// Remove and re-add to test archetype migration
-		world.RemoveComponent(entity.ID, reflect.TypeFor[Position]())
+		world.RemoveComponent[Position](entity.ID)
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 	}
 }
@@ -145,15 +141,17 @@ func BenchmarkComponentRemoveMigration(b *testing.B) {
 	world.AddComponent(entity.ID, Velocity{X: 1, Y: 1})
 	world.AddComponent(entity.ID, Health{Value: 100})
 
-	posType := reflect.TypeFor[Position]()
-	velType := reflect.TypeFor[Velocity]()
-	healthType := reflect.TypeFor[Health]()
-
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
 		// Cycle through removing each component type
-		compType := []reflect.Type{posType, velType, healthType}[i%3]
-		world.RemoveComponent(entity.ID, compType)
+		switch i % 3 {
+		case 0:
+			world.RemoveComponent[Position](entity.ID)
+		case 1:
+			world.RemoveComponent[Velocity](entity.ID)
+		case 2:
+			world.RemoveComponent[Health](entity.ID)
+		}
 		// Re-add for next iteration
 		switch i % 3 {
 		case 0:
