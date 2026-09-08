@@ -101,4 +101,3 @@ func (as *System) Update(world *core.World, delta float64) error {
 func (as *System) Shutdown(world *core.World) error {
 	return nil
 }
-

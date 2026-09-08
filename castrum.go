@@ -152,9 +152,9 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	core.SetResource(newWorld, events.NewEventBus())
 
 	input := input.New()
-	
+
 	systems := core.NewManager()
-	
+
 	// all core systems are allowed a priority of -1 for now. Better to have a field for core system priorities in the future.
 	var err error
 	if err = systems.Register("timer", -1, &timers.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
