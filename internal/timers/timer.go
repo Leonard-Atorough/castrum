@@ -47,8 +47,9 @@ type TimerSystem struct {
 	// Preallocated bucket for cleanup to avoid allocations per update
 	timersToRemove []*core.Entity
 	// Events from the last update
-	events   []TimerCompletedEvent
-	Capacity int
+	events     []TimerCompletedEvent
+	Capacity   int
+	timerQuery *core.Query
 }
 
 // NewTimerSystem creates a new TimerSystem with a given capacity for cleanup operations.
@@ -69,6 +70,7 @@ func (ts *TimerSystem) Events() []TimerCompletedEvent {
 func (ts *TimerSystem) Init(world *core.World) error {
 	ts.timersToRemove = make([]*core.Entity, 0, ts.Capacity)
 	ts.events = make([]TimerCompletedEvent, 0, ts.Capacity)
+	ts.timerQuery = world.NewQuery().WithRequiredComponents(components.Timer{})
 	return nil
 }
 
@@ -76,8 +78,8 @@ func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
 	// Clear previous frame's events
 	ts.events = ts.events[:0]
 
-	timers := core.QueryFor[components.Timer](world)
-	for _, entityID := range timers {
+	for result := range ts.timerQuery.Execute() {
+		entityID := result.EntityID
 		timer, err := world.GetComponent[components.Timer](entityID)
 		if err != nil {
 			continue
@@ -117,8 +119,9 @@ func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
 }
 
 func (ts *TimerSystem) Shutdown(world *core.World) error {
-	timers := core.QueryFor[components.Timer](world)
-	for _, entityID := range timers {
+
+	for result := range ts.timerQuery.Execute() {
+		entityID := result.EntityID
 		timer, _ := world.GetComponent[components.Timer](entityID)
 		timer.Stop()
 		// Update the component back in the world since Timer is a value type

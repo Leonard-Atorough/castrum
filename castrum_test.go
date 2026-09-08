@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/leonard-atorough/castrum/internal/camera"
 )
 
 func TestNewGame(t *testing.T) {
@@ -25,7 +24,7 @@ func TestNewGame(t *testing.T) {
 		}
 
 		// Check camera entity
-		cam, err := game.World.GetComponent[camera.Camera](game.CameraEntityID)
+		cam, err := game.World.GetComponent[Camera](game.CameraEntityID)
 		if err != nil {
 			t.Fatalf("Failed to get camera component: %v", err)
 		}
@@ -68,7 +67,7 @@ func TestGame_Layout(t *testing.T) {
 	}
 
 	// Check camera entity after layout
-	cam, err := game.World.GetComponent[camera.Camera](game.CameraEntityID)
+	cam, err := game.World.GetComponent[Camera](game.CameraEntityID)
 	if err != nil {
 		t.Fatalf("Failed to get camera component: %v", err)
 	}

@@ -9,7 +9,6 @@ import (
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/assets"
-	"github.com/leonard-atorough/castrum/internal/camera"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
@@ -45,7 +44,7 @@ func newTestRenderer() *Renderer {
 // setupTestWorldWithCamera creates a world with a primary camera entity.
 func setupTestWorldWithCamera(world *core.World, width, height int) error {
 	_, err := world.CreateWithComponents("camera",
-		camera.Camera{
+		components.Camera{
 			Zoom:       1.0,
 			Primary:    true,
 			Bounds:     unboundedRect(),

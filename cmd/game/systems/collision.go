@@ -13,7 +13,7 @@ import (
 // API by destroying obstacles on Enter, logging Stay events, and removing entities on Exit.
 type CollisionSystem struct {
 	systems   *castrum.Systems
-	collision *castrum.Collision
+	collision *castrum.CollisionSystem
 }
 
 func NewCollisionSystem(systems *castrum.Systems) *CollisionSystem {
@@ -27,7 +27,7 @@ func (c *CollisionSystem) Init(world *castrum.World) error {
 		return err
 	}
 	var ok bool
-	c.collision, ok = colSys.(*castrum.Collision)
+	c.collision, ok = colSys.(*castrum.CollisionSystem)
 	if !ok {
 		return fmt.Errorf("collision system is not of expected type")
 	}

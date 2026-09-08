@@ -99,7 +99,8 @@ func (idx *SpatialIndex) Remove(entityID core.EntityID) {
 }
 
 type SpatialIndexHandler struct {
-	Index *SpatialIndex
+	Index          *SpatialIndex
+	transformQuery *core.Query
 }
 
 func NewManager(cellSize float64) (*SpatialIndexHandler, error) {
@@ -113,9 +114,12 @@ func NewManager(cellSize float64) (*SpatialIndexHandler, error) {
 }
 
 func (mgr *SpatialIndexHandler) Update(world *core.World, deltaTime float64) error {
-	transforms := core.QueryFor[components.Transform](world)
+	if mgr.transformQuery == nil {
+		mgr.transformQuery = world.NewQuery().WithRequiredComponents(components.Transform{})
+	}
 
-	for _, entityID := range transforms {
+	for result := range mgr.transformQuery.Execute() {
+		entityID := result.EntityID
 		transform, _ := world.GetComponent[components.Transform](entityID)
 		if err := mgr.Index.Update(entityID, transform.Position); err != nil {
 			return err

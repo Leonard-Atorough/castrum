@@ -19,10 +19,11 @@ func BenchmarkQuerySingleComponent(b *testing.B) {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 	}
+	query := core.NewQuery(world).WithRequiredComponents(Position{})
 
 	b.ResetTimer()
 	for b.Loop() {
-		core.QueryFor[Position](world)
+		query.EntityIDs()
 	}
 }
 

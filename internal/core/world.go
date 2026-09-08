@@ -69,7 +69,7 @@ func (w *World) Create(blueprintName string) *Entity {
 
 func (w *World) CreateMany(blueprintName string, count int) []*Entity {
 	entities := make([]*Entity, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		entities[i] = w.Create(blueprintName)
 	}
 	return entities

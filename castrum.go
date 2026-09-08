@@ -21,25 +21,53 @@ import (
 	"github.com/leonard-atorough/castrum/internal/timers"
 )
 
+// Core components (data attached to entities)
 type (
-	World        = core.World
-	Entity       = core.Entity
-	Timer        = components.Timer
-	System       = core.System
-	Systems      = core.Manager
+	Transform  = components.Transform
+	Renderable = components.Renderable
+	Collider   = components.Collider
+	Animation  = components.Animation
+	Spin       = components.Spin
+	SceneTag   = components.SceneTag
+	Timer      = components.Timer
+	TimerID    = components.TimerID
+	Camera     = components.Camera
+)
+
+type (
+	// World is the entity-component system container
+	World       = core.World
+	Entity      = core.Entity
+	Component   = core.Component
+	EntityID    = core.EntityID
+	Query       = core.Query
+	QueryResult = core.ResultEntry
+)
+
+type (
+	// System is the interface for game logic systems
+	System          = core.System
+	Systems         = core.Manager
+	AnimationSystem = animation.System
+	CollisionSystem = physics.CollisionSystem
+	SpatialIndex    = spatial.SpatialIndexHandler
+	InputHandler    = input.InputHandler
+)
+
+type (
 	Scene        = scene.Scene
 	SceneBuilder = scene.Builder
-	SceneTag     = components.SceneTag
-	Component    = core.Component
-	Input        = input.InputHandler
-	Animation    = animation.System
-	Collision    = physics.System
-	Spatial      = spatial.SpatialIndexHandler
-	Camera       = camera.Camera
-	EntityID     = core.EntityID
-	TimerID      = components.TimerID
-	Query        = core.Query
-	QueryResult  = core.ResultEntry
+)
+
+type Input = InputHandler
+
+type (
+	// TimerCompletedEvent is emitted when a timer fires
+	TimerCompletedEvent = timers.TimerCompletedEvent
+	// AnimationEvent is emitted when an animation completes or loops
+	AnimationEvent = animation.AnimationEvent
+	// CollisionEvent is emitted when a collision occurs between two entities.
+	CollisionEvent = physics.CollisionEvent
 )
 
 // Sentinel errors returned by engine operations. Use errors.Is() for checking.
@@ -85,11 +113,11 @@ type Game struct {
 
 	// Spatial is the spatial index for efficient entity queries by position (advanced use only).
 	// Most games should not interact with this directly; it's managed by the collision system.
-	Spatial *spatial.SpatialIndexHandler
+	Spatial *SpatialIndex
 
 	// Input is the input handler for keyboard, mouse, and gamepad state.
 	// Use Input.KeyPressed, MouseHeld, etc. to poll input state.
-	Input *Input
+	Input *InputHandler
 
 	// Assets is the asset manager for loading and caching textures, animations, and blueprints.
 	// Use Assets to load game resources.
@@ -151,7 +179,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	// Create primary camera as an entity
 	cameraEntity, err := newWorld.CreateWithComponents(
 		"PrimaryCamera",
-		camera.Camera{
+		components.Camera{
 			Zoom:       1.0,
 			Primary:    true,
 			Bounds:     unboundedRect(),
@@ -251,7 +279,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	w, h := g.Config.Graphics.VirtualWidth, g.Config.Graphics.VirtualHeight
 
 	// Update camera screen size
-	camComp, err := g.World.GetComponent[camera.Camera](g.CameraEntityID)
+	camComp, err := g.World.GetComponent[components.Camera](g.CameraEntityID)
 	if err == nil {
 		cam := camComp
 		cam.ScreenSize = geom.Vector2I{X: w, Y: h}
@@ -262,16 +290,16 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 // GetCamera returns the primary camera component from the world.
-func (g *Game) GetCamera() (camera.Camera, error) {
-	cam, err := g.World.GetComponent[camera.Camera](g.CameraEntityID)
+func (g *Game) GetCamera() (components.Camera, error) {
+	cam, err := g.World.GetComponent[components.Camera](g.CameraEntityID)
 	if err != nil {
-		return camera.Camera{}, err
+		return components.Camera{}, err
 	}
 	return cam, nil
 }
 
 // SetCamera updates the primary camera component in the world.
-func (g *Game) SetCamera(cam camera.Camera) error {
+func (g *Game) SetCamera(cam components.Camera) error {
 	return g.World.SetComponent(g.CameraEntityID, cam)
 }
 
@@ -283,10 +311,6 @@ func (g *Game) GetCameraViewport() (geom.Rect, error) {
 		return geom.Rect{}, err
 	}
 	return cam.ViewportBounds(), nil
-}
-
-func QueryFor[T Component](w *core.World) []EntityID {
-	return core.QueryFor[T](w)
 }
 
 // FindAll returns all entities that have at least a component of type T.
