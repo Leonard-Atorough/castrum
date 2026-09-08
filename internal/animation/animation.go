@@ -62,7 +62,7 @@ func (as *System) Update(world *core.World, delta float64) error {
 		}
 
 		// Load the animation clip from assets
-		res, err := as.assetLoader.Load(anim.ClipPath)
+		res, err := as.assetLoader.LoadSync(anim.ClipPath)
 		if err != nil || res == nil {
 			// Skip if clip not found; log in production
 			continue

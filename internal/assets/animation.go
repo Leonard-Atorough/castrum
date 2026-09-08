@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"sync"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -17,6 +18,7 @@ type AnimationClip struct {
 
 type animationStore struct {
 	fs         fs.FS
+	mu         sync.RWMutex
 	Animations map[string]*AnimationClip
 }
 
@@ -31,10 +33,13 @@ func newAnimationStore(filesystem fs.FS) *animationStore {
 }
 
 func (s *animationStore) Load(path string) (*AnimationClip, error) {
-	// Check cache first
+	// Check cache with read lock first
+	s.mu.RLock()
 	if clip, ok := s.Animations[path]; ok {
+		s.mu.RUnlock()
 		return clip, nil
 	}
+	s.mu.RUnlock()
 
 	file, err := s.fs.Open(path)
 	if err != nil {
@@ -56,6 +61,10 @@ func (s *animationStore) Load(path string) (*AnimationClip, error) {
 		return nil, fmt.Errorf("animation frame speed must be positive")
 	}
 
+	// Store with write lock
+	s.mu.Lock()
 	s.Animations[path] = &clip // cache by path
+	s.mu.Unlock()
+
 	return &clip, nil
 }

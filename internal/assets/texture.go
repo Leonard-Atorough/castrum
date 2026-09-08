@@ -3,6 +3,7 @@ package assets
 import (
 	"fmt"
 	"io/fs"
+	"sync"
 
 	_ "image/jpeg"
 	_ "image/png"
@@ -19,6 +20,7 @@ type Texture struct {
 
 type textureStore struct {
 	fs       fs.FS
+	mu       sync.RWMutex
 	Textures map[string]*Texture
 }
 
@@ -30,9 +32,13 @@ func newTextureStore(filesystem fs.FS) *textureStore {
 }
 
 func (s *textureStore) Load(path string) (*Texture, error) {
+	// Check cache with read lock first
+	s.mu.RLock()
 	if tex, ok := s.Textures[path]; ok {
+		s.mu.RUnlock()
 		return tex, nil
 	}
+	s.mu.RUnlock()
 
 	if s.fs == nil {
 		return nil, fmt.Errorf("texture store has no filesystem configured")
@@ -57,6 +63,11 @@ func (s *textureStore) Load(path string) (*Texture, error) {
 		Width:  bounds.Dx(),
 		Height: bounds.Dy(),
 	}
+
+	// Store with write lock
+	s.mu.Lock()
 	s.Textures[path] = tex
+	s.mu.Unlock()
+
 	return tex, nil
 }

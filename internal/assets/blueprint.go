@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"sync"
 
 	"github.com/leonard-atorough/castrum/internal/core"
 	"go.yaml.in/yaml/v3"
@@ -40,6 +41,7 @@ func (b *blueprint) spawn(world *core.World) (*core.Entity, error) {
 
 type blueprintStore struct {
 	fs         fs.FS
+	mu         sync.RWMutex
 	Blueprints map[string]*blueprint
 }
 
@@ -54,10 +56,13 @@ func newBlueprintStore(filesystem fs.FS) *blueprintStore {
 }
 
 func (s *blueprintStore) Load(path string) (*blueprint, error) {
-	// Check cache first
+	// Check cache with read lock first
+	s.mu.RLock()
 	if bp, ok := s.Blueprints[path]; ok {
+		s.mu.RUnlock()
 		return bp, nil
 	}
+	s.mu.RUnlock()
 
 	file, err := s.fs.Open(path)
 	if err != nil {
@@ -71,7 +76,11 @@ func (s *blueprintStore) Load(path string) (*blueprint, error) {
 		return nil, err
 	}
 
+	// Store with write lock
+	s.mu.Lock()
 	s.Blueprints[path] = &blueprint // cache by path
+	s.mu.Unlock()
+
 	return &blueprint, nil
 }
 
