@@ -5,6 +5,7 @@ import (
 
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/events"
 )
 
 // TestTimer_StateTransitions tests Timer component state methods
@@ -71,6 +72,8 @@ func TestTimer_StoppedDoesNotAccumulate(t *testing.T) {
 // TestTimerSystem_EmitsEventWhenExpired tests that TimerCompletedEvent is emitted when timer expires
 func TestTimerSystem_EmitsEventWhenExpired(t *testing.T) {
 	world := core.NewWorld()
+	bus := events.NewEventBus()
+	core.SetResource(world, bus)
 
 	entity, err := world.CreateWithComponents(
 		"test-entity",
@@ -86,17 +89,24 @@ func TestTimerSystem_EmitsEventWhenExpired(t *testing.T) {
 
 	system := NewTimerSystem(10)
 	system.Init(world)
+
+	var eventFired bool
+	var firedEvent TimerCompletedEvent
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
+		eventFired = true
+		firedEvent = e
+	}, false)
+
 	system.Update(world, 1.5)
 
-	events := system.Events()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
+	if !eventFired {
+		t.Fatalf("expected 1 event to fire")
 	}
 
-	if events[0].EntityID != entity.ID {
+	if firedEvent.EntityID != entity.ID {
 		t.Fatal("event should reference the correct entity")
 	}
-	if events[0].TimerID != "timer1" {
+	if firedEvent.TimerID != "timer1" {
 		t.Fatal("event should reference the correct timer ID")
 	}
 }
@@ -104,6 +114,8 @@ func TestTimerSystem_EmitsEventWhenExpired(t *testing.T) {
 // TestTimerSystem_OneShotTimerRemovedAfterFiring tests that one-shot timers are removed after firing
 func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
 	world := core.NewWorld()
+	bus := events.NewEventBus()
+	core.SetResource(world, bus)
 
 	entity, _ := world.CreateWithComponents(
 		"test-entity",
@@ -117,6 +129,12 @@ func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
 
 	system := NewTimerSystem(10)
 	system.Init(world)
+
+	var eventFired bool
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
+		eventFired = true
+	}, false)
+
 	system.Update(world, 1.5)
 
 	// Timer should be removed after firing
@@ -126,15 +144,16 @@ func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
 	}
 
 	// Event should have been emitted
-	events := system.Events()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
+	if !eventFired {
+		t.Fatal("expected 1 event to fire")
 	}
 }
 
 // TestTimerSystem_RepeatingTimerKeepsFiring tests that repeating timers reset and continue
 func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 	world := core.NewWorld()
+	bus := events.NewEventBus()
+	core.SetResource(world, bus)
 
 	entity, _ := world.CreateWithComponents(
 		"test-entity",
@@ -149,11 +168,16 @@ func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 	system := NewTimerSystem(10)
 	system.Init(world)
 
+	var eventCount int
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
+		eventCount++
+	}, false)
+
 	// First update at 0.5s - should fire
+	eventCount = 0
 	system.Update(world, 0.5)
-	events := system.Events()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event after first update, got %d", len(events))
+	if eventCount != 1 {
+		t.Fatalf("expected 1 event after first update, got %d", eventCount)
 	}
 
 	// Get timer and verify it's still present and reset
@@ -166,10 +190,10 @@ func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 	}
 
 	// Second update at 0.5s - should fire again
+	eventCount = 0
 	system.Update(world, 0.5)
-	events = system.Events()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event after second update, got %d", len(events))
+	if eventCount != 1 {
+		t.Fatalf("expected 1 event after second update, got %d", eventCount)
 	}
 
 	// Timer should still exist
@@ -182,6 +206,8 @@ func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 // TestTimerSystem_StoppedTimerDoesNotFire tests that stopped timers don't fire
 func TestTimerSystem_StoppedTimerDoesNotFire(t *testing.T) {
 	world := core.NewWorld()
+	bus := events.NewEventBus()
+	core.SetResource(world, bus)
 
 	world.CreateWithComponents(
 		"test-entity",
@@ -194,17 +220,24 @@ func TestTimerSystem_StoppedTimerDoesNotFire(t *testing.T) {
 
 	system := NewTimerSystem(10)
 	system.Init(world)
+
+	var eventFired bool
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
+		eventFired = true
+	}, false)
+
 	system.Update(world, 1.0)
 
-	events := system.Events()
-	if len(events) != 0 {
-		t.Fatalf("stopped timer should not fire, got %d events", len(events))
+	if eventFired {
+		t.Fatalf("stopped timer should not fire")
 	}
 }
 
 // TestTimerSystem_MultipleTimersOnDifferentEntities tests multiple timers on different entities
 func TestTimerSystem_MultipleTimersOnDifferentEntities(t *testing.T) {
 	world := core.NewWorld()
+	bus := events.NewEventBus()
+	core.SetResource(world, bus)
 
 	entity1, _ := world.CreateWithComponents(
 		"entity1",
@@ -228,11 +261,16 @@ func TestTimerSystem_MultipleTimersOnDifferentEntities(t *testing.T) {
 
 	system := NewTimerSystem(10)
 	system.Init(world)
+
+	var eventCount int
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
+		eventCount++
+	}, false)
+
 	system.Update(world, 1.5)
 
-	events := system.Events()
-	if len(events) != 2 {
-		t.Fatalf("expected 2 events, got %d", len(events))
+	if eventCount != 2 {
+		t.Fatalf("expected 2 events, got %d", eventCount)
 	}
 
 	// Both should be removed
@@ -246,6 +284,8 @@ func TestTimerSystem_MultipleTimersOnDifferentEntities(t *testing.T) {
 // TestTimerSystem_EventsClearedEachUpdate tests that events are cleared each update
 func TestTimerSystem_EventsClearedEachUpdate(t *testing.T) {
 	world := core.NewWorld()
+	bus := events.NewEventBus()
+	core.SetResource(world, bus)
 
 	world.CreateWithComponents(
 		"entity1",
@@ -260,21 +300,29 @@ func TestTimerSystem_EventsClearedEachUpdate(t *testing.T) {
 	system := NewTimerSystem(10)
 	system.Init(world)
 
+	var eventCount int
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
+		eventCount++
+	}, false)
+
 	// First update fires
+	eventCount = 0
 	system.Update(world, 0.5)
-	if len(system.Events()) != 1 {
+	if eventCount != 1 {
 		t.Fatal("expected 1 event after first update")
 	}
 
 	// Second update without firing should have no events
+	eventCount = 0
 	system.Update(world, 0.1)
-	if len(system.Events()) != 0 {
+	if eventCount != 0 {
 		t.Fatal("expected 0 events after second update (no timer fired)")
 	}
 
 	// Third update fires again
+	eventCount = 0
 	system.Update(world, 0.4)
-	if len(system.Events()) != 1 {
+	if eventCount != 1 {
 		t.Fatal("expected 1 event after third update")
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/camera"
 	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/events"
 	"github.com/leonard-atorough/castrum/internal/input"
 	"github.com/leonard-atorough/castrum/internal/physics"
 	"github.com/leonard-atorough/castrum/internal/render"
@@ -148,12 +149,13 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	// SceneManager is registered as a World resource (not a typed struct field) so core
 	// never needs to import the scene package; see internal/core/resource.go.
 	core.SetResource(newWorld, scene.NewManager())
+	core.SetResource(newWorld, events.NewEventBus())
 
-	// all core systems are allowed a priority of -1 for now. Better to have a field for core system priorities in the future.
 	input := input.New()
 
 	systems := core.NewManager()
 
+	// all core systems are allowed a priority of -1 for now. Better to have a field for core system priorities in the future.
 	var err error
 	if err = systems.Register("timer", -1, &timers.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
 		return nil, err
@@ -248,6 +250,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 func (g *Game) Scenes() *scene.Manager {
 	mgr, _ := core.GetResource[*scene.Manager](g.World)
 	return mgr
+}
+
+// GetResource retrieves a typed resource from the world's resource store.
+// Returns a zero value and false if the resource is not registered.
+func GetResource[T any](world *World) (T, bool) {
+	return core.GetResource[T](world)
 }
 
 // PushScene activates a pre-loaded scene on top of the stack (useful for overlays/pause menus).
