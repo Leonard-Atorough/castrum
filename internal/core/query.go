@@ -24,7 +24,7 @@ func (r ResultEntry) Get[T any]() (T, error) {
 	// Access directly from archetype (no allocation)
 	if r._archetype != nil {
 		if raw, ok := r._archetype.componentData[t]; ok {
-			if comps, ok := raw.([]Component); ok && len(comps) > r._idx {
+			if comps, ok := raw.([]Component); ok && r._idx >= 0 && r._idx < len(comps) {
 				typed, ok := comps[r._idx].(T)
 				if ok {
 					return typed, nil
