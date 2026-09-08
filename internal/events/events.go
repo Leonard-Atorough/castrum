@@ -121,12 +121,25 @@ func (eb *EventBus) Emit[T any](event T, source string) {
 	// Remove once handlers
 	if len(toRemove) > 0 {
 		eb.mu.Lock()
-		subs := &eb.subscribers[typeIdx]
-		for _, removeID := range toRemove {
-			for j := 0; j < len(subs.subscriptions); j++ {
-				if subs.subscriptions[j].id == removeID {
-					subs.subscriptions = append(subs.subscriptions[:j], subs.subscriptions[j+1:]...)
-					j--
+		// typeIdx may be stale if OffAll/Clear modified eb.subscribers while handlers ran.
+		var subs *subscribers
+		if typeIdx < len(eb.subscribers) && eb.subscribers[typeIdx].eventType == typ {
+			subs = &eb.subscribers[typeIdx]
+		} else {
+			for i := range eb.subscribers {
+				if eb.subscribers[i].eventType == typ {
+					subs = &eb.subscribers[i]
+					break
+				}
+			}
+		}
+		if subs != nil {
+			for _, removeID := range toRemove {
+				for j := 0; j < len(subs.subscriptions); j++ {
+					if subs.subscriptions[j].id == removeID {
+						subs.subscriptions = append(subs.subscriptions[:j], subs.subscriptions[j+1:]...)
+						j--
+					}
 				}
 			}
 		}
