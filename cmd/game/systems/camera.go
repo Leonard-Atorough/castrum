@@ -5,26 +5,27 @@ import (
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/internal/camera"
 	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/input"
 )
 
 // CameraSystem is responsible for managing the camera within the game world.
 type CameraSystem struct {
-	Input *castrum.Input
+	Input       *castrum.InputHandler
+	cameraQuery *core.Query
+	playerQuery *core.Query
 }
 
 // Update finds the player and updates the primary camera to follow it.
 // Camera is now an ECS component, so we query it from the world.
 func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 	// Query for the primary camera
-	cameras := core.QueryFor[camera.Camera](world)
+	cameras := cs.cameraQuery.EntityIDs()
 	var cameraEntity castrum.EntityID
 	var found bool
 
 	for _, eid := range cameras {
-		cam, err := world.GetComponent[camera.Camera](eid)
+		cam, err := world.GetComponent[components.Camera](eid)
 		if err != nil {
 			continue
 		}
@@ -40,13 +41,13 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 	}
 
 	// Query for the player
-	players := castrum.QueryFor[gamecomponents.Player](world)
+	players := cs.playerQuery.EntityIDs()
 	if len(players) > 0 {
 		playerEntity := players[0]
 		// Get player position
 		if tx, err := world.GetComponent[components.Transform](playerEntity); err == nil {
 			// Get current camera
-			cam, err := world.GetComponent[camera.Camera](cameraEntity)
+			cam, err := world.GetComponent[components.Camera](cameraEntity)
 			if err != nil {
 				return nil
 			}
@@ -75,7 +76,7 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 	} {
 		if cs.Input.KeyHeld(key.ebitenKey, input.Modifiers{Shift: false, Ctrl: true, Alt: false}) {
 			// Get camera for zoom update
-			cam, err := world.GetComponent[camera.Camera](cameraEntity)
+			cam, err := world.GetComponent[components.Camera](cameraEntity)
 			if err != nil {
 				continue
 			}
@@ -100,6 +101,8 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 }
 
 func (cs *CameraSystem) Init(world *castrum.World) error {
+	cs.cameraQuery = core.NewQuery(world).WithRequiredComponents(components.Camera{})
+	cs.playerQuery = core.NewQuery(world).WithRequiredComponents(gamecomponents.Player{})
 	return nil
 }
 

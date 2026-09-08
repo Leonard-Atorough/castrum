@@ -1,6 +1,8 @@
 package core
 
-import "testing"
+import (
+	"testing"
+)
 
 // movementSystem advances TestPosition by TestVelocity each tick using the
 // generic typed helpers, mirroring how real game systems (e.g. RotatorSystem)
@@ -8,18 +10,18 @@ import "testing"
 type movementSystem struct {
 	initCalled     bool
 	shutdownCalled bool
+	movementQuery  *Query
 }
 
 func (s *movementSystem) Init(world *World) error {
 	s.initCalled = true
+	s.movementQuery = world.NewQuery().WithRequiredComponents(TestPosition{}, TestVelocity{})
 	return nil
 }
 
 func (s *movementSystem) Update(world *World, delta float64) error {
-	for _, id := range QueryFor[TestPosition](world) {
-		if !world.HasComponent[TestVelocity](id) {
-			continue
-		}
+	for result := range s.movementQuery.Execute() {
+		id := result.EntityID
 		pos, err := world.GetComponent[TestPosition](id)
 		if err != nil {
 			return err

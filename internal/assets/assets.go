@@ -13,6 +13,9 @@ var (
 	FileExtensionAnimation fileExtension   = ".anim.yaml"
 )
 
+// Assets manages loading and caching of game resources (textures, animations, blueprints).
+// All loading is synchronous (blocking). Load assets during initialization, scene setup,
+// or dedicated loading screens—not during the active game loop frame.
 type Assets struct {
 	Textures   *textureStore
 	Blueprints *blueprintStore
@@ -31,11 +34,15 @@ func NewAssets(filesystem fs.FS) *Assets {
 	}
 }
 
-// Load is the single gateway for loading any asset type: it infers the
-// asset kind from path's extension, routes to the matching store, and
-// returns the cached, concretely-typed result as any. Callers that know
-// which type they want up front (e.g. render.TextureLoader) should depend
-// on the specific store instead of going through this router.
+// Load is the gateway for loading any asset type (synchronous, blocking).
+// It infers the asset kind from the path's extension, routes to the matching store,
+// and returns the cached result. Results are cached after first load, so repeated
+// calls for the same path are fast.
+//
+// For known types, prefer the specific stores directly:
+//   - Assets.Textures.Load(path) for image assets
+//   - Assets.Blueprints.Load(path) for entity blueprints
+//   - Assets.Animations.Load(path) for animation clips
 func (a *Assets) Load(path string) (res any, err error) {
 	switch {
 	case hasTextureExtension(path):

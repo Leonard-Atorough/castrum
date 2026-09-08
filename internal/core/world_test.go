@@ -355,13 +355,6 @@ func TestWorld_TypedComponentHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("QueryFor returns entities with the typed component", func(t *testing.T) {
-		got := QueryFor[TestPosition](w)
-		if !idsMatchUnordered(got, []EntityID{e.ID}) {
-			t.Fatalf("unexpected result: %#v", got)
-		}
-	})
-
 	t.Run("GetComponent returns an error for a type the entity doesn't have", func(t *testing.T) {
 		if _, err := w.GetComponent[TestVelocity](e.ID); err == nil {
 			t.Fatal("expected an error")

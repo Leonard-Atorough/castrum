@@ -1,6 +1,6 @@
 // Package timers provides a Timer component and TimerSystem for managing
 // one-shot and repeating timers within the ECS. Timers accumulate delta time
-// and fire callbacks when their duration is reached.
+// and emit TimerCompletedEvent when their duration is reached.
 //
 // A Timer is a component that can be attached to any entity. The TimerSystem
 // queries for timers each frame and updates them based on delta time.
@@ -11,86 +11,76 @@
 //
 //	entity, _ := world.CreateWithComponents(
 //		"my-entity",
-//		Timer{
+//		components.Timer{
 //			ID:       "cooldown",
 //			Duration: 2.0,
 //			Running:  true,
 //			Once:     true,
-//			OnTimerTick: func(e *core.Entity) {
-//				fmt.Println("Timer fired!")
-//			},
 //		},
 //	)
 //	// In game loop, register TimerSystem:
-//	systems.Register(timers.NewTimerSystem(64))
+//	system := timers.NewTimerSystem(64)
+//	systems.Register("timers", -1, system, world)
+//	// Listen for events:
+//	for _, event := range system.Events() {
+//		fmt.Printf("Timer %s completed on entity %v\n", event.TimerID, event.EntityID)
+//	}
 package timers
 
 import (
+	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
-// TimerID uniquely identifies a timer within a Manager.
-type TimerID string
-
-// Timer is a component that tracks elapsed time and fires a callback when
-// its duration is reached. Timers can be one-shot (fires once then is removed)
-// or repeating (resets and continues firing).
-//
-// Timer is a value type and should be attached to entities via AddComponent.
-// The TimerSystem handles update logic and callback firing.
-type Timer struct {
-	// Unique identifier for this timer (useful for multiple timers per entity)
-	ID TimerID
-	// Duration for which the timer runs
-	Duration float64
-	// Elapsed time since the timer started (accumulated by TimerSystem)
-	ElapsedTime float64
-	// Whether the timer is currently running
-	Running bool
-	// Whether this is a one-shot timer (fires once then stops)
-	Once bool
-	// optional callback function to be called when the timer completes
-	OnTimerTick func(e *core.Entity)
-}
-
-// Start begins the timer, resetting elapsed time to zero.
-func (t *Timer) Start() {
-	t.Running = true
-	t.ElapsedTime = 0
-}
-
-// Stop pauses the timer without resetting elapsed time.
-// Resume can be called to continue from the same elapsed time.
-func (t *Timer) Stop() {
-	t.Running = false
-}
-
-// Resume continues a stopped timer from its current elapsed time.
-func (t *Timer) Resume() {
-	t.Running = true
+type TimerCompletedEvent struct {
+	EntityID core.EntityID
+	TimerID  components.TimerID
 }
 
 // TimerSystem is a System that updates all Timer components in the world.
-// It accumulates delta time for each running timer, fires callbacks when
-// duration is reached, and removes one-shot timers after firing.
+// It accumulates delta time for each running timer, emits TimerCompletedEvent
+// when duration is reached, and removes one-shot timers after firing.
 //
 // TimerSystem preallocates a cleanup bucket to avoid allocations for
 // entities that have expired one-shot timers.
 type TimerSystem struct {
 	// Preallocated bucket for cleanup to avoid allocations per update
 	timersToRemove []*core.Entity
-	Capacity       int
+	// Events from the last update
+	events     []TimerCompletedEvent
+	Capacity   int
+	timerQuery *core.Query
+}
+
+// NewTimerSystem creates a new TimerSystem with a given capacity for cleanup operations.
+func NewTimerSystem(capacity int) *TimerSystem {
+	return &TimerSystem{
+		Capacity: capacity,
+	}
+}
+
+// Events returns timer events emitted during the last Update.
+func (ts *TimerSystem) Events() []TimerCompletedEvent {
+	if ts.events == nil {
+		return []TimerCompletedEvent{}
+	}
+	return ts.events
 }
 
 func (ts *TimerSystem) Init(world *core.World) error {
 	ts.timersToRemove = make([]*core.Entity, 0, ts.Capacity)
+	ts.events = make([]TimerCompletedEvent, 0, ts.Capacity)
+	ts.timerQuery = world.NewQuery().WithRequiredComponents(components.Timer{})
 	return nil
 }
 
 func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
-	timers := core.QueryFor[Timer](world)
-	for _, entityID := range timers {
-		timer, err := world.GetComponent[Timer](entityID)
+	// Clear previous frame's events
+	ts.events = ts.events[:0]
+
+	for result := range ts.timerQuery.Execute() {
+		entityID := result.EntityID
+		timer, err := world.GetComponent[components.Timer](entityID)
 		if err != nil {
 			continue
 		}
@@ -105,9 +95,12 @@ func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
 		}
 		timer.ElapsedTime += deltaTime
 		if timer.ElapsedTime >= timer.Duration {
-			if timer.OnTimerTick != nil {
-				timer.OnTimerTick(entity)
-			}
+			// Emit a TimerCompletedEvent for this timer
+			ts.events = append(ts.events, TimerCompletedEvent{
+				EntityID: entityID,
+				TimerID:  timer.ID,
+			})
+
 			if timer.Once {
 				ts.timersToRemove = append(ts.timersToRemove, entity)
 			} else {
@@ -119,16 +112,17 @@ func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
 	}
 
 	for _, entity := range ts.timersToRemove {
-		world.RemoveComponent[Timer](entity.ID)
+		world.RemoveComponent[components.Timer](entity.ID)
 	}
 	ts.timersToRemove = ts.timersToRemove[:0]
 	return nil
 }
 
 func (ts *TimerSystem) Shutdown(world *core.World) error {
-	timers := core.QueryFor[Timer](world)
-	for _, entityID := range timers {
-		timer, _ := world.GetComponent[Timer](entityID)
+
+	for result := range ts.timerQuery.Execute() {
+		entityID := result.EntityID
+		timer, _ := world.GetComponent[components.Timer](entityID)
 		timer.Stop()
 		// Update the component back in the world since Timer is a value type
 		world.SetComponent(entityID, timer)

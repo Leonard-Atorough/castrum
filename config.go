@@ -1,6 +1,7 @@
 package castrum
 
 import (
+	"errors"
 	"io"
 	"strings"
 
@@ -90,13 +91,17 @@ func LoadConfig(reader io.Reader) (*Config, error) {
 		return nil, err
 	}
 
-	ValidateConfig(&config)
+	if err := ValidateConfig(&config); err != nil {
+		return nil, err
+	}
 	return &config, nil
 }
 
-func ValidateConfig(config *Config) {
+// ValidateConfig validates and normalizes the config, applying sensible defaults.
+// Returns an error if the config is invalid or nil.
+func ValidateConfig(config *Config) error {
 	if config == nil {
-		return
+		return errors.New("config is nil")
 	}
 
 	if strings.TrimSpace(config.Project.Name) == "" {
@@ -167,6 +172,7 @@ func ValidateConfig(config *Config) {
 	if config.Engine.TimeScale <= 0 {
 		config.Engine.TimeScale = 1.0
 	}
+	return nil
 }
 
 func DefaultConfig() *Config {

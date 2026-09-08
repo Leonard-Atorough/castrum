@@ -10,7 +10,6 @@ import (
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/assets"
-	"github.com/leonard-atorough/castrum/internal/camera"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
 
@@ -28,8 +27,9 @@ type TextureLoader interface {
 }
 
 type Renderer struct {
-	textures  TextureLoader
-	Primitive *PrimitiveRenderer
+	textures    TextureLoader
+	Primitive   *PrimitiveRenderer
+	cameraQuery *core.Query
 }
 
 func New(textures TextureLoader) *Renderer {
@@ -49,12 +49,15 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 // The primary camera is queried from the world.
 func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
 	// Query for the primary camera
-	var primaryCamera camera.Camera
+	var primaryCamera components.Camera
 	var cameraFound bool
 
-	cameras := core.QueryFor[camera.Camera](world)
-	for _, cameraID := range cameras {
-		cam, err := world.GetComponent[camera.Camera](cameraID)
+	if r.cameraQuery == nil {
+		r.cameraQuery = world.NewQuery().WithRequiredComponents(components.Camera{})
+	}
+	for result := range r.cameraQuery.Execute() {
+		cameraID := result.EntityID
+		cam, err := world.GetComponent[components.Camera](cameraID)
 		if err != nil {
 			continue
 		}
@@ -127,12 +130,15 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
 
 func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *core.World) {
 	// Query for the primary camera
-	var primaryCamera camera.Camera
+	var primaryCamera components.Camera
 	var cameraFound bool
 
-	cameras := core.QueryFor[camera.Camera](world)
-	for _, cameraID := range cameras {
-		cam, err := world.GetComponent[camera.Camera](cameraID)
+	if r.cameraQuery == nil {
+		r.cameraQuery = world.NewQuery().WithRequiredComponents(components.Camera{})
+	}
+	for result := range r.cameraQuery.Execute() {
+		cameraID := result.EntityID
+		cam, err := world.GetComponent[components.Camera](cameraID)
 		if err != nil {
 			continue
 		}
@@ -151,7 +157,7 @@ func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *core.World) {
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), primaryCamera.Position))
 }
 
-func (r *Renderer) drawSprite(screen *ebiten.Image, cam camera.Camera, transform components.Transform, renderable components.Renderable) {
+func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Renderable) {
 	tx, err := r.textures.Load(renderable.TexturePath)
 	if err != nil {
 		return // silently skip entities with missing textures

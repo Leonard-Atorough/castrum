@@ -2,6 +2,7 @@ package components
 
 import (
 	"image/color"
+	"math"
 
 	"github.com/leonard-atorough/castrum/geom"
 )
@@ -11,6 +12,26 @@ type Transform struct {
 	Rotation float64
 	Scale    geom.Vector2
 	Color    color.Color
+}
+
+// NewTransform creates a Transform with position, rotation, scale, and optional color.
+func NewTransform(position geom.Vector2, rotation float64, scale geom.Vector2) Transform {
+	return Transform{
+		Position: position,
+		Rotation: rotation,
+		Scale:    scale,
+		Color:    nil,
+	}
+}
+
+// NewTransformWithColor creates a Transform with all fields specified.
+func NewTransformWithColor(position geom.Vector2, rotation float64, scale geom.Vector2, c color.Color) Transform {
+	return Transform{
+		Position: position,
+		Rotation: rotation,
+		Scale:    scale,
+		Color:    c,
+	}
 }
 
 // SceneTag marks which scene an entity belongs to, for query-time scene filtering.
@@ -47,6 +68,24 @@ type Renderable struct {
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
+// NewRenderable creates a Renderable with texture path and layer.
+func NewRenderable(texturePath string, layer RenderLayer) Renderable {
+	return Renderable{
+		TexturePath: texturePath,
+		Layer:       layer,
+		Visible:     true,
+	}
+}
+
+// NewRenderablePrimitive creates a Renderable for a procedural shape (Rectangle, Circle, etc).
+func NewRenderablePrimitive(primitive PrimitiveKind, layer RenderLayer) Renderable {
+	return Renderable{
+		Primitive: primitive,
+		Layer:     layer,
+		Visible:   true,
+	}
+}
+
 type PrimitiveKind int
 
 const (
@@ -66,9 +105,23 @@ type Animation struct {
 	PlaybackSpeed float64 // playback multiplier (1.0 = normal speed)
 }
 
+// NewAnimation creates an Animation for a given clip path.
+func NewAnimation(clipPath string) Animation {
+	return Animation{
+		ClipPath:      clipPath,
+		PlaybackSpeed: 1.0,
+		Playing:       false,
+	}
+}
+
 // Spin rotates an entity's Transform by AngularVelocity radians per second.
 type Spin struct {
 	AngularVelocity float64
+}
+
+// NewSpin creates a Spin component with the given angular velocity (radians per second).
+func NewSpin(angularVelocity float64) Spin {
+	return Spin{AngularVelocity: angularVelocity}
 }
 
 // Collider represents a collision shape for an entity.
@@ -117,4 +170,143 @@ func layersToMask(layers ...uint) uint32 {
 		mask |= 1 << layer
 	}
 	return mask
+}
+
+// TimerID uniquely identifies a timer within a Manager.
+type TimerID string
+
+// Timer is a component that tracks elapsed time and fires a callback when
+// its duration is reached. Timers can be one-shot (fires once then is removed)
+// or repeating (resets and continues firing).
+//
+// Timer is a value type and should be attached to entities via AddComponent.
+// The TimerSystem handles update logic and callback firing.
+type Timer struct {
+	// Unique identifier for this timer (useful for multiple timers per entity)
+	ID TimerID
+	// Duration for which the timer runs
+	Duration float64
+	// Elapsed time since the timer started (accumulated by TimerSystem)
+	ElapsedTime float64
+	// Whether the timer is currently running
+	Running bool
+	// Whether this is a one-shot timer (fires once then stops)
+	Once bool
+}
+
+// Start begins the timer, resetting elapsed time to zero.
+func (t *Timer) Start() {
+	t.Running = true
+	t.ElapsedTime = 0
+}
+
+// Stop pauses the timer without resetting elapsed time.
+// Resume can be called to continue from the same elapsed time.
+func (t *Timer) Stop() {
+	t.Running = false
+}
+
+// Resume continues a stopped timer from its current elapsed time.
+func (t *Timer) Resume() {
+	t.Running = true
+}
+
+// Camera is a component that defines a viewport for rendering.
+// Mark Primary=true to make it the active camera used by the renderer.
+type Camera struct {
+	// The position of the camera in world space
+	Position geom.Vector2
+	// The zoom level of the camera
+	Zoom float64
+	// The size of the screen in pixels
+	ScreenSize geom.Vector2I
+	// The rotation of the camera in radians
+	Rotation float64
+	// The rectangular bounds within which the camera can move
+	Bounds geom.Rect
+	// Mark this as the primary (active) camera for rendering
+	Primary bool
+}
+
+// NewCamera returns a camera centered on the world origin with no zoom and no
+// movement bounds. Call SetScreenSize once the render target size is known;
+// set Bounds explicitly to constrain movement.
+func NewCamera() Camera {
+	return Camera{
+		Zoom:   1,
+		Bounds: unboundedRect(),
+	}
+}
+
+func unboundedRect() geom.Rect {
+	return geom.Rect{
+		Min: geom.Vector2{X: math.Inf(-1), Y: math.Inf(-1)},
+		Max: geom.Vector2{X: math.Inf(1), Y: math.Inf(1)},
+	}
+}
+
+// SetScreenSize updates the render target size the camera converts against.
+func (c *Camera) SetScreenSize(width, height int) {
+	c.ScreenSize = geom.Vector2I{X: width, Y: height}
+}
+
+// WorldToScreen converts a position in world space to screen space based on the camera's position, zoom, and screen size.
+func (c Camera) WorldToScreen(worldPos geom.Vector2) geom.Vector2 {
+	return geom.Vector2{
+		X: (worldPos.X-c.Position.X)*c.Zoom + float64(c.ScreenSize.X)/2,
+		Y: (worldPos.Y-c.Position.Y)*c.Zoom + float64(c.ScreenSize.Y)/2,
+	}
+}
+
+// ScreenToWorld converts a position in screen space to world space based on the camera's position, zoom, and screen size.
+func (c Camera) ScreenToWorld(screenPos geom.Vector2) geom.Vector2 {
+	return geom.Vector2{
+		X: (screenPos.X-float64(c.ScreenSize.X)/2)/c.Zoom + c.Position.X,
+		Y: (screenPos.Y-float64(c.ScreenSize.Y)/2)/c.Zoom + c.Position.Y,
+	}
+}
+
+// ViewportBounds returns the visible rectangle in world coordinates based on the camera's position, zoom, and screen size.
+func (c Camera) ViewportBounds() geom.Rect {
+	halfWidth := float64(c.ScreenSize.X) / (2 * c.Zoom)
+	halfHeight := float64(c.ScreenSize.Y) / (2 * c.Zoom)
+	min := geom.Vector2{
+		X: c.Position.X - halfWidth,
+		Y: c.Position.Y - halfHeight,
+	}
+	max := geom.Vector2{
+		X: c.Position.X + halfWidth,
+		Y: c.Position.Y + halfHeight,
+	}
+	return geom.Rect{Min: min, Max: max}
+}
+
+// ClampPosition constrains the camera position within its bounds.
+// Returns a new Camera with the clamped position; the receiver is not modified.
+func (c Camera) ClampPosition() Camera {
+	viewport := c.ViewportBounds()
+	if viewport.Min.X < c.Bounds.Min.X {
+		c.Position.X += c.Bounds.Min.X - viewport.Min.X
+	}
+	if viewport.Max.X > c.Bounds.Max.X {
+		c.Position.X -= viewport.Max.X - c.Bounds.Max.X
+	}
+	if viewport.Min.Y < c.Bounds.Min.Y {
+		c.Position.Y += c.Bounds.Min.Y - viewport.Min.Y
+	}
+	if viewport.Max.Y > c.Bounds.Max.Y {
+		c.Position.Y -= viewport.Max.Y - c.Bounds.Max.Y
+	}
+	return c
+}
+
+// IsWorldRectVisible checks if a world space rectangle is within the camera's viewport.
+func (c Camera) IsWorldRectVisible(worldRect geom.Rect) bool {
+	viewport := c.ViewportBounds()
+	return viewport.Intersects(worldRect)
+}
+
+// AspectRatio returns the aspect ratio of the camera's screen.
+func (c Camera) AspectRatio() float64 {
+	return float64(c.ScreenSize.X) / float64(c.ScreenSize.Y)
 }

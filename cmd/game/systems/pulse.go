@@ -9,10 +9,11 @@ import (
 )
 
 type PulseSystem struct {
+	pulseQuery *castrum.Query
 }
 
 func (ps *PulseSystem) Update(world *castrum.World, delta float64) error {
-	for _, entityID := range castrum.QueryFor[gamecomponents.Pulse](world) {
+	for _, entityID := range ps.pulseQuery.EntityIDs() {
 		pulse, _ := world.GetComponent[gamecomponents.Pulse](entityID)
 		pulse.ElapsedTime += delta // ← Accumulate instead of calling time.Now()
 
@@ -30,6 +31,7 @@ func (ps *PulseSystem) Update(world *castrum.World, delta float64) error {
 }
 
 func (ps *PulseSystem) Init(world *castrum.World) error {
+	ps.pulseQuery = world.NewQuery().WithRequiredComponents(gamecomponents.Pulse{})
 	return nil
 }
 
