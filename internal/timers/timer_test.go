@@ -278,3 +278,79 @@ func TestTimerSystem_EventsClearedEachUpdate(t *testing.T) {
 		t.Fatal("expected 1 event after third update")
 	}
 }
+
+// TestTimerSystem_ShutdownStopsAllTimers tests that Shutdown stops all running timers
+func TestTimerSystem_ShutdownStopsAllTimers(t *testing.T) {
+	world := core.NewWorld()
+
+	// Create multiple running timers
+	entity1, _ := world.CreateWithComponents(
+		"entity1",
+		components.Timer{
+			ID:       "timer1",
+			Duration: 1.0,
+			Running:  true,
+		},
+	)
+
+	entity2, _ := world.CreateWithComponents(
+		"entity2",
+		components.Timer{
+			ID:       "timer2",
+			Duration: 1.0,
+			Running:  true,
+		},
+	)
+
+	// Create a stopped timer to verify it remains stopped
+	entity3, _ := world.CreateWithComponents(
+		"entity3",
+		components.Timer{
+			ID:       "timer3",
+			Duration: 1.0,
+			Running:  false,
+		},
+	)
+
+	system := NewTimerSystem(10)
+	system.Init(world)
+
+	// Verify all timers are in their initial state before shutdown
+	timer1, _ := world.GetComponent[components.Timer](entity1.ID)
+	timer2, _ := world.GetComponent[components.Timer](entity2.ID)
+	timer3, _ := world.GetComponent[components.Timer](entity3.ID)
+
+	if !timer1.Running || !timer2.Running || timer3.Running {
+		t.Fatal("timers not in expected initial state")
+	}
+
+	// Call Shutdown
+	err := system.Shutdown(world)
+	if err != nil {
+		t.Fatalf("Shutdown should not return error: %v", err)
+	}
+
+	// Verify all timers are stopped
+	timer1, _ = world.GetComponent[components.Timer](entity1.ID)
+	timer2, _ = world.GetComponent[components.Timer](entity2.ID)
+	timer3, _ = world.GetComponent[components.Timer](entity3.ID)
+
+	if timer1.Running {
+		t.Fatal("timer1 should be stopped after Shutdown")
+	}
+	if timer2.Running {
+		t.Fatal("timer2 should be stopped after Shutdown")
+	}
+	if timer3.Running {
+		t.Fatal("timer3 should still be stopped after Shutdown")
+	}
+
+	// Verify timers still exist (just stopped)
+	_, err1 := world.GetComponent[components.Timer](entity1.ID)
+	_, err2 := world.GetComponent[components.Timer](entity2.ID)
+	_, err3 := world.GetComponent[components.Timer](entity3.ID)
+
+	if err1 != nil || err2 != nil || err3 != nil {
+		t.Fatal("all timers should still exist after Shutdown")
+	}
+}

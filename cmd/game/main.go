@@ -63,11 +63,6 @@ func main() {
 		log.Fatalf("failed to register movement system: %v", err)
 	}
 
-	// // Register rotator system
-	// if err := game.Systems.Register("rotator", 0, &gamesystems.RotatorSystem{}, game.World); err != nil {
-	// 	log.Fatalf("failed to register rotator system: %v", err)
-	// }
-
 	// Register the pulse system
 	if err := game.Systems.Register("pulse", 0, &gamesystems.PulseSystem{}, game.World); err != nil {
 		log.Fatalf("failed to register pulse system: %v", err)
@@ -91,7 +86,7 @@ func main() {
 			Position: geom.Vector2{X: 0, Y: 0},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		components.Renderable{TexturePath: "example.png", Visible: true, Layer: components.Layer1},
+		components.Renderable{TexturePath: "example.png", Visible: true, Layer: 0},
 		gamecomponents.Player{},
 		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
 		components.NewCollider(geom.NewRect(geom.NewVector2(-16, -16), geom.NewVector2(16, 16)), true, false, 0, 1),
@@ -141,7 +136,7 @@ func main() {
 				Scale:    geom.Vector2{X: 30, Y: 30},
 				Color:    color.RGBA{R: 255, G: 100, B: 100, A: 255},
 			},
-			components.Renderable{Primitive: components.PrimitiveKindCircle, Visible: true, Layer: components.Layer1},
+			components.Renderable{Primitive: components.PrimitiveKindCircle, Visible: true, Layer: 0},
 			// components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
 		)
 		if err != nil {
