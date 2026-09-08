@@ -7,6 +7,8 @@ import (
 	"github.com/leonard-atorough/castrum/geom"
 )
 
+// Transform represents the position, rotation, scale, and color of an entity.
+// It is used to control the visual representation and transformation of an entity in the scene.
 type Transform struct {
 	Position geom.Vector2
 	Rotation float64
@@ -14,18 +16,12 @@ type Transform struct {
 	Color    color.Color
 }
 
-// NewTransform creates a Transform with position, rotation, scale, and optional color.
-func NewTransform(position geom.Vector2, rotation float64, scale geom.Vector2) Transform {
-	return Transform{
-		Position: position,
-		Rotation: rotation,
-		Scale:    scale,
-		Color:    nil,
+// NewTransform creates a Transform component with the specified position, rotation, and scale.
+// The color is set to transparent if not provided.
+func NewTransform(position geom.Vector2, rotation float64, scale geom.Vector2, c color.Color) Transform {
+	if c == nil {
+		c = color.Transparent
 	}
-}
-
-// NewTransformWithColor creates a Transform with all fields specified.
-func NewTransformWithColor(position geom.Vector2, rotation float64, scale geom.Vector2, c color.Color) Transform {
 	return Transform{
 		Position: position,
 		Rotation: rotation,
@@ -39,57 +35,38 @@ type SceneTag struct {
 	SceneID string
 }
 
-type RenderLayer int
-
-const (
-	Layer0 RenderLayer = iota
-	Layer1
-	Layer2
-	Layer3
-	Layer4
-	Layer5
-	Layer6
-	Layer7
-	Layer8
-	Layer9
-	Layer10
-	// Debug layer for rendering debug information
-	LayerDebug
-)
-
-type RenderDepth int
+// RenderLayer represents a bitmask for render layers.
+type RenderLayer uint32 // layer index: 0-31, one of 32 possible sorting layers
 
 type Renderable struct {
 	TexturePath string
-	Primitive   PrimitiveKind
-	Layer       RenderLayer
-	Depth       RenderDepth // [0..n], higher values render on top
+	Primitive   PrimitiveType
+	Layer       RenderLayer // which of 32 layers to render on (0-31)
+	SortOrder   int         // [0..n], higher values render on top within the layer
 	Visible     bool
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
-// NewRenderable creates a Renderable with texture path and layer.
-func NewRenderable(texturePath string, layer RenderLayer) Renderable {
+// NewRenderable creates a new Renderable component with the specified properties.
+func NewRenderable(texturePath string, Primitive PrimitiveType, Layer RenderLayer, SortOrder int, Visible bool, Data any) Renderable {
+	if Data == nil {
+		Data = struct{}{}
+	}
 	return Renderable{
 		TexturePath: texturePath,
-		Layer:       layer,
-		Visible:     true,
+		Primitive:   Primitive,
+		Layer:       Layer,
+		SortOrder:   SortOrder,
+		Visible:     Visible,
+		Data:        Data,
 	}
 }
 
-// NewRenderablePrimitive creates a Renderable for a procedural shape (Rectangle, Circle, etc).
-func NewRenderablePrimitive(primitive PrimitiveKind, layer RenderLayer) Renderable {
-	return Renderable{
-		Primitive: primitive,
-		Layer:     layer,
-		Visible:   true,
-	}
-}
-
-type PrimitiveKind int
+// PrimitiveType represents the type of a procedural shape for rendering.
+type PrimitiveType int
 
 const (
-	PrimitiveKindRectangle PrimitiveKind = iota
+	PrimitiveKindRectangle PrimitiveType = iota
 	PrimitiveKindCircle
 	PrimitiveKindLine
 	PrimitiveKindPolygon
@@ -106,34 +83,30 @@ type Animation struct {
 }
 
 // NewAnimation creates an Animation for a given clip path.
-func NewAnimation(clipPath string) Animation {
+func NewAnimation(clipPath string, autoplay bool) Animation {
 	return Animation{
 		ClipPath:      clipPath,
 		PlaybackSpeed: 1.0,
-		Playing:       false,
+		Playing:       autoplay,
 	}
 }
 
-// Spin rotates an entity's Transform by AngularVelocity radians per second.
-type Spin struct {
-	AngularVelocity float64
-}
-
-// NewSpin creates a Spin component with the given angular velocity (radians per second).
-func NewSpin(angularVelocity float64) Spin {
-	return Spin{AngularVelocity: angularVelocity}
+// ColliderShapeContext defines the interface that collision shapes must implement to provide a bounding box.
+type ColliderShapeContext interface {
+	BoundingBox() geom.Rect
 }
 
 // Collider represents a collision shape for an entity.
 type Collider struct {
-	Shape   any    // geom.Circle or geom.Rect, defined in local space
-	Layer   uint32 // The layer this collider belongs to
-	Mask    uint32 // The collision masks determine which layers this collider can interact with.
-	Trigger bool   // Indicates if this collider is a trigger (does not generate physical collisions)
-	Active  bool   // Indicates if this collider is currently active
+	Shape   ColliderShapeContext // geom.Circle or geom.Rect, defined in local space
+	Layer   uint32               // The layer this collider belongs to
+	Mask    uint32               // The collision masks determine which layers this collider can interact with.
+	Trigger bool                 // Indicates if this collider is a trigger (does not generate physical collisions)
+	Active  bool                 // Indicates if this collider is currently active
 }
 
-func NewCollider(shape any, active, trigger bool, layer uint32, collidesWith ...uint) Collider {
+// NewCollider creates a new Collider component with the specified properties.
+func NewCollider(shape ColliderShapeContext, active, trigger bool, layer uint32, collidesWith ...uint) Collider {
 	mask := layersToMask(collidesWith...)
 
 	return Collider{
@@ -145,19 +118,8 @@ func NewCollider(shape any, active, trigger bool, layer uint32, collidesWith ...
 	}
 }
 
-func (c Collider) ColliderShape() any {
-	return c.Shape
-}
-
 func (c Collider) BoundingBox() geom.Rect {
-	switch s := c.Shape.(type) {
-	case geom.Circle:
-		return s.BoundingBox()
-	case geom.Rect:
-		return s
-	default:
-		return geom.Rect{}
-	}
+	return c.Shape.BoundingBox()
 }
 
 func (c Collider) CanCollideWith(other *Collider) bool {
@@ -178,9 +140,6 @@ type TimerID string
 // Timer is a component that tracks elapsed time and fires a callback when
 // its duration is reached. Timers can be one-shot (fires once then is removed)
 // or repeating (resets and continues firing).
-//
-// Timer is a value type and should be attached to entities via AddComponent.
-// The TimerSystem handles update logic and callback firing.
 type Timer struct {
 	// Unique identifier for this timer (useful for multiple timers per entity)
 	ID TimerID

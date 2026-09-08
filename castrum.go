@@ -27,7 +27,6 @@ type (
 	Renderable = components.Renderable
 	Collider   = components.Collider
 	Animation  = components.Animation
-	Spin       = components.Spin
 	SceneTag   = components.SceneTag
 	Timer      = components.Timer
 	TimerID    = components.TimerID

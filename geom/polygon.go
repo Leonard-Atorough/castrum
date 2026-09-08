@@ -95,12 +95,12 @@ func (p *Polygon) Contains(point Vector2) bool {
 }
 
 // BoundingBox calculates the axis-aligned bounding box of the polygon.
-func (p *Polygon) BoundingBox() (min, max Vector2) {
+func (p *Polygon) BoundingBox() Rect {
 	if len(p.Points) == 0 {
-		return Vector2{}, Vector2{}
+		return Rect{}
 	}
-	min = p.Points[0]
-	max = p.Points[0]
+	min := p.Points[0]
+	max := p.Points[0]
 	for _, point := range p.Points[1:] {
 		if point.X < min.X {
 			min.X = point.X
@@ -115,7 +115,7 @@ func (p *Polygon) BoundingBox() (min, max Vector2) {
 			max.Y = point.Y
 		}
 	}
-	return min, max
+	return Rect{Min: min, Max: max}
 }
 
 // Centroid calculates the centroid (geometric center) of the polygon.

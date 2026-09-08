@@ -105,8 +105,8 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
 			return int(a.renderable.Layer) - int(b.renderable.Layer)
 		}
 		// render depth comparison
-		if a.renderable.Depth != b.renderable.Depth {
-			return int(a.renderable.Depth) - int(b.renderable.Depth)
+		if a.renderable.SortOrder != b.renderable.SortOrder {
+			return int(a.renderable.SortOrder) - int(b.renderable.SortOrder)
 		}
 		// can't use direct subtraction for float comparison, so we use conditional checks
 		if a.transform.Position.Y != b.transform.Position.Y {
