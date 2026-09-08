@@ -49,7 +49,7 @@ type (
 	System          = core.System
 	Systems         = core.Manager
 	AnimationSystem = animation.System
-	CollisionSystem = physics.CollisionSystem
+	CollisionSystem = physics.CollisionProcessingSystem
 	SpatialIndex    = spatial.SpatialIndexHandler
 	InputHandler    = input.InputHandler
 )
