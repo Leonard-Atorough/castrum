@@ -30,6 +30,7 @@ package timers
 import (
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/events"
 )
 
 type TimerCompletedEvent struct {
@@ -46,10 +47,8 @@ type TimerCompletedEvent struct {
 type TimerSystem struct {
 	// Preallocated bucket for cleanup to avoid allocations per update
 	timersToRemove []*core.Entity
-	// Events from the last update
-	events     []TimerCompletedEvent
-	Capacity   int
-	timerQuery *core.Query
+	Capacity       int
+	timerQuery     *core.Query
 }
 
 // NewTimerSystem creates a new TimerSystem with a given capacity for cleanup operations.
@@ -59,24 +58,17 @@ func NewTimerSystem(capacity int) *TimerSystem {
 	}
 }
 
-// Events returns timer events emitted during the last Update.
-func (ts *TimerSystem) Events() []TimerCompletedEvent {
-	if ts.events == nil {
-		return []TimerCompletedEvent{}
-	}
-	return ts.events
-}
-
 func (ts *TimerSystem) Init(world *core.World) error {
 	ts.timersToRemove = make([]*core.Entity, 0, ts.Capacity)
-	ts.events = make([]TimerCompletedEvent, 0, ts.Capacity)
 	ts.timerQuery = world.NewQuery().WithRequiredComponents(components.Timer{})
 	return nil
 }
 
 func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
-	// Clear previous frame's events
-	ts.events = ts.events[:0]
+	bus, ok := core.GetResource[*events.EventBus](world)
+	if !ok {
+		bus = nil // EventBus not registered
+	}
 
 	for result := range ts.timerQuery.Execute() {
 		entityID := result.EntityID
@@ -96,10 +88,12 @@ func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
 		timer.ElapsedTime += deltaTime
 		if timer.ElapsedTime >= timer.Duration {
 			// Emit a TimerCompletedEvent for this timer
-			ts.events = append(ts.events, TimerCompletedEvent{
-				EntityID: entityID,
-				TimerID:  timer.ID,
-			})
+			if bus != nil {
+				bus.Emit(TimerCompletedEvent{
+					EntityID: entityID,
+					TimerID:  timer.ID,
+				}, "TimerSystem")
+			}
 
 			if timer.Once {
 				ts.timersToRemove = append(ts.timersToRemove, entity)

@@ -5,6 +5,7 @@ import (
 
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
+	"github.com/leonard-atorough/castrum/internal/events"
 	"github.com/leonard-atorough/castrum/internal/physics"
 )
 
@@ -12,25 +13,32 @@ import (
 // and contact geometry from the collision system. It demonstrates the collision
 // API by destroying obstacles on Enter, logging Stay events, and removing entities on Exit.
 type CollisionSystem struct {
-	systems   *castrum.Systems
-	collision *castrum.CollisionSystem
+	systems        *castrum.Systems
+	bus            *events.EventBus
+	bufferedEvents []physics.CollisionEvent
+	subscriptionID int
 }
 
 func NewCollisionSystem(systems *castrum.Systems) *CollisionSystem {
-	return &CollisionSystem{systems: systems}
+	return &CollisionSystem{
+		systems:        systems,
+		bufferedEvents: make([]physics.CollisionEvent, 0, 64),
+	}
 }
 
 func (c *CollisionSystem) Init(world *castrum.World) error {
-	// Lazy load the collision system
-	colSys, err := c.systems.GetSystem("collision")
-	if err != nil {
-		return err
-	}
-	var ok bool
-	c.collision, ok = colSys.(*castrum.CollisionSystem)
+	// Get the EventBus from world resources
+	bus, ok := castrum.GetResource[*events.EventBus](world)
 	if !ok {
-		return fmt.Errorf("collision system is not of expected type")
+		return fmt.Errorf("EventBus not registered in world resources")
 	}
+	c.bus = bus
+
+	// Subscribe to collision events
+	c.subscriptionID = c.bus.On(func(_ events.EventMeta, evt physics.CollisionEvent) {
+		c.bufferedEvents = append(c.bufferedEvents, evt)
+	}, false)
+
 	return nil
 }
 
@@ -38,13 +46,12 @@ func (c *CollisionSystem) Init(world *castrum.World) error {
 // Collision events include contact geometry (point, normal, penetration) for
 // sophisticated game logic like knockback, sliding, or environmental reactions.
 func (c *CollisionSystem) Update(world *castrum.World, deltaTime float64) error {
-	if c.collision == nil {
+	if c.bus == nil {
 		return nil
 	}
 
-	// Process all collision events emitted this frame (Enter, Stay, Exit)
-	events := c.collision.Events()
-	for _, evt := range events {
+	// Process all collision events buffered this frame (Enter, Stay, Exit)
+	for _, evt := range c.bufferedEvents {
 		switch evt.CollisionEventType {
 		case physics.CollisionEnter:
 			// Contact detected: destroy the obstacle (non-player entity)
@@ -67,10 +74,16 @@ func (c *CollisionSystem) Update(world *castrum.World, deltaTime float64) error 
 		}
 	}
 
+	// Clear buffered events for next frame
+	c.bufferedEvents = c.bufferedEvents[:0]
+
 	return nil
 }
 
 func (c *CollisionSystem) Shutdown(world *castrum.World) error {
+	if c.bus != nil {
+		c.bus.Unsubscribe(c.subscriptionID)
+	}
 	return nil
 }
 

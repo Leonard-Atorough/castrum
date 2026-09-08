@@ -9,6 +9,7 @@ import (
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/events"
 )
 
 type CollisionEventType int
@@ -49,7 +50,6 @@ type spatialIndexer interface {
 type CollisionSystem struct {
 	spatial       spatialIndexer
 	config        Config
-	events        []CollisionEvent
 	previousPairs map[PairKey]*CollisionState
 	lastPositions map[core.EntityID]geom.Vector2
 	dirty         map[core.EntityID]struct{}
@@ -95,13 +95,6 @@ func (s *CollisionSystem) Init(world *core.World) error {
 	return nil
 }
 
-func (s *CollisionSystem) Events() []CollisionEvent {
-	if s.events == nil {
-		return []CollisionEvent{}
-	}
-	return s.events
-}
-
 // Shutdown cleans up the collision system
 func (s *CollisionSystem) Shutdown(world *core.World) error {
 	return nil
@@ -115,12 +108,15 @@ func (s *CollisionSystem) Update(world *core.World, deltaTime float64) error {
 		return nil
 	}
 
-	s.events = s.events[:0]
+	bus, ok := core.GetResource[*events.EventBus](world)
+	if !ok {
+		bus = nil // EventBus not registered
+	}
 
 	s.markDirtyFromSpatial()
 
 	candidates := s.broadphase(world)
-	s.narrowphase(world, candidates)
+	s.narrowphase(world, candidates, bus)
 
 	clear(s.dirty)
 	return nil
@@ -282,7 +278,7 @@ func (s *CollisionSystem) broadphase(world *core.World) []PairKey {
 // narrowphase tests each candidate pair, replays cached Stay events for pairs
 // that were colliding but untouched this frame, and emits Enter/Stay/Exit
 // events for every pair whose state changed or persists.
-func (s *CollisionSystem) narrowphase(world *core.World, candidates []PairKey) {
+func (s *CollisionSystem) narrowphase(world *core.World, candidates []PairKey, bus *events.EventBus) {
 	tested := make(map[PairKey]struct{}, len(candidates))
 
 	for _, pair := range candidates {
@@ -297,11 +293,11 @@ func (s *CollisionSystem) narrowphase(world *core.World, candidates []PairKey) {
 		prev, wasColliding := s.previousPairs[pair]
 		switch {
 		case result.Collided && (!wasColliding || !prev.WasColliding):
-			s.emit(CollisionEnter, pair, result)
+			s.emit(bus, CollisionEnter, pair, result)
 		case result.Collided:
-			s.emit(CollisionStay, pair, result)
+			s.emit(bus, CollisionStay, pair, result)
 		case wasColliding && prev.WasColliding:
-			s.emit(CollisionExit, pair, prev.CollisionResult)
+			s.emit(bus, CollisionExit, pair, prev.CollisionResult)
 		}
 
 		if result.Collided {
@@ -318,17 +314,20 @@ func (s *CollisionSystem) narrowphase(world *core.World, candidates []PairKey) {
 			continue
 		}
 
-		s.emit(CollisionStay, pair, state.CollisionResult)
+		s.emit(bus, CollisionStay, pair, state.CollisionResult)
 	}
 }
 
-func (s *CollisionSystem) emit(eventType CollisionEventType, pair PairKey, result CollisionResult) {
-	s.events = append(s.events, CollisionEvent{
+func (s *CollisionSystem) emit(bus *events.EventBus, eventType CollisionEventType, pair PairKey, result CollisionResult) {
+	if bus == nil {
+		return // EventBus not registered, skip event emission
+	}
+	bus.Emit(CollisionEvent{
 		CollisionEventType: eventType,
 		PairKey:            pair,
 		Point:              result.Point,
 		Normal:             result.Normal,
-	})
+	}, "CollisionSystem")
 }
 
 // canonicalPair orders a pair so (a, b) and (b, a) collapse to one key.

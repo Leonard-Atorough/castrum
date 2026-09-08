@@ -7,10 +7,13 @@ import (
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/events"
 )
 
 func setupTestWorld() *core.World {
-	return core.NewWorld()
+	world := core.NewWorld()
+	core.SetResource(world, events.NewEventBus())
+	return world
 }
 
 func createAnimatingEntity(world *core.World, clipPath string) core.EntityID {
@@ -31,16 +34,6 @@ func createAnimatingEntity(world *core.World, clipPath string) core.EntityID {
 		},
 	)
 	return entity.ID
-}
-
-func TestNewSystem(t *testing.T) {
-	sys := &System{}
-	if sys.Events() == nil {
-		t.Error("Events should return slice, not nil")
-	}
-	if len(sys.Events()) != 0 {
-		t.Error("Initial events should be empty")
-	}
 }
 
 func TestSystem_Init(t *testing.T) {
@@ -121,6 +114,15 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 	sys := &System{}
 	sys.Init(world)
 
+	bus, _ := core.GetResource[*events.EventBus](world)
+	var emittedEvent AnimationEvent
+	var eventFired bool
+
+	bus.On(func(_ events.EventMeta, e AnimationEvent) {
+		emittedEvent = e
+		eventFired = true
+	}, false)
+
 	clip := &assets.AnimationClip{
 		Frames:     []string{"frame_0.png", "frame_1.png"},
 		FrameSpeed: 0.1,
@@ -135,12 +137,11 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 
 	sys.Update(world, 0.15)
 
-	events := sys.Events()
-	if len(events) == 0 {
+	if !eventFired {
 		t.Fatal("expected loop event to be emitted")
 	}
-	if events[0].Type != EventClipLooped {
-		t.Errorf("Event type = %d, want EventClipLooped (%d)", events[0].Type, EventClipLooped)
+	if emittedEvent.Type != EventClipLooped {
+		t.Errorf("Event type = %d, want EventClipLooped (%d)", emittedEvent.Type, EventClipLooped)
 	}
 }
 
@@ -202,6 +203,15 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 	sys := &System{}
 	sys.Init(world)
 
+	bus, _ := core.GetResource[*events.EventBus](world)
+	var emittedEvent AnimationEvent
+	var eventFired bool
+
+	bus.On(func(_ events.EventMeta, e AnimationEvent) {
+		emittedEvent = e
+		eventFired = true
+	}, false)
+
 	clip := &assets.AnimationClip{
 		Frames:     []string{"frame_0.png", "frame_1.png"},
 		FrameSpeed: 0.1,
@@ -216,12 +226,11 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 
 	sys.Update(world, 0.15)
 
-	events := sys.Events()
-	if len(events) == 0 {
+	if !eventFired {
 		t.Fatal("expected completion event to be emitted")
 	}
-	if events[0].Type != EventClipFinished {
-		t.Errorf("Event type = %d, want EventClipFinished (%d)", events[0].Type, EventClipFinished)
+	if emittedEvent.Type != EventClipFinished {
+		t.Errorf("Event type = %d, want EventClipFinished (%d)", emittedEvent.Type, EventClipFinished)
 	}
 
 	anim, _ = world.GetComponent[components.Animation](entity)
