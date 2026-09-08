@@ -63,7 +63,7 @@ func NewAssets(filesystem fs.FS) *Assets {
 // It infers the asset kind from the path's extension, routes to the matching store,
 // and returns the cached result. Results are cached after first load, so repeated
 // calls for the same path are fast.
-// 
+//
 // Use LoadSync during initialization, scene setup, or when you need immediate results.
 // For loading during gameplay, prefer LoadAsync or LoadBatch.
 //
