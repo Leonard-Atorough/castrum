@@ -43,12 +43,53 @@ type CollisionState struct {
 	WasColliding bool
 }
 
-type spatialIndexer interface {
+// CollisionErrors accumulates errors encountered during collision testing.
+// This allows bulk error reporting without I/O overhead per error.
+type CollisionErrors struct {
+	Errors []error
+}
+
+// Add appends an error to the collection.
+func (ce *CollisionErrors) Add(err error) {
+	if err != nil {
+		ce.Errors = append(ce.Errors, err)
+	}
+}
+
+// Error returns a formatted string of all accumulated errors.
+func (ce *CollisionErrors) Error() string {
+	if len(ce.Errors) == 0 {
+		return ""
+	}
+	if len(ce.Errors) == 1 {
+		return ce.Errors[0].Error()
+	}
+	msg := fmt.Sprintf("collision: %d errors: ", len(ce.Errors))
+	for i, err := range ce.Errors {
+		if i > 0 {
+			msg += "; "
+		}
+		msg += err.Error()
+	}
+	return msg
+}
+
+// Unwrap returns the slice of accumulated errors for inspection with errors.Is/As.
+func (ce *CollisionErrors) Unwrap() []error {
+	return ce.Errors
+}
+
+// IsEmpty returns true if no errors have been accumulated.
+func (ce *CollisionErrors) IsEmpty() bool {
+	return len(ce.Errors) == 0
+}
+
+type spatialQueryInterface interface {
 	Query(position geom.Vector2, radius float64) []core.EntityID
 }
 
-type CollisionSystem struct {
-	spatial       spatialIndexer
+type CollisionProcessingSystem struct {
+	spatial       spatialQueryInterface
 	config        Config
 	previousPairs map[PairKey]*CollisionState
 	lastPositions map[core.EntityID]geom.Vector2
@@ -73,8 +114,8 @@ func DefaultConfig() Config {
 }
 
 // NewSystem creates a collision system with the given spatial manager
-func NewSystem(spatialMgr spatialIndexer, cfg Config) *CollisionSystem {
-	return &CollisionSystem{
+func NewSystem(spatialMgr spatialQueryInterface, cfg Config) *CollisionProcessingSystem {
+	return &CollisionProcessingSystem{
 		spatial:       spatialMgr,
 		config:        cfg,
 		previousPairs: make(map[PairKey]*CollisionState),
@@ -84,7 +125,7 @@ func NewSystem(spatialMgr spatialIndexer, cfg Config) *CollisionSystem {
 }
 
 // Init initializes the collision system
-func (s *CollisionSystem) Init(world *core.World) error {
+func (s *CollisionProcessingSystem) Init(world *core.World) error {
 	if s.spatial == nil {
 		return fmt.Errorf("collision system requires a spatial indexer")
 	}
@@ -96,14 +137,14 @@ func (s *CollisionSystem) Init(world *core.World) error {
 }
 
 // Shutdown cleans up the collision system
-func (s *CollisionSystem) Shutdown(world *core.World) error {
+func (s *CollisionProcessingSystem) Shutdown(world *core.World) error {
 	return nil
 }
 
 // Update rebuilds the collision index for entities that moved since the last
 // frame, replays cached results for entities that did not, and emits
 // enter/stay/exit events for the frame. It does NOT apply game logic.
-func (s *CollisionSystem) Update(world *core.World, deltaTime float64) error {
+func (s *CollisionProcessingSystem) Update(world *core.World, deltaTime float64) error {
 	if !s.config.Enabled || s.spatial == nil {
 		return nil
 	}
@@ -116,7 +157,12 @@ func (s *CollisionSystem) Update(world *core.World, deltaTime float64) error {
 	s.markDirtyFromSpatial()
 
 	candidates := s.broadphase(world)
-	s.narrowphase(world, candidates, bus)
+	collisionErrors := s.narrowphase(world, candidates, bus)
+	if collisionErrors != nil && !collisionErrors.IsEmpty() {
+		// Log accumulated collision errors for debugging.
+		// This batches I/O and avoids per-error logging cost.
+		fmt.Printf("collision: %v\n", collisionErrors)
+	}
 
 	clear(s.dirty)
 	return nil
@@ -125,7 +171,7 @@ func (s *CollisionSystem) Update(world *core.World, deltaTime float64) error {
 // TestCollision checks if two entities are colliding at this moment.
 // Returns the collision result with contact geometry (point, normal, penetration).
 // This is a query helper used by systems to check collisions.
-func (s *CollisionSystem) TestCollision(world *core.World, entityA, entityB core.EntityID) (CollisionResult, error) {
+func (s *CollisionProcessingSystem) TestCollision(world *core.World, entityA, entityB core.EntityID) (CollisionResult, error) {
 	colliderA, shapeA, err := s.worldShape(world, entityA)
 	if err != nil {
 		return CollisionResult{}, err
@@ -145,7 +191,7 @@ func (s *CollisionSystem) TestCollision(world *core.World, entityA, entityB core
 
 // QueryCollisions returns all entities colliding with the given entity.
 // This is a query helper used by systems to find all current collisions.
-func (s *CollisionSystem) QueryCollisions(world *core.World, entityID core.EntityID) ([]core.EntityID, error) {
+func (s *CollisionProcessingSystem) QueryCollisions(world *core.World, entityID core.EntityID) ([]core.EntityID, error) {
 	collider, shapeA, err := s.worldShape(world, entityID)
 	if err != nil {
 		return nil, err
@@ -183,7 +229,7 @@ func (s *CollisionSystem) QueryCollisions(world *core.World, entityID core.Entit
 // worldShape fetches an entity's Collider and its shape translated to world
 // space. Shared by every code path that needs to test an entity's collider,
 // so the fetch-and-translate logic lives in one place.
-func (s *CollisionSystem) worldShape(world *core.World, entityID core.EntityID) (components.Collider, any, error) {
+func (s *CollisionProcessingSystem) worldShape(world *core.World, entityID core.EntityID) (components.Collider, any, error) {
 	collider, err := world.GetComponent[components.Collider](entityID)
 	if err != nil {
 		return components.Collider{}, nil, fmt.Errorf("entity %d: %w", entityID, err)
@@ -204,7 +250,7 @@ func (s *CollisionSystem) worldShape(world *core.World, entityID core.EntityID) 
 // markDirtyFromSpatial flags entities whose position changed since the last
 // Update call. Any change is enough to mark dirty - a smaller movement can
 // still start or end an overlap, so there is no "safe" distance threshold.
-func (s *CollisionSystem) markDirtyFromSpatial() {
+func (s *CollisionProcessingSystem) markDirtyFromSpatial() {
 	seen := make(map[core.EntityID]struct{}, len(s.lastPositions))
 
 	for entry := range s.query.Execute() {
@@ -251,7 +297,7 @@ func (s *CollisionSystem) markDirtyFromSpatial() {
 // broadphase returns candidate pairs by querying the spatial index around
 // every dirty entity. Pairs are canonicalized (EntityA < EntityB) and
 // deduplicated so a pair moved by both members is only tested once.
-func (s *CollisionSystem) broadphase(world *core.World) []PairKey {
+func (s *CollisionProcessingSystem) broadphase(world *core.World) []PairKey {
 	seen := make(map[PairKey]struct{}, len(s.dirty))
 	candidates := make([]PairKey, 0, len(s.dirty))
 
@@ -277,16 +323,22 @@ func (s *CollisionSystem) broadphase(world *core.World) []PairKey {
 
 // narrowphase tests each candidate pair, replays cached Stay events for pairs
 // that were colliding but untouched this frame, and emits Enter/Stay/Exit
-// events for every pair whose state changed or persists.
-func (s *CollisionSystem) narrowphase(world *core.World, candidates []PairKey, bus *events.EventBus) {
+// events for every pair whose state changed or persists. Returns accumulated
+// errors encountered during collision testing (e.g., missing components, invalid shapes).
+// Errors do not halt processing; pair state is preserved for the next frame.
+func (s *CollisionProcessingSystem) narrowphase(world *core.World, candidates []PairKey, bus *events.EventBus) *CollisionErrors {
 	tested := make(map[PairKey]struct{}, len(candidates))
+	collisionErrors := &CollisionErrors{}
 
 	for _, pair := range candidates {
 		tested[pair] = struct{}{}
 
 		result, err := s.TestCollision(world, pair.EntityA, pair.EntityB)
 		if err != nil {
-			delete(s.previousPairs, pair)
+			// Accumulate error without logging or deleting pair state.
+			// Errors during collision testing (e.g., missing components, invalid shapes) are
+			// transient. Preserving pair state allows recovery on the next frame.
+			collisionErrors.Add(fmt.Errorf("pair (EntityA=%d, EntityB=%d): %w", pair.EntityA, pair.EntityB, err))
 			continue
 		}
 
@@ -316,9 +368,11 @@ func (s *CollisionSystem) narrowphase(world *core.World, candidates []PairKey, b
 
 		s.emit(bus, CollisionStay, pair, state.CollisionResult)
 	}
+
+	return collisionErrors
 }
 
-func (s *CollisionSystem) emit(bus *events.EventBus, eventType CollisionEventType, pair PairKey, result CollisionResult) {
+func (s *CollisionProcessingSystem) emit(bus *events.EventBus, eventType CollisionEventType, pair PairKey, result CollisionResult) {
 	if bus == nil {
 		return // EventBus not registered, skip event emission
 	}
