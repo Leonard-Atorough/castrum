@@ -71,6 +71,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+
       - name: Compute next version
         id: next
         run: |
@@ -81,9 +86,7 @@ jobs:
             exit 1
           fi
           echo "next=${NEXT}" >> "$GITHUB_STEP_SUMMARY"
-          echo "next=${NEXT}" >> "$GITHUB_OUTPUT"
-        env:
-          NEXT: placeholder
+          echo "version=${NEXT}" >> "$GITHUB_OUTPUT"
 
       - name: Verify release contains changes
         run: |
@@ -105,14 +108,14 @@ jobs:
       - name: Preview changelog (dry run)
         if: inputs.dry_run
         run: |
-          git-cliff --unreleased --unreleased-only > /tmp/preview.md || true
+          git-cliff --unreleased --unreleased-only > /tmp/preview.md
           cat /tmp/preview.md >> "$GITHUB_STEP_SUMMARY"
 
   release:
     name: Publish Release
     runs-on: ubuntu-latest
     needs: [test, compute]
-    if: ${{ !failure() && inputs.dry_run != true }}
+    if: ${{ !cancelled() && needs.test.result == 'success' && needs.compute.result == 'success' && inputs.dry_run != true }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -130,9 +133,24 @@ jobs:
       - name: Regenerate CHANGELOG.md
         run: git-cliff --output CHANGELOG.md
 
+      - name: Resolve release tag
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ needs.compute.outputs.version }}"
+            if [[ -z "${TAG}" ]]; then
+              echo "::error::Computed version is empty — refusing to release"
+              exit 1
+            fi
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "Resolved release tag: ${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && needs.compute.outputs.version || github.ref_name }}
+          tag_name: ${{ steps.resolve.outputs.tag }}
           body_path: RELEASE_BODY.md
           # files: dist/*     # <- enable when the build matrix ships binaries
