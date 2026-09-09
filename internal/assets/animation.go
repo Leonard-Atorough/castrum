@@ -11,6 +11,7 @@ import (
 
 // AnimationClip defines a reusable animation: immutable, shared across entities.
 type AnimationClip struct {
+	AtlasPath  string   `yaml:"atlasPath"`
 	Frames     []string `yaml:"frames"`
 	FrameSpeed float64  `yaml:"frameSpeed"`
 	Loop       bool     `yaml:"loop"`

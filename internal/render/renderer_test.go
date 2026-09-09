@@ -30,15 +30,41 @@ func (m *mockTextureLoader) Load(path string) (*assets.Texture, error) {
 	return tex, nil
 }
 
+type mockAtlasLoader struct {
+	atlases map[string]*assets.TextureAtlas
+}
+
+func (m *mockAtlasLoader) Load(path string) (*assets.TextureAtlas, error) {
+	atlas, ok := m.atlases[path]
+	if !ok {
+		return nil, fmt.Errorf("atlas not found: %s", path)
+	}
+	return atlas, nil
+}
+
+type mockAnimationLoader struct {
+	clips map[string]*assets.AnimationClip
+}
+
+func (m *mockAnimationLoader) Load(path string) (*assets.AnimationClip, error) {
+	clip, ok := m.clips[path]
+	if !ok {
+		return nil, fmt.Errorf("animation clip not found: %s", path)
+	}
+	return clip, nil
+}
+
 func newTestRenderer() *Renderer {
 	// Create a 1x1 ebiten.Image as a minimal sprite (we're not testing texture
 	// loading, just that rendering doesn't panic).
 	testImage := ebiten.NewImage(1, 1)
 	testImage.Fill(color.White)
-	loader := &mockTextureLoader{textures: map[string]*assets.Texture{
+	textureLoader := &mockTextureLoader{textures: map[string]*assets.Texture{
 		"square": {Path: "square", Image: testImage, Width: 1, Height: 1},
 	}}
-	return New(loader)
+	atlasLoader := &mockAtlasLoader{atlases: map[string]*assets.TextureAtlas{}}
+	animationLoader := &mockAnimationLoader{clips: map[string]*assets.AnimationClip{}}
+	return New(textureLoader, atlasLoader, animationLoader)
 }
 
 // setupTestWorldWithCamera creates a world with a primary camera entity.

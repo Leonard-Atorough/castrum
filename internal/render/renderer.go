@@ -17,25 +17,40 @@ type renderItem struct {
 	entityID   core.EntityID
 	renderable components.Renderable
 	transform  components.Transform
+	animation  *components.Animation
 }
 
-// TextureLoader is the texture-loading behavior Renderer depends on. Defined
-// here (the consumer) rather than in the assets package, so Renderer only
-// couples to the behavior it needs, not the full Assets struct.
+// TextureLoader is the interface for loading individual textures.
+// Defined here (the consumer) rather than in the assets package, so Renderer
+// only couples to the behavior it needs.
 type TextureLoader interface {
 	Load(path string) (*assets.Texture, error)
 }
 
-type Renderer struct {
-	textures    TextureLoader
-	Primitive   *PrimitiveRenderer
-	cameraQuery *core.Query
+// AtlasLoader is the interface for loading texture atlases.
+type AtlasLoader interface {
+	Load(path string) (*assets.TextureAtlas, error)
 }
 
-func New(textures TextureLoader) *Renderer {
+// AnimationLoader is the interface for loading animation clips.
+type AnimationLoader interface {
+	Load(path string) (*assets.AnimationClip, error)
+}
+
+type Renderer struct {
+	textureLoader   TextureLoader
+	atlasLoader     AtlasLoader
+	animationLoader AnimationLoader
+	Primitive       *PrimitiveRenderer
+	cameraQuery     *core.Query
+}
+
+func New(textureLoader TextureLoader, atlasLoader AtlasLoader, animationLoader AnimationLoader) *Renderer {
 	return &Renderer{
-		textures:  textures,
-		Primitive: NewPrimitiveRenderer(),
+		textureLoader:   textureLoader,
+		atlasLoader:     atlasLoader,
+		animationLoader: animationLoader,
+		Primitive:       NewPrimitiveRenderer(),
 	}
 }
 
@@ -92,10 +107,17 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
 			continue
 		}
 
+		// Optionally fetch Animation component if it exists
+		var anim *components.Animation
+		if animation, err := entry.Get[components.Animation](); err == nil {
+			anim = &animation
+		}
+
 		renderItems = append(renderItems, renderItem{
 			entityID:   entry.EntityID,
 			renderable: renderable,
 			transform:  transform,
+			animation:  anim,
 		})
 	}
 
@@ -121,7 +143,7 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
 	// Render
 	for _, item := range renderItems {
 		if item.renderable.TexturePath != "" {
-			r.drawSprite(screen, primaryCamera, item.transform, item.renderable)
+			r.drawSprite(screen, primaryCamera, item.transform, item.renderable, item.animation)
 		} else {
 			r.Primitive.Draw(screen, primaryCamera, item.transform, item.renderable)
 		}
@@ -157,13 +179,65 @@ func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *core.World) {
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), primaryCamera.Position))
 }
 
-func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Renderable) {
-	tx, err := r.textures.Load(renderable.TexturePath)
-	if err != nil {
-		return // silently skip entities with missing textures
+func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Renderable, anim *components.Animation) {
+	var frameW, frameH int
+	var frameImage *ebiten.Image
+
+	// If animation is present, resolve the frame texture from the clip
+	if anim != nil && anim.ClipPath != "" {
+		clip, err := r.animationLoader.Load(anim.ClipPath)
+		if err != nil {
+			// Fall back to static texture if clip load fails
+			r.drawStaticTexture(screen, cam, transform, renderable)
+			return
+		}
+
+		// Ensure frame index is in bounds
+		if anim.FrameIndex >= len(clip.Frames) {
+			return // frame index out of bounds, skip
+		}
+
+		frameRef := clip.Frames[anim.FrameIndex]
+
+		// Check if this clip uses an atlas
+		if clip.AtlasPath != "" {
+			// Load from atlas
+			atlas, err := r.atlasLoader.Load(clip.AtlasPath)
+			if err != nil {
+				return // silently skip if atlas load fails
+			}
+
+			subTex, ok := atlas.Regions[frameRef]
+			if !ok {
+				return // frame name not found in atlas
+			}
+
+			frameImage = subTex.Image
+			frameW = subTex.Width
+			frameH = subTex.Height
+		} else {
+			// Load from texture path
+			tx, err := r.textureLoader.Load(frameRef)
+			if err != nil {
+				return // silently skip if texture load fails
+			}
+
+			frameImage = tx.Image
+			frameW = tx.Width
+			frameH = tx.Height
+		}
+	} else {
+		// No animation, load static texture
+		tx, err := r.textureLoader.Load(renderable.TexturePath)
+		if err != nil {
+			return // silently skip entities with missing textures
+		}
+
+		frameImage = tx.Image
+		frameW = tx.Width
+		frameH = tx.Height
 	}
 
-	frameW, frameH := tx.Width, tx.Height
 	screenPos := cam.WorldToScreen(transform.Position)
 
 	op := &ebiten.DrawImageOptions{}
@@ -180,5 +254,28 @@ func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, trans
 	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
 
 	// Finally, draw the sprite's texture onto the screen using the options
+	screen.DrawImage(frameImage, op)
+}
+
+func (r *Renderer) drawStaticTexture(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Renderable) {
+	tx, err := r.textureLoader.Load(renderable.TexturePath)
+	if err != nil {
+		return // silently skip entities with missing textures
+	}
+
+	frameW, frameH := tx.Width, tx.Height
+	screenPos := cam.WorldToScreen(transform.Position)
+
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(-float64(frameW)/2, -float64(frameH)/2)
+	scaleX := transform.Scale.X * cam.Zoom
+	scaleY := transform.Scale.Y * cam.Zoom
+	op.GeoM.Scale(scaleX, scaleY)
+	op.GeoM.Rotate(transform.Rotation)
+	op.GeoM.Translate(screenPos.X, screenPos.Y)
+
+	cr, cg, cb, ca := colorOrDefault(transform.Color).RGBA()
+	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
+
 	screen.DrawImage(tx.Image, op)
 }

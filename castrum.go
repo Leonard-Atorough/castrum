@@ -175,7 +175,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	}
 
 	assets := assets.NewAssets(filesystem)
-	renderer := render.New(assets.Textures)
+	renderer := render.New(assets.Textures, assets.Atlas, assets.Animations)
 
 	// Create primary camera as an entity
 	cameraEntity, err := newWorld.CreateWithComponents(
