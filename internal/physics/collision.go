@@ -5,6 +5,7 @@ package physics
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
@@ -64,14 +65,15 @@ func (ce *CollisionErrors) Error() string {
 	if len(ce.Errors) == 1 {
 		return ce.Errors[0].Error()
 	}
-	msg := fmt.Sprintf("collision: %d errors: ", len(ce.Errors))
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "collision: %d errors: ", len(ce.Errors))
 	for i, err := range ce.Errors {
 		if i > 0 {
-			msg += "; "
+			msg.WriteString("; ")
 		}
-		msg += err.Error()
+		msg.WriteString(err.Error())
 	}
-	return msg
+	return msg.String()
 }
 
 // Unwrap returns the slice of accumulated errors for inspection with errors.Is/As.

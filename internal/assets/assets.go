@@ -2,8 +2,12 @@ package assets
 
 import (
 	"context"
+	"image"
 	"io/fs"
 	"os"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 type fileExtension string
@@ -12,6 +16,7 @@ var (
 	FileExtensionTexture   []fileExtension = []fileExtension{".png", ".jpg", ".jpeg"}
 	FileExtensionBlueprint fileExtension   = ".yaml"
 	FileExtensionAnimation fileExtension   = ".anim.yaml"
+	FileExtensionAtlas     fileExtension   = ".atlas.yaml"
 )
 
 // LoadResult holds the result of an async load operation.
@@ -34,6 +39,7 @@ type Assets struct {
 	Textures   *textureStore
 	Blueprints *blueprintStore
 	Animations *animationStore
+	Atlas      *atlasStore
 	jobs       chan loadRequest
 }
 
@@ -79,6 +85,8 @@ func (a *Assets) LoadSync(path string) (res any, err error) {
 		res, err = a.Animations.Load(path)
 	case hasBlueprintExtension(path):
 		res, err = a.Blueprints.Load(path)
+	case hasAtlasExtension(path):
+		res, err = a.Atlas.Load(path)
 	default:
 		return nil, nil
 	}
@@ -198,43 +206,21 @@ func hasBlueprintExtension(path string) bool {
 	return len(path) >= len(ext) && path[len(path)-len(ext):] == string(ext)
 }
 
-// type LoadRequest struct {
-// 	Path       string
-// 	ResultChan <-chan LoadResult
-// }
+func hasAtlasExtension(path string) bool {
+	ext := FileExtensionAtlas
+	return len(path) >= len(ext) && path[len(path)-len(ext):] == string(ext)
+}
 
-// type LoadResult struct {
-// 	Res any
-// 	Err error
-// }
+func loadImageFromFS(fs fs.FS, path string) (*ebiten.Image, image.Image, error) {
+	file, err := fs.Open(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer file.Close()
 
-// type AssetWorkerPool struct {
-// 	assets     *Assets
-// 	jobs       chan LoadRequest
-// 	workerPool int
-// }
-
-// func NewAssetWorkerPool(assets *Assets, workerCount int) *AssetWorkerPool {
-// 	if workerCount < 0 {
-// 		workerCount = 2
-// 	}
-// 	wp := &AssetWorkerPool{
-// 		assets:     assets,
-// 		jobs:       make(chan LoadRequest, workerCount),
-// 		workerPool: workerCount,
-// 	}
-// 	return wp
-// }
-// func (wp *AssetWorkerPool) Start() {
-// 	for i := 0; i < wp.workerPool; i++ {
-// 		go wp.worker()
-// 	}
-// }
-
-// func (wp *AssetWorkerPool) worker() {
-//     for job := range wp.jobs {
-//         res, err := wp.assets.LoadSync(job.Path)
-//         job.ResultChan <- LoadResult{Res: res, Err: err}
-//         close(job.ResultChan)
-//     }
-// }
+	img, generic, err := ebitenutil.NewImageFromFileSystem(fs, path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return img, generic, nil
+}
