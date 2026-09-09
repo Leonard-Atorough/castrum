@@ -124,7 +124,6 @@ Features under active discussion for v1.0.0 or v1.1.0. Not yet committed.
 - [ ] Save/load system (world serialization)
 - [ ] UI rendering layer and basic widgets
 - [ ] Multi-camera and viewport support
-- [ ] 2D physics engine (gravity, momentum, constraints)
 - [ ] Tilemap rendering and editing
 - [ ] Debugger/inspector tools
 - [ ] Performance profiling tools
@@ -136,6 +135,7 @@ Features under active discussion for v1.0.0 or v1.1.0. Not yet committed.
 
 Possible future features for v1.1.0+. Community feedback will guide prioritization.
 
+- [ ] 2D physics engine (gravity, momentum, constraints)
 - [ ] Atlas generation tooling (command-line atlas packer)
 - [ ] Visual scene editor
 - [ ] Networking and multiplayer support

@@ -23,7 +23,7 @@ func TestOn_SingleHandler(t *testing.T) {
 	bus := NewEventBus()
 	called := false
 
-	subID := bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	subID := bus.On(func(meta EventMeta, e TestEvent) {
 		called = true
 	}, false)
 
@@ -41,10 +41,10 @@ func TestOn_MultipleHandlers(t *testing.T) {
 	bus := NewEventBus()
 	call1, call2 := false, false
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		call1 = true
 	}, false)
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		call2 = true
 	}, false)
 
@@ -56,9 +56,9 @@ func TestOn_MultipleHandlers(t *testing.T) {
 
 func TestOn_ReturnsUniqueIDs(t *testing.T) {
 	bus := NewEventBus()
-	id1 := bus.On[TestEvent](func(meta EventMeta, e TestEvent) {}, false)
-	id2 := bus.On[TestEvent](func(meta EventMeta, e TestEvent) {}, false)
-	id3 := bus.On[TestEvent](func(meta EventMeta, e TestEvent) {}, false)
+	id1 := bus.On(func(meta EventMeta, e TestEvent) {}, false)
+	id2 := bus.On(func(meta EventMeta, e TestEvent) {}, false)
+	id3 := bus.On(func(meta EventMeta, e TestEvent) {}, false)
 
 	if id1 == id2 || id2 == id3 || id1 == id3 {
 		t.Fatalf("expected unique IDs, got %d, %d, %d", id1, id2, id3)
@@ -69,7 +69,7 @@ func TestOn_MetadataPassedCorrectly(t *testing.T) {
 	bus := NewEventBus()
 	var capturedMeta EventMeta
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		capturedMeta = meta
 	}, false)
 
@@ -91,7 +91,7 @@ func TestOn_EventDataPassedCorrectly(t *testing.T) {
 	bus := NewEventBus()
 	var capturedEvent TestEvent
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		capturedEvent = e
 	}, false)
 
@@ -107,7 +107,7 @@ func TestOnce(t *testing.T) {
 	bus := NewEventBus()
 	callCount := 0
 
-	bus.Once[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.Once(func(meta EventMeta, e TestEvent) {
 		callCount++
 	})
 
@@ -124,7 +124,7 @@ func TestUnsubscribe(t *testing.T) {
 	bus := NewEventBus()
 	called := false
 
-	subID := bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	subID := bus.On(func(meta EventMeta, e TestEvent) {
 		called = true
 	}, false)
 
@@ -145,10 +145,10 @@ func TestOffAll(t *testing.T) {
 	bus := NewEventBus()
 	call1, call2 := false, false
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		call1 = true
 	}, false)
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		call2 = true
 	}, false)
 
@@ -164,10 +164,10 @@ func TestClear(t *testing.T) {
 	bus := NewEventBus()
 	call1, call2 := false, false
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		call1 = true
 	}, false)
-	bus.On[AnotherEvent](func(meta EventMeta, e AnotherEvent) {
+	bus.On(func(meta EventMeta, e AnotherEvent) {
 		call2 = true
 	}, false)
 
@@ -188,7 +188,7 @@ func TestHasSubscribers(t *testing.T) {
 		t.Fatal("expected no subscribers initially")
 	}
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {}, false)
+	bus.On(func(meta EventMeta, e TestEvent) {}, false)
 
 	if !bus.HasSubscribers[TestEvent]() {
 		t.Fatal("expected HasSubscribers to return true")
@@ -208,12 +208,12 @@ func TestSubscriberCount(t *testing.T) {
 		t.Fatal("expected count 0 initially")
 	}
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {}, false)
+	bus.On(func(meta EventMeta, e TestEvent) {}, false)
 	if bus.SubscriberCount[TestEvent]() != 1 {
 		t.Errorf("expected count 1, got %d", bus.SubscriberCount[TestEvent]())
 	}
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {}, false)
+	bus.On(func(meta EventMeta, e TestEvent) {}, false)
 	if bus.SubscriberCount[TestEvent]() != 2 {
 		t.Errorf("expected count 2, got %d", bus.SubscriberCount[TestEvent]())
 	}
@@ -229,11 +229,11 @@ func TestHandlerPanicDoesNotCrashBus(t *testing.T) {
 	recovered := false
 	secondHandlerCalled := false
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		panic("handler panic")
 	}, false)
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		secondHandlerCalled = true
 	}, false)
 
@@ -260,7 +260,7 @@ func TestHandlerCanEmitEvents_NoDeadlock(t *testing.T) {
 	var mu sync.Mutex
 	eventChain := []string{}
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		mu.Lock()
 		eventChain = append(eventChain, "first")
 		mu.Unlock()
@@ -268,7 +268,7 @@ func TestHandlerCanEmitEvents_NoDeadlock(t *testing.T) {
 		bus.Emit(AnotherEvent{name: "chained"}, "test")
 	}, false)
 
-	bus.On[AnotherEvent](func(meta EventMeta, e AnotherEvent) {
+	bus.On(func(meta EventMeta, e AnotherEvent) {
 		mu.Lock()
 		eventChain = append(eventChain, "second")
 		mu.Unlock()
@@ -297,11 +297,11 @@ func TestDifferentEventTypes_Isolated(t *testing.T) {
 	testCalled := false
 	anotherCalled := false
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		testCalled = true
 	}, false)
 
-	bus.On[AnotherEvent](func(meta EventMeta, e AnotherEvent) {
+	bus.On(func(meta EventMeta, e AnotherEvent) {
 		anotherCalled = true
 	}, false)
 
@@ -329,7 +329,7 @@ func TestConcurrentSubscriptions(t *testing.T) {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+			bus.On(func(meta EventMeta, e TestEvent) {
 				mu.Lock()
 				subscriptionCount++
 				mu.Unlock()
@@ -355,7 +355,7 @@ func TestConcurrentEmit(t *testing.T) {
 	var mu sync.Mutex
 	emitCount := 0
 
-	bus.On[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.On(func(meta EventMeta, e TestEvent) {
 		mu.Lock()
 		emitCount++
 		mu.Unlock()
@@ -382,7 +382,7 @@ func TestOnce_ConcurrentRemoval(t *testing.T) {
 	var mu sync.Mutex
 	callCount := 0
 
-	bus.Once[TestEvent](func(meta EventMeta, e TestEvent) {
+	bus.Once(func(meta EventMeta, e TestEvent) {
 		mu.Lock()
 		callCount++
 		mu.Unlock()
