@@ -108,7 +108,7 @@ jobs:
       - name: Preview changelog (dry run)
         if: inputs.dry_run
         run: |
-          git-cliff --unreleased --unreleased-only > /tmp/preview.md
+          git-cliff --unreleased > /tmp/preview.md
           cat /tmp/preview.md >> "$GITHUB_STEP_SUMMARY"
 
   release:
