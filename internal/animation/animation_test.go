@@ -43,7 +43,7 @@ func createAnimatingEntity(world *core.World, clipID string) core.EntityID {
 			Playing:       true,
 			PlaybackSpeed: 1.0,
 		},
-		components.Renderable{
+		components.Sprite{
 			Visible: true,
 		},
 	)

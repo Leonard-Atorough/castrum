@@ -25,7 +25,7 @@ import (
 // Core components (data attached to entities)
 type (
 	Transform  = components.Transform
-	Renderable = components.Renderable
+	Renderable = components.Sprite
 	Collider   = components.Collider
 	Animation  = components.Animation
 	SceneTag   = components.SceneTag

@@ -37,7 +37,7 @@ func NewSystem(manager *Manager) *System {
 func (as *System) Init(world *core.World) error {
 	as.query = world.NewQuery().WithRequiredComponents(
 		components.Animation{},
-		components.Renderable{},
+		components.Sprite{},
 	)
 
 	return nil

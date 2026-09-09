@@ -38,7 +38,7 @@ type SceneTag struct {
 // RenderLayer represents a bitmask for render layers.
 type RenderLayer uint32 // layer index: 0-31, one of 32 possible sorting layers
 
-type Renderable struct {
+type Sprite struct {
 	TexturePath string
 	Primitive   PrimitiveType
 	Layer       RenderLayer // which of 32 layers to render on (0-31)
@@ -47,12 +47,12 @@ type Renderable struct {
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
-// NewRenderable creates a new Renderable component with the specified properties.
-func NewRenderable(texturePath string, Primitive PrimitiveType, Layer RenderLayer, SortOrder int, Visible bool, Data any) Renderable {
+// NewSprite creates a new Renderable component with the specified properties.
+func NewSprite(texturePath string, Primitive PrimitiveType, Layer RenderLayer, SortOrder int, Visible bool, Data any) Sprite {
 	if Data == nil {
 		Data = struct{}{}
 	}
-	return Renderable{
+	return Sprite{
 		TexturePath: texturePath,
 		Primitive:   Primitive,
 		Layer:       Layer,

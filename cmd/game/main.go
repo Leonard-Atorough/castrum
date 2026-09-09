@@ -86,7 +86,7 @@ func main() {
 			Position: geom.Vector2{X: 0, Y: 0},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		components.Renderable{TexturePath: "example.png", Visible: true, Layer: 0},
+		components.Sprite{TexturePath: "example.png", Visible: true, Layer: 0},
 		gamecomponents.Player{},
 		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
 		components.NewCollider(geom.NewRect(geom.NewVector2(-16, -16), geom.NewVector2(16, 16)), true, false, 0, 1),
@@ -108,7 +108,7 @@ func main() {
 					Scale:    geom.Vector2{X: 32, Y: 32},
 					Color:    color.RGBA{R: 60, G: 220, B: 60, A: 255},
 				},
-				components.Renderable{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0},
+				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0},
 				// components.Spin{AngularVelocity: 1.5 + 0.1*float64(i+j)},
 				gamecomponents.Pulse{StartScale: geom.Vector2{X: 32, Y: 32}, Amplitude: 0.5, Frequency: 1, TimeOffset: float64(i+j) * 0.1},
 			)
@@ -136,7 +136,7 @@ func main() {
 				Scale:    geom.Vector2{X: 30, Y: 30},
 				Color:    color.RGBA{R: 255, G: 100, B: 100, A: 255},
 			},
-			components.Renderable{Primitive: components.PrimitiveKindCircle, Visible: true, Layer: 0},
+			components.Sprite{Primitive: components.PrimitiveKindCircle, Visible: true, Layer: 0},
 			// components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
 		)
 		if err != nil {

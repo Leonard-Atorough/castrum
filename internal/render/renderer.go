@@ -16,7 +16,7 @@ import (
 
 type renderItem struct {
 	entityID   core.EntityID
-	renderable components.Renderable
+	renderable components.Sprite
 	transform  components.Transform
 	animation  *components.Animation
 }
@@ -88,11 +88,11 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
 	// Get the camera's visible world-space bounds for frustum culling
 	viewportBounds := primaryCamera.ViewportBounds()
 
-	for entry := range world.NewQuery().WithRequiredComponents(components.Renderable{}, components.Transform{}).Execute() {
+	for entry := range world.NewQuery().WithRequiredComponents(components.Sprite{}, components.Transform{}).Execute() {
 		if !entry.Entity.IsAlive() {
 			continue
 		}
-		renderable, _ := entry.Get[components.Renderable]()
+		renderable, _ := entry.Get[components.Sprite]()
 		transform, _ := entry.Get[components.Transform]()
 
 		entityBounds := geom.NewRect(
@@ -175,7 +175,7 @@ func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *core.World) {
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), primaryCamera.Position))
 }
 
-func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Renderable, anim *components.Animation) {
+func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite, anim *components.Animation) {
 	var frameW, frameH int
 	var frameImage *ebiten.Image
 
@@ -236,7 +236,7 @@ func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, trans
 	screen.DrawImage(frameImage, op)
 }
 
-func (r *Renderer) drawStaticTexture(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Renderable) {
+func (r *Renderer) drawStaticTexture(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite) {
 	tx, err := r.textureLoader.Load(renderable.TexturePath)
 	if err != nil {
 		return // silently skip entities with missing textures
