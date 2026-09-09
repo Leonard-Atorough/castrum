@@ -3,17 +3,17 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
   workflow_dispatch:
     inputs:
       bump:
-        description: 'Version bump (auto = derived from conventional commits)'
+        description: "Version bump (auto = derived from conventional commits)"
         type: choice
         options: [auto, patch, minor, major]
         default: auto
       dry_run:
-        description: 'Compute version + changelog preview only'
+        description: "Compute version + changelog preview only"
         type: boolean
         default: false
 
@@ -88,10 +88,17 @@ jobs:
       - name: Verify release contains changes
         run: |
           LATEST="$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)"
-          COUNT=$(git rev-list --count "${LATEST:-HEAD}..HEAD")
-          echo "Commits since ${LATEST:-beginning}: ${COUNT}"
+          if [[ -z "${LATEST}" ]]; then
+            # Genesis release: any commit at all is releasable
+            COUNT=$(git rev-list --count HEAD)
+            BASE="beginning"
+          else
+            COUNT=$(git rev-list --count "${LATEST}..HEAD")
+            BASE="${LATEST}"
+          fi
+          echo "Commits since ${BASE}: ${COUNT}"
           if (( COUNT == 0 )); then
-            echo "Nothing to release — no commits since ${LATEST}"
+            echo "Nothing to release — no commits since ${BASE}"
             exit 1
           fi
 
