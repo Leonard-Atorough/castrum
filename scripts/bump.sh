@@ -38,7 +38,9 @@ if [[ "${MAJOR}" == "0" && "${LEVEL}" == "major" ]]; then
 fi
 
 # Honor explicit override
-LEVEL="${MODE}"
+if [[ "${MODE}" != "auto" ]]; then
+  LEVEL="${MODE}"
+fi
 
 case "${LEVEL}" in
   major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
