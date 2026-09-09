@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"image"
 	"strings"
-	"testing"
 	"sync"
+	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -18,7 +18,7 @@ func contains(s, substr string) bool {
 // mockAtlasStorer is a mock implementation of atlasStorer for testing Builder in isolation
 type mockAtlasStorer struct {
 	storedAtlas *TextureAtlas
-	storedID   string
+	storedID    string
 }
 
 func (m *mockAtlasStorer) store(id string, atlas *TextureAtlas) {
@@ -572,4 +572,3 @@ func TestSubTexture(t *testing.T) {
 // 1. Create a temporary filesystem with a test JSON file
 // 2. Test successful metadata loading
 // 3. Test error cases (invalid JSON, missing file, etc.)
-
