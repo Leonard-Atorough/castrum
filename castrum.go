@@ -57,7 +57,7 @@ type (
 	// AnimationManager provides programmatic creation and storage of animation clips
 	AnimationManager = animation.AnimationClipStore
 	// AtlasManager provides programmatic creation and storage of texture atlases
-	AtlasManager = atlas.Manager
+	AtlasManager = atlas.AtlasStore
 )
 
 type (
