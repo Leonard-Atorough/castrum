@@ -57,16 +57,7 @@ jobs:
 
       - name: Run go vet
         run: |
-          go vet \
-            ./geom \
-            ./internal/animationsystem \
-            ./internal/assets \
-            ./internal/camerasystem \
-            ./internal/ecs \
-            ./internal/physicssystem \
-            ./internal/scene \
-            ./internal/spatial \
-            ./internal/timersystem
+          go vet $(go list ./... | grep -v '/internal/render')
 
   test:
     name: Tests
@@ -90,16 +81,7 @@ jobs:
 
       - name: Run tests
         run: |
-          xvfb-run -a go test -v -race -coverprofile=coverage.out \
-            ./geom \
-            ./internal/animationsystem \
-            ./internal/assets \
-            ./internal/camerasystem \
-            ./internal/ecs \
-            ./internal/physicssystem \
-            ./internal/scene \
-            ./internal/spatial \
-            ./internal/timersystem
+          xvfb-run -a go test -v -race -coverprofile=coverage.out $(go list ./... | grep -v '/internal/render')
 
       - name: Check coverage threshold
         run: |
