@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
+	"github.com/leonard-atorough/castrum/internal/animation"
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
@@ -42,18 +43,6 @@ func (m *mockAtlasLoader) Load(path string) (*assets.TextureAtlas, error) {
 	return atlas, nil
 }
 
-type mockAnimationLoader struct {
-	clips map[string]*assets.AnimationClip
-}
-
-func (m *mockAnimationLoader) Load(path string) (*assets.AnimationClip, error) {
-	clip, ok := m.clips[path]
-	if !ok {
-		return nil, fmt.Errorf("animation clip not found: %s", path)
-	}
-	return clip, nil
-}
-
 func newTestRenderer() *Renderer {
 	// Create a 1x1 ebiten.Image as a minimal sprite (we're not testing texture
 	// loading, just that rendering doesn't panic).
@@ -63,8 +52,8 @@ func newTestRenderer() *Renderer {
 		"square": {Path: "square", Image: testImage, Width: 1, Height: 1},
 	}}
 	atlasLoader := &mockAtlasLoader{atlases: map[string]*assets.TextureAtlas{}}
-	animationLoader := &mockAnimationLoader{clips: map[string]*assets.AnimationClip{}}
-	return New(textureLoader, atlasLoader, animationLoader)
+	animationMgr := animation.NewManager()
+	return New(textureLoader, atlasLoader, animationMgr)
 }
 
 // setupTestWorldWithCamera creates a world with a primary camera entity.

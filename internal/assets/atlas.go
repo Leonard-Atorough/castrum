@@ -1,18 +1,32 @@
 package assets
 
 import (
+	"encoding/json"
 	"fmt"
 	"image"
 	"io/fs"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"go.yaml.in/yaml/v3"
 )
 
-type atlasDef struct {
-	Path    string            `yaml:"path"`
-	Regions map[string][4]int `yaml:"regions"`
+// Frame represents the coordinates and dimensions of a sprite frame.
+type Frame struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+	W int `json:"w"`
+	H int `json:"h"`
+}
+
+// FrameData contains metadata for a sprite frame.
+type FrameData struct {
+	Frame Frame `json:"frame"`
+}
+
+// AtlasDef is the JSON structure for an atlas file.
+type AtlasDef struct {
+	FileName string               `json:"filename"`
+	Frames   map[string]FrameData `json:"frames"`
 }
 
 type SubTexture struct {
@@ -22,7 +36,7 @@ type SubTexture struct {
 }
 
 type TextureAtlas struct {
-	Path    string   // .atlas.yaml files
+	Path    string   // .atlas.json files
 	Texture *Texture // loaded from/using texture store
 	Regions map[string]*SubTexture
 }
@@ -58,39 +72,40 @@ func (s *atlasStore) Load(path string) (*TextureAtlas, error) {
 	}
 	defer file.Close()
 
-	var def atlasDef
-	decoder := yaml.NewDecoder(file)
+	var def AtlasDef
+	decoder := json.NewDecoder(file)
 	if err := decoder.Decode(&def); err != nil {
 		return nil, fmt.Errorf("failed to decode atlas file: %w", err)
 	}
 
 	atlas := TextureAtlas{
-		Path:    def.Path,
+		Path:    def.FileName,
 		Texture: &Texture{},
 		Regions: make(map[string]*SubTexture),
 	}
 
-	//eagerly load texture
-	texture, generic, err := loadImageFromFS(s.fs, def.Path)
+	// Eagerly load texture
+	texture, generic, err := loadImageFromFS(s.fs, def.FileName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load atlas texture: %w", err)
 	}
-	atlas.Texture.Path = def.Path
+	atlas.Texture.Path = def.FileName
 	atlas.Texture.Image = texture
 	atlas.Texture.Width = generic.Bounds().Dx()
 	atlas.Texture.Height = generic.Bounds().Dy()
 
-	// slice using atlas def (transform to rect using geom.rect)
-	for name, r := range def.Regions {
-		rect := image.Rect(r[0], r[1], r[2], r[3])
+	// Parse frames and create SubTextures
+	for name, frameData := range def.Frames {
+		f := frameData.Frame
+		rect := image.Rect(f.X, f.Y, f.X+f.W, f.Y+f.H)
 		if !rect.In(texture.Bounds()) {
 			return nil, fmt.Errorf("region %s is out of bounds of the texture", name)
 		}
 		atlas.Regions[name] = &SubTexture{
 			Name:   name,
 			Image:  atlas.Texture.Image.SubImage(rect).(*ebiten.Image),
-			Width:  rect.Dx(),
-			Height: rect.Dy(),
+			Width:  f.W,
+			Height: f.H,
 		}
 	}
 

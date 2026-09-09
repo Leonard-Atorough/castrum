@@ -163,7 +163,10 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	if err = systems.Register("camera", -1, &camera.System{}, newWorld); err != nil {
 		return nil, err
 	}
-	if err = systems.Register("animation", -1, &animation.System{}, newWorld); err != nil {
+	// Create animation manager and register it as a resource
+	animMgr := animation.NewManager()
+	core.SetResource(newWorld, animMgr)
+	if err = systems.Register("animation", -1, animation.NewSystem(animMgr), newWorld); err != nil {
 		return nil, err
 	}
 	spatial, err := spatial.NewManager(config.World.GridCellSize)
@@ -175,7 +178,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	}
 
 	assets := assets.NewAssets(filesystem)
-	renderer := render.New(assets.Textures, assets.Atlas, assets.Animations)
+	renderer := render.New(assets.Textures, assets.Atlas, animMgr)
 
 	// Create primary camera as an entity
 	cameraEntity, err := newWorld.CreateWithComponents(

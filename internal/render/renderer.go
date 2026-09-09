@@ -9,6 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
+	"github.com/leonard-atorough/castrum/internal/animation"
 	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
 )
@@ -32,25 +33,20 @@ type AtlasLoader interface {
 	Load(path string) (*assets.TextureAtlas, error)
 }
 
-// AnimationLoader is the interface for loading animation clips.
-type AnimationLoader interface {
-	Load(path string) (*assets.AnimationClip, error)
-}
-
 type Renderer struct {
-	textureLoader   TextureLoader
-	atlasLoader     AtlasLoader
-	animationLoader AnimationLoader
-	Primitive       *PrimitiveRenderer
-	cameraQuery     *core.Query
+	textureLoader TextureLoader
+	atlasLoader   AtlasLoader
+	animationMgr  *animation.Manager
+	Primitive     *PrimitiveRenderer
+	cameraQuery   *core.Query
 }
 
-func New(textureLoader TextureLoader, atlasLoader AtlasLoader, animationLoader AnimationLoader) *Renderer {
+func New(textureLoader TextureLoader, atlasLoader AtlasLoader, animationMgr *animation.Manager) *Renderer {
 	return &Renderer{
-		textureLoader:   textureLoader,
-		atlasLoader:     atlasLoader,
-		animationLoader: animationLoader,
-		Primitive:       NewPrimitiveRenderer(),
+		textureLoader: textureLoader,
+		atlasLoader:   atlasLoader,
+		animationMgr:  animationMgr,
+		Primitive:     NewPrimitiveRenderer(),
 	}
 }
 
@@ -185,9 +181,9 @@ func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, trans
 
 	// If animation is present, resolve the frame texture from the clip
 	if anim != nil && anim.ClipPath != "" {
-		clip, err := r.animationLoader.Load(anim.ClipPath)
-		if err != nil {
-			// Fall back to static texture if clip load fails
+		clip := r.animationMgr.Get(anim.ClipPath)
+		if clip == nil {
+			// Fall back to static texture if clip not found
 			r.drawStaticTexture(screen, cam, transform, renderable)
 			return
 		}
@@ -197,35 +193,18 @@ func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, trans
 			return // frame index out of bounds, skip
 		}
 
-		frameRef := clip.Frames[anim.FrameIndex]
+		// Get the region name from the clip's frame list
+		regionName := clip.Frames[anim.FrameIndex]
 
-		// Check if this clip uses an atlas
-		if clip.AtlasPath != "" {
-			// Load from atlas
-			atlas, err := r.atlasLoader.Load(clip.AtlasPath)
-			if err != nil {
-				return // silently skip if atlas load fails
-			}
-
-			subTex, ok := atlas.Regions[frameRef]
-			if !ok {
-				return // frame name not found in atlas
-			}
-
-			frameImage = subTex.Image
-			frameW = subTex.Width
-			frameH = subTex.Height
-		} else {
-			// Load from texture path
-			tx, err := r.textureLoader.Load(frameRef)
-			if err != nil {
-				return // silently skip if texture load fails
-			}
-
-			frameImage = tx.Image
-			frameW = tx.Width
-			frameH = tx.Height
+		// Get the subimage from the atlas
+		subTex, ok := clip.Atlas.Regions[regionName]
+		if !ok {
+			return // region not found in atlas
 		}
+
+		frameImage = subTex.Image
+		frameW = subTex.Width
+		frameH = subTex.Height
 	} else {
 		// No animation, load static texture
 		tx, err := r.textureLoader.Load(renderable.TexturePath)

@@ -5,37 +5,43 @@ import (
 	"testing/fstest"
 )
 
-const validAtlasYAML = `path: "sprites/hero.png"
-regions:
-  idle_1: [0, 0, 32, 32]
-  idle_2: [32, 0, 64, 32]
-  idle_3: [64, 0, 96, 32]
-  walk_1: [0, 32, 32, 64]
-  walk_2: [32, 32, 64, 64]
-`
+const validAtlasJSON = `{
+  "path": "sprites/hero.png",
+  "frames": {
+    "idle_1": {"frame": {"x": 0, "y": 0, "w": 32, "h": 32}},
+    "idle_2": {"frame": {"x": 32, "y": 0, "w": 32, "h": 32}},
+    "idle_3": {"frame": {"x": 64, "y": 0, "w": 32, "h": 32}},
+    "walk_1": {"frame": {"x": 0, "y": 32, "w": 32, "h": 32}},
+    "walk_2": {"frame": {"x": 32, "y": 32, "w": 32, "h": 32}}
+  }
+}`
 
-const invalidAtlasOutOfBounds = `path: "sprites/hero.png"
-regions:
-  oob: [200, 200, 32, 32]
-`
+const invalidAtlasOutOfBoundsJSON = `{
+  "path": "sprites/hero.png",
+  "frames": {
+    "oob": {"frame": {"x": 200, "y": 200, "w": 32, "h": 32}}
+  }
+}`
 
-const enemyAtlasYAML = `path: "sprites/enemy.png"
-regions:
-  idle_1: [0, 0, 32, 32]
-  idle_2: [32, 0, 64, 32]
-`
+const enemyAtlasJSON = `{
+  "path": "sprites/enemy.png",
+  "frames": {
+    "idle_1": {"frame": {"x": 0, "y": 0, "w": 32, "h": 32}},
+    "idle_2": {"frame": {"x": 32, "y": 0, "w": 32, "h": 32}}
+  }
+}`
 
 func TestAtlasStoreLoad(t *testing.T) {
 	t.Run("loads and caches a valid atlas with regions", func(t *testing.T) {
 		// Create a 96x64 test image to fit all regions
 		pngData := generateTestPNG(96, 64)
 		fs := fstest.MapFS{
-			"hero.atlas.yaml":  {Data: []byte(validAtlasYAML)},
+			"hero.atlas.json":  {Data: []byte(validAtlasJSON)},
 			"sprites/hero.png": {Data: pngData},
 		}
 
 		store := newAtlasStore(fs)
-		atlas, err := store.Load("hero.atlas.yaml")
+		atlas, err := store.Load("hero.atlas.json")
 		if err != nil {
 			t.Fatalf("Load failed: %v", err)
 		}
@@ -71,7 +77,7 @@ func TestAtlasStoreLoad(t *testing.T) {
 		}
 
 		// Verify caching
-		cached, exists := store.atlases["hero.atlas.yaml"]
+		cached, exists := store.atlases["hero.atlas.json"]
 		if !exists {
 			t.Fatal("expected atlas to be cached")
 		}
@@ -83,13 +89,13 @@ func TestAtlasStoreLoad(t *testing.T) {
 	t.Run("returns cached atlas on subsequent loads", func(t *testing.T) {
 		pngData := generateTestPNG(96, 64)
 		fs := fstest.MapFS{
-			"hero.atlas.yaml":  {Data: []byte(validAtlasYAML)},
+			"hero.atlas.json":  {Data: []byte(validAtlasJSON)},
 			"sprites/hero.png": {Data: pngData},
 		}
 
 		store := newAtlasStore(fs)
-		atlas1, _ := store.Load("hero.atlas.yaml")
-		atlas2, _ := store.Load("hero.atlas.yaml")
+		atlas1, _ := store.Load("hero.atlas.json")
+		atlas2, _ := store.Load("hero.atlas.json")
 
 		if atlas1 != atlas2 {
 			t.Fatal("expected same object from cache")
@@ -100,7 +106,7 @@ func TestAtlasStoreLoad(t *testing.T) {
 		fs := fstest.MapFS{}
 		store := newAtlasStore(fs)
 
-		_, err := store.Load("missing.atlas.yaml")
+		_, err := store.Load("missing.atlas.json")
 		if err == nil {
 			t.Fatal("expected error for missing atlas file")
 		}
@@ -109,7 +115,7 @@ func TestAtlasStoreLoad(t *testing.T) {
 	t.Run("returns error when filesystem is nil", func(t *testing.T) {
 		store := newAtlasStore(nil)
 
-		_, err := store.Load("any.atlas.yaml")
+		_, err := store.Load("any.atlas.json")
 		if err == nil {
 			t.Fatal("expected error when filesystem is nil")
 		}
@@ -117,12 +123,12 @@ func TestAtlasStoreLoad(t *testing.T) {
 
 	t.Run("returns error for missing texture file", func(t *testing.T) {
 		fs := fstest.MapFS{
-			"hero.atlas.yaml": {Data: []byte(validAtlasYAML)},
+			"hero.atlas.json": {Data: []byte(validAtlasJSON)},
 			// But sprites/hero.png is missing
 		}
 
 		store := newAtlasStore(fs)
-		_, err := store.Load("hero.atlas.yaml")
+		_, err := store.Load("hero.atlas.json")
 		if err == nil {
 			t.Fatal("expected error for missing texture file")
 		}
@@ -132,39 +138,39 @@ func TestAtlasStoreLoad(t *testing.T) {
 		// Create a small 32x32 image, but atlas expects 200x200 region
 		pngData := generateTestPNG(32, 32)
 		fs := fstest.MapFS{
-			"oob.atlas.yaml":   {Data: []byte(invalidAtlasOutOfBounds)},
+			"oob.atlas.json":   {Data: []byte(invalidAtlasOutOfBoundsJSON)},
 			"sprites/hero.png": {Data: pngData},
 		}
 
 		store := newAtlasStore(fs)
-		_, err := store.Load("oob.atlas.yaml")
+		_, err := store.Load("oob.atlas.json")
 		if err == nil {
 			t.Fatal("expected error for out-of-bounds region")
 		}
 	})
 
-	t.Run("handles invalid YAML gracefully", func(t *testing.T) {
-		invalidYAML := "path: [not valid"
+	t.Run("handles invalid JSON gracefully", func(t *testing.T) {
+		invalidJSON := "not valid json"
 		fs := fstest.MapFS{
-			"broken.atlas.yaml": {Data: []byte(invalidYAML)},
+			"broken.atlas.json": {Data: []byte(invalidJSON)},
 		}
 
 		store := newAtlasStore(fs)
-		_, err := store.Load("broken.atlas.yaml")
+		_, err := store.Load("broken.atlas.json")
 		if err == nil {
-			t.Fatal("expected error for malformed YAML")
+			t.Fatal("expected error for malformed JSON")
 		}
 	})
 
 	t.Run("creates SubTexture with correct properties", func(t *testing.T) {
 		pngData := generateTestPNG(96, 64)
 		fs := fstest.MapFS{
-			"hero.atlas.yaml":  {Data: []byte(validAtlasYAML)},
+			"hero.atlas.json":  {Data: []byte(validAtlasJSON)},
 			"sprites/hero.png": {Data: pngData},
 		}
 
 		store := newAtlasStore(fs)
-		atlas, _ := store.Load("hero.atlas.yaml")
+		atlas, _ := store.Load("hero.atlas.json")
 
 		walk1 := atlas.Regions["walk_1"]
 		if walk1.Image == nil {
@@ -179,21 +185,23 @@ func TestAtlasStoreLoad(t *testing.T) {
 	})
 
 	t.Run("handles atlas with different region sizes", func(t *testing.T) {
-		mixedYAML := `path: "sprites/mixed.png"
-regions:
-  small: [0, 0, 16, 16]
-  medium: [16, 0, 48, 32]
-  large: [48, 0, 112, 64]
-`
+		mixedJSON := `{
+  "path": "sprites/mixed.png",
+  "frames": {
+    "small": {"frame": {"x": 0, "y": 0, "w": 16, "h": 16}},
+    "medium": {"frame": {"x": 16, "y": 0, "w": 32, "h": 32}},
+    "large": {"frame": {"x": 48, "y": 0, "w": 64, "h": 64}}
+  }
+}`
 		// Create a 112x64 image to fit all regions
 		pngData := generateTestPNG(112, 64)
 		fs := fstest.MapFS{
-			"mixed.atlas.yaml":  {Data: []byte(mixedYAML)},
+			"mixed.atlas.json":  {Data: []byte(mixedJSON)},
 			"sprites/mixed.png": {Data: pngData},
 		}
 
 		store := newAtlasStore(fs)
-		atlas, err := store.Load("mixed.atlas.yaml")
+		atlas, err := store.Load("mixed.atlas.json")
 		if err != nil {
 			t.Fatalf("Load failed: %v", err)
 		}
@@ -213,15 +221,15 @@ regions:
 		pngData1 := generateTestPNG(96, 64)
 		pngData2 := generateTestPNG(96, 64)
 		fs := fstest.MapFS{
-			"hero.atlas.yaml":   {Data: []byte(validAtlasYAML)},
+			"hero.atlas.json":   {Data: []byte(validAtlasJSON)},
 			"sprites/hero.png":  {Data: pngData1},
-			"enemy.atlas.yaml":  {Data: []byte(enemyAtlasYAML)},
+			"enemy.atlas.json":  {Data: []byte(enemyAtlasJSON)},
 			"sprites/enemy.png": {Data: pngData2},
 		}
 
 		store := newAtlasStore(fs)
-		atlas1, _ := store.Load("hero.atlas.yaml")
-		atlas2, _ := store.Load("enemy.atlas.yaml")
+		atlas1, _ := store.Load("hero.atlas.json")
+		atlas2, _ := store.Load("enemy.atlas.json")
 
 		if atlas1.Texture.Path == atlas2.Texture.Path {
 			t.Fatal("expected different texture paths")
@@ -233,12 +241,12 @@ func TestTextureAtlasStructure(t *testing.T) {
 	t.Run("TextureAtlas has correct fields", func(t *testing.T) {
 		pngData := generateTestPNG(96, 64)
 		fs := fstest.MapFS{
-			"hero.atlas.yaml":  {Data: []byte(validAtlasYAML)},
+			"hero.atlas.json":  {Data: []byte(validAtlasJSON)},
 			"sprites/hero.png": {Data: pngData},
 		}
 
 		store := newAtlasStore(fs)
-		atlas, _ := store.Load("hero.atlas.yaml")
+		atlas, _ := store.Load("hero.atlas.json")
 
 		if atlas.Path == "" {
 			t.Fatal("expected non-empty Path")
@@ -256,12 +264,12 @@ func TestSubTextureStructure(t *testing.T) {
 	t.Run("SubTexture has correct fields", func(t *testing.T) {
 		pngData := generateTestPNG(96, 64)
 		fs := fstest.MapFS{
-			"hero.atlas.yaml":  {Data: []byte(validAtlasYAML)},
+			"hero.atlas.json":  {Data: []byte(validAtlasJSON)},
 			"sprites/hero.png": {Data: pngData},
 		}
 
 		store := newAtlasStore(fs)
-		atlas, _ := store.Load("hero.atlas.yaml")
+		atlas, _ := store.Load("hero.atlas.json")
 
 		subTex := atlas.Regions["idle_1"]
 		if subTex.Name == "" {
@@ -280,7 +288,7 @@ func TestAtlasStoreThreadSafety(t *testing.T) {
 	t.Run("concurrent loads don't cause races", func(t *testing.T) {
 		pngData := generateTestPNG(96, 64)
 		fs := fstest.MapFS{
-			"hero.atlas.yaml":  {Data: []byte(validAtlasYAML)},
+			"hero.atlas.json":  {Data: []byte(validAtlasJSON)},
 			"sprites/hero.png": {Data: pngData},
 		}
 
@@ -289,11 +297,11 @@ func TestAtlasStoreThreadSafety(t *testing.T) {
 		// Simulate concurrent loads
 		done := make(chan error, 2)
 		go func() {
-			_, err := store.Load("hero.atlas.yaml")
+			_, err := store.Load("hero.atlas.json")
 			done <- err
 		}()
 		go func() {
-			_, err := store.Load("hero.atlas.yaml")
+			_, err := store.Load("hero.atlas.json")
 			done <- err
 		}()
 
@@ -312,12 +320,12 @@ func TestSubImageSharing(t *testing.T) {
 	t.Run("SubTexture images are SubImages of parent", func(t *testing.T) {
 		pngData := generateTestPNG(128, 64)
 		fs := fstest.MapFS{
-			"hero.atlas.yaml":  {Data: []byte(validAtlasYAML)},
+			"hero.atlas.json":  {Data: []byte(validAtlasJSON)},
 			"sprites/hero.png": {Data: pngData},
 		}
 
 		store := newAtlasStore(fs)
-		atlas, _ := store.Load("hero.atlas.yaml")
+		atlas, _ := store.Load("hero.atlas.json")
 
 		// Verify that SubTexture images were created via SubImage
 		// (we can't directly verify GPU memory sharing, but we can verify they're not nil)

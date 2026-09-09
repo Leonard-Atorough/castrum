@@ -15,8 +15,7 @@ type fileExtension string
 var (
 	FileExtensionTexture   []fileExtension = []fileExtension{".png", ".jpg", ".jpeg"}
 	FileExtensionBlueprint fileExtension   = ".yaml"
-	FileExtensionAnimation fileExtension   = ".anim.yaml"
-	FileExtensionAtlas     fileExtension   = ".atlas.yaml"
+	FileExtensionAtlas     fileExtension   = ".json"
 )
 
 // LoadResult holds the result of an async load operation.
@@ -31,14 +30,16 @@ type loadRequest struct {
 	resultCh chan<- LoadResult
 }
 
-// Assets manages loading and caching of game resources (textures, animations, blueprints).
+// Assets manages loading and caching of game resources (textures, blueprints, and atlases).
 // Supports both synchronous and asynchronous loading with concurrency control via an
 // internal worker pool. LoadSync is blocking and ideal for initialization; LoadAsync and
 // LoadBatch use workers for concurrent loading with context cancellation support.
+//
+// Animation clips are not loaded from disk; they are created programmatically via
+// the AnimationManager in the animation package.
 type Assets struct {
 	Textures   *textureStore
 	Blueprints *blueprintStore
-	Animations *animationStore
 	Atlas      *atlasStore
 	jobs       chan loadRequest
 }
@@ -53,7 +54,7 @@ func NewAssets(filesystem fs.FS) *Assets {
 	a := &Assets{
 		Textures:   newTextureStore(filesystem),
 		Blueprints: newBlueprintStore(filesystem),
-		Animations: newAnimationStore(filesystem),
+		Atlas:      newAtlasStore(filesystem),
 		jobs:       make(chan loadRequest, 100),
 	}
 
@@ -76,13 +77,11 @@ func NewAssets(filesystem fs.FS) *Assets {
 // For known types, the specific stores can be used directly:
 //   - Assets.Textures.Load(path) for image assets
 //   - Assets.Blueprints.Load(path) for entity blueprints
-//   - Assets.Animations.Load(path) for animation clips
+//   - Assets.Atlas.Load(path) for texture atlases
 func (a *Assets) LoadSync(path string) (res any, err error) {
 	switch {
 	case hasTextureExtension(path):
 		res, err = a.Textures.Load(path)
-	case hasAnimationExtension(path):
-		res, err = a.Animations.Load(path)
 	case hasBlueprintExtension(path):
 		res, err = a.Blueprints.Load(path)
 	case hasAtlasExtension(path):
@@ -194,11 +193,6 @@ func hasTextureExtension(path string) bool {
 		}
 	}
 	return false
-}
-
-func hasAnimationExtension(path string) bool {
-	ext := FileExtensionAnimation
-	return len(path) >= len(ext) && path[len(path)-len(ext):] == string(ext)
 }
 
 func hasBlueprintExtension(path string) bool {

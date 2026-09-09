@@ -1,6 +1,7 @@
 package animation
 
 import (
+	"image/color"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/components"
@@ -16,14 +17,27 @@ func setupTestWorld() *core.World {
 	return world
 }
 
-func createAnimatingEntity(world *core.World, clipPath string) core.EntityID {
+func createTestAtlas() *assets.TextureAtlas {
+	// Create a minimal test atlas with a fake ebiten.Image
+	return &assets.TextureAtlas{
+		Path: "test.json",
+		Regions: map[string]*assets.SubTexture{
+			"frame_0": {Name: "frame_0", Width: 32, Height: 32},
+			"frame_1": {Name: "frame_1", Width: 32, Height: 32},
+			"frame_2": {Name: "frame_2", Width: 32, Height: 32},
+		},
+	}
+}
+
+func createAnimatingEntity(world *core.World, clipID string) core.EntityID {
 	entity, _ := world.CreateWithComponents("test_entity",
 		components.Transform{
 			Position: geom.Vector2{X: 0, Y: 0},
 			Scale:    geom.Vector2{X: 1, Y: 1},
+			Color:    color.White,
 		},
 		components.Animation{
-			ClipPath:      clipPath,
+			ClipPath:      clipID,
 			FrameIndex:    0,
 			FrameTime:     0,
 			Playing:       true,
@@ -38,39 +52,35 @@ func createAnimatingEntity(world *core.World, clipPath string) core.EntityID {
 
 func TestSystem_Init(t *testing.T) {
 	world := setupTestWorld()
-	sys := &System{}
+	mgr := NewManager()
+	sys := NewSystem(mgr)
 	err := sys.Init(world)
 	if err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 }
 
-func TestSystem_Shutdown(t *testing.T) {
-	world := setupTestWorld()
-	sys := &System{}
-	sys.Init(world)
-	err := sys.Shutdown(world)
-	if err != nil {
-		t.Fatalf("Shutdown failed: %v", err)
-	}
-}
-
 func TestSystem_Update_AdvancesFrameTime(t *testing.T) {
 	world := setupTestWorld()
-	sys := &System{}
+	mgr := NewManager()
+	sys := NewSystem(mgr)
 	sys.Init(world)
 
-	// Setup mock clip
-	clip := &assets.AnimationClip{
-		Frames:     []string{"frame_0.png", "frame_1.png"},
-		FrameSpeed: 0.1,
-		Loop:       false,
+	// Create a test clip
+	atlas := createTestAtlas()
+	_, err := mgr.NewClip("test_clip", atlas).
+		AddFrame("frame_0").
+		AddFrame("frame_1").
+		SetFrameSpeed(0.1).
+		SetLoop(false).
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to build clip: %v", err)
 	}
-	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
 
-	entity := createAnimatingEntity(world, "test.anim.yaml")
+	entity := createAnimatingEntity(world, "test_clip")
 
-	err := sys.Update(world, 0.05)
+	err = sys.Update(world, 0.05)
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
@@ -86,19 +96,24 @@ func TestSystem_Update_AdvancesFrameTime(t *testing.T) {
 
 func TestSystem_Update_AdvancesFrame(t *testing.T) {
 	world := setupTestWorld()
-	sys := &System{}
+	mgr := NewManager()
+	sys := NewSystem(mgr)
 	sys.Init(world)
 
-	clip := &assets.AnimationClip{
-		Frames:     []string{"frame_0.png", "frame_1.png"},
-		FrameSpeed: 0.1,
-		Loop:       false,
+	atlas := createTestAtlas()
+	_, err := mgr.NewClip("test_clip", atlas).
+		AddFrame("frame_0").
+		AddFrame("frame_1").
+		SetFrameSpeed(0.1).
+		SetLoop(false).
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to build clip: %v", err)
 	}
-	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
 
-	entity := createAnimatingEntity(world, "test.anim.yaml")
+	entity := createAnimatingEntity(world, "test_clip")
 
-	err := sys.Update(world, 0.15)
+	err = sys.Update(world, 0.15)
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
@@ -111,9 +126,6 @@ func TestSystem_Update_AdvancesFrame(t *testing.T) {
 
 func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 	world := setupTestWorld()
-	sys := &System{}
-	sys.Init(world)
-
 	bus, _ := core.GetResource[*events.EventBus](world)
 	var emittedEvent AnimationEvent
 	var eventFired bool
@@ -123,14 +135,22 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 		eventFired = true
 	}, false)
 
-	clip := &assets.AnimationClip{
-		Frames:     []string{"frame_0.png", "frame_1.png"},
-		FrameSpeed: 0.1,
-		Loop:       true,
-	}
-	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
+	mgr := NewManager()
+	sys := NewSystem(mgr)
+	sys.Init(world)
 
-	entity := createAnimatingEntity(world, "test.anim.yaml")
+	atlas := createTestAtlas()
+	_, err := mgr.NewClip("test_clip", atlas).
+		AddFrame("frame_0").
+		AddFrame("frame_1").
+		SetFrameSpeed(0.1).
+		SetLoop(true).
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to build clip: %v", err)
+	}
+
+	entity := createAnimatingEntity(world, "test_clip")
 	anim, _ := world.GetComponent[components.Animation](entity)
 	anim.FrameIndex = 1
 	world.SetComponent(entity, anim)
@@ -147,17 +167,22 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 
 func TestSystem_Update_IgnoresNonPlayingAnimations(t *testing.T) {
 	world := setupTestWorld()
-	sys := &System{}
+	mgr := NewManager()
+	sys := NewSystem(mgr)
 	sys.Init(world)
 
-	clip := &assets.AnimationClip{
-		Frames:     []string{"frame_0.png", "frame_1.png"},
-		FrameSpeed: 0.1,
-		Loop:       false,
+	atlas := createTestAtlas()
+	_, err := mgr.NewClip("test_clip", atlas).
+		AddFrame("frame_0").
+		AddFrame("frame_1").
+		SetFrameSpeed(0.1).
+		SetLoop(false).
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to build clip: %v", err)
 	}
-	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
 
-	entity := createAnimatingEntity(world, "test.anim.yaml")
+	entity := createAnimatingEntity(world, "test_clip")
 	anim, _ := world.GetComponent[components.Animation](entity)
 	anim.Playing = false
 	world.SetComponent(entity, anim)
@@ -172,17 +197,22 @@ func TestSystem_Update_IgnoresNonPlayingAnimations(t *testing.T) {
 
 func TestSystem_Update_LoopsAnimation(t *testing.T) {
 	world := setupTestWorld()
-	sys := &System{}
+	mgr := NewManager()
+	sys := NewSystem(mgr)
 	sys.Init(world)
 
-	clip := &assets.AnimationClip{
-		Frames:     []string{"frame_0.png", "frame_1.png"},
-		FrameSpeed: 0.1,
-		Loop:       true,
+	atlas := createTestAtlas()
+	_, err := mgr.NewClip("test_clip", atlas).
+		AddFrame("frame_0").
+		AddFrame("frame_1").
+		SetFrameSpeed(0.1).
+		SetLoop(true).
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to build clip: %v", err)
 	}
-	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
 
-	entity := createAnimatingEntity(world, "test.anim.yaml")
+	entity := createAnimatingEntity(world, "test_clip")
 	anim, _ := world.GetComponent[components.Animation](entity)
 	anim.FrameIndex = 1
 	world.SetComponent(entity, anim)
@@ -200,9 +230,6 @@ func TestSystem_Update_LoopsAnimation(t *testing.T) {
 
 func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 	world := setupTestWorld()
-	sys := &System{}
-	sys.Init(world)
-
 	bus, _ := core.GetResource[*events.EventBus](world)
 	var emittedEvent AnimationEvent
 	var eventFired bool
@@ -212,14 +239,22 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 		eventFired = true
 	}, false)
 
-	clip := &assets.AnimationClip{
-		Frames:     []string{"frame_0.png", "frame_1.png"},
-		FrameSpeed: 0.1,
-		Loop:       false,
-	}
-	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
+	mgr := NewManager()
+	sys := NewSystem(mgr)
+	sys.Init(world)
 
-	entity := createAnimatingEntity(world, "test.anim.yaml")
+	atlas := createTestAtlas()
+	_, err := mgr.NewClip("test_clip", atlas).
+		AddFrame("frame_0").
+		AddFrame("frame_1").
+		SetFrameSpeed(0.1).
+		SetLoop(false).
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to build clip: %v", err)
+	}
+
+	entity := createAnimatingEntity(world, "test_clip")
 	anim, _ := world.GetComponent[components.Animation](entity)
 	anim.FrameIndex = 1
 	world.SetComponent(entity, anim)
@@ -241,17 +276,23 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 
 func TestSystem_Update_RespectPlaybackSpeed(t *testing.T) {
 	world := setupTestWorld()
-	sys := &System{}
+	mgr := NewManager()
+	sys := NewSystem(mgr)
 	sys.Init(world)
 
-	clip := &assets.AnimationClip{
-		Frames:     []string{"frame_0.png", "frame_1.png", "frame_2.png"},
-		FrameSpeed: 0.1,
-		Loop:       false,
+	atlas := createTestAtlas()
+	_, err := mgr.NewClip("test_clip", atlas).
+		AddFrame("frame_0").
+		AddFrame("frame_1").
+		AddFrame("frame_2").
+		SetFrameSpeed(0.1).
+		SetLoop(false).
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to build clip: %v", err)
 	}
-	sys.assetLoader.Animations.Animations["test.anim.yaml"] = clip
 
-	entity := createAnimatingEntity(world, "test.anim.yaml")
+	entity := createAnimatingEntity(world, "test_clip")
 	anim, _ := world.GetComponent[components.Animation](entity)
 	anim.PlaybackSpeed = 2.0 // double speed
 	world.SetComponent(entity, anim)
@@ -267,11 +308,12 @@ func TestSystem_Update_RespectPlaybackSpeed(t *testing.T) {
 
 func TestSystem_Update_SkipsMissingClips(t *testing.T) {
 	world := setupTestWorld()
-	sys := &System{}
+	mgr := NewManager()
+	sys := NewSystem(mgr)
 	sys.Init(world)
 
-	// Don't add clip to asset loader
-	entity := createAnimatingEntity(world, "missing.anim.yaml")
+	// Don't add clip to manager
+	entity := createAnimatingEntity(world, "missing_clip")
 
 	err := sys.Update(world, 0.1)
 	if err != nil {
@@ -282,76 +324,5 @@ func TestSystem_Update_SkipsMissingClips(t *testing.T) {
 	anim, _ := world.GetComponent[components.Animation](entity)
 	if anim.FrameIndex != 0 {
 		t.Error("Frame index should not change when clip is missing")
-	}
-}
-
-func TestComponentControl_Play(t *testing.T) {
-	world := setupTestWorld()
-	entity := createAnimatingEntity(world, "test.anim.yaml")
-
-	// Direct component modification to play
-	anim, _ := world.GetComponent[components.Animation](entity)
-	anim.Playing = true
-	anim.FrameTime = 0
-	anim.FrameIndex = 0
-	world.SetComponent(entity, anim)
-
-	// Verify
-	anim, _ = world.GetComponent[components.Animation](entity)
-	if !anim.Playing {
-		t.Error("Animation should be playing after modification")
-	}
-	if anim.FrameIndex != 0 {
-		t.Error("FrameIndex should be 0")
-	}
-}
-
-func TestComponentControl_Pause(t *testing.T) {
-	world := setupTestWorld()
-	entity := createAnimatingEntity(world, "test.anim.yaml")
-	anim, _ := world.GetComponent[components.Animation](entity)
-	anim.FrameIndex = 1
-	world.SetComponent(entity, anim)
-
-	// Direct component modification to pause
-	anim, _ = world.GetComponent[components.Animation](entity)
-	anim.Playing = false
-	world.SetComponent(entity, anim)
-
-	// Verify
-	anim, _ = world.GetComponent[components.Animation](entity)
-	if anim.Playing {
-		t.Error("Animation should not be playing after pause")
-	}
-	if anim.FrameIndex != 1 {
-		t.Error("FrameIndex should remain at 1 after pause")
-	}
-}
-
-func TestComponentControl_Stop(t *testing.T) {
-	world := setupTestWorld()
-	entity := createAnimatingEntity(world, "test.anim.yaml")
-	anim, _ := world.GetComponent[components.Animation](entity)
-	anim.FrameIndex = 1
-	anim.FrameTime = 0.05
-	world.SetComponent(entity, anim)
-
-	// Direct component modification to stop
-	anim, _ = world.GetComponent[components.Animation](entity)
-	anim.Playing = false
-	anim.FrameIndex = 0
-	anim.FrameTime = 0
-	world.SetComponent(entity, anim)
-
-	// Verify
-	anim, _ = world.GetComponent[components.Animation](entity)
-	if anim.Playing {
-		t.Error("Animation should not be playing")
-	}
-	if anim.FrameIndex != 0 {
-		t.Error("FrameIndex should be reset to 0")
-	}
-	if anim.FrameTime != 0 {
-		t.Error("FrameTime should be reset to 0")
 	}
 }

@@ -73,19 +73,19 @@ const (
 )
 
 // Animation holds playback state for an animating entity.
-// The animation definition (frames, frame speed, loop) is loaded separately as an asset (AnimationClip).
+// The animation definition (frames, frame speed, loop) is managed by the AnimationManager.
 type Animation struct {
-	ClipPath      string  // path to the .anim.yaml asset
-	FrameIndex    int     // current frame
+	ClipPath      string  // ID to look up the AnimationClip in the manager
+	FrameIndex    int     // current frame index
 	FrameTime     float64 // accumulated time for current frame (seconds)
 	Playing       bool    // is the animation running
 	PlaybackSpeed float64 // playback multiplier (1.0 = normal speed)
 }
 
-// NewAnimation creates an Animation for a given clip path.
-func NewAnimation(clipPath string, autoplay bool) Animation {
+// NewAnimation creates an Animation for a given clip ID.
+func NewAnimation(clipID string, autoplay bool) Animation {
 	return Animation{
-		ClipPath:      clipPath,
+		ClipPath:      clipID,
 		PlaybackSpeed: 1.0,
 		Playing:       autoplay,
 	}

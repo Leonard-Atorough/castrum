@@ -2,7 +2,6 @@ package animation
 
 import (
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/internal/assets"
 	"github.com/leonard-atorough/castrum/internal/core"
 	"github.com/leonard-atorough/castrum/internal/events"
 )
@@ -16,16 +15,23 @@ const (
 
 type AnimationEvent struct {
 	EntityID core.EntityID
-	ClipPath string
+	ClipID   string
 	Type     AnimationEventType
 }
 
-// System is a lifecycle handler for Animation components.
-// It processes all Animation components, advancing frame time against loaded AnimationClips,
-// and emits events to the event bus when clips finish or loop.
+// System processes animation playback for entities with Animation components.
+// It delegates to the Manager for clip resolution and orchestrates frame advancement
+// and event emission. Does not handle clip creation or configuration.
 type System struct {
-	query       *core.Query
-	assetLoader *assets.Assets
+	query   *core.Query
+	manager *Manager
+}
+
+// NewSystem creates a new animation system with the given manager.
+func NewSystem(manager *Manager) *System {
+	return &System{
+		manager: manager,
+	}
 }
 
 func (as *System) Init(world *core.World) error {
@@ -34,13 +40,10 @@ func (as *System) Init(world *core.World) error {
 		components.Renderable{},
 	)
 
-	// For now, create a default assets loader. In production, inject this from outside.
-	as.assetLoader = assets.NewAssets(nil)
-
 	return nil
 }
 
-// Update processes all Animation components, advancing frame time and emitting events to the bus.
+// Update processes all Animation components, advancing frame time and emitting events.
 func (as *System) Update(world *core.World, delta float64) error {
 	bus, ok := core.GetResource[*events.EventBus](world)
 	if !ok {
@@ -55,14 +58,12 @@ func (as *System) Update(world *core.World, delta float64) error {
 			continue
 		}
 
-		// Load the animation clip from assets
-		res, err := as.assetLoader.LoadSync(anim.ClipPath)
-		if err != nil || res == nil {
+		// Look up the clip from the manager
+		clip := as.manager.Get(anim.ClipPath)
+		if clip == nil {
 			// Skip if clip not found; log in production
 			continue
 		}
-
-		clip := res.(*assets.AnimationClip)
 
 		// Advance frame time by delta * playback speed
 		anim.FrameTime += delta * anim.PlaybackSpeed
@@ -78,7 +79,7 @@ func (as *System) Update(world *core.World, delta float64) error {
 					anim.FrameIndex = 0
 					bus.Emit(AnimationEvent{
 						EntityID: entityID,
-						ClipPath: anim.ClipPath,
+						ClipID:   anim.ClipPath,
 						Type:     EventClipLooped,
 					}, "AnimationSystem")
 				} else {
@@ -86,7 +87,7 @@ func (as *System) Update(world *core.World, delta float64) error {
 					anim.Playing = false
 					bus.Emit(AnimationEvent{
 						EntityID: entityID,
-						ClipPath: anim.ClipPath,
+						ClipID:   anim.ClipPath,
 						Type:     EventClipFinished,
 					}, "AnimationSystem")
 				}
