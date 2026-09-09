@@ -12,9 +12,10 @@ import (
 )
 
 type Texture struct {
-	Path          string
-	Image         *ebiten.Image
-	Height, Width int
+	Path   string        `yaml:"path"`
+	Image  *ebiten.Image `yaml:"-"`
+	Height int           `yaml:"height"`
+	Width  int           `yaml:"width"`
 }
 
 type textureStore struct {

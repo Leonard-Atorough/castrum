@@ -6,43 +6,24 @@ import (
 	"os"
 	"sync"
 
-	"github.com/leonard-atorough/castrum/internal/ecs"
 	"go.yaml.in/yaml/v3"
 )
 
-type blueprint struct {
+type Blueprint struct {
 	Name       string          `yaml:"name"`
-	Components []componentData `yaml:"components"`
+	Components []ComponentData `yaml:"components"`
 	Version    string          `yaml:"version"`
 }
 
-type componentData struct {
+type ComponentData struct {
 	Type       string         `yaml:"type"`
 	Properties map[string]any `yaml:"properties"`
-}
-
-func (b *blueprint) spawn(world *ecs.World) (*ecs.Entity, error) {
-	components := make([]ecs.Component, len(b.Components))
-	for i, comp := range b.Components {
-		instance, err := ecs.Resolve(comp.Type, comp.Properties)
-		if err != nil {
-			return nil, err
-		}
-		components[i] = instance
-	}
-
-	entity, err := world.CreateWithComponents(b.Name, components...)
-	if err != nil {
-		return nil, err
-	}
-
-	return entity, nil
 }
 
 type blueprintStore struct {
 	fs         fs.FS
 	mu         sync.RWMutex
-	Blueprints map[string]*blueprint
+	Blueprints map[string]*Blueprint
 }
 
 func newBlueprintStore(filesystem fs.FS) *blueprintStore {
@@ -51,11 +32,11 @@ func newBlueprintStore(filesystem fs.FS) *blueprintStore {
 	}
 	return &blueprintStore{
 		fs:         filesystem,
-		Blueprints: make(map[string]*blueprint),
+		Blueprints: make(map[string]*Blueprint),
 	}
 }
 
-func (s *blueprintStore) Load(path string) (*blueprint, error) {
+func (s *blueprintStore) Load(path string) (*Blueprint, error) {
 	// Check cache with read lock first
 	s.mu.RLock()
 	if bp, ok := s.Blueprints[path]; ok {
@@ -70,7 +51,7 @@ func (s *blueprintStore) Load(path string) (*blueprint, error) {
 	}
 	defer file.Close()
 
-	var blueprint blueprint
+	var blueprint Blueprint
 	decoder := yaml.NewDecoder(file)
 	if err := decoder.Decode(&blueprint); err != nil {
 		return nil, err

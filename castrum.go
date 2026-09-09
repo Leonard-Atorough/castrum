@@ -8,13 +8,14 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/animation"
+	"github.com/leonard-atorough/castrum/assets"
 	"github.com/leonard-atorough/castrum/atlas"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
 	"github.com/leonard-atorough/castrum/internal/animationsystem"
-	"github.com/leonard-atorough/castrum/internal/assets"
+	"github.com/leonard-atorough/castrum/internal/assetsystem"
 	"github.com/leonard-atorough/castrum/internal/camerasystem"
 	"github.com/leonard-atorough/castrum/internal/ecs"
 	"github.com/leonard-atorough/castrum/internal/physicssystem"
@@ -22,8 +23,6 @@ import (
 	"github.com/leonard-atorough/castrum/internal/scene"
 	"github.com/leonard-atorough/castrum/internal/spatial"
 	"github.com/leonard-atorough/castrum/internal/timersystem"
-	"github.com/leonard-atorough/castrum/physics"
-	"github.com/leonard-atorough/castrum/timers"
 )
 
 // ecs components (data attached to entities)
@@ -64,15 +63,6 @@ type (
 type (
 	Scene        = scene.Scene
 	SceneBuilder = scene.Builder
-)
-
-type (
-	// TimerCompletedEvent is emitted when a timer fires
-	TimerCompletedEvent = timers.TimerCompletedEvent
-	// AnimationEvent is emitted when an animation completes or loops
-	AnimationEvent = animation.AnimationEvent
-	// CollisionEvent is emitted when a collision occurs between two entities.
-	CollisionEvent = physics.CollisionEvent
 )
 
 // Sentinel errors returned by engine operations. Use errors.Is() for checking.
@@ -332,6 +322,12 @@ func (g *Game) GetCameraViewport() (geom.Rect, error) {
 		return geom.Rect{}, err
 	}
 	return cam.ViewportBounds(), nil
+}
+
+// Spawn creates a new entity in the world from a blueprint's component data.
+// Load the blueprint first via g.Assets.Blueprints.Load(path).
+func (g *Game) Spawn(bp *assets.Blueprint) (*Entity, error) {
+	return assetsystem.CreateFromBlueprint(g.World, bp)
 }
 
 // FindAll returns all entities that have at least a component of type T.
