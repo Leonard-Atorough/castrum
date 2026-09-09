@@ -3,16 +3,21 @@ name: Benchmark Regression Detection
 on:
   pull_request:
     paths:
-      - 'internal/**'
-      - 'components/**'
-      - 'benchmark/**'
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/benchmark-regression.yml'
+      - "internal/**"
+      - "components/**"
+      - "benchmark/**"
+      - "geom/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/benchmark-regression.yml"
 
 permissions:
   contents: read
   pull-requests: write
+
+env:
+  FAIL_THRESHOLD: 10 # % regression that fails the check
+  WARN_THRESHOLD: 5 # % regression that warns in the PR comment
 
 jobs:
   benchmark:
@@ -25,9 +30,15 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: ">=1.27"
+          go-version-file: go.mod
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libgl1-mesa-dev
 
       - name: Install benchstat
         run: go install golang.org/x/perf/cmd/benchstat@latest
@@ -35,8 +46,7 @@ jobs:
       - name: Run PR benchmarks
         run: |
           cd benchmark
-          go test -bench=. -benchmem -benchtime=1s -run=^$ ./... > /tmp/pr.txt 2>&1
-          cat /tmp/pr.txt
+          go test -bench=. -benchmem -benchtime=200ms -count=8 -run='^$' ./... > /tmp/pr.txt
 
       - name: Checkout main branch
         uses: actions/checkout@v4
@@ -47,28 +57,39 @@ jobs:
       - name: Run baseline benchmarks
         run: |
           cd benchmark
-          go test -bench=. -benchmem -benchtime=1s -run=^$ ./... > /tmp/main.txt 2>&1
-          cat /tmp/main.txt
+          go test -bench=. -benchmem -benchtime=200ms -count=8 -run='^$' ./... > /tmp/main.txt
 
       - name: Compare benchmarks
         id: compare
         run: |
-          benchstat -alpha=0.05 /tmp/main.txt /tmp/pr.txt > /tmp/comparison.txt || true
+          benchstat /tmp/main.txt /tmp/pr.txt > /tmp/comparison.txt || true
           cat /tmp/comparison.txt
-          
-          # Extract pass/fail status
-          if grep -q "REGRESS" /tmp/comparison.txt; then
-            echo "has_regression=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_regression=false" >> $GITHUB_OUTPUT
+
+          # benchstat prints deltas as "+12.34%" (regression) or "-3.21%" or "~".
+          # Extract every positive delta with its benchmark name and find the worst.
+          worst=0
+          worst_name=""
+          while read -r name pct; do
+            if (( $(echo "${pct} > ${worst}" | bc -l) )); then
+              worst="${pct}"
+              worst_name="${name}"
+            fi
+          done < <(awk '{
+            for (i = 1; i <= NF; i++)
+              if (match($i, /^\+([0-9]+(\.[0-9]+)?)%$/, m))
+                print $1, m[1]
+          }' /tmp/comparison.txt)
+
+          echo "worst_regression=${worst}" >> "$GITHUB_OUTPUT"
+          echo "worst_benchmark=${worst_name}" >> "$GITHUB_OUTPUT"
+
+          verdict="pass"
+          if (( $(echo "${worst} >= ${FAIL_THRESHOLD}" | bc -l) )); then
+            verdict="fail"
+          elif (( $(echo "${worst} >= ${WARN_THRESHOLD}" | bc -l) )); then
+            verdict="warn"
           fi
-          
-          # Check for >10% regression on critical benchmarks
-          if grep -E "(BenchmarkQuery|BenchmarkGameLoop).*\+[1-9][0-9]" /tmp/comparison.txt; then
-            echo "critical_regression=true" >> $GITHUB_OUTPUT
-          else
-            echo "critical_regression=false" >> $GITHUB_OUTPUT
-          fi
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
 
       - name: Comment PR with results
         if: always()
@@ -77,41 +98,38 @@ jobs:
           script: |
             const fs = require('fs');
             const comparison = fs.readFileSync('/tmp/comparison.txt', 'utf8');
-            
-            const hasRegression = '${{ steps.compare.outputs.has_regression }}' === 'true';
-            const isCritical = '${{ steps.compare.outputs.critical_regression }}' === 'true';
-            
-            const icon = hasRegression ? '⚠️' : '✅';
-            const status = isCritical ? 'FAIL - Critical regression' : (hasRegression ? 'WARNING - Regression detected' : 'PASS - No regressions');
-            
-            const comment = `## ${icon} Benchmark Results
-            ${status}
-                    
-            \`\`\`
-            ${comparison}
-            \`\`\`
-                    
-            **Interpretation:**
-            - \`~0%\` = No change (expected variance)
-            - \`+2% to +5%\` = Potential regression (investigate)
-            - \`+5% to +10%\` = Regression (document reason)
-            - \`>+10% on Query/GameLoop\` = Critical (requires approval)
-                    
-            See [benchmark/README.md](../benchmark/README.md) for profiling guide and optimization workflow.`;
+            const verdict = '${{ steps.compare.outputs.verdict }}';
+            const worst = '${{ steps.compare.outputs.worst_regression }}';
+            const worstName = '${{ steps.compare.outputs.worst_benchmark }}';
 
-            github.rest.issues.createComment({
+            const icon = verdict === 'fail' ? '❌' : (verdict === 'warn' ? '⚠️' : '✅');
+            const status = {
+              pass: 'PASS - no significant regressions',
+              warn: `WARNING - up to +${{ steps.compare.outputs.worst_regression }}% on ${worstName}`,
+              fail: `FAIL - ${worstName} regressed +${{ steps.compare.outputs.worst_regression }}% (>10%)`
+            }[verdict];
+
+            const comment = `## ${icon} Benchmark Results\n\n**${status}**\n\n` +
+              `\`\`\`\n${comparison}\n\`\`\`\n\n` +
+              `- \`~\` = within noise (p > 0.05)\n` +
+              `- \`+5% to +10%\` = investigate, document reason\n` +
+              `- \`>+10%\` = fail the check`;
+
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: comment
             });
 
-      - name: Fail on critical regression
-        if: steps.compare.outputs.critical_regression == 'true'
+      - name: Fail on regression
+        if: steps.compare.outputs.verdict == 'fail'
         run: |
-          echo "❌ Critical performance regression detected on Query or GameLoop benchmarks"
-          echo "Review the benchmark comparison above and optimize before merging"
+          echo "❌ ${worst_benchmark} regressed by ${worst_regression}% (threshold: ${FAIL_THRESHOLD}%)"
           exit 1
+        env:
+          worst_regression: ${{ steps.compare.outputs.worst_regression }}
+          worst_benchmark: ${{ steps.compare.outputs.worst_benchmark }}
 
       - name: Upload benchmark results
         if: always()
