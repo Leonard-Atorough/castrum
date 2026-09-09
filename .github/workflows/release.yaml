@@ -54,6 +54,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Fetch tags
+        run: git fetch --tags --force
+
       - name: Generate changelog for the release
         id: changelog
         run: |
