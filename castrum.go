@@ -55,7 +55,7 @@ type (
 
 type (
 	// AnimationManager provides programmatic creation and storage of animation clips
-	AnimationManager = animation.Manager
+	AnimationManager = animation.AnimationClipStore
 	// AtlasManager provides programmatic creation and storage of texture atlases
 	AtlasManager = atlas.Manager
 )
@@ -164,7 +164,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		return nil, err
 	}
 	// Create animation manager and register it as a resource
-	animMgr := animation.NewManager()
+	animMgr := animation.NewAnimationClipStore()
 	ecs.SetResource(newWorld, animMgr)
 	if err = systems.Register("animation", -1, animationsystem.NewSystem(animMgr), newWorld); err != nil {
 		return nil, err
