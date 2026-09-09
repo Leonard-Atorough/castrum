@@ -3,7 +3,7 @@ package benchmark
 import (
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 // ============================================================================
@@ -12,7 +12,7 @@ import (
 
 // BenchmarkEntityCreation measures the time to create an empty entity.
 func BenchmarkEntityCreation(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -24,9 +24,9 @@ func BenchmarkEntityCreation(b *testing.B) {
 
 // BenchmarkEntityCreationWithComponents measures the time to create an entity with multiple components.
 func BenchmarkEntityCreationWithComponents(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
-	components := []core.Component{
+	components := []ecs.Component{
 		Position{X: 0, Y: 0},
 		Velocity{X: 1, Y: 1},
 		Health{Value: 100},
@@ -44,10 +44,10 @@ func BenchmarkEntityCreationWithComponents(b *testing.B) {
 
 // BenchmarkDestroyEntity measures the time to destroy entities.
 func BenchmarkDestroyEntity(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]*core.Entity, 10000)
+	entityPool := make([]*ecs.Entity, 10000)
 	for i := range 10000 {
 		entityPool[i] = world.Create("Generic")
 	}

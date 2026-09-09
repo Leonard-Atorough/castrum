@@ -6,12 +6,12 @@ import (
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/input"
+	"github.com/leonard-atorough/castrum/input"
 )
 
 // PlayerController reads input and updates velocity on entities with a Player marker.
 type PlayerController struct {
-	input *castrum.Input
+	input *input.InputHandler
 }
 
 func NewPlayerController(game *castrum.Game) *PlayerController {

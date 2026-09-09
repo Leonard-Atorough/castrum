@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 // BenchmarkConfig holds configuration for benchmark scenarios
@@ -32,8 +32,8 @@ func DefaultBenchmarkConfig() BenchmarkConfig {
 }
 
 // CreateBenchmarkWorld creates a world populated with entities for benchmarking
-func CreateBenchmarkWorld(config BenchmarkConfig) *core.World {
-	world := core.NewWorld()
+func CreateBenchmarkWorld(config BenchmarkConfig) *ecs.World {
+	world := ecs.NewWorld()
 
 	// Pre-compute component types for comparison
 	posType := reflect.TypeFor[Position]()
@@ -44,9 +44,9 @@ func CreateBenchmarkWorld(config BenchmarkConfig) *core.World {
 	// Create entities with various configurations
 	for i := 0; i < config.EntityCount; i++ {
 		template := config.TemplateNames[i%len(config.TemplateNames)]
-		components := make([]core.Component, 0, len(config.ComponentTypes))
+		components := make([]ecs.Component, 0, len(config.ComponentTypes))
 		for _, compType := range config.ComponentTypes {
-			var comp core.Component
+			var comp ecs.Component
 			switch compType {
 			case posType:
 				comp = Position{X: float64(i), Y: float64(i)}
@@ -76,19 +76,19 @@ func CreateBenchmarkWorld(config BenchmarkConfig) *core.World {
 }
 
 // CreateBenchmarkHierarchy creates a hierarchical structure for benchmarking
-func CreateBenchmarkHierarchy(world *core.World, config BenchmarkConfig) {
-	var rootID core.EntityID
+func CreateBenchmarkHierarchy(world *ecs.World, config BenchmarkConfig) {
+	var rootID ecs.EntityID
 
 	// Create root entity
 	root := world.Create("Root")
 	rootID = root.ID
 
 	// Create hierarchical structure
-	var currentLevel []core.EntityID
+	var currentLevel []ecs.EntityID
 	currentLevel = append(currentLevel, rootID)
 
 	for depth := 0; depth < config.HierarchyDepth; depth++ {
-		var nextLevel []core.EntityID
+		var nextLevel []ecs.EntityID
 		for _, parentID := range currentLevel {
 			for breadth := 0; breadth < config.HierarchyBreadth; breadth++ {
 				child := world.Create("HierarchyNode")
@@ -105,8 +105,8 @@ func CreateBenchmarkHierarchy(world *core.World, config BenchmarkConfig) {
 // BenchmarkWorker represents a worker for parallel benchmarking
 type BenchmarkWorker struct {
 	ID       int
-	World    *core.World
-	Entities []core.EntityID
+	World    *ecs.World
+	Entities []ecs.EntityID
 }
 
 // CreateBenchmarkWorkers creates multiple worker worlds for parallel benchmarking
@@ -114,8 +114,8 @@ func CreateBenchmarkWorkers(workerCount int, entitiesPerWorker int) []*Benchmark
 	workers := make([]*BenchmarkWorker, workerCount)
 
 	for i := range workerCount {
-		world := core.NewWorld()
-		entities := make([]core.EntityID, entitiesPerWorker)
+		world := ecs.NewWorld()
+		entities := make([]ecs.EntityID, entitiesPerWorker)
 
 		for j := range entitiesPerWorker {
 			entity := world.Create("WorkerEntity")
@@ -219,7 +219,7 @@ type StressTestConfig struct {
 
 // RunStressTest runs a stress test on the ECS system
 func RunStressTest(config StressTestConfig) (int, int, float64) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-compute component types for comparison
 	posType := reflect.TypeFor[Position]()
@@ -229,7 +229,7 @@ func RunStressTest(config StressTestConfig) (int, int, float64) {
 	for i := 0; i < config.InitialEntities; i++ {
 		entity := world.Create("StressEntity")
 		for _, compType := range config.ComponentTypes {
-			var comp core.Component
+			var comp ecs.Component
 			switch compType {
 			case posType:
 				comp = Position{X: float64(i), Y: float64(i)}
@@ -289,10 +289,10 @@ func BenchmarkComponentTypeRegistry(b *testing.B) {
 
 // BenchmarkEntityReuse benchmarks entity reuse patterns
 func BenchmarkEntityReuse(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-create a pool of entities
-	entityPool := make([]core.EntityID, 1000)
+	entityPool := make([]ecs.EntityID, 1000)
 	for i := range entityPool {
 		entityPool[i] = world.Create("PooledEntity").ID
 	}

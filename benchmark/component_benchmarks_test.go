@@ -3,7 +3,7 @@ package benchmark
 import (
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 // ============================================================================
@@ -12,10 +12,10 @@ import (
 
 // BenchmarkAddComponent measures the time to add a component to an entity.
 func BenchmarkAddComponent(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]*core.Entity, 10000)
+	entityPool := make([]*ecs.Entity, 10000)
 	for i := range entityPool {
 		entityPool[i] = world.Create("Generic")
 	}
@@ -30,10 +30,10 @@ func BenchmarkAddComponent(b *testing.B) {
 
 // BenchmarkGetComponent measures the time to retrieve a component from an entity.
 func BenchmarkGetComponent(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]core.EntityID, 10000)
+	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
@@ -47,10 +47,10 @@ func BenchmarkGetComponent(b *testing.B) {
 
 // BenchmarkHasComponent measures the time to check for component existence.
 func BenchmarkHasComponent(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]core.EntityID, 10000)
+	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
@@ -64,10 +64,10 @@ func BenchmarkHasComponent(b *testing.B) {
 
 // BenchmarkRemoveComponent measures the time to remove a component from an entity.
 func BenchmarkRemoveComponent(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities with components
-	entityPool := make([]core.EntityID, 10000)
+	entityPool := make([]ecs.EntityID, 10000)
 	for i := range 10000 {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
@@ -84,10 +84,10 @@ func BenchmarkRemoveComponent(b *testing.B) {
 
 // BenchmarkDestroyEntityWithCleanup measures entity destruction with batched cleanup.
 func BenchmarkDestroyEntityWithCleanup(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]*core.Entity, 10000)
+	entityPool := make([]*ecs.Entity, 10000)
 	for i := range 10000 {
 		entityPool[i] = world.Create("Generic")
 	}
@@ -118,7 +118,7 @@ func BenchmarkDestroyEntityWithCleanup(b *testing.B) {
 
 // BenchmarkComponentAddMigration measures the cost of adding a component to an entity (archetype migration).
 func BenchmarkComponentAddMigration(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-create entity with no components (empty archetype)
 	entity := world.Create("Generic")
@@ -133,7 +133,7 @@ func BenchmarkComponentAddMigration(b *testing.B) {
 
 // BenchmarkComponentRemoveMigration measures the cost of removing a component from an entity (archetype migration).
 func BenchmarkComponentRemoveMigration(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-create entity with multiple components
 	entity := world.Create("Generic")

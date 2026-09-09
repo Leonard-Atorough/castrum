@@ -3,7 +3,7 @@ package benchmark
 import (
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 // ============================================================================
@@ -14,7 +14,7 @@ import (
 func BenchmarkMemoryPerEntity(b *testing.B) {
 	// Measure memory footprint per entity (baseline, no components)
 	b.ReportAllocs()
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	b.ResetTimer()
 	for i := 0; i < 10000; i++ {
@@ -28,7 +28,7 @@ func BenchmarkMemoryPerEntity(b *testing.B) {
 func BenchmarkMemoryPerEntityWithComponents(b *testing.B) {
 	// Measure memory footprint per entity with components
 	b.ReportAllocs()
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	b.ResetTimer()
 	for i := 0; i < 1000; i++ {

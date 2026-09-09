@@ -237,8 +237,8 @@ benchstat query_old.txt query_new.txt
 // BenchmarkMyOperation measures [what it does and why it matters].
 func BenchmarkMyOperation(b *testing.B) {
 	// Setup (outside timer - not counted in results)
-	world := core.NewWorld()
-	entities := make([]core.Entity, 100)
+	world := ecs.NewWorld()
+	entities := make([]ecs.Entity, 100)
 	for i := 0; i < 100; i++ {
 		entities[i] = world.Create("Generic")
 	}
@@ -255,14 +255,14 @@ func BenchmarkMyOperation(b *testing.B) {
 // Comparative benchmark
 func BenchmarkQueryApproaches(b *testing.B) {
 	b.Run("DirectLookup", func(b *testing.B) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		// ... setup ...
 		b.ResetTimer()
 		// ... measure direct GetComponent ...
 	})
 
 	b.Run("QueryBased", func(b *testing.B) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		// ... setup ...
 		b.ResetTimer()
 		// ... measure query iteration ...
@@ -330,7 +330,7 @@ BenchmarkEntityCreation-12    5,800,070    235.7 ns/op    146 B/op    1 allocs/o
 **Breakdown:**
 
 - `BenchmarkEntityCreation` — Benchmark name
-- `-12` — Number of CPU cores used
+- `-12` — Number of CPU ecss used
 - `5,800,070` — Total iterations run (N)
 - `235.7 ns/op` — Time per operation _(lower is better)_
 - `146 B/op` — Bytes allocated per operation _(lower is better)_

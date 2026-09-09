@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 func TestNewScene(t *testing.T) {
@@ -28,7 +28,7 @@ func TestNewScene(t *testing.T) {
 }
 
 func TestScene_AddToScene(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	entity := world.Create("player")
@@ -53,7 +53,7 @@ func TestScene_AddToScene(t *testing.T) {
 }
 
 func TestScene_AddToScene_NonExistentEntity(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	err := scene.AddToScene(999, world)
@@ -63,7 +63,7 @@ func TestScene_AddToScene_NonExistentEntity(t *testing.T) {
 }
 
 func TestScene_RemoveFromScene(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	entity := world.Create("player")
@@ -84,7 +84,7 @@ func TestScene_RemoveFromScene(t *testing.T) {
 }
 
 func TestScene_RemoveFromScene_NonExistentEntity(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	err := scene.RemoveFromScene(999, world)
@@ -94,7 +94,7 @@ func TestScene_RemoveFromScene_NonExistentEntity(t *testing.T) {
 }
 
 func TestScene_Entities(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	entity1 := world.Create("player")
@@ -124,7 +124,7 @@ func TestScene_Entities(t *testing.T) {
 }
 
 func TestScene_Entities_MultipleScenesDoNotOverlap(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	sceneA := NewScene("a")
 	sceneB := NewScene("b")
 
@@ -145,13 +145,13 @@ func TestScene_Entities_MultipleScenesDoNotOverlap(t *testing.T) {
 func TestScene_SetGetData(t *testing.T) {
 	scene := NewScene("test")
 
-	scene.SetData("score", 100)
-	val, ok := scene.GetData("score")
+	scene.SetData("secs", 100)
+	val, ok := scene.GetData("secs")
 	if !ok {
-		t.Fatal("expected to find 'score' in data")
+		t.Fatal("expected to find 'secs' in data")
 	}
 	if val != 100 {
-		t.Fatalf("expected score 100, got %v", val)
+		t.Fatalf("expected secs 100, got %v", val)
 	}
 
 	_, ok = scene.GetData("nonexistent")
@@ -161,11 +161,11 @@ func TestScene_SetGetData(t *testing.T) {
 }
 
 func TestScene_OnLoad_WithHook(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	loadCalled := false
-	scene.SetLoadHook(func(w *core.World) error {
+	scene.SetLoadHook(func(w *ecs.World) error {
 		loadCalled = true
 		return nil
 	})
@@ -180,11 +180,11 @@ func TestScene_OnLoad_WithHook(t *testing.T) {
 }
 
 func TestScene_OnLoad_HookError(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	expectedErr := errors.New("load failed")
-	scene.SetLoadHook(func(w *core.World) error {
+	scene.SetLoadHook(func(w *ecs.World) error {
 		return expectedErr
 	})
 
@@ -198,7 +198,7 @@ func TestScene_OnLoad_HookError(t *testing.T) {
 }
 
 func TestScene_OnUnload_WithEntities(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	entity1 := world.Create("player")
@@ -221,11 +221,11 @@ func TestScene_OnUnload_WithEntities(t *testing.T) {
 }
 
 func TestScene_OnUnload_WithHook(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	unloadCalled := false
-	scene.SetUnloadHook(func(w *core.World) error {
+	scene.SetUnloadHook(func(w *ecs.World) error {
 		unloadCalled = true
 		return nil
 	})
@@ -240,14 +240,14 @@ func TestScene_OnUnload_WithHook(t *testing.T) {
 }
 
 func TestScene_OnUnload_HookError(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	entity1 := world.Create("player")
 	_ = scene.AddToScene(entity1.ID, world)
 
 	expectedErr := errors.New("unload failed")
-	scene.SetUnloadHook(func(w *core.World) error {
+	scene.SetUnloadHook(func(w *ecs.World) error {
 		return expectedErr
 	})
 
@@ -262,7 +262,7 @@ func TestScene_OnUnload_HookError(t *testing.T) {
 
 func TestScene_OnUnload_WithBothEntitiesAndHook(t *testing.T) {
 	// Entities are untagged BEFORE the unload hook is called.
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("test")
 
 	entity1 := world.Create("player")
@@ -271,7 +271,7 @@ func TestScene_OnUnload_WithBothEntitiesAndHook(t *testing.T) {
 	_ = scene.AddToScene(entity2.ID, world)
 
 	unloadCalled := false
-	scene.SetUnloadHook(func(w *core.World) error {
+	scene.SetUnloadHook(func(w *ecs.World) error {
 		unloadCalled = true
 		entities := scene.Entities(world)
 		if len(entities) != 0 {
@@ -349,7 +349,7 @@ func TestManager_LoadScene_Duplicate(t *testing.T) {
 }
 
 func TestManager_UnloadScene(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	scene := NewScene("level-1")
@@ -366,7 +366,7 @@ func TestManager_UnloadScene(t *testing.T) {
 }
 
 func TestManager_UnloadScene_NotFound(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	err := manager.UnloadScene(world, "nonexistent")
@@ -380,7 +380,7 @@ func TestManager_UnloadScene_NotFound(t *testing.T) {
 }
 
 func TestManager_UnloadScene_CurrentScene(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	scene := NewScene("level-1")
@@ -402,12 +402,12 @@ func TestManager_UnloadScene_CurrentScene(t *testing.T) {
 }
 
 func TestManager_UnloadScene_CurrentSceneWithUnloadError(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	scene := NewScene("level-1")
 	expectedErr := errors.New("unload error")
-	scene.SetUnloadHook(func(w *core.World) error {
+	scene.SetUnloadHook(func(w *ecs.World) error {
 		return expectedErr
 	})
 
@@ -421,7 +421,7 @@ func TestManager_UnloadScene_CurrentSceneWithUnloadError(t *testing.T) {
 }
 
 func TestManager_CurrentScene(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	if manager.CurrentScene() != nil {
@@ -438,7 +438,7 @@ func TestManager_CurrentScene(t *testing.T) {
 }
 
 func TestManager_TransitionTo(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	scene1 := NewScene("level-1")
@@ -471,7 +471,7 @@ func TestManager_TransitionTo(t *testing.T) {
 }
 
 func TestManager_TransitionTo_NotFound(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	err := manager.TransitionTo(world, "nonexistent")
@@ -485,14 +485,14 @@ func TestManager_TransitionTo_NotFound(t *testing.T) {
 }
 
 func TestManager_TransitionTo_UnloadCurrentError(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	scene1 := NewScene("level-1")
 	scene2 := NewScene("level-2")
 
 	expectedErr := errors.New("unload error")
-	scene1.SetUnloadHook(func(w *core.World) error {
+	scene1.SetUnloadHook(func(w *ecs.World) error {
 		return expectedErr
 	})
 
@@ -507,14 +507,14 @@ func TestManager_TransitionTo_UnloadCurrentError(t *testing.T) {
 }
 
 func TestManager_TransitionTo_LoadError(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	scene1 := NewScene("level-1")
 	scene2 := NewScene("level-2")
 
 	expectedErr := errors.New("load error")
-	scene2.SetLoadHook(func(w *core.World) error {
+	scene2.SetLoadHook(func(w *ecs.World) error {
 		return expectedErr
 	})
 
@@ -528,7 +528,7 @@ func TestManager_TransitionTo_LoadError(t *testing.T) {
 }
 
 func TestManager_TransitionTo_FromEmpty(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	scene := NewScene("level-1")
@@ -562,7 +562,7 @@ func TestManager_Scenes(t *testing.T) {
 }
 
 func TestManager_Current(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	if manager.Current() != nil {
@@ -593,7 +593,7 @@ func TestManager_SceneBuilder(t *testing.T) {
 }
 
 func TestManager_Push_Pop(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	gameplay := NewScene("gameplay")
@@ -630,7 +630,7 @@ func TestManager_Push_Pop(t *testing.T) {
 }
 
 func TestManager_Push_NotFound(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	err := manager.Push(world, "nonexistent")
@@ -640,12 +640,12 @@ func TestManager_Push_NotFound(t *testing.T) {
 }
 
 func TestManager_Push_LoadErrorRollsBackStack(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	scene := NewScene("broken")
 	expectedErr := errors.New("load error")
-	scene.SetLoadHook(func(w *core.World) error {
+	scene.SetLoadHook(func(w *ecs.World) error {
 		return expectedErr
 	})
 	_ = manager.LoadScene("broken", scene)
@@ -660,7 +660,7 @@ func TestManager_Push_LoadErrorRollsBackStack(t *testing.T) {
 }
 
 func TestManager_Pop_EmptyStack(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	err := manager.Pop(world)
@@ -671,14 +671,14 @@ func TestManager_Pop_EmptyStack(t *testing.T) {
 
 func TestManager_Push_KeepsUnderlyingSceneLoaded(t *testing.T) {
 	// Pushing an overlay must not unload the scene beneath it (pause-menu pattern).
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	gameplay := NewScene("gameplay")
 	pause := NewScene("pause")
 
 	gameplayUnloaded := false
-	gameplay.SetUnloadHook(func(w *core.World) error {
+	gameplay.SetUnloadHook(func(w *ecs.World) error {
 		gameplayUnloaded = true
 		return nil
 	})
@@ -695,7 +695,7 @@ func TestManager_Push_KeepsUnderlyingSceneLoaded(t *testing.T) {
 }
 
 func TestManager_TransitionTo_ClearsWholeStack(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	gameplay := NewScene("gameplay")

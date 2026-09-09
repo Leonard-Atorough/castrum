@@ -3,7 +3,7 @@ package benchmark
 import (
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 // ============================================================================
@@ -12,7 +12,7 @@ import (
 
 // BenchmarkGameLoopSimple measures a simple game loop: query and read only.
 func BenchmarkGameLoopSimple(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-Create some entities
 	for i := range 1000 {
@@ -36,7 +36,7 @@ func BenchmarkGameLoopSimple(b *testing.B) {
 // BenchmarkGameLoopWithUpdates measures game loop with query, read, and update operations.
 func BenchmarkGameLoopWithUpdates(b *testing.B) {
 	// Query, read, and update components (modify and store)
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	for i := range 5000 {
 		entity := world.Create("Generic")
@@ -62,7 +62,7 @@ func BenchmarkGameLoopWithUpdates(b *testing.B) {
 // BenchmarkGameLoopWithSpawning measures game loop with spawning (1% per frame).
 func BenchmarkGameLoopWithSpawning(b *testing.B) {
 	// Query, update, and spawn new entities (1% spawn rate per frame)
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	for i := range 5000 {
 		entity := world.Create("Generic")
@@ -73,7 +73,7 @@ func BenchmarkGameLoopWithSpawning(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		// Query and update
-		var entities []core.EntityID
+		var entities []ecs.EntityID
 		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
 			entities = append(entities, entry.EntityID)
 			pos, _ := entry.Get[Position]()
@@ -98,7 +98,7 @@ func BenchmarkGameLoopWithSpawning(b *testing.B) {
 // BenchmarkGameLoopWithDestruction measures game loop with destruction (0.5% per frame).
 func BenchmarkGameLoopWithDestruction(b *testing.B) {
 	// Query, update, and destroy entities (0.5% destruction rate per frame)
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	for i := range 5000 {
 		entity := world.Create("Generic")
@@ -110,7 +110,7 @@ func BenchmarkGameLoopWithDestruction(b *testing.B) {
 	cleanupCount := 0
 	for b.Loop() {
 		// Query and update
-		var entities []core.EntityID
+		var entities []ecs.EntityID
 		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
 			entities = append(entities, entry.EntityID)
 			pos, _ := entry.Get[Position]()
@@ -141,7 +141,7 @@ func BenchmarkGameLoopWithDestruction(b *testing.B) {
 // BenchmarkGameLoopMixed measures complete game loop with updates, spawning, and destruction.
 func BenchmarkGameLoopMixed(b *testing.B) {
 	// Complete realistic game loop: query, update, spawn, destroy
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	for i := range 5000 {
 		entity := world.Create("Generic")
@@ -153,7 +153,7 @@ func BenchmarkGameLoopMixed(b *testing.B) {
 	cleanupCount := 0
 	for b.Loop() {
 		// Query and update
-		var entities []core.EntityID
+		var entities []ecs.EntityID
 		for entry := range world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).Execute() {
 			entities = append(entities, entry.EntityID)
 			pos, _ := entry.Get[Position]()

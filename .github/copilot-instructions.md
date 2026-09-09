@@ -10,7 +10,7 @@ These instructions guide the Copilot AI on how to assist with the Castrum Game E
   - audio: Audio systems for sound effects and music playback.
   - blueprint: Blueprint systems for defining reusable game object templates.
   - camera: Camera systems for managing viewports and rendering perspectives.
-  - core: ECS core systems and entity management.
+  - ecs: ECS core systems and entity management.
   - input: Input handling systems for keyboard, mouse, and game controllers.
   - physics: Physics systems for collision detection and rigid body dynamics.
   - render: Render systems for sprites and other visual elements.

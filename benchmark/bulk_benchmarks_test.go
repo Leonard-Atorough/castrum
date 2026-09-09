@@ -3,7 +3,7 @@ package benchmark
 import (
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 // ============================================================================
@@ -12,7 +12,7 @@ import (
 
 // BenchmarkCreateMany measures the performance of batch entity creation.
 func BenchmarkCreateMany(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
@@ -25,7 +25,7 @@ func BenchmarkCreateManyVsIndividual(b *testing.B) {
 	// Compare CreateMany(100) vs 100 individual Create() calls
 	// to verify batch optimization works
 	b.Run("CreateMany", func(b *testing.B) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		b.ResetTimer()
 		for i := 0; b.Loop(); i++ {
 			world.CreateMany("Generic", 100)
@@ -33,7 +33,7 @@ func BenchmarkCreateManyVsIndividual(b *testing.B) {
 	})
 
 	b.Run("IndividualCreate", func(b *testing.B) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		b.ResetTimer()
 		for i := 0; b.Loop(); i++ {
 			for j := 0; j < 100; j++ {
@@ -46,7 +46,7 @@ func BenchmarkCreateManyVsIndividual(b *testing.B) {
 // BenchmarkBulkAddComponents measures performance of adding multiple components rapidly.
 func BenchmarkBulkAddComponents(b *testing.B) {
 	// Add multiple components to same entity in rapid succession
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	entity := world.Create("Generic")
 
 	b.ResetTimer()
@@ -66,7 +66,7 @@ func BenchmarkBulkAddComponents(b *testing.B) {
 // BenchmarkBulkRemoveComponents measures performance of removing multiple components rapidly.
 func BenchmarkBulkRemoveComponents(b *testing.B) {
 	// Remove multiple components in rapid succession
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	entity := world.Create("Generic")
 	world.AddComponent(entity.ID, Position{X: 1, Y: 1})
 	world.AddComponent(entity.ID, Velocity{X: 1, Y: 1})

@@ -83,10 +83,9 @@ Features committed for v1.0.0. Basic usability—not feature-complete, but suita
 
 ### 2D Rendering: Texture Atlases
 
-- [ ] Texture atlas runtime support (load pre-baked atlases)
-- [ ] Atlas generation tooling (command-line atlas packer)
-- [ ] Sprite animation from atlas frames
-- [ ] Memory efficiency and batching optimization
+- [x] Texture atlas runtime support (load pre-baked atlases)
+- [x] Sprite animation from atlas frames
+- [x] Memory efficiency and batching optimization
 
 ### Sound
 
@@ -137,6 +136,7 @@ Features under active discussion for v1.0.0 or v1.1.0. Not yet committed.
 
 Possible future features for v1.1.0+. Community feedback will guide prioritization.
 
+- [ ] Atlas generation tooling (command-line atlas packer)
 - [ ] Visual scene editor
 - [ ] Networking and multiplayer support
 - [ ] Advanced particle effects (GPU-based)

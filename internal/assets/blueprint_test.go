@@ -4,7 +4,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 type testComponent struct {
@@ -12,10 +12,10 @@ type testComponent struct {
 }
 
 func TestBlueprint_Spawn(t *testing.T) {
-	core.Register[testComponent]()
+	ecs.Register[testComponent]()
 
 	t.Run("spawns an entity with resolved components", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		bp := &blueprint{
 			Name: "Goblin",
 			Components: []componentData{
@@ -28,7 +28,7 @@ func TestBlueprint_Spawn(t *testing.T) {
 			t.Fatalf("Spawn failed: %v", err)
 		}
 
-		// core.Resolve returns the resolved value (not a pointer), matching
+		// ecs.Resolve returns the resolved value (not a pointer), matching
 		// GetComponent/SetComponent's value semantics used everywhere else.
 		comp, err := world.GetComponent[testComponent](entity.ID)
 		if err != nil {
@@ -40,7 +40,7 @@ func TestBlueprint_Spawn(t *testing.T) {
 	})
 
 	t.Run("an unregistered component type fails the spawn", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		bp := &blueprint{
 			Name: "Broken",
 			Components: []componentData{

@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -21,10 +21,10 @@ type componentData struct {
 	Properties map[string]any `yaml:"properties"`
 }
 
-func (b *blueprint) spawn(world *core.World) (*core.Entity, error) {
-	components := make([]core.Component, len(b.Components))
+func (b *blueprint) spawn(world *ecs.World) (*ecs.Entity, error) {
+	components := make([]ecs.Component, len(b.Components))
 	for i, comp := range b.Components {
-		instance, err := core.Resolve(comp.Type, comp.Properties)
+		instance, err := ecs.Resolve(comp.Type, comp.Properties)
 		if err != nil {
 			return nil, err
 		}

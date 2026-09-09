@@ -59,15 +59,14 @@ jobs:
         run: |
           go vet \
             ./geom \
-            ./internal/animation \
+            ./internal/animationsystem \
             ./internal/assets \
-            ./internal/camera \
-            ./internal/core \
-            ./internal/input \
-            ./internal/physics \
+            ./internal/camerasystem \
+            ./internal/ecs \
+            ./internal/physicssystem \
             ./internal/scene \
             ./internal/spatial \
-            ./internal/timers
+            ./internal/timersystem
 
   test:
     name: Tests
@@ -93,15 +92,14 @@ jobs:
         run: |
           xvfb-run -a go test -v -race -coverprofile=coverage.out \
             ./geom \
-            ./internal/animation \
+            ./internal/animationsystem \
             ./internal/assets \
-            ./internal/camera \
-            ./internal/core \
-            ./internal/input \
-            ./internal/physics \
+            ./internal/camerasystem \
+            ./internal/ecs \
+            ./internal/physicssystem \
             ./internal/scene \
             ./internal/spatial \
-            ./internal/timers
+            ./internal/timersystem
 
       - name: Check coverage threshold
         run: |

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 func TestNewIndex(t *testing.T) {
@@ -54,7 +54,7 @@ func TestSpatialIndex_Update(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		entityID  core.EntityID
+		entityID  ecs.EntityID
 		pos       geom.Vector2
 		wantErr   bool
 		expectKey bool
@@ -134,7 +134,7 @@ func TestSpatialIndex_Update(t *testing.T) {
 
 func TestSpatialIndex_UpdateExistingEntity(t *testing.T) {
 	idx, _ := NewIndex(10.0)
-	entityID := core.EntityID(1)
+	entityID := ecs.EntityID(1)
 
 	// Add entity
 	pos1 := geom.Vector2{X: 5.0, Y: 5.0}
@@ -181,7 +181,7 @@ func TestSpatialIndex_Query(t *testing.T) {
 	idx, _ := NewIndex(10.0)
 
 	// Add some entities
-	entities := map[core.EntityID]geom.Vector2{
+	entities := map[ecs.EntityID]geom.Vector2{
 		1: {X: 0, Y: 0},
 		2: {X: 5, Y: 5},
 		3: {X: 15, Y: 0},
@@ -200,42 +200,42 @@ func TestSpatialIndex_Query(t *testing.T) {
 		queryPos      geom.Vector2
 		radius        float64
 		expectedCount int
-		shouldContain []core.EntityID
+		shouldContain []ecs.EntityID
 	}{
 		{
 			name:          "query at origin with small radius",
 			queryPos:      geom.Vector2{X: 0, Y: 0},
 			radius:        5.0,
 			expectedCount: 3,
-			shouldContain: []core.EntityID{1, 2, 3},
+			shouldContain: []ecs.EntityID{1, 2, 3},
 		},
 		{
 			name:          "query at origin with large radius",
 			queryPos:      geom.Vector2{X: 0, Y: 0},
 			radius:        20.0,
 			expectedCount: 4,
-			shouldContain: []core.EntityID{1, 2, 3, 4},
+			shouldContain: []ecs.EntityID{1, 2, 3, 4},
 		},
 		{
 			name:          "query with zero radius",
 			queryPos:      geom.Vector2{X: 0, Y: 0},
 			radius:        0.0,
 			expectedCount: 2,
-			shouldContain: []core.EntityID{1, 2},
+			shouldContain: []ecs.EntityID{1, 2},
 		},
 		{
 			name:          "query far away",
 			queryPos:      geom.Vector2{X: 200, Y: 200},
 			radius:        50.0,
 			expectedCount: 0,
-			shouldContain: []core.EntityID{},
+			shouldContain: []ecs.EntityID{},
 		},
 		{
 			name:          "query at entity location",
 			queryPos:      geom.Vector2{X: 15, Y: 0},
 			radius:        5.0,
 			expectedCount: 3,
-			shouldContain: []core.EntityID{1, 2, 3},
+			shouldContain: []ecs.EntityID{1, 2, 3},
 		},
 	}
 
@@ -247,7 +247,7 @@ func TestSpatialIndex_Query(t *testing.T) {
 				t.Errorf("Query() returned %d entities, want %d", len(results), tt.expectedCount)
 			}
 
-			resultMap := make(map[core.EntityID]bool)
+			resultMap := make(map[ecs.EntityID]bool)
 			for _, id := range results {
 				resultMap[id] = true
 			}
@@ -272,7 +272,7 @@ func TestSpatialIndex_QueryEmpty(t *testing.T) {
 
 func TestSpatialIndex_Remove(t *testing.T) {
 	idx, _ := NewIndex(10.0)
-	entityID := core.EntityID(1)
+	entityID := ecs.EntityID(1)
 
 	// Remove from empty index
 	idx.Remove(entityID)
@@ -297,7 +297,7 @@ func TestSpatialIndex_Remove(t *testing.T) {
 
 func TestSpatialIndex_RemoveCleanupEmptyCells(t *testing.T) {
 	idx, _ := NewIndex(10.0)
-	entityID := core.EntityID(1)
+	entityID := ecs.EntityID(1)
 
 	pos := geom.Vector2{X: 5.0, Y: 5.0}
 	idx.Update(entityID, pos)
@@ -318,8 +318,8 @@ func TestSpatialIndex_RemoveMultipleEntitiesInCell(t *testing.T) {
 	idx, _ := NewIndex(10.0)
 
 	// Add multiple entities in same cell
-	id1 := core.EntityID(1)
-	id2 := core.EntityID(2)
+	id1 := ecs.EntityID(1)
+	id2 := ecs.EntityID(2)
 	pos1 := geom.Vector2{X: 5.0, Y: 5.0}
 	pos2 := geom.Vector2{X: 7.0, Y: 7.0}
 
@@ -461,7 +461,7 @@ func TestSpatialIndex_LargeDataset(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		x := float64((i % 100) * 5)
 		y := float64((i / 100) * 5)
-		if err := idx.Update(core.EntityID(i), geom.Vector2{X: x, Y: y}); err != nil {
+		if err := idx.Update(ecs.EntityID(i), geom.Vector2{X: x, Y: y}); err != nil {
 			t.Fatalf("Update() failed: %v", err)
 		}
 	}
@@ -481,7 +481,7 @@ func TestSpatialIndex_LargeDataset(t *testing.T) {
 
 func TestSpatialIndex_UpdateToSamePosition(t *testing.T) {
 	idx, _ := NewIndex(10.0)
-	entityID := core.EntityID(1)
+	entityID := ecs.EntityID(1)
 	pos := geom.Vector2{X: 5.0, Y: 5.0}
 
 	// First update

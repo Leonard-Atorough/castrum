@@ -5,8 +5,8 @@ import (
 
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
-	"github.com/leonard-atorough/castrum/internal/events"
-	"github.com/leonard-atorough/castrum/internal/physics"
+	"github.com/leonard-atorough/castrum/events"
+	"github.com/leonard-atorough/castrum/physics"
 )
 
 // CollisionSystem handles collision response logic using event-based collision events

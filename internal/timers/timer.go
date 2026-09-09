@@ -29,14 +29,10 @@ package timers
 
 import (
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/internal/core"
-	"github.com/leonard-atorough/castrum/internal/events"
+	"github.com/leonard-atorough/castrum/events"
+	core "github.com/leonard-atorough/castrum/internal/ecs"
+	"github.com/leonard-atorough/castrum/timers"
 )
-
-type TimerCompletedEvent struct {
-	EntityID core.EntityID
-	TimerID  components.TimerID
-}
 
 // TimerSystem is a System that updates all Timer components in the world.
 // It accumulates delta time for each running timer, emits TimerCompletedEvent
@@ -89,7 +85,7 @@ func (ts *TimerSystem) Update(world *core.World, deltaTime float64) error {
 		if timer.ElapsedTime >= timer.Duration {
 			// Emit a TimerCompletedEvent for this timer
 			if bus != nil {
-				bus.Emit(TimerCompletedEvent{
+				bus.Emit(timers.TimerCompletedEvent{
 					EntityID: entityID,
 					TimerID:  timer.ID,
 				}, "TimerSystem")

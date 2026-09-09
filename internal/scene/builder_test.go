@@ -3,7 +3,7 @@ package scene
 import (
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 func TestNewBuilder(t *testing.T) {
@@ -21,7 +21,7 @@ func TestNewBuilder(t *testing.T) {
 func TestBuilder_WithEntity(t *testing.T) {
 	builder := NewBuilder("test-scene")
 
-	entityID := core.EntityID(1)
+	entityID := ecs.EntityID(1)
 	result := builder.WithEntity(entityID)
 
 	if result != builder {
@@ -48,7 +48,7 @@ func TestBuilder_WithEntity_Multiple(t *testing.T) {
 }
 
 func TestBuilder_Build(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	builder := NewBuilder("test-scene")
 
 	entity1 := world.Create("player")
@@ -73,7 +73,7 @@ func TestBuilder_Build(t *testing.T) {
 }
 
 func TestBuilder_Build_Empty(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	builder := NewBuilder("empty-scene")
 
 	scene, err := builder.Build(world)
@@ -92,7 +92,7 @@ func TestBuilder_Build_Empty(t *testing.T) {
 }
 
 func TestBuilder_Build_WithNonExistentEntity(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	builder := NewBuilder("test-scene")
 
 	builder.WithEntity(999) // Non-existent entity
@@ -107,7 +107,7 @@ func TestBuilder_WithLoadHook(t *testing.T) {
 	builder := NewBuilder("test-scene")
 
 	loadCalled := false
-	builder.WithLoadHook(func(w *core.World) error {
+	builder.WithLoadHook(func(w *ecs.World) error {
 		loadCalled = true
 		return nil
 	})
@@ -117,7 +117,7 @@ func TestBuilder_WithLoadHook(t *testing.T) {
 	}
 
 	// Verify the hook works
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene, _ := builder.Build(world)
 	_ = scene.OnLoad(world)
 
@@ -130,7 +130,7 @@ func TestBuilder_WithUnloadHook(t *testing.T) {
 	builder := NewBuilder("test-scene")
 
 	unloadCalled := false
-	builder.WithUnloadHook(func(w *core.World) error {
+	builder.WithUnloadHook(func(w *ecs.World) error {
 		unloadCalled = true
 		return nil
 	})
@@ -140,7 +140,7 @@ func TestBuilder_WithUnloadHook(t *testing.T) {
 	}
 
 	// Verify the hook works
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene, _ := builder.Build(world)
 	_ = scene.OnUnload(world)
 
@@ -154,17 +154,17 @@ func TestBuilder_WithHooks(t *testing.T) {
 
 	loadCalled, unloadCalled := false, false
 	builder.WithHooks(
-		func(w *core.World) error {
+		func(w *ecs.World) error {
 			loadCalled = true
 			return nil
 		},
-		func(w *core.World) error {
+		func(w *ecs.World) error {
 			unloadCalled = true
 			return nil
 		},
 	)
 
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene, _ := builder.Build(world)
 
 	_ = scene.OnLoad(world)
@@ -181,14 +181,14 @@ func TestBuilder_WithHooks(t *testing.T) {
 func TestBuilder_WithData(t *testing.T) {
 	builder := NewBuilder("test-scene")
 
-	builder.WithData("score", 100)
+	builder.WithData("secs", 100)
 	builder.WithData("level", 5)
 
 	scene := builder.Scene()
 
-	val, ok := scene.GetData("score")
+	val, ok := scene.GetData("secs")
 	if !ok || val != 100 {
-		t.Fatal("expected score to be 100")
+		t.Fatal("expected secs to be 100")
 	}
 
 	val, ok = scene.GetData("level")
@@ -230,7 +230,7 @@ func TestBuilder_Scene(t *testing.T) {
 	}
 
 	// Verify we can still build after getting the scene
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	builtScene, err := builder.Build(world)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

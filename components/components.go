@@ -38,7 +38,7 @@ type SceneTag struct {
 // RenderLayer represents a bitmask for render layers.
 type RenderLayer uint32 // layer index: 0-31, one of 32 possible sorting layers
 
-type Renderable struct {
+type Sprite struct {
 	TexturePath string
 	Primitive   PrimitiveType
 	Layer       RenderLayer // which of 32 layers to render on (0-31)
@@ -47,12 +47,12 @@ type Renderable struct {
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
-// NewRenderable creates a new Renderable component with the specified properties.
-func NewRenderable(texturePath string, Primitive PrimitiveType, Layer RenderLayer, SortOrder int, Visible bool, Data any) Renderable {
+// NewSprite creates a new Renderable component with the specified properties.
+func NewSprite(texturePath string, Primitive PrimitiveType, Layer RenderLayer, SortOrder int, Visible bool, Data any) Sprite {
 	if Data == nil {
 		Data = struct{}{}
 	}
-	return Renderable{
+	return Sprite{
 		TexturePath: texturePath,
 		Primitive:   Primitive,
 		Layer:       Layer,
@@ -73,19 +73,19 @@ const (
 )
 
 // Animation holds playback state for an animating entity.
-// The animation definition (frames, frame speed, loop) is loaded separately as an asset (AnimationClip).
+// The animation definition (frames, frame speed, loop) is managed by the AnimationManager.
 type Animation struct {
-	ClipPath      string  // path to the .anim.yaml asset
-	FrameIndex    int     // current frame
+	ClipPath      string  // ID to look up the AnimationClip in the manager
+	FrameIndex    int     // current frame index
 	FrameTime     float64 // accumulated time for current frame (seconds)
 	Playing       bool    // is the animation running
 	PlaybackSpeed float64 // playback multiplier (1.0 = normal speed)
 }
 
-// NewAnimation creates an Animation for a given clip path.
-func NewAnimation(clipPath string, autoplay bool) Animation {
+// NewAnimation creates an Animation for a given clip ID.
+func NewAnimation(clipID string, autoplay bool) Animation {
 	return Animation{
-		ClipPath:      clipPath,
+		ClipPath:      clipID,
 		PlaybackSpeed: 1.0,
 		Playing:       autoplay,
 	}

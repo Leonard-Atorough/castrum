@@ -7,25 +7,29 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/leonard-atorough/castrum/animation"
+	"github.com/leonard-atorough/castrum/atlas"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/animation"
+	"github.com/leonard-atorough/castrum/input"
+	"github.com/leonard-atorough/castrum/internal/animationsystem"
 	"github.com/leonard-atorough/castrum/internal/assets"
-	"github.com/leonard-atorough/castrum/internal/camera"
-	"github.com/leonard-atorough/castrum/internal/core"
-	"github.com/leonard-atorough/castrum/internal/events"
-	"github.com/leonard-atorough/castrum/internal/input"
-	"github.com/leonard-atorough/castrum/internal/physics"
+	"github.com/leonard-atorough/castrum/internal/camerasystem"
+	"github.com/leonard-atorough/castrum/internal/ecs"
+	"github.com/leonard-atorough/castrum/internal/physicssystem"
 	"github.com/leonard-atorough/castrum/internal/render"
 	"github.com/leonard-atorough/castrum/internal/scene"
 	"github.com/leonard-atorough/castrum/internal/spatial"
-	"github.com/leonard-atorough/castrum/internal/timers"
+	"github.com/leonard-atorough/castrum/internal/timersystem"
+	"github.com/leonard-atorough/castrum/physics"
+	"github.com/leonard-atorough/castrum/timers"
 )
 
-// Core components (data attached to entities)
+// ecs components (data attached to entities)
 type (
 	Transform  = components.Transform
-	Renderable = components.Renderable
+	Renderable = components.Sprite
 	Collider   = components.Collider
 	Animation  = components.Animation
 	SceneTag   = components.SceneTag
@@ -36,30 +40,31 @@ type (
 
 type (
 	// World is the entity-component system container
-	World       = core.World
-	Entity      = core.Entity
-	Component   = core.Component
-	EntityID    = core.EntityID
-	Query       = core.Query
-	QueryResult = core.ResultEntry
+	World       = ecs.World
+	Entity      = ecs.Entity
+	Component   = ecs.Component
+	EntityID    = ecs.EntityID
+	Query       = ecs.Query
+	QueryResult = ecs.ResultEntry
 )
 
 type (
 	// System is the interface for game logic systems
-	System          = core.System
-	Systems         = core.Manager
-	AnimationSystem = animation.System
-	CollisionSystem = physics.CollisionProcessingSystem
-	SpatialIndex    = spatial.SpatialIndexHandler
-	InputHandler    = input.InputHandler
+	System  = ecs.System
+	Systems = ecs.Manager
+)
+
+type (
+	// AnimationManager provides programmatic creation and storage of animation clips
+	AnimationManager = animation.Manager
+	// AtlasManager provides programmatic creation and storage of texture atlases
+	AtlasManager = atlas.Manager
 )
 
 type (
 	Scene        = scene.Scene
 	SceneBuilder = scene.Builder
 )
-
-type Input = InputHandler
 
 type (
 	// TimerCompletedEvent is emitted when a timer fires
@@ -72,11 +77,11 @@ type (
 
 // Sentinel errors returned by engine operations. Use errors.Is() for checking.
 var (
-	ErrEntityNotFound          = core.ErrEntityNotFound
-	ErrInvalidEntity           = core.ErrInvalidEntity
-	ErrComponentNotFound       = core.ErrComponentNotFound
-	ErrSystemNotFound          = core.ErrSystemNotFound
-	ErrSystemAlreadyRegistered = core.ErrSystemAlreadyRegistered
+	ErrEntityNotFound          = ecs.ErrEntityNotFound
+	ErrInvalidEntity           = ecs.ErrInvalidEntity
+	ErrComponentNotFound       = ecs.ErrComponentNotFound
+	ErrSystemNotFound          = ecs.ErrSystemNotFound
+	ErrSystemAlreadyRegistered = ecs.ErrSystemAlreadyRegistered
 )
 
 const (
@@ -103,21 +108,26 @@ type Game struct {
 
 	// Systems is the system manager (lifecycle: init, update, shutdown).
 	// Use Systems.Register to add custom game logic systems.
-	// Note: Core systems (physics, animation, rendering) are auto-registered.
-	Systems *core.Manager
+	// Note: ecs systems (physics, animation, rendering) are auto-registered.
+	Systems *ecs.Manager
 
-	// Render is the rendering backend (advanced use only).
+	// EventBus is the event bus for subscribing to and publishing events.
+	// Use EventBus.On to subscribe to events, and EventBus.Publish to emit events.
+	// Example: EventBus.On[CollisionEvent](func(meta EventMeta, event CollisionEvent) { ... })
+	EventBus *events.EventBus
+
+	// renderer is the rendering backend (advanced use only).
 	// Most games should not interact with this directly; rendering is automatic.
 	// Exposed for custom rendering (e.g., debug overlays, post-processing).
-	Render *render.Renderer
+	renderer *render.Renderer
 
 	// Spatial is the spatial index for efficient entity queries by position (advanced use only).
 	// Most games should not interact with this directly; it's managed by the collision system.
-	Spatial *SpatialIndex
+	Spatial *spatial.SpatialIndexHandler
 
 	// Input is the input handler for keyboard, mouse, and gamepad state.
 	// Use Input.KeyPressed, MouseHeld, etc. to poll input state.
-	Input *InputHandler
+	Input *input.InputHandler
 
 	// Assets is the asset manager for loading and caching textures, animations, and blueprints.
 	// Use Assets to load game resources.
@@ -144,38 +154,41 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		return nil, err
 	}
 
-	newWorld := core.NewWorld()
+	newWorld := ecs.NewWorld()
 
-	// SceneManager is registered as a World resource (not a typed struct field) so core
-	// never needs to import the scene package; see internal/core/resource.go.
-	core.SetResource(newWorld, scene.NewManager())
-	core.SetResource(newWorld, events.NewEventBus())
+	// SceneManager is registered as a World resource (not a typed struct field) so ecs
+	// never needs to import the scene package; see internal/ecs/resource.go.
+	ecs.SetResource(newWorld, scene.NewManager())
 
 	input := input.New()
+	EventBus := events.NewEventBus()
 
-	systems := core.NewManager()
+	systems := ecs.NewManager()
 
-	// all core systems are allowed a priority of -1 for now. Better to have a field for core system priorities in the future.
+	// all ecs systems are allowed a priority of -1 for now. Better to have a field for ecs system priorities in the future.
 	var err error
-	if err = systems.Register("timer", -1, &timers.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
+	if err = systems.Register("timer", -1, &timersystem.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
 		return nil, err
 	}
-	if err = systems.Register("camera", -1, &camera.System{}, newWorld); err != nil {
+	if err = systems.Register("camera", -1, &camerasystem.System{}, newWorld); err != nil {
 		return nil, err
 	}
-	if err = systems.Register("animation", -1, &animation.System{}, newWorld); err != nil {
+	// Create animation manager and register it as a resource
+	animMgr := animation.NewManager()
+	ecs.SetResource(newWorld, animMgr)
+	if err = systems.Register("animation", -1, animationsystem.NewSystem(animMgr), newWorld); err != nil {
 		return nil, err
 	}
 	spatial, err := spatial.NewManager(config.World.GridCellSize)
 	if err != nil {
 		return nil, err
 	}
-	if err = systems.Register("collision", -1, physics.NewSystem(spatial.Index, physics.DefaultConfig()), newWorld); err != nil {
+	if err = systems.Register("collision", -1, physicssystem.NewSystem(spatial.Index, physicssystem.DefaultConfig()), newWorld); err != nil {
 		return nil, err
 	}
 
 	assets := assets.NewAssets(filesystem)
-	renderer := render.New(assets.Textures, assets.Atlas, assets.Animations)
+	renderer := render.New(assets.Textures, animMgr)
 
 	// Create primary camera as an entity
 	cameraEntity, err := newWorld.CreateWithComponents(
@@ -196,7 +209,8 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		Config:         config,
 		Systems:        systems,
 		Assets:         assets,
-		Render:         renderer,
+		EventBus:       EventBus,
+		renderer:       renderer,
 		CameraEntityID: cameraEntity.ID,
 		Spatial:        spatial,
 		Input:          input,
@@ -240,22 +254,22 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.Render.Clear(screen, color.Black)
-	g.Render.DrawScene(screen, g.World)
+	g.renderer.Clear(screen, color.Black)
+	g.renderer.DrawScene(screen, g.World)
 
 	if g.Config.Engine.EnableDebug {
-		g.Render.DrawDebugInfo(screen, g.World)
+		g.renderer.DrawDebugInfo(screen, g.World)
 	}
 }
 func (g *Game) Scenes() *scene.Manager {
-	mgr, _ := core.GetResource[*scene.Manager](g.World)
+	mgr, _ := ecs.GetResource[*scene.Manager](g.World)
 	return mgr
 }
 
 // GetResource retrieves a typed resource from the world's resource store.
 // Returns a zero value and false if the resource is not registered.
 func GetResource[T any](world *World) (T, bool) {
-	return core.GetResource[T](world)
+	return ecs.GetResource[T](world)
 }
 
 // PushScene activates a pre-loaded scene on top of the stack (useful for overlays/pause menus).
@@ -341,7 +355,7 @@ func CountWith[T Component](w *World) int {
 
 // RegisterSystem registers a system with the game.
 // Priority controls execution order: lower values run first. Use negative values for systems
-// that should run before core systems (e.g., shader prep), 0 for most game logic, positive for post-processing.
+// that should run before ecs systems (e.g., shader prep), 0 for most game logic, positive for post-processing.
 func (g *Game) RegisterSystem(name string, priority int, system System) error {
 	return g.Systems.Register(name, priority, system, g.World)
 }
