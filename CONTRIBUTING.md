@@ -94,7 +94,7 @@ Post-release features (editor, persistence, audio, advanced physics) based on co
 
 - **Language:** Go 1.27+
 - **Style:** Follow [Effective Go](https://golang.org/doc/effective_go) and `gofmt`.
-- **Tests:** Write tests for new features. Aim for >80% coverage on `internal/core`.
+- **Tests:** Write tests for new features. Aim for >80% coverage on `internal/ecs`.
 - **Comments:** Document exported functions and non-obvious logic.
 - **Dependencies:** Keep external dependencies minimal. Ebiten is the only game-engine dependency.
 

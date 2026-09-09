@@ -5,15 +5,15 @@ import (
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/internal/core"
-	"github.com/leonard-atorough/castrum/internal/input"
+	"github.com/leonard-atorough/castrum/input"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 // CameraSystem is responsible for managing the camera within the game world.
 type CameraSystem struct {
-	Input       *castrum.InputHandler
-	cameraQuery *core.Query
-	playerQuery *core.Query
+	Input       *input.InputHandler
+	cameraQuery *ecs.Query
+	playerQuery *ecs.Query
 }
 
 // Update finds the player and updates the primary camera to follow it.
@@ -101,8 +101,8 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 }
 
 func (cs *CameraSystem) Init(world *castrum.World) error {
-	cs.cameraQuery = core.NewQuery(world).WithRequiredComponents(components.Camera{})
-	cs.playerQuery = core.NewQuery(world).WithRequiredComponents(gamecomponents.Player{})
+	cs.cameraQuery = ecs.NewQuery(world).WithRequiredComponents(components.Camera{})
+	cs.playerQuery = ecs.NewQuery(world).WithRequiredComponents(gamecomponents.Player{})
 	return nil
 }
 

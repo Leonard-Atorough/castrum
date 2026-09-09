@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
-type SceneHook func(world *core.World) error
+type SceneHook func(world *ecs.World) error
 
 // Scene is a lightweight descriptor for a group of entities and their lifecycle hooks.
 // Entity membership is not tracked here; it lives on entities as a components.SceneTag
@@ -33,7 +33,7 @@ func (s *Scene) Name() string {
 
 // AddToScene tags an entity as belonging to this scene.
 // The entity must already exist in the world.
-func (s *Scene) AddToScene(entityID core.EntityID, world *core.World) error {
+func (s *Scene) AddToScene(entityID ecs.EntityID, world *ecs.World) error {
 	if !world.HasEntity(entityID) {
 		return fmt.Errorf("entity %d does not exist in world", entityID)
 	}
@@ -44,7 +44,7 @@ func (s *Scene) AddToScene(entityID core.EntityID, world *core.World) error {
 }
 
 // RemoveFromScene removes the SceneTag component so the entity is no longer part of this scene.
-func (s *Scene) RemoveFromScene(entityID core.EntityID, world *core.World) error {
+func (s *Scene) RemoveFromScene(entityID ecs.EntityID, world *ecs.World) error {
 	if !world.HasEntity(entityID) {
 		return fmt.Errorf("entity %d does not exist in world", entityID)
 	}
@@ -52,7 +52,7 @@ func (s *Scene) RemoveFromScene(entityID core.EntityID, world *core.World) error
 }
 
 // Entities returns all entities currently tagged with this scene's ID.
-func (s *Scene) Entities(world *core.World) []core.EntityID {
+func (s *Scene) Entities(world *ecs.World) []ecs.EntityID {
 	return world.NewQuery().InScene(s.ID).EntityIDs()
 }
 
@@ -65,7 +65,7 @@ func (s *Scene) SetUnloadHook(hook SceneHook) {
 }
 
 // OnLoad is called when the scene becomes active.
-func (s *Scene) OnLoad(world *core.World) error {
+func (s *Scene) OnLoad(world *ecs.World) error {
 	if s.loadHook != nil {
 		if err := s.loadHook(world); err != nil {
 			return fmt.Errorf("failed to execute load hook for scene %s: %w", s.ID, err)
@@ -76,7 +76,7 @@ func (s *Scene) OnLoad(world *core.World) error {
 
 // OnUnload is called when the scene is deactivated.
 // This untags all entities belonging to this scene.
-func (s *Scene) OnUnload(world *core.World) error {
+func (s *Scene) OnUnload(world *ecs.World) error {
 	for _, entityID := range s.Entities(world) {
 		// Suppress errors for entities that no longer exist.
 		_ = s.RemoveFromScene(entityID, world)
@@ -103,10 +103,10 @@ func (s *Scene) GetData(key string) (any, bool) {
 }
 
 // Manager tracks loaded scenes and a stack of active ones.
-// It does not store a *core.World reference; callers pass the world explicitly
+// It does not store a *ecs.World reference; callers pass the world explicitly
 // to operations that need it (Push, Pop, TransitionTo, UnloadScene), mirroring
 // how Bevy's OnEnter/OnExit systems receive World rather than a state machine owning it.
-// This lets Manager be registered as a core.Resource on World without an import cycle.
+// This lets Manager be registered as a ecs.Resource on World without an import cycle.
 type Manager struct {
 	scenes  map[string]*Scene
 	stack   []string
@@ -161,7 +161,7 @@ func (sm *Manager) LoadScene(name string, scene *Scene) error {
 
 // UnloadScene removes a scene from the registry. If it is on the active stack,
 // OnUnload runs first and it is removed from the stack.
-func (sm *Manager) UnloadScene(world *core.World, name string) error {
+func (sm *Manager) UnloadScene(world *ecs.World, name string) error {
 	if _, exists := sm.scenes[name]; !exists {
 		return fmt.Errorf("scene %s not found", name)
 	}
@@ -179,7 +179,7 @@ func (sm *Manager) UnloadScene(world *core.World, name string) error {
 
 // Push loads and activates a scene on top of the stack, leaving scenes beneath it loaded.
 // Use this for overlays such as a pause menu on top of gameplay.
-func (sm *Manager) Push(world *core.World, name string) error {
+func (sm *Manager) Push(world *ecs.World, name string) error {
 	scene, exists := sm.scenes[name]
 	if !exists {
 		return fmt.Errorf("scene %s not found", name)
@@ -194,7 +194,7 @@ func (sm *Manager) Push(world *core.World, name string) error {
 }
 
 // Pop unloads and removes the top scene, resuming the one beneath it.
-func (sm *Manager) Pop(world *core.World) error {
+func (sm *Manager) Pop(world *ecs.World) error {
 	if len(sm.stack) == 0 {
 		return fmt.Errorf("scene stack is empty")
 	}
@@ -209,7 +209,7 @@ func (sm *Manager) Pop(world *core.World) error {
 
 // TransitionTo clears the entire stack (unloading top to bottom) and pushes name as
 // the sole active scene.
-func (sm *Manager) TransitionTo(world *core.World, name string) error {
+func (sm *Manager) TransitionTo(world *ecs.World, name string) error {
 	if _, exists := sm.scenes[name]; !exists {
 		return fmt.Errorf("scene %s not found", name)
 	}

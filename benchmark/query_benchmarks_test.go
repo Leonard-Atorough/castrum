@@ -3,7 +3,7 @@ package benchmark
 import (
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 // ============================================================================
@@ -12,14 +12,14 @@ import (
 
 // BenchmarkQuerySingleComponent measures query performance for single component type.
 func BenchmarkQuerySingleComponent(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-create entities with Position
 	for i := range 10000 {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 	}
-	query := core.NewQuery(world).WithRequiredComponents(Position{})
+	query := ecs.NewQuery(world).WithRequiredComponents(Position{})
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -29,7 +29,7 @@ func BenchmarkQuerySingleComponent(b *testing.B) {
 
 // BenchmarkQueryMultipleComponents measures query performance for multiple component types.
 func BenchmarkQueryMultipleComponents(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Pre-create entities with Position + Velocity
 	for i := range 10000 {
@@ -51,7 +51,7 @@ func BenchmarkQueryMultipleComponents(b *testing.B) {
 // BenchmarkQuerySparsely measures query performance with sparse results (1% match rate).
 func BenchmarkQuerySparsely(b *testing.B) {
 	// Create 10,000 entities, only 1% have Position (100 entities match)
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	for i := range 10000 {
 		entity := world.Create("Generic")
 		if i%100 == 0 {
@@ -68,7 +68,7 @@ func BenchmarkQuerySparsely(b *testing.B) {
 // BenchmarkQueryDensely measures query performance with dense results (100% match rate).
 func BenchmarkQueryDensely(b *testing.B) {
 	// Create 10,000 entities, all have Position (100% match)
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	for i := range 10000 {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
@@ -82,7 +82,7 @@ func BenchmarkQueryDensely(b *testing.B) {
 
 // BenchmarkIterateQueryResults measures cost of iterating query results and accessing components.
 func BenchmarkIterateQueryResults(b *testing.B) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	for i := range 10000 {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})

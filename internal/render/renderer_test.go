@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/animation"
 	"github.com/leonard-atorough/castrum/internal/assets"
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 // These are smoke tests: ebiten images can't be read back outside a running
@@ -31,18 +31,6 @@ func (m *mockTextureLoader) Load(path string) (*assets.Texture, error) {
 	return tex, nil
 }
 
-type mockAtlasLoader struct {
-	atlases map[string]*assets.TextureAtlas
-}
-
-func (m *mockAtlasLoader) Load(path string) (*assets.TextureAtlas, error) {
-	atlas, ok := m.atlases[path]
-	if !ok {
-		return nil, fmt.Errorf("atlas not found: %s", path)
-	}
-	return atlas, nil
-}
-
 func newTestRenderer() *Renderer {
 	// Create a 1x1 ebiten.Image as a minimal sprite (we're not testing texture
 	// loading, just that rendering doesn't panic).
@@ -51,13 +39,12 @@ func newTestRenderer() *Renderer {
 	textureLoader := &mockTextureLoader{textures: map[string]*assets.Texture{
 		"square": {Path: "square", Image: testImage, Width: 1, Height: 1},
 	}}
-	atlasLoader := &mockAtlasLoader{atlases: map[string]*assets.TextureAtlas{}}
 	animationMgr := animation.NewManager()
-	return New(textureLoader, atlasLoader, animationMgr)
+	return New(textureLoader, animationMgr)
 }
 
 // setupTestWorldWithCamera creates a world with a primary camera entity.
-func setupTestWorldWithCamera(world *core.World, width, height int) error {
+func setupTestWorldWithCamera(world *ecs.World, width, height int) error {
 	_, err := world.CreateWithComponents("camera",
 		components.Camera{
 			Zoom:       1.0,
@@ -81,7 +68,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	screen := ebiten.NewImage(200, 200)
 
 	t.Run("empty world draws nothing and does not panic", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
@@ -89,7 +76,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	})
 
 	t.Run("primitive entities of every kind draw without panicking", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
@@ -111,7 +98,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	})
 
 	t.Run("a Transform with a nil Color does not panic (regression)", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
@@ -126,7 +113,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	})
 
 	t.Run("sprite entities with a registered texture draw without panicking", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
@@ -141,7 +128,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	})
 
 	t.Run("sprite entities with a missing texture are silently skipped", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
@@ -156,7 +143,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	})
 
 	t.Run("invisible entities are skipped", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
@@ -172,7 +159,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	})
 
 	t.Run("draws entities in ascending layer order without panicking", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
@@ -189,7 +176,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	})
 
 	t.Run("depth sorting within same layer and Y position", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
@@ -210,7 +197,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	})
 
 	t.Run("depth takes priority over Y position within same layer", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
@@ -236,7 +223,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	})
 
 	t.Run("Y position is fallback when layer and depth are equal", func(t *testing.T) {
-		world := core.NewWorld()
+		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
@@ -263,7 +250,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 func TestRenderer_DrawDebugInfo(t *testing.T) {
 	renderer := newTestRenderer()
 	screen := ebiten.NewImage(200, 200)
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 		t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 	}

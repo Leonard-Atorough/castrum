@@ -3,14 +3,14 @@ package scene
 import (
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
-// Integration tests using the real core.World implementation
+// Integration tests using the real ecs.World implementation
 
 func TestScene_IntegrationWithRealWorld(t *testing.T) {
-	// Use the real core.World implementation
-	world := core.NewWorld()
+	// Use the real ecs.World implementation
+	world := ecs.NewWorld()
 	scene := NewScene("integration-test")
 
 	// Create entities
@@ -54,7 +54,7 @@ func TestScene_IntegrationWithRealWorld(t *testing.T) {
 }
 
 func TestManager_IntegrationWithRealWorld(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	// Create scenes with entities
@@ -93,7 +93,7 @@ func TestManager_IntegrationWithRealWorld(t *testing.T) {
 }
 
 func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Create entities
 	entity1 := world.Create("player")
@@ -117,7 +117,7 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 	// Test with hooks
 	loadCalled := false
 	builder2 := NewBuilder("builder-test-2")
-	builder2.WithEntity(entity1.ID).WithLoadHook(func(w *core.World) error {
+	builder2.WithEntity(entity1.ID).WithLoadHook(func(w *ecs.World) error {
 		loadCalled = true
 		return nil
 	})
@@ -131,7 +131,7 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 }
 
 func TestSceneManager_IntegrationWithRealWorld(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	manager := NewManager()
 
 	// Create entities
@@ -186,7 +186,7 @@ func TestSceneManager_IntegrationWithRealWorld(t *testing.T) {
 }
 
 func TestScene_Lifecycle_IntegrationWithRealWorld(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 
 	// Create a scene with load and unload hooks
 	scene := NewScene("lifecycle-test")
@@ -194,12 +194,12 @@ func TestScene_Lifecycle_IntegrationWithRealWorld(t *testing.T) {
 	loadCalled := false
 	unloadCalled := false
 
-	scene.SetLoadHook(func(w *core.World) error {
+	scene.SetLoadHook(func(w *ecs.World) error {
 		loadCalled = true
 		return nil
 	})
 
-	scene.SetUnloadHook(func(w *core.World) error {
+	scene.SetUnloadHook(func(w *ecs.World) error {
 		unloadCalled = true
 		return nil
 	})
@@ -238,19 +238,19 @@ func TestScene_Lifecycle_IntegrationWithRealWorld(t *testing.T) {
 }
 
 func TestScene_Data_IntegrationWithRealWorld(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	scene := NewScene("data-test")
 
 	// Set various types of data
-	scene.SetData("score", 1000)
+	scene.SetData("secs", 1000)
 	scene.SetData("name", "test-level")
 	scene.SetData("completed", true)
 	scene.SetData("settings", map[string]int{"difficulty": 5})
 
 	// Verify data retrieval
-	val, ok := scene.GetData("score")
+	val, ok := scene.GetData("secs")
 	if !ok || val != 1000 {
-		t.Fatal("expected score to be 1000")
+		t.Fatal("expected secs to be 1000")
 	}
 
 	val, ok = scene.GetData("name")
@@ -274,8 +274,8 @@ func TestScene_Data_IntegrationWithRealWorld(t *testing.T) {
 	_ = scene.AddToScene(entity.ID, world)
 
 	// Data should still be accessible
-	val, ok = scene.GetData("score")
+	val, ok = scene.GetData("secs")
 	if !ok || val != 1000 {
-		t.Fatal("expected score to still be 1000 after adding entity")
+		t.Fatal("expected secs to still be 1000 after adding entity")
 	}
 }

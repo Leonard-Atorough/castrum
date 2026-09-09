@@ -1,17 +1,19 @@
-package physics
+package physicssystem
 
 import (
 	"testing"
 
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/core"
-	"github.com/leonard-atorough/castrum/internal/events"
+	"github.com/leonard-atorough/castrum/internal/ecs"
+	"github.com/leonard-atorough/castrum/physics"
+
 	"github.com/leonard-atorough/castrum/internal/spatial"
 )
 
 func TestSystem_RectCollision(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
@@ -50,7 +52,7 @@ func TestSystem_RectCollision(t *testing.T) {
 }
 
 func TestSystem_NoCollisionWhenFar(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
@@ -83,7 +85,7 @@ func TestSystem_NoCollisionWhenFar(t *testing.T) {
 }
 
 func TestSystem_CircleCollision(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
@@ -118,7 +120,7 @@ func TestSystem_CircleCollision(t *testing.T) {
 }
 
 func TestSystem_CircleRectCollision(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
@@ -153,9 +155,9 @@ func TestSystem_CircleRectCollision(t *testing.T) {
 }
 
 func TestSystem_EventLifecycle(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	core.SetResource(world, bus)
+	ecs.SetResource(world, bus)
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
@@ -176,11 +178,11 @@ func TestSystem_EventLifecycle(t *testing.T) {
 	spatialMgr.Update(world, 0)
 
 	// Track event state across updates
-	var lastEvent CollisionEvent
+	var lastEvent physics.CollisionEvent
 	var eventFired bool
 
 	// Subscribe to collision events once for the entire test
-	subID := bus.On(func(_ events.EventMeta, e CollisionEvent) {
+	subID := bus.On(func(_ events.EventMeta, e physics.CollisionEvent) {
 		lastEvent = e
 		eventFired = true
 	}, false)
@@ -201,14 +203,14 @@ func TestSystem_EventLifecycle(t *testing.T) {
 	// Second update: should emit Enter
 	eventFired = false
 	collisionSys.Update(world, 0)
-	if !eventFired || lastEvent.CollisionEventType != CollisionEnter {
+	if !eventFired || lastEvent.CollisionEventType != physics.CollisionEnter {
 		t.Error("Expected CollisionEnter event")
 	}
 
 	// Third update: no movement, should emit Stay
 	eventFired = false
 	collisionSys.Update(world, 0)
-	if !eventFired || lastEvent.CollisionEventType != CollisionStay {
+	if !eventFired || lastEvent.CollisionEventType != physics.CollisionStay {
 		t.Error("Expected CollisionStay event")
 	}
 
@@ -221,7 +223,7 @@ func TestSystem_EventLifecycle(t *testing.T) {
 	// Fourth update: should emit Exit
 	eventFired = false
 	collisionSys.Update(world, 0)
-	if !eventFired || lastEvent.CollisionEventType != CollisionExit {
+	if !eventFired || lastEvent.CollisionEventType != physics.CollisionExit {
 		t.Error("Expected CollisionExit event")
 	}
 
@@ -229,7 +231,7 @@ func TestSystem_EventLifecycle(t *testing.T) {
 }
 
 func TestSystem_LayerMaskFiltering(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
@@ -264,7 +266,7 @@ func TestSystem_LayerMaskFiltering(t *testing.T) {
 }
 
 func TestSystem_InactiveColliderSkipped(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
@@ -296,7 +298,7 @@ func TestSystem_InactiveColliderSkipped(t *testing.T) {
 }
 
 func TestSystem_CircleCircleContact(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
@@ -342,7 +344,7 @@ func TestSystem_CircleCircleContact(t *testing.T) {
 }
 
 func TestSystem_QueryCollisions(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
@@ -389,7 +391,7 @@ func TestSystem_QueryCollisions(t *testing.T) {
 	}
 
 	// Verify the colliding entities are in the result
-	found := make(map[core.EntityID]bool)
+	found := make(map[ecs.EntityID]bool)
 	for _, id := range collisions {
 		found[id] = true
 	}
@@ -406,7 +408,7 @@ func TestSystem_QueryCollisions(t *testing.T) {
 }
 
 func TestSystem_DisabledCollision(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
@@ -441,7 +443,7 @@ func TestSystem_DisabledCollision(t *testing.T) {
 }
 
 func TestSystem_TestCollisionMissingComponent(t *testing.T) {
-	world := core.NewWorld()
+	world := ecs.NewWorld()
 	spatialMgr, err := spatial.NewManager(100.0)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)

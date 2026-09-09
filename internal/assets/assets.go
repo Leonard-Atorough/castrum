@@ -15,7 +15,6 @@ type fileExtension string
 var (
 	FileExtensionTexture   []fileExtension = []fileExtension{".png", ".jpg", ".jpeg"}
 	FileExtensionBlueprint fileExtension   = ".yaml"
-	FileExtensionAtlas     fileExtension   = ".json"
 )
 
 // LoadResult holds the result of an async load operation.
@@ -36,11 +35,11 @@ type loadRequest struct {
 // LoadBatch use workers for concurrent loading with context cancellation support.
 //
 // Animation clips are not loaded from disk; they are created programmatically via
-// the AnimationManager in the animation package.
+// Animation clips and atlases are not loaded from disk; they are created
+// programmatically via the animation.Manager and atlas.Manager.
 type Assets struct {
 	Textures   *textureStore
 	Blueprints *blueprintStore
-	Atlas      *atlasStore
 	jobs       chan loadRequest
 }
 
@@ -54,7 +53,6 @@ func NewAssets(filesystem fs.FS) *Assets {
 	a := &Assets{
 		Textures:   newTextureStore(filesystem),
 		Blueprints: newBlueprintStore(filesystem),
-		Atlas:      newAtlasStore(filesystem),
 		jobs:       make(chan loadRequest, 100),
 	}
 
@@ -77,15 +75,15 @@ func NewAssets(filesystem fs.FS) *Assets {
 // For known types, the specific stores can be used directly:
 //   - Assets.Textures.Load(path) for image assets
 //   - Assets.Blueprints.Load(path) for entity blueprints
-//   - Assets.Atlas.Load(path) for texture atlases
+//
+// Texture atlases are created programmatically via atlas.Manager.
+// Animation clips are created programmatically via animation.Manager.
 func (a *Assets) LoadSync(path string) (res any, err error) {
 	switch {
 	case hasTextureExtension(path):
 		res, err = a.Textures.Load(path)
 	case hasBlueprintExtension(path):
 		res, err = a.Blueprints.Load(path)
-	case hasAtlasExtension(path):
-		res, err = a.Atlas.Load(path)
 	default:
 		return nil, nil
 	}
@@ -197,11 +195,6 @@ func hasTextureExtension(path string) bool {
 
 func hasBlueprintExtension(path string) bool {
 	ext := FileExtensionBlueprint
-	return len(path) >= len(ext) && path[len(path)-len(ext):] == string(ext)
-}
-
-func hasAtlasExtension(path string) bool {
-	ext := FileExtensionAtlas
 	return len(path) >= len(ext) && path[len(path)-len(ext):] == string(ext)
 }
 

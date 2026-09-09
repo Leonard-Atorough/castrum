@@ -6,7 +6,7 @@ import (
 
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 type GridCell struct {
@@ -15,8 +15,8 @@ type GridCell struct {
 
 type SpatialIndex struct {
 	cellSize float64
-	cells    map[GridCell]map[core.EntityID]bool
-	entities map[core.EntityID]GridCell
+	cells    map[GridCell]map[ecs.EntityID]bool
+	entities map[ecs.EntityID]GridCell
 }
 
 func NewIndex(cellSize float64) (*SpatialIndex, error) {
@@ -25,12 +25,12 @@ func NewIndex(cellSize float64) (*SpatialIndex, error) {
 	}
 	return &SpatialIndex{
 		cellSize: cellSize,
-		cells:    make(map[GridCell]map[core.EntityID]bool),
-		entities: make(map[core.EntityID]GridCell),
+		cells:    make(map[GridCell]map[ecs.EntityID]bool),
+		entities: make(map[ecs.EntityID]GridCell),
 	}, nil
 }
 
-func (idx *SpatialIndex) Update(entityID core.EntityID, pos geom.Vector2) error {
+func (idx *SpatialIndex) Update(entityID ecs.EntityID, pos geom.Vector2) error {
 	if math.IsNaN(pos.X) || math.IsNaN(pos.Y) || math.IsInf(pos.X, 0) || math.IsInf(pos.Y, 0) {
 		return fmt.Errorf("invalid position for entity %d: %v", entityID, pos)
 	}
@@ -49,17 +49,17 @@ func (idx *SpatialIndex) Update(entityID core.EntityID, pos geom.Vector2) error 
 	}
 
 	if idx.cells[newCell] == nil {
-		idx.cells[newCell] = make(map[core.EntityID]bool)
+		idx.cells[newCell] = make(map[ecs.EntityID]bool)
 	}
 	idx.cells[newCell][entityID] = true
 	idx.entities[entityID] = newCell
 	return nil
 }
 
-func (idx *SpatialIndex) Query(pos geom.Vector2, radius float64) []core.EntityID {
+func (idx *SpatialIndex) Query(pos geom.Vector2, radius float64) []ecs.EntityID {
 	centerCell := idx.worldToGrid(pos)
 	radiusInCells := int(math.Ceil(radius / idx.cellSize))
-	results := make(map[core.EntityID]bool)
+	results := make(map[ecs.EntityID]bool)
 
 	for x := centerCell.X - radiusInCells; x <= centerCell.X+radiusInCells; x++ {
 		for y := centerCell.Y - radiusInCells; y <= centerCell.Y+radiusInCells; y++ {
@@ -72,7 +72,7 @@ func (idx *SpatialIndex) Query(pos geom.Vector2, radius float64) []core.EntityID
 		}
 	}
 
-	ids := make([]core.EntityID, 0, len(results))
+	ids := make([]ecs.EntityID, 0, len(results))
 	for id := range results {
 		ids = append(ids, id)
 	}
@@ -86,7 +86,7 @@ func (idx *SpatialIndex) worldToGrid(pos geom.Vector2) GridCell {
 	}
 }
 
-func (idx *SpatialIndex) Remove(entityID core.EntityID) {
+func (idx *SpatialIndex) Remove(entityID ecs.EntityID) {
 	cell, exists := idx.entities[entityID]
 	if !exists {
 		return
@@ -100,7 +100,7 @@ func (idx *SpatialIndex) Remove(entityID core.EntityID) {
 
 type SpatialIndexHandler struct {
 	Index          *SpatialIndex
-	transformQuery *core.Query
+	transformQuery *ecs.Query
 }
 
 func NewManager(cellSize float64) (*SpatialIndexHandler, error) {
@@ -113,7 +113,7 @@ func NewManager(cellSize float64) (*SpatialIndexHandler, error) {
 	}, nil
 }
 
-func (mgr *SpatialIndexHandler) Update(world *core.World, deltaTime float64) error {
+func (mgr *SpatialIndexHandler) Update(world *ecs.World, deltaTime float64) error {
 	if mgr.transformQuery == nil {
 		mgr.transformQuery = world.NewQuery().WithRequiredComponents(components.Transform{})
 	}
@@ -128,6 +128,6 @@ func (mgr *SpatialIndexHandler) Update(world *core.World, deltaTime float64) err
 	return nil
 }
 
-func (mgr *SpatialIndexHandler) RemoveEntity(entityID core.EntityID) {
+func (mgr *SpatialIndexHandler) RemoveEntity(entityID ecs.EntityID) {
 	mgr.Index.Remove(entityID)
 }

@@ -7,15 +7,15 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/animation"
 	"github.com/leonard-atorough/castrum/internal/assets"
-	"github.com/leonard-atorough/castrum/internal/core"
+	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 type renderItem struct {
-	entityID   core.EntityID
+	entityID   ecs.EntityID
 	renderable components.Sprite
 	transform  components.Transform
 	animation  *components.Animation
@@ -28,23 +28,16 @@ type TextureLoader interface {
 	Load(path string) (*assets.Texture, error)
 }
 
-// AtlasLoader is the interface for loading texture atlases.
-type AtlasLoader interface {
-	Load(path string) (*assets.TextureAtlas, error)
-}
-
 type Renderer struct {
 	textureLoader TextureLoader
-	atlasLoader   AtlasLoader
 	animationMgr  *animation.Manager
 	Primitive     *PrimitiveRenderer
-	cameraQuery   *core.Query
+	cameraQuery   *ecs.Query
 }
 
-func New(textureLoader TextureLoader, atlasLoader AtlasLoader, animationMgr *animation.Manager) *Renderer {
+func New(textureLoader TextureLoader, animationMgr *animation.Manager) *Renderer {
 	return &Renderer{
 		textureLoader: textureLoader,
-		atlasLoader:   atlasLoader,
 		animationMgr:  animationMgr,
 		Primitive:     NewPrimitiveRenderer(),
 	}
@@ -58,7 +51,7 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 // with a TexturePath is drawn as a sprite; otherwise it's drawn as a
 // primitive shape - callers never need to say which.
 // The primary camera is queried from the world.
-func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
+func (r *Renderer) DrawScene(screen *ebiten.Image, world *ecs.World) {
 	// Query for the primary camera
 	var primaryCamera components.Camera
 	var cameraFound bool
@@ -146,7 +139,7 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *core.World) {
 	}
 }
 
-func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *core.World) {
+func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *ecs.World) {
 	// Query for the primary camera
 	var primaryCamera components.Camera
 	var cameraFound bool
