@@ -74,7 +74,7 @@ trim = true
 # See https://www.conventionalcommits.org
 conventional_commits = true
 # Exclude commits that do not match the conventional commits specification.
-filter_unconventional = false
+filter_unconventional = true
 # An array of regex based parsers to modify commit messages prior to further processing.
 commit_preprocessors = [
   # Remove issue numbers.
@@ -84,17 +84,15 @@ commit_preprocessors = [
 # Assigns commits to groups.
 # Optionally sets the commit's scope and can decide to exclude commits from further processing.
 commit_parsers = [
-  { message = "^[aA]dd", group = "Added" },
-  { message = "^[sS]upport", group = "Added" },
-  { message = "^[rR]emove", group = "Removed" },
-  { message = "^.*: add", group = "Added" },
-  { message = "^.*: support", group = "Added" },
-  { message = "^.*: remove", group = "Removed" },
-  { message = "^.*: delete", group = "Removed" },
-  { message = "^test", group = "Fixed" },
+  { message = "^feat", group = "Added" },
   { message = "^fix", group = "Fixed" },
-  { message = "^.*: fix", group = "Fixed" },
-  { message = "^.*", group = "Changed" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Changed" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^test", group = "Testing" },
+  { message = "^style", group = "Style" },
+  { message = "^chore", group = "Miscellaneous" },
+  { message = "^.*: revert", group = "Removed" },
 ]
 # Exclude commits that are not matched by any commit parser.
 filter_commits = false

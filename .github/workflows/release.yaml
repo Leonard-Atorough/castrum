@@ -1,73 +1,71 @@
 name: Release
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version tag (e.g., v1.2.0). Leave empty to auto-calculate."
-        required: false
-        type: string
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  validate:
+    name: Validate Tag
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'release' && 
-       contains(fromJSON('["Leonard-Atorough"]'), github.event.release.author.login)) ||
-      (github.event_name == 'workflow_dispatch' && 
-       contains(fromJSON('["Leonard-Atorough"]'), github.actor))
+    steps:
+      - name: Enforce semver tag format
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag '${TAG}' does not match vX.Y.Z semantic versioning"
+            exit 1
+          fi
+          echo "Releasing ${TAG}"
+
+  test:
+    name: Tests (Release Gate)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          fetch-depth: 0
+          go-version-file: go.mod
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libgl1-mesa-dev
+
+      - name: Run tests
+        run: go test -race ./...
+
+  release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [validate, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # git-cliff needs full history for changelog + compare links
 
       - name: Install git-cliff
-        uses: taiki-e/install-action@git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
 
-      - name: Determine version (if workflow_dispatch without explicit version)
-        if: github.event_name == 'workflow_dispatch' && !inputs.version
-        id: auto_version
-        run: echo "version=$(git-cliff --bumped-version)" >> "$GITHUB_OUTPUT"
+      - name: Generate release notes
+        run: git-cliff --latest --strip all > RELEASE_BODY.md
 
-      - name: Set release tag
-        id: release_tag
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            TAG="${{ inputs.version || steps.auto_version.outputs.version }}"
-          else
-            TAG="${{ github.event.release.tag_name }}"
-          fi
-          # Ensure tag starts with 'v'
-          [[ $TAG == v* ]] || TAG="v$TAG"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Regenerate CHANGELOG.md
+        run: git-cliff --output CHANGELOG.md
 
-      - name: Create release (if workflow_dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          gh release create "${{ steps.release_tag.outputs.tag }}" \
-            --generate-notes \
-            --repo "${{ github.repository }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Fetch tags
-        run: git fetch --tags --force
-
-      - name: Generate changelog for the release
-        id: changelog
-        run: |
-          TAG="${{ steps.release_tag.outputs.tag }}"
-          git-cliff "${TAG#v}" --with-tag-message > CHANGELOG.md
-
-      - name: Update release with generated changelog
-        run: |
-          gh release edit "${{ steps.release_tag.outputs.tag }}" \
-            --notes-file CHANGELOG.md
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_BODY.md
+          # files: dist/*     # <- enable when the build matrix ships binaries
