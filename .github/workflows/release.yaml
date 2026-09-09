@@ -33,7 +33,7 @@ jobs:
       - name: Determine version (if workflow_dispatch without explicit version)
         if: github.event_name == 'workflow_dispatch' && !inputs.version
         id: auto_version
-        run: echo "version=$(git-cliff --bumped-version)" >> "$GITHUB_OUTPUT"
+        run: echo "version=v$(git-cliff --bumped-version)" >> "$GITHUB_OUTPUT"
 
       - name: Set release tag
         id: release_tag
