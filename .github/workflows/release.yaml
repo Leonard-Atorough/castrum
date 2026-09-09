@@ -60,7 +60,8 @@ jobs:
       - name: Generate changelog for the release
         id: changelog
         run: |
-          git-cliff "${{ steps.release_tag.outputs.tag }}" --with-tag-message > CHANGELOG.md
+          TAG="${{ steps.release_tag.outputs.tag }}"
+          git-cliff "${TAG#v}" --with-tag-message > CHANGELOG.md
 
       - name: Update release with generated changelog
         run: |
