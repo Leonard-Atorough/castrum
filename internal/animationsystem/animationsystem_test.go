@@ -53,7 +53,7 @@ func createAnimatingEntity(world *ecs.World, clipID string) ecs.EntityID {
 
 func TestSystem_Init(t *testing.T) {
 	world := setupTestWorld()
-	mgr := pubanim.NewManager()
+	mgr := pubanim.NewAnimationClipStore()
 	sys := NewSystem(mgr)
 	err := sys.Init(world)
 	if err != nil {
@@ -63,7 +63,7 @@ func TestSystem_Init(t *testing.T) {
 
 func TestSystem_Update_AdvancesFrameTime(t *testing.T) {
 	world := setupTestWorld()
-	mgr := pubanim.NewManager()
+	mgr := pubanim.NewAnimationClipStore()
 	sys := NewSystem(mgr)
 	sys.Init(world)
 
@@ -97,7 +97,7 @@ func TestSystem_Update_AdvancesFrameTime(t *testing.T) {
 
 func TestSystem_Update_AdvancesFrame(t *testing.T) {
 	world := setupTestWorld()
-	mgr := pubanim.NewManager()
+	mgr := pubanim.NewAnimationClipStore()
 	sys := NewSystem(mgr)
 	sys.Init(world)
 
@@ -136,7 +136,7 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 		eventFired = true
 	}, false)
 
-	mgr := pubanim.NewManager()
+	mgr := pubanim.NewAnimationClipStore()
 	sys := NewSystem(mgr)
 	sys.Init(world)
 
@@ -168,7 +168,7 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 
 func TestSystem_Update_IgnoresNonPlayingAnimations(t *testing.T) {
 	world := setupTestWorld()
-	mgr := pubanim.NewManager()
+	mgr := pubanim.NewAnimationClipStore()
 	sys := NewSystem(mgr)
 	sys.Init(world)
 
@@ -198,7 +198,7 @@ func TestSystem_Update_IgnoresNonPlayingAnimations(t *testing.T) {
 
 func TestSystem_Update_LoopsAnimation(t *testing.T) {
 	world := setupTestWorld()
-	mgr := pubanim.NewManager()
+	mgr := pubanim.NewAnimationClipStore()
 	sys := NewSystem(mgr)
 	sys.Init(world)
 
@@ -240,7 +240,7 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 		eventFired = true
 	}, false)
 
-	mgr := pubanim.NewManager()
+	mgr := pubanim.NewAnimationClipStore()
 	sys := NewSystem(mgr)
 	sys.Init(world)
 
@@ -277,7 +277,7 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 
 func TestSystem_Update_RespectPlaybackSpeed(t *testing.T) {
 	world := setupTestWorld()
-	mgr := pubanim.NewManager()
+	mgr := pubanim.NewAnimationClipStore()
 	sys := NewSystem(mgr)
 	sys.Init(world)
 
@@ -309,7 +309,7 @@ func TestSystem_Update_RespectPlaybackSpeed(t *testing.T) {
 
 func TestSystem_Update_SkipsMissingClips(t *testing.T) {
 	world := setupTestWorld()
-	mgr := pubanim.NewManager()
+	mgr := pubanim.NewAnimationClipStore()
 	sys := NewSystem(mgr)
 	sys.Init(world)
 

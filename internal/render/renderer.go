@@ -30,12 +30,12 @@ type TextureLoader interface {
 
 type Renderer struct {
 	textureLoader TextureLoader
-	animationMgr  *animation.Manager
+	animationMgr  *animation.AnimationClipStore
 	Primitive     *PrimitiveRenderer
 	cameraQuery   *ecs.Query
 }
 
-func New(textureLoader TextureLoader, animationMgr *animation.Manager) *Renderer {
+func New(textureLoader TextureLoader, animationMgr *animation.AnimationClipStore) *Renderer {
 	return &Renderer{
 		textureLoader: textureLoader,
 		animationMgr:  animationMgr,

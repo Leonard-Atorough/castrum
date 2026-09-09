@@ -12,11 +12,11 @@ import (
 // and event emission. Does not handle clip creation or configuration.
 type System struct {
 	query   *ecs.Query
-	manager *animation.Manager
+	manager *animation.AnimationClipStore
 }
 
 // NewSystem creates a new animation system with the given manager.
-func NewSystem(manager *animation.Manager) *System {
+func NewSystem(manager *animation.AnimationClipStore) *System {
 	return &System{
 		manager: manager,
 	}

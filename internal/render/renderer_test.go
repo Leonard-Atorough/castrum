@@ -39,7 +39,7 @@ func newTestRenderer() *Renderer {
 	textureLoader := &mockTextureLoader{textures: map[string]*assets.Texture{
 		"square": {Path: "square", Image: testImage, Width: 1, Height: 1},
 	}}
-	animationMgr := animation.NewManager()
+	animationMgr := animation.NewAnimationClipStore()
 	return New(textureLoader, animationMgr)
 }
 
