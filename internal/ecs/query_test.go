@@ -93,3 +93,57 @@ func TestQuery_InScene_ComposesWithOtherRequiredComponents(t *testing.T) {
 		t.Fatalf("expected only the entity with both required components and scene tag, got %v", got)
 	}
 }
+
+func TestQuery_ResultMethods(t *testing.T) {
+	w := NewWorld()
+
+	firstEntity, _ := w.CreateWithComponents("first", TestPosition{X: 1})
+	secondEntity, _ := w.CreateWithComponents("second", TestPosition{X: 2})
+	_, _ = w.CreateWithComponents("excluded", TestPosition{X: 0})
+
+	query := w.NewQuery().
+		WithRequiredComponents(TestPosition{}).
+		WithFilter(func(r ResultEntry) bool {
+			position, _ := r.Get[TestPosition]()
+			return position.X > 0
+		})
+
+	all := query.All()
+	if len(all) != 2 {
+		t.Fatalf("All() returned %d results, want 2", len(all))
+	}
+	if all[0].EntityID != firstEntity.ID || all[1].EntityID != secondEntity.ID {
+		t.Fatalf("All() returned entity IDs %v, want [%d %d]", []EntityID{all[0].EntityID, all[1].EntityID}, firstEntity.ID, secondEntity.ID)
+	}
+
+	first, ok := query.First()
+	if !ok {
+		t.Fatal("First() reported no result for a non-empty query")
+	}
+	if first.EntityID != firstEntity.ID {
+		t.Fatalf("First() returned entity ID %d, want %d", first.EntityID, firstEntity.ID)
+	}
+	if !query.Any() {
+		t.Fatal("Any() returned false for a non-empty query")
+	}
+	if got := query.Count(); got != 2 {
+		t.Fatalf("Count() returned %d, want 2", got)
+	}
+}
+
+func TestQuery_ResultMethods_Empty(t *testing.T) {
+	query := NewWorld().NewQuery().WithRequiredComponents(TestPosition{})
+
+	if got := query.All(); len(got) != 0 {
+		t.Fatalf("All() returned %d results, want 0", len(got))
+	}
+	if _, ok := query.First(); ok {
+		t.Fatal("First() reported a result for an empty query")
+	}
+	if query.Any() {
+		t.Fatal("Any() returned true for an empty query")
+	}
+	if got := query.Count(); got != 0 {
+		t.Fatalf("Count() returned %d, want 0", got)
+	}
+}

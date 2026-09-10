@@ -163,7 +163,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
-		for _, layer := range []components.RenderLayer{31, 0, 10} {
+		for _, layer := range []uint8{31, 0, 10} {
 			_, err := world.CreateWithComponents("shape",
 				components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
 				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: layer},
@@ -183,7 +183,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		// Create three entities at same layer, same Y, different depths.
 		// Expected render order (first to last): depth 10, 50, 100
 		// Higher depth renders on top (drawn last).
-		depths := []int{100, 10, 50}
+		depths := []int8{100, 10, 50}
 		for i, depth := range depths {
 			_, err := world.CreateWithComponents("shape",
 				components.Transform{Position: geom.Vector2{X: float64(i*20) - 20, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},

@@ -46,24 +46,6 @@ func Register[T any]() *componentType {
 	return info
 }
 
-func RegisterMultiple(types ...reflect.Type) {
-	for _, typ := range types {
-		globalRegistry.mu.Lock()
-		if _, exists := globalRegistry.types[typ]; !exists {
-			info := &componentType{
-				Type:           typ,
-				Name:           typ.Name(),
-				Size:           int(typ.Size()),
-				IsSerializable: reflect.PointerTo(typ).Implements(reflect.TypeFor[Serializable]()),
-				HasHooks:       reflect.PointerTo(typ).Implements(reflect.TypeFor[ComponentHooks]()),
-			}
-			globalRegistry.types[typ] = info
-			globalRegistry.nameToType[info.Name] = typ
-		}
-		globalRegistry.mu.Unlock()
-	}
-}
-
 func Resolve(name string, props map[string]any) (Component, error) {
 	globalRegistry.mu.RLock()
 	typ, exists := globalRegistry.nameToType[name]
@@ -95,22 +77,4 @@ func Resolve(name string, props map[string]any) (Component, error) {
 		}
 	}
 	return instance.Interface().(Component), nil
-}
-
-func GetTypeInfo(typ reflect.Type) *componentType {
-	globalRegistry.mu.RLock()
-	defer globalRegistry.mu.RUnlock()
-
-	return globalRegistry.types[typ]
-}
-
-func ListTypeInfo() []*componentType {
-	globalRegistry.mu.RLock()
-	defer globalRegistry.mu.RUnlock()
-
-	list := make([]*componentType, 0, len(globalRegistry.types))
-	for _, info := range globalRegistry.types {
-		list = append(list, info)
-	}
-	return list
 }

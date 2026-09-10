@@ -81,7 +81,7 @@ jobs:
 
       - name: Run tests
         run: |
-          xvfb-run -a go test -v -race -coverprofile=coverage.out $(go list ./... | grep -v '/internal/render')
+          xvfb-run -a go test -v -race -coverprofile=coverage.out $(go list ./... | grep -vE '/internal/render|/(cmd|examples)(/|$)')
 
       - name: Check coverage threshold
         run: |

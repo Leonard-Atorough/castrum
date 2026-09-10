@@ -327,3 +327,16 @@ func TestSystem_Update_SkipsMissingClips(t *testing.T) {
 		t.Error("Frame index should not change when clip is missing")
 	}
 }
+
+func TestSystem_Shutdown(t *testing.T) {
+	world := setupTestWorld()
+	mgr := pubanim.NewAnimationClipStore()
+	sys := NewSystem(mgr)
+	sys.Init(world)
+
+	// Call Shutdown and ensure no panic or error occurs
+	err := sys.Shutdown(world)
+	if err != nil {
+		t.Fatalf("Shutdown failed: %v", err)
+	}
+}

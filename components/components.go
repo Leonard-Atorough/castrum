@@ -30,27 +30,34 @@ func NewTransform(position geom.Vector2, rotation float64, scale geom.Vector2, c
 	}
 }
 
+func NewTransformWithDefault() Transform {
+	return NewTransform(geom.Vector2{X: 0, Y: 0}, 0, geom.Vector2{X: 1, Y: 1}, color.Transparent)
+}
+
 // SceneTag marks which scene an entity belongs to, for query-time scene filtering.
 type SceneTag struct {
 	SceneID string
 }
 
-// RenderLayer represents a bitmask for render layers.
-type RenderLayer uint32 // layer index: 0-31, one of 32 possible sorting layers
-
 type Sprite struct {
 	TexturePath string
 	Primitive   PrimitiveType
-	Layer       RenderLayer // which of 32 layers to render on (0-31)
-	SortOrder   int         // [0..n], higher values render on top within the layer
+	Layer       uint8 // which of 32 layers to render on (0-31)
+	SortOrder   int8  // [-128..127], higher values render on top within the layer
 	Visible     bool
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
 // NewSprite creates a new Renderable component with the specified properties.
-func NewSprite(texturePath string, Primitive PrimitiveType, Layer RenderLayer, SortOrder int, Visible bool, Data any) Sprite {
+func NewSprite(texturePath string, Primitive PrimitiveType, Layer uint8, SortOrder int8, Visible bool, Data any) Sprite {
 	if Data == nil {
 		Data = struct{}{}
+	}
+	if Layer > 31 {
+		Layer = 31
+	}
+	if Primitive < PrimitiveKindRectangle || Primitive > PrimitiveKindPolygon {
+		Primitive = PrimitiveKindRectangle
 	}
 	return Sprite{
 		TexturePath: texturePath,
@@ -63,7 +70,7 @@ func NewSprite(texturePath string, Primitive PrimitiveType, Layer RenderLayer, S
 }
 
 // PrimitiveType represents the type of a procedural shape for rendering.
-type PrimitiveType int
+type PrimitiveType uint8
 
 const (
 	PrimitiveKindRectangle PrimitiveType = iota
@@ -99,16 +106,18 @@ type ColliderShapeContext interface {
 // Collider represents a collision shape for an entity.
 type Collider struct {
 	Shape   ColliderShapeContext // geom.Circle or geom.Rect, defined in local space
-	Layer   uint32               // The layer this collider belongs to
+	Layer   uint8                // The layer this collider belongs to
 	Mask    uint32               // The collision masks determine which layers this collider can interact with.
 	Trigger bool                 // Indicates if this collider is a trigger (does not generate physical collisions)
 	Active  bool                 // Indicates if this collider is currently active
 }
 
 // NewCollider creates a new Collider component with the specified properties.
-func NewCollider(shape ColliderShapeContext, active, trigger bool, layer uint32, collidesWith ...uint) Collider {
+func NewCollider(shape ColliderShapeContext, active, trigger bool, layer uint8, collidesWith ...uint) Collider {
 	mask := layersToMask(collidesWith...)
-
+	if layer > 31 {
+		layer = 31
+	}
 	return Collider{
 		Shape:   shape,
 		Layer:   layer,
@@ -153,6 +162,19 @@ type Timer struct {
 	Once bool
 }
 
+func NewTimer(id string, duration float64, running, fireOnce bool) *Timer {
+	if duration <= 0 {
+		duration = 1.0
+	}
+	return &Timer{
+		ID:          TimerID(id),
+		Duration:    duration,
+		ElapsedTime: 0,
+		Running:     running,
+		Once:        fireOnce,
+	}
+}
+
 // Start begins the timer, resetting elapsed time to zero.
 func (t *Timer) Start() {
 	t.Running = true
@@ -190,10 +212,18 @@ type Camera struct {
 // NewCamera returns a camera centered on the world origin with no zoom and no
 // movement bounds. Call SetScreenSize once the render target size is known;
 // set Bounds explicitly to constrain movement.
-func NewCamera() Camera {
+func NewCamera(screenWidth, screenHeight uint32) Camera {
+	if screenWidth <= 0 || screenHeight <= 0 {
+		screenWidth = 800
+		screenHeight = 600
+	}
 	return Camera{
-		Zoom:   1,
-		Bounds: unboundedRect(),
+		Position:   geom.Vector2{X: 0, Y: 0},
+		Zoom:       1,
+		ScreenSize: geom.Vector2I{X: int(screenWidth), Y: int(screenHeight)},
+		Rotation:   0,
+		Bounds:     unboundedRect(),
+		Primary:    false,
 	}
 }
 
@@ -206,6 +236,9 @@ func unboundedRect() geom.Rect {
 
 // SetScreenSize updates the render target size the camera converts against.
 func (c *Camera) SetScreenSize(width, height int) {
+	if width <= 0 || height <= 0 {
+		return
+	}
 	c.ScreenSize = geom.Vector2I{X: width, Y: height}
 }
 
