@@ -28,8 +28,8 @@ func TestAssetsLoad(t *testing.T) {
 		wantError bool
 	}{
 		{"blueprint .yaml", "test.yaml", false, false},
-		{"unknown extension", "test.txt", true, false},
-		{"no extension", "noext", true, false},
+		{"unknown extension", "test.txt", true, true},
+		{"no extension", "noext", true, true},
 	}
 
 	for _, tt := range tests {
@@ -42,47 +42,6 @@ func TestAssetsLoad(t *testing.T) {
 				t.Fatalf("Load(%q): got nil %v, wantNil %v", tt.path, res == nil, tt.wantNil)
 			}
 		})
-	}
-}
-
-func TestHasTextureExtension(t *testing.T) {
-	tests := []struct {
-		path string
-		want bool
-	}{
-		{"img.png", true},
-		{"photo.jpg", true},
-		{"pic.jpeg", true},
-		{"file.txt", false},
-		{"no_ext", false},
-		{".png", true},
-		{"", false},
-	}
-
-	for _, tt := range tests {
-		if got := hasTextureExtension(tt.path); got != tt.want {
-			t.Errorf("hasTextureExtension(%q) = %v, want %v", tt.path, got, tt.want)
-		}
-	}
-}
-
-func TestHasBlueprintExtension(t *testing.T) {
-	tests := []struct {
-		path string
-		want bool
-	}{
-		{"blueprint.yaml", true},
-		{"scene.yaml", true},
-		{".yaml", true},
-		{"file.txt", false},
-		{"file.yml", false},
-		{"", false},
-	}
-
-	for _, tt := range tests {
-		if got := hasBlueprintExtension(tt.path); got != tt.want {
-			t.Errorf("hasBlueprintExtension(%q) = %v, want %v", tt.path, got, tt.want)
-		}
 	}
 }
 
@@ -100,7 +59,8 @@ func TestLoadAsync(t *testing.T) {
 		wantError bool
 	}{
 		{"blueprint .yaml", "test.yaml", false, false},
-		{"unknown extension", "test.txt", true, false},
+		{"unknown extension", "test.txt", true, true},
+		{"no extension", "noext", true, true},
 	}
 
 	for _, tt := range tests {
