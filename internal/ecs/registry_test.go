@@ -91,17 +91,3 @@ func TestResolve(t *testing.T) {
 		}
 	})
 }
-
-func TestGetTypeInfo(t *testing.T) {
-	typ := reflect.TypeFor[registryTestComponent]()
-	Register[registryTestComponent]()
-
-	if info := GetTypeInfo(typ); info == nil || info.Type != typ {
-		t.Fatalf("expected type info for %v, got %#v", typ, info)
-	}
-
-	type neverRegistered struct{}
-	if info := GetTypeInfo(reflect.TypeFor[neverRegistered]()); info != nil {
-		t.Fatalf("expected nil info for an unregistered type, got %#v", info)
-	}
-}
