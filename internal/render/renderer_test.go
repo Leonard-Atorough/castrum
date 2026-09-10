@@ -163,7 +163,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
 		}
-		for _, layer := range []components.RenderLayer{31, 0, 10} {
+		for _, layer := range []uint32{31, 0, 10} {
 			_, err := world.CreateWithComponents("shape",
 				components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
 				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: layer},

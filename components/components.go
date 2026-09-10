@@ -30,25 +30,28 @@ func NewTransform(position geom.Vector2, rotation float64, scale geom.Vector2, c
 	}
 }
 
+func NewTransformWithDefault() Transform {
+	return NewTransform(geom.Vector2{X: 0, Y: 0}, 0, geom.Vector2{X: 1, Y: 1}, color.Transparent)
+}
+
 // SceneTag marks which scene an entity belongs to, for query-time scene filtering.
 type SceneTag struct {
 	SceneID string
 }
 
-// RenderLayer represents a bitmask for render layers.
-type RenderLayer uint32 // layer index: 0-31, one of 32 possible sorting layers
+
 
 type Sprite struct {
 	TexturePath string
 	Primitive   PrimitiveType
-	Layer       RenderLayer // which of 32 layers to render on (0-31)
+	Layer       uint32 // which of 32 layers to render on (0-31)
 	SortOrder   int         // [0..n], higher values render on top within the layer
 	Visible     bool
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
 // NewSprite creates a new Renderable component with the specified properties.
-func NewSprite(texturePath string, Primitive PrimitiveType, Layer RenderLayer, SortOrder int, Visible bool, Data any) Sprite {
+func NewSprite(texturePath string, Primitive PrimitiveType, Layer uint32, SortOrder int, Visible bool, Data any) Sprite {
 	if Data == nil {
 		Data = struct{}{}
 	}
