@@ -162,6 +162,19 @@ type Timer struct {
 	Once bool
 }
 
+func NewTimer(id string, duration float64, running, fireOnce bool) *Timer {
+	if duration <= 0 {
+		duration = 1.0
+	}
+	return &Timer{
+		ID:          TimerID(id),
+		Duration:    duration,
+		ElapsedTime: 0,
+		Running:     running,
+		Once:        fireOnce,
+	}
+}
+
 // Start begins the timer, resetting elapsed time to zero.
 func (t *Timer) Start() {
 	t.Running = true
@@ -199,10 +212,18 @@ type Camera struct {
 // NewCamera returns a camera centered on the world origin with no zoom and no
 // movement bounds. Call SetScreenSize once the render target size is known;
 // set Bounds explicitly to constrain movement.
-func NewCamera() Camera {
+func NewCamera(screenWidth, screenHeight uint32) Camera {
+	if screenWidth <= 0 || screenHeight <= 0 {
+		screenWidth = 800
+		screenHeight = 600
+	}
 	return Camera{
-		Zoom:   1,
-		Bounds: unboundedRect(),
+		Position:   geom.Vector2{X: 0, Y: 0},
+		Zoom:       1,
+		ScreenSize: geom.Vector2I{X: int(screenWidth), Y: int(screenHeight)},
+		Rotation:   0,
+		Bounds:     unboundedRect(),
+		Primary:    false,
 	}
 }
 
@@ -215,6 +236,9 @@ func unboundedRect() geom.Rect {
 
 // SetScreenSize updates the render target size the camera converts against.
 func (c *Camera) SetScreenSize(width, height int) {
+	if width <= 0 || height <= 0 {
+		return
+	}
 	c.ScreenSize = geom.Vector2I{X: width, Y: height}
 }
 
