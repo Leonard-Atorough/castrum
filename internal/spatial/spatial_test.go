@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/internal/ecs"
 )
@@ -435,6 +436,178 @@ func TestSpatialIndex_DifferentCellSizes(t *testing.T) {
 				t.Errorf("worldToGrid(%v) with cellSize %f = %v, want %v", tt.pos, tt.cellSize, result, tt.expected)
 			}
 		})
+	}
+}
+
+// Manager tests
+func TestNewManager(t *testing.T) {
+	tests := []struct {
+		name     string
+		cellSize float64
+		wantErr  bool
+	}{
+		{
+			name:     "valid cell size",
+			cellSize: 10.0,
+			wantErr:  false,
+		},
+		{
+			name:     "small cell size",
+			cellSize: 0.1,
+			wantErr:  false,
+		},
+		{
+			name:     "zero cell size",
+			cellSize: 0.0,
+			wantErr:  true,
+		},
+		{
+			name:     "negative cell size",
+			cellSize: -5.0,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mgr, err := NewManager(tt.cellSize)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewManager() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && mgr == nil {
+				t.Error("NewManager() returned nil manager when expected success")
+			}
+			if !tt.wantErr && mgr.Index == nil {
+				t.Error("NewManager() returned manager with nil Index")
+			}
+		})
+	}
+}
+
+func TestSpatialIndexHandler_Update(t *testing.T) {
+	mgr, _ := NewManager(10.0)
+	world := ecs.NewWorld()
+
+	// Create a transform component and entity
+	transform := components.Transform{
+		Position: geom.Vector2{X: 5.0, Y: 5.0},
+	}
+
+	// Create an entity with a transform component
+	entity, err := world.CreateWithComponents("test", transform)
+	if err != nil {
+		t.Fatalf("Failed to create entity: %v", err)
+	}
+	entityID := entity.ID
+
+	// Update should process the entity with transform
+	err = mgr.Update(world, 0.016)
+	if err != nil {
+		t.Errorf("Manager.Update() error = %v", err)
+	}
+
+	// Verify the entity is in the spatial index
+	results := mgr.Index.Query(geom.Vector2{X: 5.0, Y: 5.0}, 5.0)
+	if len(results) != 1 || results[0] != entityID {
+		t.Errorf("Manager.Update() did not properly index entity. Got %v, want [%d]", results, entityID)
+	}
+}
+
+func TestSpatialIndexHandler_UpdateMultipleEntities(t *testing.T) {
+	mgr, _ := NewManager(10.0)
+	world := ecs.NewWorld()
+
+	// Create multiple entities with different positions
+	entities := []struct {
+		id  ecs.EntityID
+		pos geom.Vector2
+	}{}
+
+	for i := 0; i < 3; i++ {
+		transform := components.Transform{
+			Position: geom.Vector2{X: float64(i*10.0 + 5), Y: float64(i*10.0 + 5)},
+		}
+		entity, _ := world.CreateWithComponents("test", transform)
+		entities = append(entities, struct {
+			id  ecs.EntityID
+			pos geom.Vector2
+		}{entity.ID, transform.Position})
+	}
+
+	// Update should process all entities
+	err := mgr.Update(world, 0.016)
+	if err != nil {
+		t.Errorf("Manager.Update() error = %v", err)
+	}
+
+	// Verify all entities are indexed
+	for i, ent := range entities {
+		results := mgr.Index.Query(ent.pos, 5.0)
+		found := false
+		for _, id := range results {
+			if id == ent.id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Entity %d at position %v not found in spatial index", i, ent.pos)
+		}
+	}
+}
+
+func TestSpatialIndexHandler_RemoveEntity(t *testing.T) {
+	mgr, _ := NewManager(10.0)
+
+	entityID := ecs.EntityID(42)
+	pos := geom.Vector2{X: 5.0, Y: 5.0}
+
+	// Manually add to index
+	mgr.Index.Update(entityID, pos)
+
+	// Verify it's there
+	results := mgr.Index.Query(pos, 5.0)
+	if len(results) != 1 {
+		t.Error("Entity not properly added to index")
+	}
+
+	// Remove entity
+	mgr.RemoveEntity(entityID)
+
+	// Verify it's gone
+	results = mgr.Index.Query(pos, 5.0)
+	if len(results) != 0 {
+		t.Errorf("RemoveEntity() did not remove entity. Query returned %v", results)
+	}
+}
+
+func TestSpatialIndexHandler_RemoveMultipleEntities(t *testing.T) {
+	mgr, _ := NewManager(10.0)
+
+	// Add multiple entities
+	entities := []ecs.EntityID{1, 2, 3}
+	for _, id := range entities {
+		mgr.Index.Update(id, geom.Vector2{X: 5.0, Y: 5.0})
+	}
+
+	// Remove first entity
+	mgr.RemoveEntity(entities[0])
+
+	// Verify remaining entities are still there
+	results := mgr.Index.Query(geom.Vector2{X: 5.0, Y: 5.0}, 5.0)
+	if len(results) != 2 {
+		t.Errorf("After removing one entity, expected 2 entities, got %d", len(results))
+	}
+
+	// Remove all entities
+	for _, id := range entities[1:] {
+		mgr.RemoveEntity(id)
+	}
+
+	// Verify all are gone
+	results = mgr.Index.Query(geom.Vector2{X: 5.0, Y: 5.0}, 5.0)
+	if len(results) != 0 {
+		t.Errorf("After removing all entities, expected 0, got %d", len(results))
 	}
 }
 

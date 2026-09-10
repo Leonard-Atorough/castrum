@@ -463,3 +463,32 @@ func TestSystem_TestCollisionMissingComponent(t *testing.T) {
 		t.Error("Expected error when testing collision on entity without collider")
 	}
 }
+
+func TestDefaultConfig(t *testing.T) {
+	config := DefaultConfig()
+	if config.QueryRadius != 300.0 {
+		t.Errorf("DefaultConfig().QueryRadius = %f, want 300.0", config.QueryRadius)
+	}
+	if !config.Enabled {
+		t.Error("DefaultConfig().Enabled should be true")
+	}
+}
+
+func TestCollisionSystem_Shutdown(t *testing.T) {
+	world := ecs.NewWorld()
+	spatialMgr, err := spatial.NewManager(100.0)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	collisionSys := NewSystem(spatialMgr.Index, DefaultConfig())
+
+	if err := collisionSys.Init(world); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	// Shutdown should not error
+	shutdownErr := collisionSys.Shutdown(world)
+	if shutdownErr != nil {
+		t.Errorf("Shutdown() returned error: %v", shutdownErr)
+	}
+}
