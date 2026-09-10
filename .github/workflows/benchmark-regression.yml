@@ -39,6 +39,9 @@ jobs:
           cd benchmark
           go test -bench=. -benchmem -benchtime=200ms -count=8 -run='^$' ./... | tee output.txt
 
+      - name: Create cache directory
+        run: mkdir -p ./cache
+
       - name: Download benchmark history
         uses: actions/cache@v4
         with:
