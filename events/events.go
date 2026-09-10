@@ -10,6 +10,7 @@ type subscription struct {
 	id      int
 	handler func(EventMeta, any)
 	once    bool
+	fired   bool
 }
 
 type subscribers struct {
@@ -85,21 +86,27 @@ func (eb *EventBus) Emit[T any](event T, source string) {
 	eb.mu.Lock()
 	typ := reflect.TypeFor[T]()
 	var toCall []subscription
-	var typeIdx int
-	var found bool
 
 	for i := range eb.subscribers {
-		if eb.subscribers[i].eventType == typ {
-			toCall = make([]subscription, len(eb.subscribers[i].subscriptions))
-			copy(toCall, eb.subscribers[i].subscriptions)
-			typeIdx = i
-			found = true
-			break
+		if eb.subscribers[i].eventType != typ {
+			continue
 		}
+
+		for j := range eb.subscribers[i].subscriptions {
+			sub := &eb.subscribers[i].subscriptions[j]
+			if sub.once && sub.fired {
+				continue
+			}
+			if sub.once {
+				sub.fired = true
+			}
+			toCall = append(toCall, *sub)
+		}
+		break
 	}
 	eb.mu.Unlock()
 
-	if !found {
+	if len(toCall) == 0 {
 		return
 	}
 
@@ -109,41 +116,26 @@ func (eb *EventBus) Emit[T any](event T, source string) {
 		Source:    source,
 	}
 
-	// Call handlers outside lock to prevent deadlock if handler emits events
-	var toRemove []int
 	for _, s := range toCall {
 		s.handler(ctx, event)
-		if s.once {
-			toRemove = append(toRemove, s.id)
-		}
 	}
 
-	// Remove once handlers
-	if len(toRemove) > 0 {
-		eb.mu.Lock()
-		// typeIdx may be stale if OffAll/Clear modified eb.subscribers while handlers ran.
-		var subs *subscribers
-		if typeIdx < len(eb.subscribers) && eb.subscribers[typeIdx].eventType == typ {
-			subs = &eb.subscribers[typeIdx]
-		} else {
-			for i := range eb.subscribers {
-				if eb.subscribers[i].eventType == typ {
-					subs = &eb.subscribers[i]
-					break
-				}
-			}
+	eb.mu.Lock()
+	defer eb.mu.Unlock()
+
+	for i := range eb.subscribers {
+		if eb.subscribers[i].eventType != typ {
+			continue
 		}
-		if subs != nil {
-			for _, removeID := range toRemove {
-				for j := 0; j < len(subs.subscriptions); j++ {
-					if subs.subscriptions[j].id == removeID {
-						subs.subscriptions = append(subs.subscriptions[:j], subs.subscriptions[j+1:]...)
-						j--
-					}
-				}
+		subs := eb.subscribers[i].subscriptions[:0]
+		for _, sub := range eb.subscribers[i].subscriptions {
+			if sub.once && sub.fired {
+				continue
 			}
+			subs = append(subs, sub)
 		}
-		eb.mu.Unlock()
+		eb.subscribers[i].subscriptions = subs
+		break
 	}
 }
 
