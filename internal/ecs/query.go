@@ -126,10 +126,9 @@ func (q *Query) Execute() iter.Seq[ResultEntry] {
 	}
 }
 
-// All materializes all results into a slice.
+// All materializes all results into a slice in a single pass.
 func (q *Query) All() []ResultEntry {
-	count := q.Count()
-	results := make([]ResultEntry, 0, count)
+	results := make([]ResultEntry, 0, 16) // Small initial capacity to avoid zero-alloc edge case
 	for entry := range q.Execute() {
 		results = append(results, entry)
 	}
@@ -158,10 +157,9 @@ func (q *Query) Count() int {
 	return count
 }
 
-// EntityIDs returns just the entity IDs (no component data).
+// EntityIDs returns just the entity IDs (no component data) in a single pass.
 func (q *Query) EntityIDs() []EntityID {
-	count := q.Count()
-	ids := make([]EntityID, 0, count)
+	ids := make([]EntityID, 0, 16) // Small initial capacity to avoid zero-alloc edge case
 	for entry := range q.Execute() {
 		ids = append(ids, entry.EntityID)
 	}
