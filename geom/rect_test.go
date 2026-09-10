@@ -69,7 +69,7 @@ func TestRect_String(t *testing.T) {
 
 func TestNewRect(t *testing.T) {
 	cases := []struct {
-		name string
+		name     string
 		min, max Vector2
 		want     Rect
 	}{
