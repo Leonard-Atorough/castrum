@@ -2,19 +2,14 @@ package assets
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-)
-
-type fileExtension string
-
-var (
-	FileExtensionTexture   []fileExtension = []fileExtension{".png", ".jpg", ".jpeg"}
-	FileExtensionBlueprint fileExtension   = ".yaml"
 )
 
 // LoadResult holds the result of an async load operation.
@@ -31,19 +26,20 @@ type loadRequest struct {
 
 // Assets manages loading and caching of game resources (textures, blueprints, and atlases).
 // Supports both synchronous and asynchronous loading with concurrency control via an
-// internal worker pool. LoadSync is blocking and ideal for initialization; LoadAsync and
-// LoadBatch use workers for concurrent loading with context cancellation support.
+// internal worker pool.
 //
-// Animation clips are not loaded from disk; they are created programmatically via
-// Animation clips and atlases are not loaded from disk; they are created
-// programmatically via the animation.Manager and atlas.Manager.
+// LoadSync is blocking and ideal for initialization;
+// LoadAsync and LoadBatch use workers for concurrent loading with context cancellation support.
 type Assets struct {
 	Textures   *textureStore
 	Blueprints *blueprintStore
 	jobs       chan loadRequest
 }
 
-const defaultWorkerCount = 4
+const (
+	defaultWorkerCount  = 2
+	defaultJobQueueSize = 64
+)
 
 func NewAssets(filesystem fs.FS) *Assets {
 	if filesystem == nil {
@@ -53,7 +49,7 @@ func NewAssets(filesystem fs.FS) *Assets {
 	a := &Assets{
 		Textures:   newTextureStore(filesystem),
 		Blueprints: newBlueprintStore(filesystem),
-		jobs:       make(chan loadRequest, 100),
+		jobs:       make(chan loadRequest, defaultJobQueueSize),
 	}
 
 	// Start worker goroutines for async loading
@@ -80,12 +76,12 @@ func NewAssets(filesystem fs.FS) *Assets {
 // Animation clips are created programmatically via animation.Manager.
 func (a *Assets) LoadSync(path string) (res any, err error) {
 	switch {
-	case hasTextureExtension(path):
+	case strings.HasSuffix(path, ".png") || strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".jpeg"):
 		res, err = a.Textures.Load(path)
-	case hasBlueprintExtension(path):
+	case strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml"):
 		res, err = a.Blueprints.Load(path)
 	default:
-		return nil, nil
+		err = fmt.Errorf("unsupported asset type for path: %s", path)
 	}
 	return res, err
 }
@@ -132,8 +128,8 @@ func (a *Assets) LoadAsync(ctx context.Context, path string) <-chan LoadResult {
 
 // LoadBatch loads multiple assets concurrently with a single context.
 // Blocks until all assets are loaded or the context is cancelled.
-// If any load fails or the context is cancelled, the error is returned immediately
-// but in-flight loads may continue.
+// Returns a slice of LoadResult corresponding to the requested paths.
+// Errors for individual loads are contained within each LoadResult.
 //
 // Example:
 //
@@ -184,27 +180,7 @@ func (a *Assets) worker() {
 	}
 }
 
-func hasTextureExtension(path string) bool {
-	for _, ext := range FileExtensionTexture {
-		if len(path) >= len(ext) && path[len(path)-len(ext):] == string(ext) {
-			return true
-		}
-	}
-	return false
-}
-
-func hasBlueprintExtension(path string) bool {
-	ext := FileExtensionBlueprint
-	return len(path) >= len(ext) && path[len(path)-len(ext):] == string(ext)
-}
-
 func loadImageFromFS(fs fs.FS, path string) (*ebiten.Image, image.Image, error) {
-	file, err := fs.Open(path)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer file.Close()
-
 	img, generic, err := ebitenutil.NewImageFromFileSystem(fs, path)
 	if err != nil {
 		return nil, nil, err
