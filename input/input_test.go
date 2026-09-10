@@ -345,9 +345,9 @@ func TestInputHandler(t *testing.T) {
 			name        string
 			buttonState map[ebiten.MouseButton]KeyState
 			button      ebiten.MouseButton
-			expectP    bool
-			expectH    bool
-			expectR    bool
+			expectP     bool
+			expectH     bool
+			expectR     bool
 		}{
 			{"NotPressed", nil, ebiten.MouseButtonLeft, false, false, false},
 			{"Pressed", map[ebiten.MouseButton]KeyState{ebiten.MouseButtonLeft: {Pressed: true, Held: true}}, ebiten.MouseButtonLeft, true, true, false},

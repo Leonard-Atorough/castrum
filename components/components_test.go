@@ -272,11 +272,11 @@ func TestCameraComponent(t *testing.T) {
 		if clampedCamera.Position.Y > camera.Bounds.Max.Y || clampedCamera.Position.Y < camera.Bounds.Min.Y {
 			t.Errorf("Expected clamped camera Y to be within bounds, got %v", clampedCamera.Position.Y)
 		}
-		if clampedCamera.Position.X != camera.Bounds.Max.X / 2 {
-			t.Errorf("Expected clamped camera X to be %v, got %v", camera.Bounds.Max.X / 2, clampedCamera.Position.X)
+		if clampedCamera.Position.X != camera.Bounds.Max.X/2 {
+			t.Errorf("Expected clamped camera X to be %v, got %v", camera.Bounds.Max.X/2, clampedCamera.Position.X)
 		}
-		if clampedCamera.Position.Y != camera.Bounds.Max.Y / 2 {
-			t.Errorf("Expected clamped camera Y to be %v, got %v", camera.Bounds.Max.Y / 2, clampedCamera.Position.Y)
+		if clampedCamera.Position.Y != camera.Bounds.Max.Y/2 {
+			t.Errorf("Expected clamped camera Y to be %v, got %v", camera.Bounds.Max.Y/2, clampedCamera.Position.Y)
 		}
 	})
 
