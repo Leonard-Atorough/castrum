@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -567,8 +568,140 @@ func TestSubTexture(t *testing.T) {
 	})
 }
 
-// Note: FromMetadata is harder to test without creating actual JSON files in a test filesystem.
-// For now, we'll skip it, but in a real project, you might want to:
-// 1. Create a temporary filesystem with a test JSON file
-// 2. Test successful metadata loading
-// 3. Test error cases (invalid JSON, missing file, etc.)
+func TestBuilder_FromMetadata(t *testing.T) {
+	t.Run("FromMetadata loads valid JSON metadata", func(t *testing.T) {
+		texture := createTestTexture(256, 256)
+		mockStore := &mockAtlasStorer{}
+		builder := NewBuilder("test_builder", texture, mockStore)
+
+		// Create a test filesystem with valid metadata
+		metadata := `{
+			"frames": {
+				"sprite_0": {"frame": {"x": 0, "y": 0, "w": 32, "h": 32}},
+				"sprite_1": {"frame": {"x": 32, "y": 0, "w": 32, "h": 32}}
+			}
+		}`
+		fsys := fstest.MapFS{
+			"metadata.json": &fstest.MapFile{Data: []byte(metadata)},
+		}
+
+		err := builder.FromMetadata(fsys, "metadata.json")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		atlas, buildErr := builder.Build()
+		if buildErr != nil {
+			t.Fatalf("unexpected build error: %v", buildErr)
+		}
+
+		if len(atlas.Regions) != 2 {
+			t.Errorf("expected 2 regions from metadata, got %d", len(atlas.Regions))
+		}
+
+		if _, ok := atlas.Regions["sprite_0"]; !ok {
+			t.Error("expected sprite_0 region to exist")
+		}
+		if _, ok := atlas.Regions["sprite_1"]; !ok {
+			t.Error("expected sprite_1 region to exist")
+		}
+	})
+
+	t.Run("FromMetadata returns error for missing file", func(t *testing.T) {
+		texture := createTestTexture(256, 256)
+		mockStore := &mockAtlasStorer{}
+		builder := NewBuilder("test_builder", texture, mockStore)
+
+		fsys := fstest.MapFS{}
+
+		err := builder.FromMetadata(fsys, "missing.json")
+		if err == nil {
+			t.Error("expected error for missing file, got nil")
+		}
+		if !strings.Contains(err.Error(), "failed to open") {
+			t.Errorf("expected error to mention open failure, got: %v", err)
+		}
+	})
+
+	t.Run("FromMetadata returns error for malformed JSON", func(t *testing.T) {
+		texture := createTestTexture(256, 256)
+		mockStore := &mockAtlasStorer{}
+		builder := NewBuilder("test_builder", texture, mockStore)
+
+		fsys := fstest.MapFS{
+			"bad.json": &fstest.MapFile{Data: []byte("{ invalid json }")},
+		}
+
+		err := builder.FromMetadata(fsys, "bad.json")
+		if err == nil {
+			t.Error("expected error for malformed JSON, got nil")
+		}
+		if !strings.Contains(err.Error(), "failed to decode") {
+			t.Errorf("expected error to mention decode failure, got: %v", err)
+		}
+	})
+
+	t.Run("FromMetadata with empty frames", func(t *testing.T) {
+		texture := createTestTexture(256, 256)
+		mockStore := &mockAtlasStorer{}
+		builder := NewBuilder("test_builder", texture, mockStore)
+
+		metadata := `{"frames": {}}`
+		fsys := fstest.MapFS{
+			"empty.json": &fstest.MapFile{Data: []byte(metadata)},
+		}
+
+		err := builder.FromMetadata(fsys, "empty.json")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Try to build - should fail because no regions were added
+		atlas, buildErr := builder.Build()
+		if buildErr == nil {
+			t.Error("expected build error when no regions, got nil")
+		}
+		if atlas != nil {
+			t.Error("expected nil atlas when build fails")
+		}
+	})
+
+	t.Run("FromMetadata with multiple frame regions", func(t *testing.T) {
+		texture := createTestTexture(512, 512)
+		mockStore := &mockAtlasStorer{}
+		builder := NewBuilder("test_builder", texture, mockStore)
+
+		metadata := `{
+			"frames": {
+				"idle_0": {"frame": {"x": 0, "y": 0, "w": 64, "h": 64}},
+				"idle_1": {"frame": {"x": 64, "y": 0, "w": 64, "h": 64}},
+				"walk_0": {"frame": {"x": 0, "y": 64, "w": 64, "h": 64}},
+				"walk_1": {"frame": {"x": 64, "y": 64, "w": 64, "h": 64}}
+			}
+		}`
+		fsys := fstest.MapFS{
+			"anim.json": &fstest.MapFile{Data: []byte(metadata)},
+		}
+
+		err := builder.FromMetadata(fsys, "anim.json")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		atlas, buildErr := builder.Build()
+		if buildErr != nil {
+			t.Fatalf("unexpected build error: %v", buildErr)
+		}
+
+		if len(atlas.Regions) != 4 {
+			t.Errorf("expected 4 regions, got %d", len(atlas.Regions))
+		}
+
+		expectedNames := []string{"idle_0", "idle_1", "walk_0", "walk_1"}
+		for _, name := range expectedNames {
+			if _, ok := atlas.Regions[name]; !ok {
+				t.Errorf("expected region %q to exist", name)
+			}
+		}
+	})
+}
