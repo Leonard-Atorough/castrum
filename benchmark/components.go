@@ -1,6 +1,6 @@
 package benchmark
 
-import "github.com/leonard-atorough/castrum/internal/ecs"
+import "github.com/leonard-atorough/castrum/ecs"
 
 // Position component represents a 2D position
 type Position struct {

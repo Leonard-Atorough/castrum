@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/internal/ecs"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 type SceneHook func(world *ecs.World) error

@@ -1,12 +1,11 @@
-package timersystem
+package timers
 
 import (
 	"testing"
 
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/events"
-	"github.com/leonard-atorough/castrum/internal/ecs"
-	"github.com/leonard-atorough/castrum/timers"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // TestTimer_StateTransitions tests Timer component state methods
@@ -70,7 +69,7 @@ func TestTimer_StoppedDoesNotAccumulate(t *testing.T) {
 	}
 }
 
-// TestTimerSystem_EmitsEventWhenExpired tests that timers.TimerCompletedEvent is emitted when timer expires
+// TestTimerSystem_EmitsEventWhenExpired tests that TimerCompletedEvent is emitted when timer expires
 func TestTimerSystem_EmitsEventWhenExpired(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
@@ -92,8 +91,8 @@ func TestTimerSystem_EmitsEventWhenExpired(t *testing.T) {
 	system.Init(world)
 
 	var eventFired bool
-	var firedEvent timers.TimerCompletedEvent
-	bus.On(func(_ events.EventMeta, e timers.TimerCompletedEvent) {
+	var firedEvent TimerCompletedEvent
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
 		eventFired = true
 		firedEvent = e
 	}, false)
@@ -132,7 +131,7 @@ func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
 	system.Init(world)
 
 	var eventFired bool
-	bus.On(func(_ events.EventMeta, e timers.TimerCompletedEvent) {
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
 		eventFired = true
 	}, false)
 
@@ -170,7 +169,7 @@ func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 	system.Init(world)
 
 	var eventCount int
-	bus.On(func(_ events.EventMeta, e timers.TimerCompletedEvent) {
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
 		eventCount++
 	}, false)
 
@@ -223,7 +222,7 @@ func TestTimerSystem_StoppedTimerDoesNotFire(t *testing.T) {
 	system.Init(world)
 
 	var eventFired bool
-	bus.On(func(_ events.EventMeta, e timers.TimerCompletedEvent) {
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
 		eventFired = true
 	}, false)
 
@@ -264,7 +263,7 @@ func TestTimerSystem_MultipleTimersOnDifferentEntities(t *testing.T) {
 	system.Init(world)
 
 	var eventCount int
-	bus.On(func(_ events.EventMeta, e timers.TimerCompletedEvent) {
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
 		eventCount++
 	}, false)
 
@@ -302,7 +301,7 @@ func TestTimerSystem_EventsClearedEachUpdate(t *testing.T) {
 	system.Init(world)
 
 	var eventCount int
-	bus.On(func(_ events.EventMeta, e timers.TimerCompletedEvent) {
+	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
 		eventCount++
 	}, false)
 

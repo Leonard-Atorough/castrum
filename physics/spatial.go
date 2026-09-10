@@ -1,12 +1,12 @@
-package spatial
+package physics
 
 import (
 	"fmt"
 	"math"
 
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 type GridCell struct {

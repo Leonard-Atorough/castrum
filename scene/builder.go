@@ -1,7 +1,7 @@
 package scene
 
 import (
-	"github.com/leonard-atorough/castrum/internal/ecs"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // Builder provides a fluent interface for creating scenes with entities.

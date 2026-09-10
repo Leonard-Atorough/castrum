@@ -11,18 +11,14 @@ import (
 	"github.com/leonard-atorough/castrum/assets"
 	"github.com/leonard-atorough/castrum/atlas"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
-	"github.com/leonard-atorough/castrum/internal/animationsystem"
-	"github.com/leonard-atorough/castrum/internal/assetsystem"
-	"github.com/leonard-atorough/castrum/internal/camerasystem"
-	"github.com/leonard-atorough/castrum/internal/ecs"
-	"github.com/leonard-atorough/castrum/internal/physicssystem"
-	"github.com/leonard-atorough/castrum/internal/render"
-	"github.com/leonard-atorough/castrum/internal/scene"
-	"github.com/leonard-atorough/castrum/internal/spatial"
-	"github.com/leonard-atorough/castrum/internal/timersystem"
+	"github.com/leonard-atorough/castrum/physics"
+	"github.com/leonard-atorough/castrum/render"
+	"github.com/leonard-atorough/castrum/scene"
+	"github.com/leonard-atorough/castrum/timers"
 )
 
 // ecs components (data attached to entities)
@@ -113,7 +109,7 @@ type Game struct {
 
 	// Spatial is the spatial index for efficient entity queries by position (advanced use only).
 	// Most games should not interact with this directly; it's managed by the collision system.
-	Spatial *spatial.SpatialIndexHandler
+	Spatial *physics.SpatialIndexHandler
 
 	// Input is the input handler for keyboard, mouse, and gamepad state.
 	// Use Input.KeyPressed, MouseHeld, etc. to poll input state.
@@ -157,23 +153,23 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 
 	// all ecs systems are allowed a priority of -1 for now. Better to have a field for ecs system priorities in the future.
 	var err error
-	if err = systems.Register("timer", -1, &timersystem.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
+	if err = systems.Register("timer", -1, &timers.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
 		return nil, err
 	}
-	if err = systems.Register("camera", -1, &camerasystem.System{}, newWorld); err != nil {
+	if err = systems.Register("camera", -1, &render.CameraSystem{}, newWorld); err != nil {
 		return nil, err
 	}
 	// Create animation manager and register it as a resource
 	animMgr := animation.NewAnimationClipStore()
 	ecs.SetResource(newWorld, animMgr)
-	if err = systems.Register("animation", -1, animationsystem.NewSystem(animMgr), newWorld); err != nil {
+	if err = systems.Register("animation", -1, animation.NewSystem(animMgr), newWorld); err != nil {
 		return nil, err
 	}
-	spatial, err := spatial.NewManager(config.World.GridCellSize)
+	spatial, err := physics.NewManager(config.World.GridCellSize)
 	if err != nil {
 		return nil, err
 	}
-	if err = systems.Register("collision", -1, physicssystem.NewSystem(spatial.Index, physicssystem.DefaultConfig()), newWorld); err != nil {
+	if err = systems.Register("collision", -1, physics.NewSystem(spatial.Index, physics.DefaultConfig()), newWorld); err != nil {
 		return nil, err
 	}
 
@@ -327,7 +323,7 @@ func (g *Game) GetCameraViewport() (geom.Rect, error) {
 // Spawn creates a new entity in the world from a blueprint's component data.
 // Load the blueprint first via g.Assets.Blueprints.Load(path).
 func (g *Game) Spawn(bp *assets.Blueprint) (*Entity, error) {
-	return assetsystem.CreateFromBlueprint(g.World, bp)
+	return assets.CreateFromBlueprint(g.World, bp)
 }
 
 // FindAll returns all entities that have at least a component of type T.

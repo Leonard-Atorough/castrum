@@ -3,7 +3,7 @@ package scene
 import (
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/ecs"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // Integration tests using the real ecs.World implementation

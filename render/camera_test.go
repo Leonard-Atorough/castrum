@@ -1,12 +1,12 @@
-package camerasystem
+package render
 
 import (
 	"math"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 const epsilonRect = 1e-9
@@ -17,7 +17,7 @@ func vecAlmostEqual(a, b geom.Vector2) bool {
 }
 
 func TestSystem_Update_ClampsCamera(t *testing.T) {
-	sys := &System{}
+	sys := &CameraSystem{}
 	world := ecs.NewWorld()
 
 	err := sys.Init(world)
@@ -61,7 +61,7 @@ func TestSystem_Update_ClampsCamera(t *testing.T) {
 }
 
 func TestSystem_Update_MultipleCamera(t *testing.T) {
-	sys := &System{}
+	sys := &CameraSystem{}
 	world := ecs.NewWorld()
 
 	err := sys.Init(world)
@@ -119,7 +119,7 @@ func TestSystem_Update_MultipleCamera(t *testing.T) {
 }
 
 func TestSystem_Update_UnboundedCameraNotAffected(t *testing.T) {
-	sys := &System{}
+	sys := &CameraSystem{}
 	world := ecs.NewWorld()
 
 	err := sys.Init(world)

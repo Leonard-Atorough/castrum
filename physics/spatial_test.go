@@ -1,11 +1,11 @@
-package spatial
+package physics
 
 import (
 	"math"
 	"testing"
 
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 func TestNewIndex(t *testing.T) {

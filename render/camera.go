@@ -1,23 +1,23 @@
-package camerasystem
+package render
 
 import (
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/internal/ecs"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
-// System updates all Camera components in the world.
+// CameraSystem updates all Camera components in the world.
 // It handles viewport clamping and other camera-specific logic.
-type System struct {
+type CameraSystem struct {
 	cameraQuery *ecs.Query
 }
 
-func (cs *System) Init(world *ecs.World) error {
+func (cs *CameraSystem) Init(world *ecs.World) error {
 	cs.cameraQuery = world.NewQuery().WithRequiredComponents(components.Camera{})
 	return nil
 }
 
 // Update applies camera logic: clamps position within bounds.
-func (cs *System) Update(world *ecs.World, deltaTime float64) error {
+func (cs *CameraSystem) Update(world *ecs.World, deltaTime float64) error {
 	for result := range cs.cameraQuery.Execute() {
 		entityID := result.EntityID
 		cam, err := world.GetComponent[components.Camera](entityID)
@@ -34,6 +34,6 @@ func (cs *System) Update(world *ecs.World, deltaTime float64) error {
 	return nil
 }
 
-func (cs *System) Shutdown(world *ecs.World) error {
+func (cs *CameraSystem) Shutdown(world *ecs.World) error {
 	return nil
 }

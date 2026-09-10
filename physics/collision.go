@@ -1,6 +1,6 @@
 // Package physicssystem processes collision detection and resolution for
 // entities with Collider components using spatial indexing for efficient queries.
-package physicssystem
+package physics
 
 import (
 	"fmt"
@@ -10,12 +10,11 @@ import (
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/internal/ecs"
-	"github.com/leonard-atorough/castrum/physics"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 type CollisionState struct {
-	physics.CollisionResult
+	CollisionResult
 	WasColliding bool
 }
 
@@ -68,7 +67,7 @@ type spatialQueryInterface interface {
 type CollisionProcessingSystem struct {
 	spatial       spatialQueryInterface
 	config        Config
-	previousPairs map[physics.PairKey]*CollisionState
+	previousPairs map[PairKey]*CollisionState
 	lastPositions map[ecs.EntityID]geom.Vector2
 	dirty         map[ecs.EntityID]struct{}
 	query         *ecs.Query
@@ -95,7 +94,7 @@ func NewSystem(spatialMgr spatialQueryInterface, cfg Config) *CollisionProcessin
 	return &CollisionProcessingSystem{
 		spatial:       spatialMgr,
 		config:        cfg,
-		previousPairs: make(map[physics.PairKey]*CollisionState),
+		previousPairs: make(map[PairKey]*CollisionState),
 		lastPositions: make(map[ecs.EntityID]geom.Vector2),
 		dirty:         make(map[ecs.EntityID]struct{}),
 	}
@@ -148,19 +147,19 @@ func (s *CollisionProcessingSystem) Update(world *ecs.World, deltaTime float64) 
 // TestCollision checks if two entities are colliding at this moment.
 // Returns the collision result with contact geometry (point, normal, penetration).
 // This is a query helper used by systems to check collisions.
-func (s *CollisionProcessingSystem) TestCollision(world *ecs.World, entityA, entityB ecs.EntityID) (physics.CollisionResult, error) {
+func (s *CollisionProcessingSystem) TestCollision(world *ecs.World, entityA, entityB ecs.EntityID) (CollisionResult, error) {
 	colliderA, shapeA, err := s.worldShape(world, entityA)
 	if err != nil {
-		return physics.CollisionResult{}, err
+		return CollisionResult{}, err
 	}
 
 	colliderB, shapeB, err := s.worldShape(world, entityB)
 	if err != nil {
-		return physics.CollisionResult{}, err
+		return CollisionResult{}, err
 	}
 
 	if !colliderA.CanCollideWith(&colliderB) {
-		return physics.CollisionResult{}, nil
+		return CollisionResult{}, nil
 	}
 
 	return intersectsAny(shapeA, shapeB), nil
@@ -274,9 +273,9 @@ func (s *CollisionProcessingSystem) markDirtyFromSpatial() {
 // broadphase returns candidate pairs by querying the spatial index around
 // every dirty entity. Pairs are canonicalized (EntityA < EntityB) and
 // deduplicated so a pair moved by both members is only tested once.
-func (s *CollisionProcessingSystem) broadphase(world *ecs.World) []physics.PairKey {
-	seen := make(map[physics.PairKey]struct{}, len(s.dirty))
-	candidates := make([]physics.PairKey, 0, len(s.dirty))
+func (s *CollisionProcessingSystem) broadphase(world *ecs.World) []PairKey {
+	seen := make(map[PairKey]struct{}, len(s.dirty))
+	candidates := make([]PairKey, 0, len(s.dirty))
 
 	for entityID := range s.dirty {
 		transform, _ := world.GetComponent[components.Transform](entityID)
@@ -303,8 +302,8 @@ func (s *CollisionProcessingSystem) broadphase(world *ecs.World) []physics.PairK
 // events for every pair whose state changed or persists. Returns accumulated
 // errors encountered during collision testing (e.g., missing components, invalid shapes).
 // Errors do not halt processing; pair state is preserved for the next frame.
-func (s *CollisionProcessingSystem) narrowphase(world *ecs.World, candidates []physics.PairKey, bus *events.EventBus) *CollisionErrors {
-	tested := make(map[physics.PairKey]struct{}, len(candidates))
+func (s *CollisionProcessingSystem) narrowphase(world *ecs.World, candidates []PairKey, bus *events.EventBus) *CollisionErrors {
+	tested := make(map[PairKey]struct{}, len(candidates))
 	collisionErrors := &CollisionErrors{}
 
 	for _, pair := range candidates {
@@ -322,11 +321,11 @@ func (s *CollisionProcessingSystem) narrowphase(world *ecs.World, candidates []p
 		prev, wasColliding := s.previousPairs[pair]
 		switch {
 		case result.Collided && (!wasColliding || !prev.WasColliding):
-			s.emit(bus, physics.CollisionEnter, pair, result)
+			s.emit(bus, CollisionEnter, pair, result)
 		case result.Collided:
-			s.emit(bus, physics.CollisionStay, pair, result)
+			s.emit(bus, CollisionStay, pair, result)
 		case wasColliding && prev.WasColliding:
-			s.emit(bus, physics.CollisionExit, pair, prev.CollisionResult)
+			s.emit(bus, CollisionExit, pair, prev.CollisionResult)
 		}
 
 		if result.Collided {
@@ -343,17 +342,17 @@ func (s *CollisionProcessingSystem) narrowphase(world *ecs.World, candidates []p
 			continue
 		}
 
-		s.emit(bus, physics.CollisionStay, pair, state.CollisionResult)
+		s.emit(bus, CollisionStay, pair, state.CollisionResult)
 	}
 
 	return collisionErrors
 }
 
-func (s *CollisionProcessingSystem) emit(bus *events.EventBus, eventType physics.CollisionEventType, pair physics.PairKey, result physics.CollisionResult) {
+func (s *CollisionProcessingSystem) emit(bus *events.EventBus, eventType CollisionEventType, pair PairKey, result CollisionResult) {
 	if bus == nil {
 		return // EventBus not registered, skip event emission
 	}
-	bus.Emit(physics.CollisionEvent{
+	bus.Emit(CollisionEvent{
 		CollisionEventType: eventType,
 		PairKey:            pair,
 		Point:              result.Point,
@@ -362,11 +361,11 @@ func (s *CollisionProcessingSystem) emit(bus *events.EventBus, eventType physics
 }
 
 // canonicalPair orders a pair so (a, b) and (b, a) collapse to one key.
-func canonicalPair(a, b ecs.EntityID) physics.PairKey {
+func canonicalPair(a, b ecs.EntityID) PairKey {
 	if a < b {
-		return physics.PairKey{EntityA: a, EntityB: b}
+		return PairKey{EntityA: a, EntityB: b}
 	}
-	return physics.PairKey{EntityA: b, EntityB: a}
+	return PairKey{EntityA: b, EntityB: a}
 }
 
 // toWorldSpace translates a collider shape to world space using the entity's transform position
@@ -386,13 +385,13 @@ func toWorldSpace(shape any, position geom.Vector2) any {
 	return shape
 }
 
-func intersectsAny(shapeA, shapeB any) physics.CollisionResult {
+func intersectsAny(shapeA, shapeB any) CollisionResult {
 	switch a := shapeA.(type) {
 	case geom.Rect:
 		switch b := shapeB.(type) {
 		case geom.Rect:
 			// Rect-Rect contact geometry deferred (SAT solver v0.2.0)
-			return physics.CollisionResult{Collided: a.Intersects(b)}
+			return CollisionResult{Collided: a.Intersects(b)}
 		case geom.Circle:
 			return circleRectContact(b, a)
 		}
@@ -404,22 +403,22 @@ func intersectsAny(shapeA, shapeB any) physics.CollisionResult {
 			return circleCircleContact(a, b)
 		}
 	}
-	return physics.CollisionResult{}
+	return CollisionResult{}
 }
 
-func circleCircleContact(a, b geom.Circle) physics.CollisionResult {
+func circleCircleContact(a, b geom.Circle) CollisionResult {
 	dx := b.Center.X - a.Center.X
 	dy := b.Center.Y - a.Center.Y
 	dist := math.Sqrt(dx*dx + dy*dy)
 	minDist := a.Radius + b.Radius
 
 	if dist > minDist {
-		return physics.CollisionResult{Collided: false}
+		return CollisionResult{Collided: false}
 	}
 
 	if dist == 0 {
 		// Circles at same position, arbitrary normal.
-		return physics.CollisionResult{
+		return CollisionResult{
 			Collided:    true,
 			Penetration: minDist,
 			Normal:      geom.Vector2{X: 1, Y: 0},
@@ -429,7 +428,7 @@ func circleCircleContact(a, b geom.Circle) physics.CollisionResult {
 
 	nx := dx / dist
 	ny := dy / dist
-	return physics.CollisionResult{
+	return CollisionResult{
 		Collided:    true,
 		Penetration: minDist - dist,
 		Normal:      geom.Vector2{X: nx, Y: ny},
@@ -437,7 +436,7 @@ func circleCircleContact(a, b geom.Circle) physics.CollisionResult {
 	}
 }
 
-func circleRectContact(circle geom.Circle, rect geom.Rect) physics.CollisionResult {
+func circleRectContact(circle geom.Circle, rect geom.Rect) CollisionResult {
 	// Closest point on rect to circle center.
 	closestX := math.Max(rect.Min.X, math.Min(circle.Center.X, rect.Max.X))
 	closestY := math.Max(rect.Min.Y, math.Min(circle.Center.Y, rect.Max.Y))
@@ -447,12 +446,12 @@ func circleRectContact(circle geom.Circle, rect geom.Rect) physics.CollisionResu
 	dist := math.Sqrt(dx*dx + dy*dy)
 
 	if dist > circle.Radius {
-		return physics.CollisionResult{Collided: false}
+		return CollisionResult{Collided: false}
 	}
 
 	if dist == 0 {
 		// Circle center inside rect, arbitrary normal outward.
-		return physics.CollisionResult{
+		return CollisionResult{
 			Collided:    true,
 			Penetration: circle.Radius,
 			Normal:      geom.Vector2{X: 1, Y: 0},
@@ -462,7 +461,7 @@ func circleRectContact(circle geom.Circle, rect geom.Rect) physics.CollisionResu
 
 	nx := dx / dist
 	ny := dy / dist
-	return physics.CollisionResult{
+	return CollisionResult{
 		Collided:    true,
 		Penetration: circle.Radius - dist,
 		Normal:      geom.Vector2{X: nx, Y: ny},
