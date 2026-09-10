@@ -70,7 +70,7 @@ func NewSprite(texturePath string, Primitive PrimitiveType, Layer uint8, SortOrd
 }
 
 // PrimitiveType represents the type of a procedural shape for rendering.
-type PrimitiveType int
+type PrimitiveType uint8
 
 const (
 	PrimitiveKindRectangle PrimitiveType = iota

@@ -76,4 +76,18 @@ func TestSpriteComponent(t *testing.T) {
 			t.Errorf("Expected data to be nil, got %v", sprite.Data)
 		}
 	})
+
+	t.Run("Create New Sprite with layer greater than 31", func(t *testing.T) {
+		sprite := NewSprite("texture.png", PrimitiveKindRectangle, 35, 0, true, nil)
+		if sprite.Layer != 31 {
+			t.Errorf("Expected layer to be capped at 31, got %v", sprite.Layer)
+		}
+	})
+
+	t.Run("Create New Sprite with invalid primitive type", func(t *testing.T) {
+		sprite := NewSprite("texture.png", 99, 0, 0, true, nil)
+		if sprite.Primitive != PrimitiveKindRectangle {
+			t.Errorf("Expected primitive to default to Rectangle, got %v", sprite.Primitive)
+		}
+	})
 }
