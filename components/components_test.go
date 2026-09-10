@@ -53,3 +53,27 @@ func TestTransformComponent(t *testing.T) {
 		}
 	})
 }
+
+func TestSpriteComponent(t *testing.T) {
+	t.Run("Create New Sprite Component with all fields", func(t *testing.T) {
+		sprite := NewSprite("texture.png", PrimitiveKindRectangle, 0, 0, true, nil)
+		if sprite.TexturePath != "texture.png" {
+			t.Errorf("Expected texture path to be 'texture.png', got %v", sprite.TexturePath)
+		}
+		if sprite.Primitive != PrimitiveKindRectangle {
+			t.Errorf("Expected primitive to be Rectangle, got %v", sprite.Primitive)
+		}
+		if sprite.Layer != 0 {
+			t.Errorf("Expected layer to be 0, got %v", sprite.Layer)
+		}
+		if sprite.SortOrder != 0 {
+			t.Errorf("Expected sort order to be 0, got %v", sprite.SortOrder)
+		}
+		if !sprite.Visible {
+			t.Errorf("Expected visible to be true, got %v", sprite.Visible)
+		}
+		if sprite.Data != nil {
+			t.Errorf("Expected data to be nil, got %v", sprite.Data)
+		}
+	})
+}

@@ -39,21 +39,25 @@ type SceneTag struct {
 	SceneID string
 }
 
-
-
 type Sprite struct {
 	TexturePath string
 	Primitive   PrimitiveType
-	Layer       uint32 // which of 32 layers to render on (0-31)
-	SortOrder   int         // [0..n], higher values render on top within the layer
+	Layer       uint8 // which of 32 layers to render on (0-31)
+	SortOrder   int8  // [-128..127], higher values render on top within the layer
 	Visible     bool
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
 // NewSprite creates a new Renderable component with the specified properties.
-func NewSprite(texturePath string, Primitive PrimitiveType, Layer uint32, SortOrder int, Visible bool, Data any) Sprite {
+func NewSprite(texturePath string, Primitive PrimitiveType, Layer uint8, SortOrder int8, Visible bool, Data any) Sprite {
 	if Data == nil {
 		Data = struct{}{}
+	}
+	if Layer > 31 {
+		Layer = 31
+	}
+	if Primitive < PrimitiveKindRectangle || Primitive > PrimitiveKindPolygon {
+		Primitive = PrimitiveKindRectangle
 	}
 	return Sprite{
 		TexturePath: texturePath,
@@ -102,16 +106,18 @@ type ColliderShapeContext interface {
 // Collider represents a collision shape for an entity.
 type Collider struct {
 	Shape   ColliderShapeContext // geom.Circle or geom.Rect, defined in local space
-	Layer   uint32               // The layer this collider belongs to
+	Layer   uint8                // The layer this collider belongs to
 	Mask    uint32               // The collision masks determine which layers this collider can interact with.
 	Trigger bool                 // Indicates if this collider is a trigger (does not generate physical collisions)
 	Active  bool                 // Indicates if this collider is currently active
 }
 
 // NewCollider creates a new Collider component with the specified properties.
-func NewCollider(shape ColliderShapeContext, active, trigger bool, layer uint32, collidesWith ...uint) Collider {
+func NewCollider(shape ColliderShapeContext, active, trigger bool, layer uint8, collidesWith ...uint) Collider {
 	mask := layersToMask(collidesWith...)
-
+	if layer > 31 {
+		layer = 31
+	}
 	return Collider{
 		Shape:   shape,
 		Layer:   layer,
