@@ -1,3 +1,6 @@
+// Package animation provides structures and systems for handling sprite animations using texture atlases.
+// It includes builders for creating animation clips and a store for managing them.
+// It also defines events related to animation playback.
 package animation
 
 import (
@@ -10,6 +13,7 @@ import (
 	"github.com/leonard-atorough/castrum/events"
 )
 
+// AnimationEventType defines the type of events emitted by the animation system.
 type AnimationEventType int
 
 const (
@@ -24,23 +28,19 @@ type AnimationEvent struct {
 	Type     AnimationEventType
 }
 
-// AnimationClip represents a playable animation sequence.
-// It references a TextureAtlas and a sequence of frame region names within that atlas,
-// along with timing and looping configuration.
-// Clips are created programmatically via AnimationManager, not loaded from disk.
+// AnimationClip represents a sequence of frames from a texture atlas that can be played back as an animation.
 type AnimationClip struct {
-	Atlas      *atlas.TextureAtlas
-	Frames     []string // Region names in the atlas (in order)
-	FrameSpeed float64  // Time (in seconds) each frame is displayed
-	Loop       bool     // Whether the animation repeats
+	Atlas      *atlas.TextureAtlas // Reference to the texture atlas containing the frames
+	Frames     []string            // Region names in the atlas (in order)
+	FrameSpeed float64             // Time (in seconds) each frame is displayed
+	Loop       bool                // Whether the animation repeats
 }
 
 type clipStorer interface {
 	store(id string, clip *AnimationClip)
 }
 
-// AnimationClipBuilder is the builder interface for creating animation clips.
-// Use method chaining to configure, then call Build() to register with the manager.
+// AnimationClipBuilder provides a fluent interface for constructing AnimationClip instances.
 type AnimationClipBuilder struct {
 	id         string
 	atlas      *atlas.TextureAtlas
@@ -50,6 +50,8 @@ type AnimationClipBuilder struct {
 	store      clipStorer
 }
 
+// NewAnimationClipBuilder initializes a new builder for an animation clip.
+// The clip will be registered with the provided store upon calling Build().
 func NewAnimationClipBuilder(id string, atlas *atlas.TextureAtlas, store clipStorer) *AnimationClipBuilder {
 	if store == nil {
 		panic("animation clip builder requires a non-nil store")
@@ -116,24 +118,23 @@ func (c *AnimationClipBuilder) Build() (*AnimationClip, error) {
 	return clip, nil
 }
 
-// AnimationClipStore orchestrates animation clip creation and storage.
-// It is lightweight: it creates clips programmatically, validates them,
-// and hands them off to the Animation system for playback orchestration.
+// AnimationClipStore manages the storage and retrieval of animation clips.
+// Provides thread-safe access to animation clips and facilitates their creation via builders.
 type AnimationClipStore struct {
 	mu    sync.RWMutex
 	clips map[string]*AnimationClip
 }
 
-// NewAnimationClipStore creates a new AnimationClipStore.
+// NewAnimationClipStore initializes and returns a new AnimationClipStore instance.
 func NewAnimationClipStore() *AnimationClipStore {
 	return &AnimationClipStore{
 		clips: make(map[string]*AnimationClip),
 	}
 }
 
-// NewClip creates a new clip builder with the given ID and atlas.
-// Use method chaining to configure, then call Build() to register.
-func (m *AnimationClipStore) NewClip(id string, atlas *atlas.TextureAtlas) *AnimationClipBuilder {
+// NewBuilder creates a new animation clip builder with the given ID and atlas.
+// Use method chaining to configure the builder, then call Build() to register the clip.
+func (m *AnimationClipStore) NewBuilder(id string, atlas *atlas.TextureAtlas) *AnimationClipBuilder {
 	return &AnimationClipBuilder{
 		id:     id,
 		atlas:  atlas,
@@ -156,22 +157,22 @@ func (m *AnimationClipStore) store(id string, clip *AnimationClip) {
 	m.clips[id] = clip
 }
 
-// System processes animation playback for entities with Animation components.
+// AnimationSystem processes animation playback for entities with Animation components.
 // It delegates to the Manager for clip resolution and orchestrates frame advancement
 // and event emission. Does not handle clip creation or configuration.
-type System struct {
+type AnimationSystem struct {
 	query   *ecs.Query
 	manager *AnimationClipStore
 }
 
 // NewSystem creates a new animation system with the given manager.
-func NewSystem(manager *AnimationClipStore) *System {
-	return &System{
+func NewSystem(manager *AnimationClipStore) *AnimationSystem {
+	return &AnimationSystem{
 		manager: manager,
 	}
 }
 
-func (as *System) Init(world *ecs.World) error {
+func (as *AnimationSystem) Init(world *ecs.World) error {
 	as.query = world.NewQuery().WithRequiredComponents(
 		components.Animation{},
 		components.Sprite{},
@@ -181,10 +182,10 @@ func (as *System) Init(world *ecs.World) error {
 }
 
 // Update processes all Animation components, advancing frame time and emitting events.
-func (as *System) Update(world *ecs.World, delta float64) error {
+func (as *AnimationSystem) Update(world *ecs.World, delta float64) error {
 	bus, ok := ecs.GetResource[*events.EventBus](world)
 	if !ok {
-		return nil // EventBus not registered, skip event emission
+		return nil
 	}
 
 	for entry := range as.query.Execute() {
@@ -195,22 +196,17 @@ func (as *System) Update(world *ecs.World, delta float64) error {
 			continue
 		}
 
-		// Look up the clip from the manager
 		clip := as.manager.Get(anim.ClipPath)
 		if clip == nil {
-			// Skip if clip not found; log in production
 			continue
 		}
 
-		// Advance frame time by delta * playback speed
 		anim.FrameTime += delta * anim.PlaybackSpeed
 
-		// Advance frames
 		if anim.FrameTime >= clip.FrameSpeed {
 			anim.FrameTime -= clip.FrameSpeed
 			anim.FrameIndex++
 
-			// Handle loop or stop
 			if anim.FrameIndex >= len(clip.Frames) {
 				if clip.Loop {
 					anim.FrameIndex = 0
@@ -236,6 +232,6 @@ func (as *System) Update(world *ecs.World, delta float64) error {
 	return nil
 }
 
-func (as *System) Shutdown(world *ecs.World) error {
+func (as *AnimationSystem) Shutdown(world *ecs.World) error {
 	return nil
 }

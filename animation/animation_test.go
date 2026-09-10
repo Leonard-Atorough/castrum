@@ -119,7 +119,7 @@ func TestAnimationClipStore(t *testing.T) {
 
 	t.Run("NewClip initializes correctly with correct values", func(t *testing.T) {
 		store := NewAnimationClipStore()
-		clipBuilder := store.NewClip("test_animation", createTextureAtlasForTest(t))
+		clipBuilder := store.NewBuilder("test_animation", createTextureAtlasForTest(t))
 		if clipBuilder == nil {
 			t.Errorf("expected a new animation clip builder, got nil")
 		}
@@ -258,7 +258,7 @@ func TestSystem_Update_AdvancesFrameTime(t *testing.T) {
 
 	// Create a test clip
 	atlas := createTestAtlas()
-	_, err := mgr.NewClip("test_clip", atlas).
+	_, err := mgr.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -291,7 +291,7 @@ func TestSystem_Update_AdvancesFrame(t *testing.T) {
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewClip("test_clip", atlas).
+	_, err := mgr.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -330,7 +330,7 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewClip("test_clip", atlas).
+	_, err := mgr.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -362,7 +362,7 @@ func TestSystem_Update_IgnoresNonPlayingAnimations(t *testing.T) {
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewClip("test_clip", atlas).
+	_, err := mgr.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -392,7 +392,7 @@ func TestSystem_Update_LoopsAnimation(t *testing.T) {
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewClip("test_clip", atlas).
+	_, err := mgr.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -434,7 +434,7 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewClip("test_clip", atlas).
+	_, err := mgr.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -471,7 +471,7 @@ func TestSystem_Update_RespectPlaybackSpeed(t *testing.T) {
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewClip("test_clip", atlas).
+	_, err := mgr.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		AddFrame("frame_2").
