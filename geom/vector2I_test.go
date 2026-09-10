@@ -122,3 +122,24 @@ func TestVector2I_String(t *testing.T) {
 		t.Fatalf("String() = %q, want %q", got, want)
 	}
 }
+
+func TestNewVector2I(t *testing.T) {
+	cases := []struct {
+		name string
+		x, y int
+		want Vector2I
+	}{
+		{"positive values", 3, 4, Vector2I{X: 3, Y: 4}},
+		{"negative values", -1, -2, Vector2I{X: -1, Y: -2}},
+		{"zero", 0, 0, Vector2I{X: 0, Y: 0}},
+		{"mixed signs", -5, 3, Vector2I{X: -5, Y: 3}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := NewVector2I(tc.x, tc.y)
+			if got != tc.want {
+				t.Fatalf("NewVector2I(%v, %v) = %v, want %v", tc.x, tc.y, got, tc.want)
+			}
+		})
+	}
+}

@@ -56,3 +56,35 @@ func TestCircle_AreaAndCircumference(t *testing.T) {
 		t.Fatalf("Circumference() = %v, want %v", got, want)
 	}
 }
+
+func TestCircle_BoundingBox(t *testing.T) {
+	cases := []struct {
+		name   string
+		circle Circle
+		want   Rect
+	}{
+		{
+			"circle at origin",
+			Circle{Center: Vector2{X: 0, Y: 0}, Radius: 5},
+			Rect{Min: Vector2{X: -5, Y: -5}, Max: Vector2{X: 5, Y: 5}},
+		},
+		{
+			"circle with offset center",
+			Circle{Center: Vector2{X: 10, Y: 20}, Radius: 3},
+			Rect{Min: Vector2{X: 7, Y: 17}, Max: Vector2{X: 13, Y: 23}},
+		},
+		{
+			"circle with small radius",
+			Circle{Center: Vector2{X: 5, Y: 5}, Radius: 1},
+			Rect{Min: Vector2{X: 4, Y: 4}, Max: Vector2{X: 6, Y: 6}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.circle.BoundingBox()
+			if got != tc.want {
+				t.Fatalf("BoundingBox() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

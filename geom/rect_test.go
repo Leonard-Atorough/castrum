@@ -66,3 +66,32 @@ func TestRect_String(t *testing.T) {
 		t.Fatal("String() should not be empty")
 	}
 }
+
+func TestNewRect(t *testing.T) {
+	cases := []struct {
+		name string
+		min, max Vector2
+		want     Rect
+	}{
+		{"standard rect", Vector2{X: 0, Y: 0}, Vector2{X: 10, Y: 5}, Rect{Min: Vector2{X: 0, Y: 0}, Max: Vector2{X: 10, Y: 5}}},
+		{"negative coords", Vector2{X: -5, Y: -3}, Vector2{X: 5, Y: 3}, Rect{Min: Vector2{X: -5, Y: -3}, Max: Vector2{X: 5, Y: 3}}},
+		{"point rect", Vector2{X: 2, Y: 2}, Vector2{X: 2, Y: 2}, Rect{Min: Vector2{X: 2, Y: 2}, Max: Vector2{X: 2, Y: 2}}},
+		{"float coords", Vector2{X: 1.5, Y: 2.5}, Vector2{X: 8.7, Y: 9.2}, Rect{Min: Vector2{X: 1.5, Y: 2.5}, Max: Vector2{X: 8.7, Y: 9.2}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := NewRect(tc.min, tc.max)
+			if got != tc.want {
+				t.Fatalf("NewRect(%v, %v) = %v, want %v", tc.min, tc.max, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRect_BoundingBox(t *testing.T) {
+	r := Rect{Min: Vector2{X: 1, Y: 2}, Max: Vector2{X: 10, Y: 15}}
+	got := r.BoundingBox()
+	if got != r {
+		t.Fatalf("BoundingBox() = %v, want %v", got, r)
+	}
+}

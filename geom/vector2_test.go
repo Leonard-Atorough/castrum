@@ -148,6 +148,27 @@ func TestVector2_Rotate(t *testing.T) {
 	}
 }
 
+func TestNewVector2(t *testing.T) {
+	cases := []struct {
+		name string
+		x, y float64
+		want Vector2
+	}{
+		{"positive values", 3.5, 4.2, Vector2{X: 3.5, Y: 4.2}},
+		{"negative values", -1.0, -2.5, Vector2{X: -1.0, Y: -2.5}},
+		{"zero", 0, 0, Vector2{X: 0, Y: 0}},
+		{"mixed signs", -5.0, 3.0, Vector2{X: -5.0, Y: 3.0}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := NewVector2(tc.x, tc.y)
+			if !vecAlmostEqual(got, tc.want) {
+				t.Fatalf("NewVector2(%v, %v) = %v, want %v", tc.x, tc.y, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestVector2_String(t *testing.T) {
 	got := Vector2{X: 1, Y: 2}.String()
 	want := "Vector2{X: 1.000000, Y: 2.000000}"
