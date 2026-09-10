@@ -15,19 +15,13 @@ permissions:
   contents: read
   pull-requests: write
 
-env:
-  FAIL_THRESHOLD: 10 # % regression that fails the check
-  WARN_THRESHOLD: 5 # % regression that warns in the PR comment
-
 jobs:
   benchmark:
     name: Performance Regression Check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR branch
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -40,104 +34,29 @@ jobs:
           sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev \
             libxinerama-dev libxi-dev libgl1-mesa-dev
 
-      - name: Install benchstat
-        run: go install golang.org/x/perf/cmd/benchstat@latest
-
-      - name: Run PR benchmarks
+      - name: Run benchmarks
         run: |
           cd benchmark
-          go test -bench=. -benchmem -benchtime=200ms -count=8 -run='^$' ./... > /tmp/pr.txt
+          go test -bench=. -benchmem -benchtime=200ms -count=8 -run='^$' ./... | tee output.txt
 
-      - name: Checkout main branch
-        uses: actions/checkout@v4
+      - name: Download benchmark history
+        uses: actions/cache@v4
         with:
-          ref: main
-          fetch-depth: 0
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
 
-      - name: Run baseline benchmarks
-        run: |
-          cd benchmark
-          go test -bench=. -benchmem -benchtime=200ms -count=8 -run='^$' ./... > /tmp/main.txt
-
-      - name: Compare benchmarks
-        id: compare
-        run: |
-          benchstat /tmp/main.txt /tmp/pr.txt > /tmp/comparison.txt || true
-          cat /tmp/comparison.txt
-
-          # benchstat prints deltas as "+12.34%" (regression) or "-3.21%" or "~".
-          # Extract every positive delta with its benchmark name and find the worst.
-          worst=0
-          worst_name=""
-          while read -r name pct; do
-            if (( $(echo "${pct} > ${worst}" | bc -l) )); then
-              worst="${pct}"
-              worst_name="${name}"
-            fi
-          done < <(awk '{
-            for (i = 1; i <= NF; i++)
-              if (match($i, /^\+([0-9]+(\.[0-9]+)?)%$/, m))
-                print $1, m[1]
-          }' /tmp/comparison.txt)
-
-          echo "worst_regression=${worst}" >> "$GITHUB_OUTPUT"
-          echo "worst_benchmark=${worst_name}" >> "$GITHUB_OUTPUT"
-
-          verdict="pass"
-          if (( $(echo "${worst} >= ${FAIL_THRESHOLD}" | bc -l) )); then
-            verdict="fail"
-          elif (( $(echo "${worst} >= ${WARN_THRESHOLD}" | bc -l) )); then
-            verdict="warn"
-          fi
-          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
-
-      - name: Comment PR with results
-        if: always()
-        uses: actions/github-script@v7
+      - name: Compare and store benchmark results
+        uses: benchmark-action/github-action-benchmark@v1
         with:
-          script: |
-            const fs = require('fs');
-            const comparison = fs.readFileSync('/tmp/comparison.txt', 'utf8');
-            const verdict = '${{ steps.compare.outputs.verdict }}';
-            const worst = '${{ steps.compare.outputs.worst_regression }}';
-            const worstName = '${{ steps.compare.outputs.worst_benchmark }}';
-
-            const icon = verdict === 'fail' ? '❌' : (verdict === 'warn' ? '⚠️' : '✅');
-            const status = {
-              pass: 'PASS - no significant regressions',
-              warn: `WARNING - up to +${{ steps.compare.outputs.worst_regression }}% on ${worstName}`,
-              fail: `FAIL - ${worstName} regressed +${{ steps.compare.outputs.worst_regression }}% (>10%)`
-            }[verdict];
-
-            const comment = `## ${icon} Benchmark Results\n\n**${status}**\n\n` +
-              `\`\`\`\n${comparison}\n\`\`\`\n\n` +
-              `- \`~\` = within noise (p > 0.05)\n` +
-              `- \`+5% to +10%\` = investigate, document reason\n` +
-              `- \`>+10%\` = fail the check`;
-
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
-
-      - name: Fail on regression
-        if: steps.compare.outputs.verdict == 'fail'
-        run: |
-          echo "❌ ${worst_benchmark} regressed by ${worst_regression}% (threshold: ${FAIL_THRESHOLD}%)"
-          exit 1
-        env:
-          worst_regression: ${{ steps.compare.outputs.worst_regression }}
-          worst_benchmark: ${{ steps.compare.outputs.worst_benchmark }}
-
-      - name: Upload benchmark results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results
-          path: |
-            /tmp/main.txt
-            /tmp/pr.txt
-            /tmp/comparison.txt
-          retention-days: 30
+          name: Castrum Go Benchmarks
+          tool: go
+          output-file-path: benchmark/output.txt
+          external-data-json-path: ./cache/benchmark-data.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          alert-threshold: 105%
+          fail-threshold: 110%
+          fail-on-alert: true
+          comment-on-alert: true
+          comment-always: false
+          summary-always: true
+          alert-comment-cc-users: "@Leonard-Atorough"
