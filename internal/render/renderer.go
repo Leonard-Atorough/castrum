@@ -33,6 +33,7 @@ type Renderer struct {
 	animationMgr  *animation.AnimationClipStore
 	Primitive     *PrimitiveRenderer
 	cameraQuery   *ecs.Query
+	renderItems   []renderItem // Reusable buffer for hot path
 }
 
 func New(textureLoader TextureLoader, animationMgr *animation.AnimationClipStore) *Renderer {
@@ -77,7 +78,8 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *ecs.World) {
 		return // No primary camera, nothing to render
 	}
 
-	renderItems := make([]renderItem, 0)
+	// Reuse buffer to avoid allocations in hot path
+	r.renderItems = r.renderItems[:0]
 	// Get the camera's visible world-space bounds for frustum culling
 	viewportBounds := primaryCamera.ViewportBounds()
 
@@ -102,7 +104,7 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *ecs.World) {
 			anim = &animation
 		}
 
-		renderItems = append(renderItems, renderItem{
+		r.renderItems = append(r.renderItems, renderItem{
 			entityID:   entry.EntityID,
 			renderable: renderable,
 			transform:  transform,
@@ -111,7 +113,7 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *ecs.World) {
 	}
 
 	// Sort by layer > render depth > Y position (entityId too unstable)
-	slices.SortStableFunc(renderItems, func(a, b renderItem) int {
+	slices.SortStableFunc(r.renderItems, func(a, b renderItem) int {
 		if a.renderable.Layer != b.renderable.Layer {
 			return int(a.renderable.Layer) - int(b.renderable.Layer)
 		}
@@ -130,7 +132,7 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *ecs.World) {
 	})
 
 	// Render
-	for _, item := range renderItems {
+	for _, item := range r.renderItems {
 		if item.renderable.TexturePath != "" {
 			r.drawSprite(screen, primaryCamera, item.transform, item.renderable, item.animation)
 		} else {
