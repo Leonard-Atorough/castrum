@@ -1,483 +1,387 @@
 package input
 
-import "testing"
+import (
+	"maps"
+	"testing"
+	"time"
 
-func TestNewInputSnapshot(t *testing.T) {
-	snapshot := NewInputSnapshot()
-	if snapshot.Keyboard == nil {
-		t.Errorf("Expected Keyboard map to be initialized")
-	}
-	if snapshot.Mouse.Buttons == nil {
-		t.Errorf("Expected Mouse Buttons map to be initialized")
-	}
-	if snapshot.Mouse.X != 0 || snapshot.Mouse.Y != 0 {
-		t.Errorf("Expected Mouse X and Y to be initialized to 0")
-	}
-	if snapshot.Modifiers.Shift || snapshot.Modifiers.Ctrl || snapshot.Modifiers.Alt {
-		t.Errorf("Expected Modifiers to be initialized to false")
-	}
-}
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
-func TestInputSnapshotReset(t *testing.T) {
-	snapshot := NewInputSnapshot()
-	snapshot.Keyboard[0] = KeyState{Pressed: true, Held: true, Released: true, Duration: 1.0}
-	snapshot.Modifiers.Shift = true
-	snapshot.Modifiers.Ctrl = true
-	snapshot.Modifiers.Alt = true
-	snapshot.Mouse.X = 100
-	snapshot.Mouse.Y = 200
-	snapshot.Mouse.Buttons[0] = KeyState{Pressed: true, Held: true, Released: true, Duration: 1.0}
-
-	snapshot.Reset()
-
-	for key, state := range snapshot.Keyboard {
-		if state.Pressed || state.Held || state.Released || state.Duration != 0 {
-			t.Errorf("Expected Keyboard[%v] to be reset", key)
+func TestInputSnapshot(t *testing.T) {
+	t.Run("New", func(t *testing.T) {
+		s := NewInputSnapshot()
+		if s.Keyboard == nil || s.Mouse.Buttons == nil {
+			t.Fatal("maps not initialized")
 		}
-	}
-	if snapshot.Modifiers.Shift || snapshot.Modifiers.Ctrl || snapshot.Modifiers.Alt {
-		t.Errorf("Expected Modifiers to be reset")
-	}
-	if snapshot.Mouse.X != 0 || snapshot.Mouse.Y != 0 {
-		t.Errorf("Expected Mouse X and Y to be reset to 0")
-	}
-	for button, state := range snapshot.Mouse.Buttons {
-		if state.Pressed || state.Held || state.Released || state.Duration != 0 {
-			t.Errorf("Expected Mouse.Buttons[%v] to be reset", button)
+		if s.Mouse.X != 0 || s.Mouse.Y != 0 {
+			t.Error("mouse position should be (0,0)")
 		}
-	}
-}
-
-func TestInputSnapshotClone(t *testing.T) {
-	original := NewInputSnapshot()
-	original.Keyboard[0] = KeyState{Pressed: true, Held: true, Released: true, Duration: 1.0}
-	original.Modifiers.Shift = true
-	original.Modifiers.Ctrl = true
-	original.Modifiers.Alt = true
-	original.Mouse.X = 100
-	original.Mouse.Y = 200
-	original.Mouse.Buttons[0] = KeyState{Pressed: true, Held: true, Released: true, Duration: 1.0}
-
-	cloned := original.Clone()
-
-	// Verify that the cloned snapshot matches the original
-	for key, state := range original.Keyboard {
-		clonedState, exists := cloned.Keyboard[key]
-		if !exists || clonedState != state {
-			t.Errorf("Expected cloned Keyboard[%v] to match original", key)
+		if s.Modifiers != (Modifiers{}) {
+			t.Error("modifiers should be zero-valued")
 		}
-	}
-	if cloned.Modifiers != original.Modifiers {
-		t.Errorf("Expected cloned Modifiers to match original")
-	}
-	if cloned.Mouse.X != original.Mouse.X || cloned.Mouse.Y != original.Mouse.Y {
-		t.Errorf("Expected cloned Mouse X and Y to match original")
-	}
-	for button, state := range original.Mouse.Buttons {
-		clonedState, exists := cloned.Mouse.Buttons[button]
-		if !exists || clonedState != state {
-			t.Errorf("Expected cloned Mouse.Buttons[%v] to match original", button)
+	})
+
+	t.Run("Reset", func(t *testing.T) {
+		s := NewInputSnapshot()
+		s.Keyboard[ebiten.KeyA] = KeyState{Pressed: true, Held: true, Duration: 1.0}
+		s.Modifiers = Modifiers{Shift: true, Ctrl: true, Alt: true}
+		s.Mouse.X = 100
+		s.Mouse.Y = 200
+		s.Mouse.Buttons[ebiten.MouseButtonLeft] = KeyState{Held: true, Duration: 2.0}
+
+		s.Reset()
+
+		if state := s.Keyboard[ebiten.KeyA]; state != (KeyState{}) {
+			t.Errorf("keyboard not reset: %+v", state)
 		}
-	}
+		if s.Modifiers != (Modifiers{}) {
+			t.Error("modifiers not reset")
+		}
+		if s.Mouse.X != 0 || s.Mouse.Y != 0 {
+			t.Error("mouse position not reset")
+		}
+		if state := s.Mouse.Buttons[ebiten.MouseButtonLeft]; state != (KeyState{}) {
+			t.Errorf("mouse buttons not reset: %+v", state)
+		}
+	})
 
-	// Modify the cloned snapshot and verify it does not affect the original
-	cloned.Keyboard[0] = KeyState{}
-	cloned.Modifiers.Shift = false
-	cloned.Mouse.X = 0
-	cloned.Mouse.Buttons[0] = KeyState{}
+	t.Run("Clone", func(t *testing.T) {
+		s1 := NewInputSnapshot()
+		s1.Keyboard[ebiten.KeyA] = KeyState{Pressed: true, Held: true}
+		s1.Modifiers.Shift = true
+		s1.Mouse.X = 100
+		s1.Mouse.Buttons[ebiten.MouseButtonLeft] = KeyState{Held: true}
 
-	if original.Keyboard[0].Pressed == false || original.Modifiers.Shift == false || original.Mouse.X == 0 || original.Mouse.Buttons[0].Pressed == false {
-		t.Errorf("Modifying cloned snapshot should not affect the original")
-	}
+		s2 := s1.Clone()
+
+		if !s1.Compare(&s2) {
+			t.Error("clone should equal original")
+		}
+
+		s2.Keyboard[ebiten.KeyA] = KeyState{}
+		s2.Modifiers.Shift = false
+		s2.Mouse.X = 0
+		if s1.Compare(&s2) {
+			t.Error("modifying clone should not affect original")
+		}
+	})
+
+	t.Run("Compare", func(t *testing.T) {
+		s1 := NewInputSnapshot()
+		s1.Keyboard[ebiten.KeyA] = KeyState{Pressed: true}
+
+		if !s1.Compare(&s1) {
+			t.Error("snapshot should equal itself")
+		}
+
+		s2 := s1.Clone()
+		if !s1.Compare(&s2) {
+			t.Error("equal snapshots should compare equal")
+		}
+
+		s2.Keyboard[ebiten.KeyA] = KeyState{}
+		s2.Keyboard[ebiten.KeyB] = KeyState{Pressed: true}
+		if s1.Compare(&s2) {
+			t.Error("different snapshots should not compare equal")
+		}
+
+		s2 = s1.Clone()
+		s2.Mouse.X = 1
+		if s1.Compare(&s2) {
+			t.Error("different mouse position should not compare equal")
+		}
+	})
 }
 
-func TestInputSnapshotCompare(t *testing.T) {
-	snapshot1 := NewInputSnapshot()
-	snapshot2 := snapshot1.Clone()
+func TestInputBuffer(t *testing.T) {
+	t.Run("New", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			size     int
+			expected int
+		}{
+			{"DefaultSize", 0, 60},
+			{"NegativeSize", -5, 60},
+			{"Size10", 10, 10},
+		}
 
-	if !snapshot1.Compare(&snapshot2) {
-		t.Errorf("Expected snapshots to be equal")
-	}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				buf := NewInputBuffer(tt.size)
+				if buf.size != tt.expected {
+					t.Errorf("expected size %d, got %d", tt.expected, buf.size)
+				}
+				if !buf.IsEmpty() {
+					t.Error("expected empty buffer")
+				}
+				if buf.Count() != 0 {
+					t.Error("expected count 0")
+				}
+			})
+		}
+	})
 
-	snapshot2.Keyboard[0] = KeyState{Pressed: true}
-	if snapshot1.Compare(&snapshot2) {
-		t.Errorf("Expected snapshots to be different after modification")
-	}
+	t.Run("EmptyOperations", func(t *testing.T) {
+		buf := NewInputBuffer(2)
+
+		_, ok := buf.Pop()
+		if ok {
+			t.Error("Pop on empty buffer should return false")
+		}
+
+		_, ok = buf.Peek()
+		if ok {
+			t.Error("Peek on empty buffer should return false")
+		}
+	})
+
+	t.Run("PushPopPeek", func(t *testing.T) {
+		buf := NewInputBuffer(3)
+
+		s1 := NewInputSnapshot()
+		s1.Mouse.X = 1
+		s2 := NewInputSnapshot()
+		s2.Mouse.X = 2
+
+		buf.Push(s1)
+		buf.Push(s2)
+
+		if buf.Count() != 2 {
+			t.Fatalf("expected count 2, got %d", buf.Count())
+		}
+
+		peeked, ok := buf.Peek()
+		if !ok || peeked.Mouse.X != 1 {
+			t.Errorf("Peek: expected X=1, got %d", peeked.Mouse.X)
+		}
+		if buf.Count() != 2 {
+			t.Error("Peek should not change count")
+		}
+
+		p1, ok := buf.Pop()
+		if !ok || p1.Mouse.X != 1 {
+			t.Errorf("Pop: expected X=1, got %d", p1.Mouse.X)
+		}
+		if buf.Count() != 1 {
+			t.Errorf("expected count 1 after pop, got %d", buf.Count())
+		}
+
+		p2, ok := buf.Pop()
+		if !ok || p2.Mouse.X != 2 {
+			t.Errorf("Pop: expected X=2, got %d", p2.Mouse.X)
+		}
+
+		if !buf.IsEmpty() {
+			t.Error("expected buffer empty after all pops")
+		}
+	})
+
+	t.Run("Eviction", func(t *testing.T) {
+		buf := NewInputBuffer(2)
+		s1 := NewInputSnapshot()
+		s1.Mouse.X = 1
+		s2 := NewInputSnapshot()
+		s2.Mouse.X = 2
+		s3 := NewInputSnapshot()
+		s3.Mouse.X = 3
+
+		buf.Push(s1)
+		buf.Push(s2)
+		buf.Push(s3) // evicts s1
+
+		if buf.Count() != 2 {
+			t.Fatalf("expected count 2 after eviction, got %d", buf.Count())
+		}
+
+		peeked, ok := buf.Peek()
+		if !ok || peeked.Mouse.X != 2 {
+			t.Errorf("expected oldest to be s2 with X=2, got %d", peeked.Mouse.X)
+		}
+	})
+
+	t.Run("WrapAround", func(t *testing.T) {
+		buf := NewInputBuffer(3)
+		for i := 0; i < 5; i++ {
+			s := NewInputSnapshot()
+			s.Mouse.X = i
+			buf.Push(s)
+		}
+
+		if buf.Count() != 3 {
+			t.Fatalf("expected count 3, got %d", buf.Count())
+		}
+
+		expected := []int{2, 3, 4}
+		for i, exp := range expected {
+			p, ok := buf.Pop()
+			if !ok {
+				t.Fatalf("Pop %d failed", i)
+			}
+			if p.Mouse.X != exp {
+				t.Errorf("Pop %d: expected X=%d, got %d", i, exp, p.Mouse.X)
+			}
+		}
+	})
+
+	t.Run("IsFull", func(t *testing.T) {
+		buf := NewInputBuffer(2)
+		if buf.IsFull() {
+			t.Error("new buffer should not be full")
+		}
+
+		buf.Push(NewInputSnapshot())
+		if buf.IsFull() {
+			t.Error("buffer with 1/2 should not be full")
+		}
+
+		buf.Push(NewInputSnapshot())
+		if !buf.IsFull() {
+			t.Error("buffer with 2/2 should be full")
+		}
+	})
 }
 
-func TestNewInputBuffer(t *testing.T) {
-	buffer := NewInputBuffer(5)
-	if buffer == nil {
-		t.Errorf("Expected NewInputBuffer to return a non-nil buffer")
-	}
-	if buffer.size != 5 {
-		t.Errorf("Expected buffer size to be 5, got %d", buffer.size)
-	}
-	if buffer.Count() != 0 {
-		t.Errorf("Expected buffer count to be 0, got %d", buffer.Count())
-	}
-}
-
-func TestNewInputBuffer_DefaultSize(t *testing.T) {
-	buffer := NewInputBuffer(0)
-	if buffer == nil {
-		t.Errorf("Expected NewInputBuffer to return a non-nil buffer")
-	}
-	if buffer.size != 60 {
-		t.Errorf("Expected default buffer size to be 60, got %d", buffer.size)
-	}
-	if buffer.Count() != 0 {
-		t.Errorf("Expected buffer count to be 0, got %d", buffer.Count())
-	}
-}
-
-func TestInputBufferPushPop(t *testing.T) {
-	buffer := NewInputBuffer(2)
-	snapshot1 := NewInputSnapshot()
-	snapshot2 := NewInputSnapshot()
-
-	buffer.Push(snapshot1)
-	buffer.Push(snapshot2)
-
-	if buffer.Count() != 2 {
-		t.Errorf("Expected buffer count to be 2, got %d", buffer.Count())
+func TestInputHandler(t *testing.T) {
+	newHandler := func() *InputHandler {
+		h := New()
+		h.lastFrameTime = time.Now().Add(-time.Second)
+		return h
 	}
 
-	popped, ok := buffer.Pop()
-	if !ok {
-		t.Errorf("Expected to pop snapshot1")
-	}
-	if popped.Keyboard[0].Pressed != snapshot1.Keyboard[0].Pressed {
-		t.Errorf("Expected popped snapshot to match original")
-	}
+	t.Run("New", func(t *testing.T) {
+		h := New()
+		if h == nil {
+			t.Fatal("expected non-nil handler")
+		}
+		if h.buffer == nil || h.buffer.size != 60 {
+			t.Errorf("expected buffer with size 60, got %d", h.buffer.size)
+		}
+		if h.currentSnapshot.Keyboard == nil || h.currentSnapshot.Mouse.Buttons == nil {
+			t.Error("expected initialized snapshot maps")
+		}
+		if h.lastFrameTime != (time.Time{}) {
+			t.Error("expected zero lastFrameTime")
+		}
+	})
 
-	popped, ok = buffer.Pop()
-	if !ok {
-		t.Errorf("Expected to pop snapshot2")
-	}
-	if popped.Keyboard[0].Pressed != snapshot2.Keyboard[0].Pressed {
-		t.Errorf("Expected popped snapshot to match original")
-	}
+	t.Run("Buffer", func(t *testing.T) {
+		h := New()
+		buf := h.Buffer()
+		if buf == nil {
+			t.Fatal("expected non-nil buffer")
+		}
+		if buf != h.buffer {
+			t.Error("expected same buffer reference")
+		}
+	})
 
-	if !buffer.IsEmpty() {
-		t.Errorf("Expected buffer to be empty")
-	}
-}
+	t.Run("Snapshot", func(t *testing.T) {
+		h := newHandler()
+		initialCount := h.buffer.Count()
+		initialTime := h.lastFrameTime
 
-func TestInputBufferPeek(t *testing.T) {
-	buffer := NewInputBuffer(2)
-	snapshot1 := NewInputSnapshot()
-	buffer.Push(snapshot1)
+		h.Snapshot()
 
-	peeked, ok := buffer.Peek()
-	if !ok {
-		t.Errorf("Expected to peek snapshot1")
-	}
-	if peeked.Keyboard[0].Pressed != snapshot1.Keyboard[0].Pressed {
-		t.Errorf("Expected peeked snapshot to match original")
-	}
+		if h.buffer.Count() <= initialCount {
+			t.Error("expected Snapshot to push to buffer")
+		}
+		if h.lastFrameTime.Equal(initialTime) {
+			t.Error("expected lastFrameTime to be updated")
+		}
 
-	// Ensure that peeking does not remove the snapshot
-	if buffer.Count() != 1 {
-		t.Errorf("Expected buffer count to remain 1 after peek, got %d", buffer.Count())
-	}
-}
-func TestInputBufferIsFull(t *testing.T) {
-	buffer := NewInputBuffer(2)
-	if buffer.IsFull() {
-		t.Errorf("Expected buffer to not be full initially")
-	}
-	buffer.Push(NewInputSnapshot())
-	buffer.Push(NewInputSnapshot())
-	if !buffer.IsFull() {
-		t.Errorf("Expected buffer to be full after pushing 2 snapshots")
-	}
-}
+		peeked, ok := h.buffer.Peek()
+		if !ok {
+			t.Fatal("expected snapshot in buffer after Snapshot()")
+		}
+		if peeked.Keyboard == nil || peeked.Mouse.Buttons == nil {
+			t.Error("expected pushed snapshot to have initialized maps")
+		}
+	})
 
-func TestInputBufferIsEmpty(t *testing.T) {
-	buffer := NewInputBuffer(2)
-	if !buffer.IsEmpty() {
-		t.Errorf("Expected buffer to be empty initially")
-	}
-	buffer.Push(NewInputSnapshot())
-	if buffer.IsEmpty() {
-		t.Errorf("Expected buffer to not be empty after pushing a snapshot")
-	}
-	buffer.Pop()
-	if !buffer.IsEmpty() {
-		t.Errorf("Expected buffer to be empty after popping the snapshot")
-	}
-}
+	t.Run("KeyStates", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			state        KeyState
+			snapshotMods Modifiers
+			queryMods    Modifiers
+			key          ebiten.Key
+			expectP      bool
+			expectH      bool
+			expectR      bool
+		}{
+			{"NotPressed", KeyState{}, Modifiers{}, Modifiers{}, ebiten.KeyA, false, false, false},
+			{"Pressed", KeyState{Pressed: true, Held: true}, Modifiers{}, Modifiers{}, ebiten.KeyA, true, true, false},
+			{"Held", KeyState{Held: true}, Modifiers{}, Modifiers{}, ebiten.KeyA, false, true, false},
+			{"Released", KeyState{Released: true}, Modifiers{}, Modifiers{}, ebiten.KeyA, false, false, true},
+			{"PressedWithCtrl/Match", KeyState{Pressed: true, Held: true}, Modifiers{Ctrl: true}, Modifiers{Ctrl: true}, ebiten.KeyA, true, true, false},
+			{"PressedWithCtrl/NoMatch", KeyState{Pressed: true, Held: true}, Modifiers{}, Modifiers{Ctrl: true}, ebiten.KeyA, false, false, false},
+			{"PressedWithMultiMods/Match", KeyState{Pressed: true, Held: true}, Modifiers{Ctrl: true, Shift: true}, Modifiers{Ctrl: true, Shift: true}, ebiten.KeyA, true, true, false},
+			{"PressedWithMultiMods/ExtraInSnapshot", KeyState{Pressed: true, Held: true}, Modifiers{Ctrl: true, Shift: true}, Modifiers{Ctrl: true}, ebiten.KeyA, true, true, false},
+			{"PressedWithMultiMods/MissingInSnapshot", KeyState{Pressed: true, Held: true}, Modifiers{Ctrl: true}, Modifiers{Ctrl: true, Shift: true}, ebiten.KeyA, false, false, false},
+		}
 
-func TestInputBufferEviction(t *testing.T) {
-	buffer := NewInputBuffer(2)
-	snapshot1 := NewInputSnapshot()
-	snapshot2 := NewInputSnapshot()
-	snapshot3 := NewInputSnapshot()
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				h := newHandler()
+				h.currentSnapshot.Keyboard[tt.key] = tt.state
+				h.currentSnapshot.Modifiers = tt.snapshotMods
 
-	buffer.Push(snapshot1)
-	buffer.Push(snapshot2)
-	// Buffer is now full, next push should evict the oldest (snapshot1)
-	buffer.Push(snapshot3)
+				if got := h.KeyPressed(tt.key, tt.queryMods); got != tt.expectP {
+					t.Errorf("KeyPressed: expected %v, got %v", tt.expectP, got)
+				}
+				if got := h.KeyHeld(tt.key, tt.queryMods); got != tt.expectH {
+					t.Errorf("KeyHeld: expected %v, got %v", tt.expectH, got)
+				}
+				if got := h.KeyReleased(tt.key, tt.queryMods); got != tt.expectR {
+					t.Errorf("KeyReleased: expected %v, got %v", tt.expectR, got)
+				}
+			})
+		}
+	})
 
-	if buffer.Count() != 2 {
-		t.Errorf("Expected buffer count to be 2 after eviction, got %d", buffer.Count())
-	}
+	t.Run("MouseStates", func(t *testing.T) {
+		tests := []struct {
+			name        string
+			buttonState map[ebiten.MouseButton]KeyState
+			button      ebiten.MouseButton
+			expectP    bool
+			expectH    bool
+			expectR    bool
+		}{
+			{"NotPressed", nil, ebiten.MouseButtonLeft, false, false, false},
+			{"Pressed", map[ebiten.MouseButton]KeyState{ebiten.MouseButtonLeft: {Pressed: true, Held: true}}, ebiten.MouseButtonLeft, true, true, false},
+			{"Held", map[ebiten.MouseButton]KeyState{ebiten.MouseButtonLeft: {Held: true}}, ebiten.MouseButtonLeft, false, true, false},
+			{"Released", map[ebiten.MouseButton]KeyState{ebiten.MouseButtonLeft: {Released: true}}, ebiten.MouseButtonLeft, false, false, true},
+			{"RightButton", map[ebiten.MouseButton]KeyState{ebiten.MouseButtonRight: {Pressed: true, Held: true}}, ebiten.MouseButtonRight, true, true, false},
+		}
 
-	peeked, ok := buffer.Peek()
-	if !ok {
-		t.Errorf("Expected the oldest snapshot to be snapshot2 after eviction")
-	}
-	if peeked.Keyboard[0].Pressed != snapshot2.Keyboard[0].Pressed {
-		t.Errorf("Expected the oldest snapshot to match snapshot2 after eviction")
-	}
-}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				h := newHandler()
+				maps.Copy(h.currentSnapshot.Mouse.Buttons, tt.buttonState)
 
-func TestNewInputHandler(t *testing.T) {
-	handler := New()
-	if handler == nil {
-		t.Errorf("Expected New to return a non-nil InputHandler")
-	}
-	if handler.buffer == nil {
-		t.Errorf("Expected InputHandler to have a non-nil buffer")
-	}
-	if handler.buffer.size != 60 {
-		t.Errorf("Expected default buffer size to be 60, got %d", handler.buffer.size)
-	}
-	if handler.currentSnapshot.Keyboard == nil {
-		t.Errorf("Expected InputHandler to have a non-nil currentSnapshot.Keyboard")
-	}
-	if handler.currentSnapshot.Mouse.Buttons == nil {
-		t.Errorf("Expected InputHandler to have a non-nil currentSnapshot.Mouse.Buttons")
-	}
-	if handler.currentSnapshot.Mouse.X != 0 || handler.currentSnapshot.Mouse.Y != 0 {
-		t.Errorf("Expected InputHandler to have currentSnapshot.Mouse.X and currentSnapshot.Mouse.Y initialized to 0")
-	}
-}
+				if got := h.MousePressed(tt.button); got != tt.expectP {
+					t.Errorf("MousePressed: expected %v, got %v", tt.expectP, got)
+				}
+				if got := h.MouseHeld(tt.button); got != tt.expectH {
+					t.Errorf("MouseHeld: expected %v, got %v", tt.expectH, got)
+				}
+				if got := h.MouseReleased(tt.button); got != tt.expectR {
+					t.Errorf("MouseReleased: expected %v, got %v", tt.expectR, got)
+				}
+			})
+		}
+	})
 
-func TestInputHandlerKeyPressed(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Keyboard[0] = KeyState{Pressed: true}
+	t.Run("MousePosition", func(t *testing.T) {
+		h := newHandler()
+		h.currentSnapshot.Mouse.X = 100
+		h.currentSnapshot.Mouse.Y = 200
 
-	if !handler.KeyPressed(0, Modifiers{}) {
-		t.Errorf("Expected KeyPressed to return true for pressed key")
-	}
-
-	if handler.KeyPressed(1, Modifiers{}) {
-		t.Errorf("Expected KeyPressed to return false for unpressed key")
-	}
-}
-
-func TestInputHandlerKeyPressedWithModifiers(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Keyboard[0] = KeyState{Pressed: true}
-	handler.currentSnapshot.Modifiers.Ctrl = true
-
-	if !handler.KeyPressed(0, Modifiers{Ctrl: true}) {
-		t.Errorf("Expected KeyPressed with Ctrl modifier to return true")
-	}
-
-	if handler.KeyPressed(0, Modifiers{Shift: true}) {
-		t.Errorf("Expected KeyPressed with Shift modifier to return false when Shift not pressed")
-	}
-
-	if handler.KeyPressed(0, Modifiers{Ctrl: true, Shift: true}) {
-		t.Errorf("Expected KeyPressed to return false when not all modifiers match")
-	}
-}
-
-func TestInputHandlerKeyHeld(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Keyboard[0] = KeyState{Held: true}
-
-	if !handler.KeyHeld(0, Modifiers{}) {
-		t.Errorf("Expected KeyHeld to return true for held key")
-	}
-
-	if handler.KeyHeld(1, Modifiers{}) {
-		t.Errorf("Expected KeyHeld to return false for unheld key")
-	}
-}
-
-func TestInputHandlerKeyHeldWithModifiers(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Keyboard[0] = KeyState{Held: true}
-	handler.currentSnapshot.Modifiers.Shift = true
-
-	if !handler.KeyHeld(0, Modifiers{Shift: true}) {
-		t.Errorf("Expected KeyHeld with Shift modifier to return true")
-	}
-
-	if handler.KeyHeld(0, Modifiers{Alt: true}) {
-		t.Errorf("Expected KeyHeld with Alt modifier to return false when Alt not pressed")
-	}
-}
-
-func TestInputHandlerKeyReleased(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Keyboard[0] = KeyState{Released: true}
-
-	if !handler.KeyReleased(0, Modifiers{}) {
-		t.Errorf("Expected KeyReleased to return true for released key")
-	}
-
-	if handler.KeyReleased(1, Modifiers{}) {
-		t.Errorf("Expected KeyReleased to return false for non-released key")
-	}
-}
-
-func TestInputHandlerKeyReleasedWithModifiers(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Keyboard[0] = KeyState{Released: true}
-	handler.currentSnapshot.Modifiers.Alt = true
-
-	if !handler.KeyReleased(0, Modifiers{Alt: true}) {
-		t.Errorf("Expected KeyReleased with Alt modifier to return true")
-	}
-
-	if handler.KeyReleased(0, Modifiers{Ctrl: true}) {
-		t.Errorf("Expected KeyReleased with Ctrl modifier to return false when Ctrl not pressed")
-	}
-}
-
-func TestInputHandlerMousePressed(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Mouse.Buttons[0] = KeyState{Pressed: true}
-
-	if !handler.MousePressed(0) {
-		t.Errorf("Expected MousePressed to return true for pressed button")
-	}
-
-	if handler.MousePressed(1) {
-		t.Errorf("Expected MousePressed to return false for unpressed button")
-	}
-}
-
-func TestInputHandlerMouseHeld(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Mouse.Buttons[1] = KeyState{Held: true}
-
-	if !handler.MouseHeld(1) {
-		t.Errorf("Expected MouseHeld to return true for held button")
-	}
-
-	if handler.MouseHeld(2) {
-		t.Errorf("Expected MouseHeld to return false for unheld button")
-	}
-}
-
-func TestInputHandlerMouseReleased(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Mouse.Buttons[2] = KeyState{Released: true}
-
-	if !handler.MouseReleased(2) {
-		t.Errorf("Expected MouseReleased to return true for released button")
-	}
-
-	if handler.MouseReleased(1) {
-		t.Errorf("Expected MouseReleased to return false for non-released button")
-	}
-}
-
-func TestInputHandlerMousePosition(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Mouse.X = 100
-	handler.currentSnapshot.Mouse.Y = 200
-
-	x, y := handler.MousePosition()
-	if x != 100 || y != 200 {
-		t.Errorf("Expected MousePosition to return (100, 200), got (%d, %d)", x, y)
-	}
-}
-
-func TestInputHandlerBuffer(t *testing.T) {
-	handler := New()
-	buf := handler.Buffer()
-
-	if buf == nil {
-		t.Errorf("Expected Buffer to return non-nil buffer")
-	}
-
-	if buf != handler.buffer {
-		t.Errorf("Expected Buffer to return the internal buffer")
-	}
-}
-
-func TestInputBufferPopEmpty(t *testing.T) {
-	buffer := NewInputBuffer(2)
-
-	_, ok := buffer.Pop()
-	if ok {
-		t.Errorf("Expected Pop on empty buffer to return false")
-	}
-}
-
-func TestInputBufferPeekEmpty(t *testing.T) {
-	buffer := NewInputBuffer(2)
-
-	_, ok := buffer.Peek()
-	if ok {
-		t.Errorf("Expected Peek on empty buffer to return false")
-	}
-}
-
-func TestInputBufferWrapAround(t *testing.T) {
-	buffer := NewInputBuffer(3)
-	s1 := NewInputSnapshot()
-	s1.Mouse.X = 1
-	s2 := NewInputSnapshot()
-	s2.Mouse.X = 2
-	s3 := NewInputSnapshot()
-	s3.Mouse.X = 3
-	s4 := NewInputSnapshot()
-	s4.Mouse.X = 4
-
-	buffer.Push(s1)
-	buffer.Push(s2)
-	buffer.Push(s3)
-	buffer.Push(s4) // evicts s1
-
-	p1, _ := buffer.Pop()
-	if p1.Mouse.X != 2 {
-		t.Errorf("Expected first pop to be s2 with X=2, got X=%d", p1.Mouse.X)
-	}
-
-	p2, _ := buffer.Pop()
-	if p2.Mouse.X != 3 {
-		t.Errorf("Expected second pop to be s3 with X=3, got X=%d", p2.Mouse.X)
-	}
-
-	p3, _ := buffer.Pop()
-	if p3.Mouse.X != 4 {
-		t.Errorf("Expected third pop to be s4 with X=4, got X=%d", p3.Mouse.X)
-	}
-}
-
-func TestModifiersZeroValue(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Keyboard[0] = KeyState{Pressed: true}
-
-	// Zero-value Modifiers{} should match when no modifiers pressed
-	if !handler.KeyPressed(0, Modifiers{}) {
-		t.Errorf("Expected zero-value Modifiers to work")
-	}
-}
-
-func TestModifiersCombinations(t *testing.T) {
-	handler := New()
-	handler.currentSnapshot.Keyboard[0] = KeyState{Held: true}
-	handler.currentSnapshot.Modifiers.Ctrl = true
-	handler.currentSnapshot.Modifiers.Shift = true
-
-	if !handler.KeyHeld(0, Modifiers{Ctrl: true, Shift: true}) {
-		t.Errorf("Expected multiple modifiers to match together")
-	}
-
-	if handler.KeyHeld(0, Modifiers{Ctrl: true, Alt: true}) {
-		t.Errorf("Expected partial modifier mismatch to fail")
-	}
-
-	if handler.KeyHeld(0, Modifiers{Alt: true}) {
-		t.Errorf("Expected wrong modifier to fail")
-	}
+		x, y := h.MousePosition()
+		if x != 100 || y != 200 {
+			t.Errorf("expected (100,200), got (%d,%d)", x, y)
+		}
+	})
 }
