@@ -50,7 +50,7 @@ jobs:
         with:
           name: Castrum Go Benchmarks
           tool: go
-          output-file-path: output.txt
+          output-file-path: benchmark/output.txt
           external-data-json-path: ./cache/benchmark-data.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           alert-threshold: 105%
