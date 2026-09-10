@@ -17,26 +17,26 @@ func (p *Polygon) RemovePoint(index int) {
 	p.Points = append(p.Points[:index], p.Points[index+1:]...)
 }
 
-func (p *Polygon) GetPoint(index int) Vector2 {
+func (p Polygon) GetPoint(index int) Vector2 {
 	if index < 0 || index >= len(p.Points) {
 		return Vector2{}
 	}
 	return p.Points[index]
 }
 
-func (p *Polygon) GetPoints() []Vector2 {
+func (p Polygon) GetPoints() []Vector2 {
 	return p.Points
 }
 
-func (p *Polygon) NumPoints() int {
+func (p Polygon) NumPoints() int {
 	return len(p.Points)
 }
 
 func (p *Polygon) Clear() {
-	p.Points = []Vector2{}
+	p.Points = p.Points[:0]
 }
 
-func (p *Polygon) GetEdges() [][2]Vector2 {
+func (p Polygon) GetEdges() [][2]Vector2 {
 	edges := make([][2]Vector2, 0, len(p.Points))
 	for i := 0; i < len(p.Points); i++ {
 		next := (i + 1) % len(p.Points)
@@ -46,7 +46,7 @@ func (p *Polygon) GetEdges() [][2]Vector2 {
 }
 
 // Perimeter calculates the perimeter of the polygon by summing the lengths of its edges.
-func (p *Polygon) Perimeter() float64 {
+func (p Polygon) Perimeter() float64 {
 	edges := p.GetEdges()
 	perimeter := 0.0
 	for _, edge := range edges {
@@ -59,7 +59,7 @@ func (p *Polygon) Perimeter() float64 {
 
 // Area calculates the area of the polygon using the shoelace formula.
 // It returns 0 if the polygon has fewer than 3 points.
-func (p *Polygon) Area() float64 {
+func (p Polygon) Area() float64 {
 	area := 0.0
 	n := len(p.Points)
 	if n < 3 {
@@ -75,7 +75,7 @@ func (p *Polygon) Area() float64 {
 
 // Contains determines if a given point is inside the polygon using the ray-casting algorithm.
 // It returns true if the point is inside the polygon, and false otherwise.
-func (p *Polygon) Contains(point Vector2) bool {
+func (p Polygon) Contains(point Vector2) bool {
 	n := len(p.Points)
 	if n < 3 {
 		return false
@@ -95,7 +95,7 @@ func (p *Polygon) Contains(point Vector2) bool {
 }
 
 // BoundingBox calculates the axis-aligned bounding box of the polygon.
-func (p *Polygon) BoundingBox() Rect {
+func (p Polygon) BoundingBox() Rect {
 	if len(p.Points) == 0 {
 		return Rect{}
 	}
@@ -120,7 +120,7 @@ func (p *Polygon) BoundingBox() Rect {
 
 // Centroid calculates the centroid (geometric center) of the polygon.
 // It returns a zero vector if the polygon has no points.
-func (p *Polygon) Centroid() Vector2 {
+func (p Polygon) Centroid() Vector2 {
 	n := len(p.Points)
 	if n == 0 {
 		return Vector2{}
