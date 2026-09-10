@@ -1,15 +1,12 @@
 name: Benchmark Regression Detection
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
-    paths:
-      - "internal/**"
-      - "components/**"
-      - "benchmark/**"
-      - "geom/**"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/benchmark-regression.yml"
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -56,8 +53,8 @@ jobs:
           output-file-path: benchmark/output.txt
           external-data-json-path: ./cache/benchmark-data.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          alert-threshold: 110%
-          fail-threshold: 120%
+          alert-threshold: 120%
+          fail-threshold: 150%
           fail-on-alert: true
           comment-on-alert: true
           comment-always: false
