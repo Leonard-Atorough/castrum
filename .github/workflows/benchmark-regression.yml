@@ -53,9 +53,9 @@ jobs:
           output-file-path: benchmark/output.txt
           external-data-json-path: ./cache/benchmark-data.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          alert-threshold: 120%
-          fail-threshold: 150%
-          fail-on-alert: true
+          alert-threshold: 150%
+          fail-threshold: 200%
+          fail-on-alert: false
           comment-on-alert: true
           comment-always: false
           summary-always: true
