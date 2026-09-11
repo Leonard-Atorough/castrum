@@ -166,9 +166,9 @@ type AnimationSystem struct {
 }
 
 // NewSystem creates a new animation system with the given manager.
-func NewSystem(manager *AnimationClipStore) *AnimationSystem {
+func NewSystem() *AnimationSystem {
 	return &AnimationSystem{
-		manager: manager,
+		manager: NewAnimationClipStore(),
 	}
 }
 
@@ -183,7 +183,7 @@ func (as *AnimationSystem) Init(world *ecs.World) error {
 
 // Update processes all Animation components, advancing frame time and emitting events.
 func (as *AnimationSystem) Update(world *ecs.World, delta float64) error {
-	bus, ok := ecs.GetResource[*events.EventBus](world)
+	bus, ok := world.GetResource[*events.EventBus]()
 	if !ok {
 		return nil
 	}

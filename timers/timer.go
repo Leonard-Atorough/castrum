@@ -41,7 +41,7 @@ func (ts *TimerSystem) Init(world *ecs.World) error {
 }
 
 func (ts *TimerSystem) Update(world *ecs.World, deltaTime float64) error {
-	bus, ok := ecs.GetResource[*events.EventBus](world)
+	bus, ok := world.GetResource[*events.EventBus]()
 	if !ok {
 		bus = nil // EventBus not registered
 	}

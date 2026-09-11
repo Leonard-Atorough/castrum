@@ -12,7 +12,7 @@ import (
 func TestSystem_RectCollision(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
@@ -50,7 +50,7 @@ func TestSystem_RectCollision(t *testing.T) {
 func TestSystem_NoCollisionWhenFar(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
@@ -82,7 +82,7 @@ func TestSystem_NoCollisionWhenFar(t *testing.T) {
 func TestSystem_CircleCollision(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
@@ -115,7 +115,7 @@ func TestSystem_CircleCollision(t *testing.T) {
 func TestSystem_CircleRectCollision(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
@@ -148,7 +148,7 @@ func TestSystem_CircleRectCollision(t *testing.T) {
 func TestSystem_EventLifecycle(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
@@ -218,7 +218,7 @@ func TestSystem_EventLifecycle(t *testing.T) {
 func TestSystem_LayerMaskFiltering(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
@@ -251,7 +251,7 @@ func TestSystem_LayerMaskFiltering(t *testing.T) {
 func TestSystem_InactiveColliderSkipped(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
@@ -281,7 +281,7 @@ func TestSystem_InactiveColliderSkipped(t *testing.T) {
 func TestSystem_CircleCircleContact(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
@@ -325,7 +325,7 @@ func TestSystem_CircleCircleContact(t *testing.T) {
 func TestSystem_QueryCollisions(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
@@ -387,7 +387,7 @@ func TestSystem_QueryCollisions(t *testing.T) {
 func TestSystem_DisabledCollision(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: false})
 
 	collisionSys.Init(world)

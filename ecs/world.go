@@ -14,6 +14,7 @@ type World struct {
 	destroyed        []*Entity
 	hierarchy        *Hierarchy
 	archetypeManager *ArchetypeManager
+	systemManager    *SystemManager
 	resources        map[reflect.Type]any
 }
 
@@ -25,6 +26,7 @@ func NewWorld() *World {
 		nextID:           atomic.Uint64{},
 		destroyed:        make([]*Entity, 0),
 		archetypeManager: NewArchetypeManager(),
+		systemManager:    NewSystemManager(),
 		resources:        make(map[reflect.Type]any),
 	}
 }
@@ -413,6 +415,15 @@ func (w *World) SetComponent[T Component](entityID EntityID, newComp T) error {
 	return nil
 }
 
+func (w *World) RegisterSystem(name string, priority int, system System) error {
+	return w.systemManager.Register(name, priority, system, w)
+}
+
+// SystemManager returns the world's system manager.
+func (w *World) SystemManager() *SystemManager {
+	return w.systemManager
+}
+
 // Query retrieves all entities that have all the specified component types.
 // Returns a slice of matching EntityIDs, or nil if none match.
 // This uses superset matching - entities with AT LEAST the specified components.
@@ -473,6 +484,27 @@ func (w *World) Detach(id EntityID) {
 	}
 }
 
+func (w *World) GetResource[T any]() (T, bool) {
+	var zero T
+	v, ok := w.resources[reflect.TypeFor[T]()]
+	if !ok {
+		return zero, false
+	}
+	typed, ok := v.(T)
+	if !ok {
+		return zero, false
+	}
+	return typed, true
+}
+
+func (w *World) SetResource[T any](resource T) {
+	w.resources[reflect.TypeFor[T]()] = resource
+}
+
+func (w *World) RemoveResource[T any]() {
+	delete(w.resources, reflect.TypeFor[T]())
+}
+
 func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component, newComponentTypes []reflect.Type) {
 	newArchetype := w.archetypeManager.GetOrCreateArchetype(newComponentTypes...)
 
@@ -506,10 +538,12 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component
 				sliceVal := reflect.ValueOf(rawSlice)
 				if sliceVal.Kind() == reflect.Slice && sliceVal.Len() <= targetIdx {
 					newLen := targetIdx + 1
-					newCap := sliceVal.Cap()
-					if newCap < newLen {
-						newCap = max(newCap*2, newLen)
+					if sliceVal.Cap() >= newLen {
+						newArchetype.componentData[compType] = sliceVal.Slice(0, newLen).Interface()
+						continue
 					}
+
+					newCap := max(sliceVal.Cap()*2, newLen)
 					newSlice := reflect.MakeSlice(sliceVal.Type(), newLen, newCap)
 					reflect.Copy(newSlice, sliceVal)
 					newArchetype.componentData[compType] = newSlice.Interface()

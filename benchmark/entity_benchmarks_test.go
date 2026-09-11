@@ -18,8 +18,6 @@ func BenchmarkEntityCreation(b *testing.B) {
 	for b.Loop() {
 		world.Create("Generic")
 	}
-
-	b.SetBytes(int64(b.N))
 }
 
 // BenchmarkEntityCreationWithComponents measures the time to create an entity with multiple components.

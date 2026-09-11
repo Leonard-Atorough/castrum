@@ -61,9 +61,10 @@ func BenchmarkGameLoopWithUpdates(b *testing.B) {
 	}
 }
 
-// BenchmarkGameLoopWithSpawning measures game loop with spawning (1% per frame).
+// BenchmarkGameLoopWithSpawning measures fixed-population spawn/despawn churn
+// while updating the existing entities.
 func BenchmarkGameLoopWithSpawning(b *testing.B) {
-	// Query, update, and spawn new entities (1% spawn rate per frame)
+	// Query, update, and replace 1% of the population with new entities.
 	world := ecs.NewWorld()
 
 	for i := range DefaultEntityCount {
@@ -72,11 +73,12 @@ func BenchmarkGameLoopWithSpawning(b *testing.B) {
 		world.AddComponent(entity.ID, Velocity{X: 1.0, Y: 1.0})
 	}
 	query := world.NewQuery().WithRequiredComponents(Position{}, Velocity{})
+	entities := make([]ecs.EntityID, 0, DefaultEntityCount)
 
 	b.ResetTimer()
 	for b.Loop() {
 		// Query and update
-		var entities []ecs.EntityID
+		entities = entities[:0]
 		for entry := range query.Execute() {
 			entities = append(entities, entry.EntityID)
 			pos, _ := entry.Get[Position]()
@@ -88,9 +90,10 @@ func BenchmarkGameLoopWithSpawning(b *testing.B) {
 			world.SetComponent(entry.EntityID, p)
 		}
 
-		// Spawn new entities (1% of current count per frame)
+		// Retire and replace 1% of the population to keep the workload bounded.
 		spawnCount := len(entities) / 100
 		for i := 0; i < spawnCount; i++ {
+			world.DestroyEntity(entities[i], false)
 			e := world.Create("Spawned")
 			world.AddComponent(e.ID, Position{X: 0, Y: 0})
 			world.AddComponent(e.ID, Velocity{X: 1.0, Y: 1.0})
@@ -98,9 +101,10 @@ func BenchmarkGameLoopWithSpawning(b *testing.B) {
 	}
 }
 
-// BenchmarkGameLoopWithDestruction measures game loop with destruction (0.5% per frame).
+// BenchmarkGameLoopWithDestruction measures fixed-population destruction and
+// replacement while updating the existing entities.
 func BenchmarkGameLoopWithDestruction(b *testing.B) {
-	// Query, update, and destroy entities (0.5% destruction rate per frame)
+	// Query, update, and replace 0.5% of the population per frame.
 	world := ecs.NewWorld()
 
 	for i := range DefaultEntityCount {
@@ -109,12 +113,13 @@ func BenchmarkGameLoopWithDestruction(b *testing.B) {
 		world.AddComponent(entity.ID, Velocity{X: 1.0, Y: 1.0})
 	}
 	query := world.NewQuery().WithRequiredComponents(Position{}, Velocity{})
+	entities := make([]ecs.EntityID, 0, DefaultEntityCount)
 
 	b.ResetTimer()
 	cleanupCount := 0
 	for b.Loop() {
 		// Query and update
-		var entities []ecs.EntityID
+		entities = entities[:0]
 		for entry := range query.Execute() {
 			entities = append(entities, entry.EntityID)
 			pos, _ := entry.Get[Position]()
@@ -129,9 +134,12 @@ func BenchmarkGameLoopWithDestruction(b *testing.B) {
 		// Destroy 0.5% of entities per frame
 		destroyCount := len(entities) / 200
 		for i := 0; i < destroyCount; i++ {
-			if i < len(entities) {
-				world.DestroyEntity(entities[i], false)
-			}
+			world.DestroyEntity(entities[i], false)
+		}
+		for i := 0; i < destroyCount; i++ {
+			e := world.Create("Replacement")
+			world.AddComponent(e.ID, Position{X: 0, Y: 0})
+			world.AddComponent(e.ID, Velocity{X: 1.0, Y: 1.0})
 		}
 
 		// Batch cleanup (every 50 frames)
@@ -142,9 +150,10 @@ func BenchmarkGameLoopWithDestruction(b *testing.B) {
 	}
 }
 
-// BenchmarkGameLoopMixed measures complete game loop with updates, spawning, and destruction.
+// BenchmarkGameLoopMixed measures a complete fixed-population game loop with
+// updates and balanced spawning/destruction.
 func BenchmarkGameLoopMixed(b *testing.B) {
-	// Complete realistic game loop: query, update, spawn, destroy
+	// Complete game loop: query, update, and replace 0.5% of the population.
 	world := ecs.NewWorld()
 
 	for i := range DefaultEntityCount {
@@ -153,12 +162,13 @@ func BenchmarkGameLoopMixed(b *testing.B) {
 		world.AddComponent(entity.ID, Velocity{X: 1.0, Y: 1.0})
 	}
 	query := world.NewQuery().WithRequiredComponents(Position{}, Velocity{})
+	entities := make([]ecs.EntityID, 0, DefaultEntityCount)
 
 	b.ResetTimer()
 	cleanupCount := 0
 	for b.Loop() {
 		// Query and update
-		var entities []ecs.EntityID
+		entities = entities[:0]
 		for entry := range query.Execute() {
 			entities = append(entities, entry.EntityID)
 			pos, _ := entry.Get[Position]()
@@ -170,20 +180,15 @@ func BenchmarkGameLoopMixed(b *testing.B) {
 			world.SetComponent(entry.EntityID, p)
 		}
 
-		// Spawn 1% per frame
-		spawnCount := len(entities) / 100
-		for i := 0; i < spawnCount; i++ {
-			e := world.Create("Spawned")
+		// Destroy and replace 0.5% per frame to keep population stable.
+		replaceCount := len(entities) / 200
+		for i := 0; i < replaceCount; i++ {
+			world.DestroyEntity(entities[i], false)
+		}
+		for i := 0; i < replaceCount; i++ {
+			e := world.Create("Replacement")
 			world.AddComponent(e.ID, Position{X: 0, Y: 0})
 			world.AddComponent(e.ID, Velocity{X: 1.0, Y: 1.0})
-		}
-
-		// Destroy 0.5% per frame
-		destroyCount := len(entities) / 200
-		for i := 0; i < destroyCount; i++ {
-			if i < len(entities) {
-				world.DestroyEntity(entities[i], false)
-			}
 		}
 
 		// Batch cleanup every 50 frames

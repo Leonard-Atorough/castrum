@@ -233,7 +233,7 @@ func TestTimerComponent(t *testing.T) {
 // same as above, now for the Camera component
 func TestCameraComponent(t *testing.T) {
 	t.Run("Create Camera Component", func(t *testing.T) {
-		camera := NewCamera(800, 600)
+		camera := NewCamera(800, 600, false)
 		if camera.ScreenSize != (geom.Vector2I{X: 800, Y: 600}) {
 			t.Errorf("Expected camera screen size to be %v, got %v", geom.Vector2I{X: 800, Y: 600}, camera.ScreenSize)
 		}
@@ -243,8 +243,8 @@ func TestCameraComponent(t *testing.T) {
 		if camera.Zoom != 1 {
 			t.Errorf("Expected camera zoom to be 1, got %v", camera.Zoom)
 		}
-		if camera.Bounds != unboundedRect() {
-			t.Errorf("Expected camera bounds to be %v, got %v", unboundedRect(), camera.Bounds)
+		if camera.Bounds != UnboundedRect() {
+			t.Errorf("Expected camera bounds to be %v, got %v", UnboundedRect(), camera.Bounds)
 		}
 		if camera.Primary != false {
 			t.Errorf("Expected camera primary to be false, got %v", camera.Primary)
@@ -252,14 +252,14 @@ func TestCameraComponent(t *testing.T) {
 	})
 
 	t.Run("Create Camera Component with 0 screen size", func(t *testing.T) {
-		camera := NewCamera(0, 0)
+		camera := NewCamera(0, 0, false)
 		if camera.ScreenSize != (geom.Vector2I{X: 800, Y: 600}) {
 			t.Errorf("Expected camera screen size to be %v, got %v", geom.Vector2I{X: 800, Y: 600}, camera.ScreenSize)
 		}
 	})
 
 	t.Run("Clamp Camera Position", func(t *testing.T) {
-		camera := NewCamera(800, 600)
+		camera := NewCamera(800, 600, false)
 		camera.Bounds = geom.Rect{
 			Min: geom.Vector2{X: -800, Y: -600},
 			Max: geom.Vector2{X: 800, Y: 600},
@@ -281,7 +281,7 @@ func TestCameraComponent(t *testing.T) {
 	})
 
 	t.Run("Is World Rect Visible", func(t *testing.T) {
-		camera := NewCamera(800, 600)
+		camera := NewCamera(800, 600, false)
 		camera.Position = geom.Vector2{X: 0, Y: 0}
 		camera.Zoom = 1
 		worldRect := geom.Rect{
@@ -294,7 +294,7 @@ func TestCameraComponent(t *testing.T) {
 	})
 
 	t.Run("Aspect Ratio", func(t *testing.T) {
-		camera := NewCamera(800, 600)
+		camera := NewCamera(800, 600, false)
 		expectedAspectRatio := 800.0 / 600.0
 		if camera.AspectRatio() != expectedAspectRatio {
 			t.Errorf("Expected aspect ratio to be %v, got %v", expectedAspectRatio, camera.AspectRatio())
@@ -302,7 +302,7 @@ func TestCameraComponent(t *testing.T) {
 	})
 
 	t.Run("World To Screen and Screen To World", func(t *testing.T) {
-		camera := NewCamera(800, 600)
+		camera := NewCamera(800, 600, false)
 		camera.Position = geom.Vector2{X: 0, Y: 0}
 		camera.Zoom = 1
 		worldPos := geom.Vector2{X: 100, Y: 50}
@@ -314,7 +314,7 @@ func TestCameraComponent(t *testing.T) {
 	})
 
 	t.Run("SetScreenSize", func(t *testing.T) {
-		camera := NewCamera(800, 600)
+		camera := NewCamera(800, 600, false)
 		camera.SetScreenSize(1024, 768)
 		if camera.ScreenSize != (geom.Vector2I{X: 1024, Y: 768}) {
 			t.Errorf("Expected camera screen size to be %v, got %v", geom.Vector2I{X: 1024, Y: 768}, camera.ScreenSize)
@@ -323,7 +323,7 @@ func TestCameraComponent(t *testing.T) {
 
 	// setscreensize called with 0 width and height should not change the screen size
 	t.Run("SetScreenSize with 0 width and height", func(t *testing.T) {
-		camera := NewCamera(800, 600)
+		camera := NewCamera(800, 600, false)
 		camera.SetScreenSize(0, 0)
 		if camera.ScreenSize != (geom.Vector2I{X: 800, Y: 600}) {
 			t.Errorf("Expected camera screen size to remain %v, got %v", geom.Vector2I{X: 800, Y: 600}, camera.ScreenSize)

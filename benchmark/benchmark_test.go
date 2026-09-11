@@ -10,6 +10,7 @@ package benchmark
 //   gameloop_benchmarks_test.go - Realistic game loop scenarios (5)
 //   bulk_benchmarks_test.go - Batch operations (4)
 //   memory_benchmarks_test.go - Memory overhead measurement (2)
+//   utilities_benchmarks_test.go - Utility behavior benchmarks (2)
 //   constants.go - Benchmark configuration constants
 //   components.go - Test component types
 //   utilities.go - Helper functions

@@ -12,28 +12,30 @@ import (
 
 // BenchmarkMemoryPerEntity measures memory footprint per entity (baseline, no components).
 func BenchmarkMemoryPerEntity(b *testing.B) {
-	// Measure memory footprint per entity (baseline, no components)
 	b.ReportAllocs()
-	world := ecs.NewWorld()
-
-	b.ResetTimer()
-	for i := 0; i < DefaultEntityCount; i++ {
-		world.Create("Generic")
+	for b.Loop() {
+		world := ecs.NewWorld()
+		for range DefaultEntityCount {
+			world.Create("Generic")
+		}
 	}
-
-	// Memory measured via benchmem flag
 }
 
-// BenchmarkMemoryPerEntityWithComponents measures memory footprint per entity with components.
+// BenchmarkMemoryPerEntityWithComponents measures the allocation cost of
+// constructing a world whose entities start in their final component archetype.
 func BenchmarkMemoryPerEntityWithComponents(b *testing.B) {
-	// Measure memory footprint per entity with components
 	b.ReportAllocs()
-	world := ecs.NewWorld()
-
-	b.ResetTimer()
-	for i := 0; i < DefaultEntityCount; i++ {
-		e := world.Create("Generic")
-		world.AddComponent(e.ID, Position{X: float64(i), Y: float64(i)})
-		world.AddComponent(e.ID, Velocity{X: 1.0, Y: 1.0})
+	for b.Loop() {
+		world := ecs.NewWorld()
+		for i := range DefaultEntityCount {
+			_, err := world.CreateWithComponents(
+				"Generic",
+				Position{X: float64(i), Y: float64(i)},
+				Velocity{X: 1.0, Y: 1.0},
+			)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
 	}
 }

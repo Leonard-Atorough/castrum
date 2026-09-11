@@ -30,16 +30,15 @@ type TextureLoader interface {
 
 type Renderer struct {
 	textureLoader TextureLoader
-	animationMgr  *animation.AnimationClipStore
+	clipStore     *animation.AnimationClipStore
 	Primitive     *PrimitiveRenderer
 	cameraQuery   *ecs.Query
 	renderItems   []renderItem // Reusable buffer for hot path
 }
 
-func New(textureLoader TextureLoader, animationMgr *animation.AnimationClipStore) *Renderer {
+func New(textureLoader TextureLoader) *Renderer {
 	return &Renderer{
 		textureLoader: textureLoader,
-		animationMgr:  animationMgr,
 		Primitive:     NewPrimitiveRenderer(),
 	}
 }
@@ -134,6 +133,15 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *ecs.World) {
 	// Render
 	for _, item := range r.renderItems {
 		if item.renderable.TexturePath != "" {
+			if r.clipStore == nil {
+				// first time, initialize the clip store from world resources
+				clipStore, ok := world.GetResource[*animation.AnimationClipStore]()
+				if !ok {
+					// failed to get the clip store, skip rendering this sprite
+					continue
+				}
+				r.clipStore = clipStore
+			}
 			r.drawSprite(screen, primaryCamera, item.transform, item.renderable, item.animation)
 		} else {
 			r.Primitive.Draw(screen, primaryCamera, item.transform, item.renderable)
@@ -176,7 +184,7 @@ func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, trans
 
 	// If animation is present, resolve the frame texture from the clip
 	if anim != nil && anim.ClipPath != "" {
-		clip := r.animationMgr.Get(anim.ClipPath)
+		clip := r.clipStore.Get(anim.ClipPath)
 		if clip == nil {
 			// Fall back to static texture if clip not found
 			r.drawStaticTexture(screen, cam, transform, renderable)

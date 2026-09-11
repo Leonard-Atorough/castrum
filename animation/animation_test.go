@@ -203,7 +203,7 @@ func createTextureAtlasForTest(t *testing.T, regionNames ...string) *atlas.Textu
 
 func setupTestWorld() *ecs.World {
 	world := ecs.NewWorld()
-	ecs.SetResource(world, events.NewEventBus())
+	world.SetResource(events.NewEventBus())
 	return world
 }
 
@@ -242,8 +242,7 @@ func createAnimatingEntity(world *ecs.World, clipID string) ecs.EntityID {
 
 func TestSystem_Init(t *testing.T) {
 	world := setupTestWorld()
-	mgr := NewAnimationClipStore()
-	sys := NewSystem(mgr)
+	sys := NewSystem()
 	err := sys.Init(world)
 	if err != nil {
 		t.Errorf("Init failed: %v", err)
@@ -252,13 +251,12 @@ func TestSystem_Init(t *testing.T) {
 
 func TestSystem_Update_AdvancesFrameTime(t *testing.T) {
 	world := setupTestWorld()
-	mgr := NewAnimationClipStore()
-	sys := NewSystem(mgr)
+	sys := NewSystem()
 	sys.Init(world)
 
 	// Create a test clip
 	atlas := createTestAtlas()
-	_, err := mgr.NewBuilder("test_clip", atlas).
+	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -286,12 +284,11 @@ func TestSystem_Update_AdvancesFrameTime(t *testing.T) {
 
 func TestSystem_Update_AdvancesFrame(t *testing.T) {
 	world := setupTestWorld()
-	mgr := NewAnimationClipStore()
-	sys := NewSystem(mgr)
+	sys := NewSystem()
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewBuilder("test_clip", atlas).
+	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -316,7 +313,7 @@ func TestSystem_Update_AdvancesFrame(t *testing.T) {
 
 func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 	world := setupTestWorld()
-	bus, _ := ecs.GetResource[*events.EventBus](world)
+	bus, _ := world.GetResource[*events.EventBus]()
 	var emittedEvent AnimationEvent
 	var eventFired bool
 
@@ -325,12 +322,11 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 		eventFired = true
 	}, false)
 
-	mgr := NewAnimationClipStore()
-	sys := NewSystem(mgr)
+	sys := NewSystem()
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewBuilder("test_clip", atlas).
+	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -357,12 +353,11 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 
 func TestSystem_Update_IgnoresNonPlayingAnimations(t *testing.T) {
 	world := setupTestWorld()
-	mgr := NewAnimationClipStore()
-	sys := NewSystem(mgr)
+	sys := NewSystem()
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewBuilder("test_clip", atlas).
+	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -387,12 +382,11 @@ func TestSystem_Update_IgnoresNonPlayingAnimations(t *testing.T) {
 
 func TestSystem_Update_LoopsAnimation(t *testing.T) {
 	world := setupTestWorld()
-	mgr := NewAnimationClipStore()
-	sys := NewSystem(mgr)
+	sys := NewSystem()
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewBuilder("test_clip", atlas).
+	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -420,7 +414,7 @@ func TestSystem_Update_LoopsAnimation(t *testing.T) {
 
 func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 	world := setupTestWorld()
-	bus, _ := ecs.GetResource[*events.EventBus](world)
+	bus, _ := world.GetResource[*events.EventBus]()
 	var emittedEvent AnimationEvent
 	var eventFired bool
 
@@ -429,12 +423,11 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 		eventFired = true
 	}, false)
 
-	mgr := NewAnimationClipStore()
-	sys := NewSystem(mgr)
+	sys := NewSystem()
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewBuilder("test_clip", atlas).
+	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		SetFrameSpeed(0.1).
@@ -466,12 +459,11 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 
 func TestSystem_Update_RespectPlaybackSpeed(t *testing.T) {
 	world := setupTestWorld()
-	mgr := NewAnimationClipStore()
-	sys := NewSystem(mgr)
+	sys := NewSystem()
 	sys.Init(world)
 
 	atlas := createTestAtlas()
-	_, err := mgr.NewBuilder("test_clip", atlas).
+	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		AddFrame("frame_2").
@@ -498,8 +490,7 @@ func TestSystem_Update_RespectPlaybackSpeed(t *testing.T) {
 
 func TestSystem_Update_SkipsMissingClips(t *testing.T) {
 	world := setupTestWorld()
-	mgr := NewAnimationClipStore()
-	sys := NewSystem(mgr)
+	sys := NewSystem()
 	sys.Init(world)
 
 	// Don't add clip to manager
@@ -519,8 +510,7 @@ func TestSystem_Update_SkipsMissingClips(t *testing.T) {
 
 func TestSystem_Shutdown(t *testing.T) {
 	world := setupTestWorld()
-	mgr := NewAnimationClipStore()
-	sys := NewSystem(mgr)
+	sys := NewSystem()
 	sys.Init(world)
 
 	// Call Shutdown and ensure no panic or error occurs

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/assets"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
@@ -39,8 +38,7 @@ func newTestRenderer() *Renderer {
 	textureLoader := &mockTextureLoader{textures: map[string]*assets.Texture{
 		"square": {Path: "square", Image: testImage, Width: 1, Height: 1},
 	}}
-	animationMgr := animation.NewAnimationClipStore()
-	return New(textureLoader, animationMgr)
+	return New(textureLoader)
 }
 
 // setupTestWorldWithCamera creates a world with a primary camera entity.
@@ -49,18 +47,11 @@ func setupTestWorldWithCamera(world *ecs.World, width, height int) error {
 		components.Camera{
 			Zoom:       1.0,
 			Primary:    true,
-			Bounds:     unboundedRect(),
+			Bounds:     components.UnboundedRect(),
 			ScreenSize: geom.Vector2I{X: width, Y: height},
 		},
 	)
 	return err
-}
-
-func unboundedRect() geom.Rect {
-	return geom.Rect{
-		Min: geom.Vector2{X: 1e-9, Y: 1e-9},
-		Max: geom.Vector2{X: 1e9, Y: 1e9},
-	}
 }
 
 func TestRenderer_DrawScene(t *testing.T) {

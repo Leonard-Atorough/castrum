@@ -17,16 +17,16 @@ type systemEntry struct {
 	system   System
 }
 
-// Manager schedules and runs Systems in ascending priority order — lower
+// SystemManager schedules and runs Systems in ascending priority order — lower
 // priority values run first (and shut down last). Systems registered with
 // the same priority run in registration order.
-type Manager struct {
+type SystemManager struct {
 	systems     []systemEntry
 	nameToIndex map[string]int
 }
 
-func NewManager() *Manager {
-	return &Manager{
+func NewSystemManager() *SystemManager {
+	return &SystemManager{
 		nameToIndex: make(map[string]int),
 	}
 }
@@ -34,7 +34,7 @@ func NewManager() *Manager {
 // Register adds sys under name, scheduled at the given priority (lower runs
 // earlier). Init is called immediately; if it returns an error the system is
 // not added.
-func (sm *Manager) Register(name string, priority int, sys System, world *World) error {
+func (sm *SystemManager) Register(name string, priority int, sys System, world *World) error {
 	if _, exists := sm.nameToIndex[name]; exists {
 		return &SystemError{Name: name, Op: "Register", Err: ErrSystemAlreadyRegistered}
 	}
@@ -57,7 +57,7 @@ func (sm *Manager) Register(name string, priority int, sys System, world *World)
 }
 
 // Unregister removes and shuts down the named system.
-func (sm *Manager) Unregister(name string, world *World) error {
+func (sm *SystemManager) Unregister(name string, world *World) error {
 	idx, exists := sm.nameToIndex[name]
 	if !exists {
 		return &SystemError{Name: name, Op: "Unregister", Err: ErrSystemNotFound}
@@ -75,7 +75,7 @@ func (sm *Manager) Unregister(name string, world *World) error {
 
 // Update runs all systems in priority order. It stops and returns an error
 // at the first system that fails.
-func (sm *Manager) Update(world *World, deltaTime float64) error {
+func (sm *SystemManager) Update(world *World, deltaTime float64) error {
 	for _, entry := range sm.systems {
 		if err := entry.system.Update(world, deltaTime); err != nil {
 			return &SystemError{Name: entry.name, Op: "Update", Err: err}
@@ -86,7 +86,7 @@ func (sm *Manager) Update(world *World, deltaTime float64) error {
 
 // Shutdown shuts down all systems in reverse priority order, continuing on
 // error and joining any failures into the returned error.
-func (sm *Manager) Shutdown(world *World) error {
+func (sm *SystemManager) Shutdown(world *World) error {
 	var errs []error
 	for i := len(sm.systems) - 1; i >= 0; i-- {
 		entry := sm.systems[i]
@@ -102,7 +102,7 @@ func (sm *Manager) Shutdown(world *World) error {
 }
 
 // GetSystem returns the named system.
-func (sm *Manager) GetSystem(name string) (System, error) {
+func (sm *SystemManager) GetSystem(name string) (System, error) {
 	idx, exists := sm.nameToIndex[name]
 	if !exists {
 		return nil, &SystemError{Name: name, Op: "GetSystem", Err: ErrSystemNotFound}
@@ -111,7 +111,7 @@ func (sm *Manager) GetSystem(name string) (System, error) {
 }
 
 // Systems returns all registered systems in scheduled (priority) order.
-func (sm *Manager) Systems() []System {
+func (sm *SystemManager) Systems() []System {
 	systems := make([]System, len(sm.systems))
 	for i, e := range sm.systems {
 		systems[i] = e.system
@@ -120,17 +120,17 @@ func (sm *Manager) Systems() []System {
 }
 
 // Count returns the total number of registered systems.
-func (sm *Manager) Count() int {
+func (sm *SystemManager) Count() int {
 	return len(sm.systems)
 }
 
 // Has checks if a system with the given name is registered.
-func (sm *Manager) Has(name string) bool {
+func (sm *SystemManager) Has(name string) bool {
 	_, exists := sm.nameToIndex[name]
 	return exists
 }
 
-func (sm *Manager) reindex() {
+func (sm *SystemManager) reindex() {
 	sm.nameToIndex = make(map[string]int)
 	for i, e := range sm.systems {
 		sm.nameToIndex[e.name] = i

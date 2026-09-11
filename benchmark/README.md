@@ -1,6 +1,6 @@
 # Castrum Engine Benchmarks
 
-**28 benchmarks** across 7 categories measuring ECS performance, allocation efficiency, and game loop throughput. This guide covers running benchmarks, profiling techniques, performance expectations, and regression tracking.
+**30 benchmarks** across 7 core categories plus 2 utility benchmarks measuring ECS performance, allocation efficiency, and game loop throughput. This guide covers running benchmarks, profiling techniques, performance expectations, and regression tracking.
 
 ---
 
@@ -8,7 +8,7 @@
 
 ```bash
 # All benchmarks with memory tracking
-go test -bench=. -benchmem ./benchmark -benchtime=1s
+go test ./benchmark -run='^$' -bench='^Benchmark' -benchmem -benchtime=1s
 
 # By category
 go test -bench=Entity -benchmem ./benchmark -benchtime=1s
@@ -21,7 +21,7 @@ go test -bench=Bulk -benchmem ./benchmark -benchtime=1s
 go test -bench=BenchmarkEntityCreation -v -benchmem ./benchmark
 
 # Save results for comparison
-go test -bench=. -benchmem ./benchmark > baseline.txt
+go test ./benchmark -run='^$' -bench='^Benchmark' -benchmem > baseline.txt
 ```
 
 ---
@@ -87,9 +87,9 @@ For reference, competitive ECS engines achieve:
 - `component_benchmarks_test.go` — Add/get/remove + migrations (7 benchmarks)
 - `query_benchmarks_test.go` — Query + selectivity (5 benchmarks)
 - `hierarchy_benchmarks_test.go` — Parent/children operations (2 benchmarks)
-- `gameloop_benchmarks_test.go` — Realistic game loop scenarios (5 benchmarks)
+- `gameloop_benchmarks_test.go` — Fixed-population game loop scenarios (5 benchmarks)
 - `bulk_benchmarks_test.go` — Batch operations (4 benchmarks)
-- `memory_benchmarks_test.go` — Memory overhead measurement (2 benchmarks)
+- `memory_benchmarks_test.go` — World construction allocation measurements (2 benchmarks)
 
 ---
 
@@ -100,13 +100,13 @@ For reference, competitive ECS engines achieve:
 **Establish a baseline:**
 
 ```bash
-go test -bench=. -benchmem ./benchmark -benchtime=1s > baseline.txt
+go test ./benchmark -run='^$' -bench='^Benchmark' -benchmem -benchtime=1s > baseline.txt
 ```
 
 **After code changes, compare:**
 
 ```bash
-go test -bench=. -benchmem ./benchmark -benchtime=1s > current.txt
+go test ./benchmark -run='^$' -bench='^Benchmark' -benchmem -benchtime=1s > current.txt
 go install golang.org/x/perf/cmd/benchstat@latest
 benchstat baseline.txt current.txt
 ```
@@ -398,10 +398,10 @@ go test -bench=BenchmarkName -benchtime=100ms ./benchmark
 
 ```bash
 # Run longer to get statistical stability
-go test -bench=. -benchtime=3s ./benchmark
+go test ./benchmark -run='^$' -bench='^Benchmark' -benchtime=3s
 
 # Or run multiple times and average
-for i in {1..3}; do go test -bench=. -benchmem ./benchmark; done
+for i in {1..3}; do go test ./benchmark -run='^$' -bench='^Benchmark' -benchmem; done
 ```
 
 ### pprof doesn't show the function I'm looking for
@@ -417,6 +417,6 @@ go tool pprof -nodecount=50 cpu.prof  # Show more nodes
 ```bash
 # Make sure to use -memprofile, not -memprofile=alloc_objects
 # For detailed heap profile:
-go test -bench=. -memprofile=mem.prof ./benchmark
+go test ./benchmark -run='^$' -bench='^Benchmark' -memprofile=mem.prof
 go tool pprof -http=:8080 -alloc_space mem.prof
 ```

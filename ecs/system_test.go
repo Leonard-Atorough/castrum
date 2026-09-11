@@ -41,7 +41,7 @@ func (ms *mockSystem) Shutdown(world *World) error {
 
 // TestManager_Register tests system registration and Init call.
 func TestManager_Register(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	mockSys := &mockSystem{}
 
@@ -65,7 +65,7 @@ func TestManager_Register(t *testing.T) {
 
 // TestManager_RegisterDuplicate tests that duplicate names are rejected.
 func TestManager_RegisterDuplicate(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	mockSys1 := &mockSystem{}
 	mockSys2 := &mockSystem{}
@@ -84,7 +84,7 @@ func TestManager_RegisterDuplicate(t *testing.T) {
 
 // TestManager_RegisterInitFails tests that Init failure is propagated.
 func TestManager_RegisterInitFails(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	mockSys := &mockSystem{initErr: errors.New("init failed")}
 
@@ -100,7 +100,7 @@ func TestManager_RegisterInitFails(t *testing.T) {
 
 // TestManager_Unregister tests system unregistration and Shutdown call.
 func TestManager_Unregister(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	mockSys := &mockSystem{}
 
@@ -126,7 +126,7 @@ func TestManager_Unregister(t *testing.T) {
 
 // TestManager_UnregisterNotFound tests unregistering non-existent system.
 func TestManager_UnregisterNotFound(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 
 	err := sm.Unregister("nonexistent", world)
@@ -137,7 +137,7 @@ func TestManager_UnregisterNotFound(t *testing.T) {
 
 // TestManager_UnregisterIndexFix tests that lookups stay correct after a middle system is removed.
 func TestManager_UnregisterIndexFix(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	sys0 := &mockSystem{}
 	sys1 := &mockSystem{}
@@ -174,7 +174,7 @@ func TestManager_UnregisterIndexFix(t *testing.T) {
 
 // TestManager_Update tests that Update runs every registered system.
 func TestManager_Update(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	sys1 := &mockSystem{}
 	sys2 := &mockSystem{}
@@ -198,7 +198,7 @@ func TestManager_Update(t *testing.T) {
 
 // TestManager_UpdateError tests that Update stops on first error.
 func TestManager_UpdateError(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	sys1 := &mockSystem{}
 	sys2 := &mockSystem{updateErr: errors.New("system 2 failed")}
@@ -229,7 +229,7 @@ func TestManager_UpdateError(t *testing.T) {
 // TestManager_UpdatePriorityOrder tests that lower-priority systems run first,
 // and same-priority systems run in registration order.
 func TestManager_UpdatePriorityOrder(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	var order []string
 
@@ -259,7 +259,7 @@ func TestManager_UpdatePriorityOrder(t *testing.T) {
 
 // TestManager_Shutdown tests system shutdown in reverse priority order.
 func TestManager_Shutdown(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	var order []string
 
@@ -290,7 +290,7 @@ func TestManager_Shutdown(t *testing.T) {
 
 // TestManager_ShutdownError tests that Shutdown continues despite errors and joins them.
 func TestManager_ShutdownError(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	sys1 := &mockSystem{shutdownErr: errors.New("shutdown failed")}
 	sys2 := &mockSystem{}
@@ -311,7 +311,7 @@ func TestManager_ShutdownError(t *testing.T) {
 
 // TestManager_GetSystem tests retrieving a system by name.
 func TestManager_GetSystem(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	mockSys := &mockSystem{}
 
@@ -329,7 +329,7 @@ func TestManager_GetSystem(t *testing.T) {
 
 // TestManager_GetSystemNotFound tests GetSystem with non-existent name.
 func TestManager_GetSystemNotFound(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	_, err := sm.GetSystem("nonexistent")
 
 	if !errors.Is(err, ErrSystemNotFound) {
@@ -339,7 +339,7 @@ func TestManager_GetSystemNotFound(t *testing.T) {
 
 // TestManager_Systems tests retrieving all systems in priority order.
 func TestManager_Systems(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	sys1 := &mockSystem{}
 	sys2 := &mockSystem{}
@@ -360,7 +360,7 @@ func TestManager_Systems(t *testing.T) {
 
 // TestManager_Count tests counting total systems.
 func TestManager_Count(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 
 	if sm.Count() != 0 {
@@ -384,7 +384,7 @@ func TestManager_Count(t *testing.T) {
 
 // TestManager_Has tests checking system registration.
 func TestManager_Has(t *testing.T) {
-	sm := NewManager()
+	sm := NewSystemManager()
 	world := NewWorld()
 	mockSys := &mockSystem{}
 
