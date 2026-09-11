@@ -475,7 +475,7 @@ func (w *World) Detach(id EntityID) {
 
 func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component, newComponentTypes []reflect.Type) {
 	newArchetype := w.archetypeManager.GetOrCreateArchetype(newComponentTypes...)
-	
+
 	// Determine the target index for the entity in the new archetype
 	// This is the position it will occupy after being added
 	targetIdx := len(newArchetype.entities)
@@ -492,7 +492,7 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component
 		for _, c := range newComps {
 			allCompTypes[reflect.TypeOf(c)] = true
 		}
-		
+
 		// Ensure all component slices in new archetype have enough capacity
 		for compType := range allCompTypes {
 			if _, exists := newArchetype.componentData[compType]; !exists {
@@ -516,7 +516,7 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component
 				}
 			}
 		}
-		
+
 		// Batch copy all existing components to new archetype
 		for _, compType := range currentArchetype.componentTypes {
 			if oldRawSlice, sliceExists := currentArchetype.componentData[compType]; sliceExists {
@@ -524,15 +524,15 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component
 				if oldSliceVal.Kind() != reflect.Slice || entity.archetypeIdx >= oldSliceVal.Len() {
 					continue
 				}
-				
+
 				// Get the pre-allocated slice in new archetype
 				newRawSlice := newArchetype.componentData[compType]
 				newSliceVal := reflect.ValueOf(newRawSlice)
-				
+
 				if newSliceVal.Kind() != reflect.Slice || targetIdx >= newSliceVal.Len() {
 					continue
 				}
-				
+
 				// Copy component directly from old to new slice
 				// Note: We use targetIdx (position in new archetype) not entity.archetypeIdx (position in old)
 				oldComp := oldSliceVal.Index(entity.archetypeIdx)
@@ -558,7 +558,7 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component
 		compType := reflect.TypeOf(c)
 		rawSlice := newArchetype.componentData[compType]
 		sliceVal := reflect.ValueOf(rawSlice)
-		
+
 		if sliceVal.Kind() == reflect.Slice && targetIdx < sliceVal.Len() {
 			if sliceVal.Index(targetIdx).CanSet() {
 				compVal := reflect.ValueOf(c)
@@ -592,7 +592,7 @@ func (w *World) updateComponentInArchetype(entity *Entity, comp Component, compT
 func (w *World) setComponentInArchetype(archetype *Archetype, index int, compType reflect.Type, comp Component) {
 	// Get or create the typed slice for this component type
 	rawSlice, exists := archetype.componentData[compType]
-	
+
 	if !exists {
 		// Create a new typed slice with the component's type
 		// We use reflection to create a slice of the correct type
@@ -603,13 +603,13 @@ func (w *World) setComponentInArchetype(archetype *Archetype, index int, compTyp
 		rawSlice = reflect.MakeSlice(sliceType, 0, 0).Interface()
 		archetype.componentData[compType] = rawSlice
 	}
-	
+
 	// Use reflection to work with the typed slice generically
 	sliceVal := reflect.ValueOf(rawSlice)
 	if sliceVal.Kind() != reflect.Slice {
 		return
 	}
-	
+
 	// Ensure the slice is large enough
 	if index >= sliceVal.Len() {
 		// Grow the slice to accommodate the index
@@ -627,7 +627,7 @@ func (w *World) setComponentInArchetype(archetype *Archetype, index int, compTyp
 		}
 		archetype.componentData[compType] = sliceVal.Interface()
 	}
-	
+
 	// Set the component at the specified index
 	// We need to use a settable reflection value
 	if sliceVal.Index(index).CanSet() {
