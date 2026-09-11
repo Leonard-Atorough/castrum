@@ -87,7 +87,7 @@ For reference, competitive ECS engines achieve:
 - `component_benchmarks_test.go` — Add/get/remove + migrations (7 benchmarks)
 - `query_benchmarks_test.go` — Query + selectivity (5 benchmarks)
 - `hierarchy_benchmarks_test.go` — Parent/children operations (2 benchmarks)
-- `gameloop_benchmarks_test.go` — Realistic game loop scenarios (5 benchmarks)
+- `gameloop_benchmarks_test.go` — Fixed-population game loop scenarios (5 benchmarks)
 - `bulk_benchmarks_test.go` — Batch operations (4 benchmarks)
 - `memory_benchmarks_test.go` — World construction allocation measurements (2 benchmarks)
 
