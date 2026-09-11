@@ -1,5 +1,7 @@
 package input
 
+import "maps"
+
 // KeyState tracks the state of a physical input across frames.
 type KeyState struct {
 	Pressed  bool
@@ -56,13 +58,9 @@ func (i *InputSnapshot) Reset() {
 func (i *InputSnapshot) Clone() InputSnapshot {
 	cloned := *i
 	cloned.Keyboard = make(map[string]KeyState, len(i.Keyboard))
-	for key, state := range i.Keyboard {
-		cloned.Keyboard[key] = state
-	}
+	maps.Copy(cloned.Keyboard, i.Keyboard)
 	cloned.Mouse.Buttons = make(map[string]KeyState, len(i.Mouse.Buttons))
-	for button, state := range i.Mouse.Buttons {
-		cloned.Mouse.Buttons[button] = state
-	}
+	maps.Copy(cloned.Mouse.Buttons, i.Mouse.Buttons)
 	return cloned
 }
 
