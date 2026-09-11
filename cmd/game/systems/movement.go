@@ -1,21 +1,21 @@
 package systems
 
 import (
-	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // MovementSystem applies Velocity to Transform.Position for every entity that has both.
 type MovementSystem struct {
-	camera *castrum.Camera
+	camera *components.Camera
 }
 
-func (s *MovementSystem) Init(world *castrum.World) error {
+func (s *MovementSystem) Init(world *ecs.World) error {
 	return nil
 }
 
-func (s *MovementSystem) Update(world *castrum.World, delta float64) error {
+func (s *MovementSystem) Update(world *ecs.World, delta float64) error {
 	// Query for entities with both Velocity and Transform
 
 	for entry := range world.NewQuery().WithRequiredComponents(components.Transform{}, gamecomponents.Velocity{}).Execute() {
@@ -48,10 +48,10 @@ func (s *MovementSystem) Update(world *castrum.World, delta float64) error {
 	return nil
 }
 
-func (s *MovementSystem) Shutdown(world *castrum.World) error {
+func (s *MovementSystem) Shutdown(world *ecs.World) error {
 	return nil
 }
 
-func NewMovementSystem(camera *castrum.Camera) *MovementSystem {
+func NewMovementSystem(camera *components.Camera) *MovementSystem {
 	return &MovementSystem{camera: camera}
 }

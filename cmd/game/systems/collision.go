@@ -5,6 +5,7 @@ import (
 
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/physics"
 )
@@ -13,20 +14,18 @@ import (
 // and contact geometry from the collision system. It demonstrates the collision
 // API by destroying obstacles on Enter, logging Stay events, and removing entities on Exit.
 type CollisionSystem struct {
-	systems        *castrum.Systems
 	bus            *events.EventBus
 	bufferedEvents []physics.CollisionEvent
 	subscriptionID int
 }
 
-func NewCollisionSystem(systems *castrum.Systems) *CollisionSystem {
+func NewCollisionSystem() *CollisionSystem {
 	return &CollisionSystem{
-		systems:        systems,
 		bufferedEvents: make([]physics.CollisionEvent, 0, 64),
 	}
 }
 
-func (c *CollisionSystem) Init(world *castrum.World) error {
+func (c *CollisionSystem) Init(world *ecs.World) error {
 	// Get the EventBus from world resources
 	bus, ok := castrum.GetResource[*events.EventBus](world)
 	if !ok {
@@ -45,7 +44,7 @@ func (c *CollisionSystem) Init(world *castrum.World) error {
 // Update processes collision events emitted by the collision manager each frame.
 // Collision events include contact geometry (point, normal, penetration) for
 // sophisticated game logic like knockback, sliding, or environmental reactions.
-func (c *CollisionSystem) Update(world *castrum.World, deltaTime float64) error {
+func (c *CollisionSystem) Update(world *ecs.World, deltaTime float64) error {
 	if c.bus == nil {
 		return nil
 	}
@@ -80,7 +79,7 @@ func (c *CollisionSystem) Update(world *castrum.World, deltaTime float64) error 
 	return nil
 }
 
-func (c *CollisionSystem) Shutdown(world *castrum.World) error {
+func (c *CollisionSystem) Shutdown(world *ecs.World) error {
 	if c.bus != nil {
 		c.bus.Unsubscribe(c.subscriptionID)
 	}
@@ -88,7 +87,7 @@ func (c *CollisionSystem) Shutdown(world *castrum.World) error {
 }
 
 // isPlayer checks if an entity has a Player component.
-func (c *CollisionSystem) isPlayer(world *castrum.World, entityID castrum.EntityID) bool {
+func (c *CollisionSystem) isPlayer(world *ecs.World, entityID ecs.EntityID) bool {
 	_, err := world.GetComponent[gamecomponents.Player](entityID)
 	return err == nil
 }

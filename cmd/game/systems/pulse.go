@@ -3,16 +3,16 @@ package systems
 import (
 	"math"
 
-	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 type PulseSystem struct {
-	pulseQuery *castrum.Query
+	pulseQuery *ecs.Query
 }
 
-func (ps *PulseSystem) Update(world *castrum.World, delta float64) error {
+func (ps *PulseSystem) Update(world *ecs.World, delta float64) error {
 	for _, entityID := range ps.pulseQuery.EntityIDs() {
 		pulse, _ := world.GetComponent[gamecomponents.Pulse](entityID)
 		pulse.ElapsedTime += delta // ← Accumulate instead of calling time.Now()
@@ -30,11 +30,11 @@ func (ps *PulseSystem) Update(world *castrum.World, delta float64) error {
 	return nil
 }
 
-func (ps *PulseSystem) Init(world *castrum.World) error {
+func (ps *PulseSystem) Init(world *ecs.World) error {
 	ps.pulseQuery = world.NewQuery().WithRequiredComponents(gamecomponents.Pulse{})
 	return nil
 }
 
-func (ps *PulseSystem) Shutdown(world *castrum.World) error {
+func (ps *PulseSystem) Shutdown(world *ecs.World) error {
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
 )
@@ -18,11 +19,11 @@ func NewPlayerController(game *castrum.Game) *PlayerController {
 	return &PlayerController{input: game.Input}
 }
 
-func (pc *PlayerController) Init(world *castrum.World) error {
+func (pc *PlayerController) Init(world *ecs.World) error {
 	return nil
 }
 
-func (pc *PlayerController) Update(world *castrum.World, delta float64) error {
+func (pc *PlayerController) Update(world *ecs.World, delta float64) error {
 	for entry := range world.NewQuery().WithRequiredComponents(gamecomponents.Player{}, gamecomponents.Velocity{}, components.Transform{}).Execute() {
 		vel, err := entry.Get[gamecomponents.Velocity]()
 		if err != nil {
@@ -53,6 +54,6 @@ func (pc *PlayerController) Update(world *castrum.World, delta float64) error {
 	return nil
 }
 
-func (pc *PlayerController) Shutdown(world *castrum.World) error {
+func (pc *PlayerController) Shutdown(world *ecs.World) error {
 	return nil
 }
