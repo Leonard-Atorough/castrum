@@ -50,7 +50,7 @@ func (s *movementSystem) Shutdown(world *World) error {
 // the hierarchy, and verify the final world state.
 func TestWorld_EndToEndGameLoop(t *testing.T) {
 	world := NewWorld()
-	manager := NewManager()
+	manager := NewSystemManager()
 
 	sys := &movementSystem{}
 	if err := manager.Register("movement", 0, sys, world); err != nil {

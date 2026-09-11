@@ -14,6 +14,7 @@ type World struct {
 	destroyed        []*Entity
 	hierarchy        *Hierarchy
 	archetypeManager *ArchetypeManager
+	systemManager    *SystemManager
 	resources        map[reflect.Type]any
 }
 
@@ -25,6 +26,7 @@ func NewWorld() *World {
 		nextID:           atomic.Uint64{},
 		destroyed:        make([]*Entity, 0),
 		archetypeManager: NewArchetypeManager(),
+		systemManager:    NewSystemManager(),
 		resources:        make(map[reflect.Type]any),
 	}
 }
@@ -411,6 +413,15 @@ func (w *World) SetComponent[T Component](entityID EntityID, newComp T) error {
 		}
 	}
 	return nil
+}
+
+func (w *World) RegisterSystem(name string, priority int, system System) error {
+	return w.systemManager.Register(name, priority, system, w)
+}
+
+// SystemManager returns the world's system manager.
+func (w *World) SystemManager() *SystemManager {
+	return w.systemManager
 }
 
 // Query retrieves all entities that have all the specified component types.

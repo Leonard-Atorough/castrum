@@ -2,7 +2,6 @@ package systems
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
@@ -15,8 +14,8 @@ type PlayerController struct {
 	input *input.InputHandler
 }
 
-func NewPlayerController(game *castrum.Game) *PlayerController {
-	return &PlayerController{input: game.Input}
+func NewPlayerController(input *input.InputHandler) *PlayerController {
+	return &PlayerController{input: input}
 }
 
 func (pc *PlayerController) Init(world *ecs.World) error {

@@ -212,7 +212,7 @@ type Camera struct {
 // NewCamera returns a camera centered on the world origin with no zoom and no
 // movement bounds. Call SetScreenSize once the render target size is known;
 // set Bounds explicitly to constrain movement.
-func NewCamera(screenWidth, screenHeight uint32) Camera {
+func NewCamera(screenWidth, screenHeight uint32, primary bool) Camera {
 	if screenWidth <= 0 || screenHeight <= 0 {
 		screenWidth = 800
 		screenHeight = 600
@@ -222,12 +222,12 @@ func NewCamera(screenWidth, screenHeight uint32) Camera {
 		Zoom:       1,
 		ScreenSize: geom.Vector2I{X: int(screenWidth), Y: int(screenHeight)},
 		Rotation:   0,
-		Bounds:     unboundedRect(),
-		Primary:    false,
+		Bounds:     UnboundedRect(),
+		Primary:    primary,
 	}
 }
 
-func unboundedRect() geom.Rect {
+func UnboundedRect() geom.Rect {
 	return geom.Rect{
 		Min: geom.Vector2{X: math.Inf(-1), Y: math.Inf(-1)},
 		Max: geom.Vector2{X: math.Inf(1), Y: math.Inf(1)},

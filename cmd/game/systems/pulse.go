@@ -1,6 +1,7 @@
 package systems
 
 import (
+	"fmt"
 	"math"
 
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
@@ -8,11 +9,20 @@ import (
 	"github.com/leonard-atorough/castrum/ecs"
 )
 
+const (
+	printFrequency = 5.0
+)
+
 type PulseSystem struct {
 	pulseQuery *ecs.Query
 }
 
 func (ps *PulseSystem) Update(world *ecs.World, delta float64) error {
+	printCount := 0
+	printCount++
+	if printCount%int(printFrequency) == 0 {
+		fmt.Printf("Updating pulse system with delta time: %f\n", delta)
+	}
 	for _, entityID := range ps.pulseQuery.EntityIDs() {
 		pulse, _ := world.GetComponent[gamecomponents.Pulse](entityID)
 		pulse.ElapsedTime += delta // ← Accumulate instead of calling time.Now()

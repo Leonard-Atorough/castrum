@@ -29,6 +29,8 @@ func main() {
 		log.Fatalf("failed to create game: %v", err)
 	}
 
+	world := game.World()
+
 	// Set camera bounds to the grid extent
 	// Grid: 60×60 with spacing 34 pixels = -2040 to +2040 in each direction
 	// Each square is 32×32, so extends ±16 from center
@@ -44,49 +46,49 @@ func main() {
 	maxY := float64(gridSizeH)*spacing + squareRadius + cameraOverflow
 
 	// Get the camera entity and update its bounds
-	cam, err := game.GetCamera()
+	cam := game.CameraEntity().ID
+	camComp, err := world.GetComponent[components.Camera](cam)
 	if err != nil {
-		log.Fatalf("failed to get camera: %v", err)
-	}
-	cam.Bounds = geom.NewRect(geom.NewVector2(minX, minY), geom.NewVector2(maxX, maxY))
-	if err := game.SetCamera(cam); err != nil {
-		log.Fatalf("failed to set camera: %v", err)
+		log.Fatalf("failed to get camera component: %v", err)
 	}
 
+	camComp.Bounds = geom.NewRect(geom.NewVector2(minX, minY), geom.NewVector2(maxX, maxY))
+	world.SetComponent(cam, camComp)
+
 	// Register input controller (runs first to read input and set velocity)
-	if err := game.Systems.Register("player_controller", -1, gamesystems.NewPlayerController(game), game.World); err != nil {
+	if err := world.RegisterSystem("player_controller", -1, gamesystems.NewPlayerController(game.Input())); err != nil {
 		log.Fatalf("failed to register player controller: %v", err)
 	}
 
 	// Register movement system (applies velocity to position)
-	if err := game.Systems.Register("movement", 0, gamesystems.NewMovementSystem(&cam), game.World); err != nil {
+	if err := world.RegisterSystem("movement", 0, gamesystems.NewMovementSystem()); err != nil {
 		log.Fatalf("failed to register movement system: %v", err)
 	}
 
 	// Register the pulse system
-	if err := game.Systems.Register("pulse", 0, &gamesystems.PulseSystem{}, game.World); err != nil {
+	if err := world.RegisterSystem("pulse", 0, &gamesystems.PulseSystem{}); err != nil {
 		log.Fatalf("failed to register pulse system: %v", err)
 	}
 
 	// Register the camera system (runs after movement to update the camera position)
 	// CameraSystem now queries the camera from the world, no need to pass it
-	if err := game.Systems.Register("camera", 1, &gamesystems.CameraSystem{Input: game.Input}, game.World); err != nil {
+	if err := world.RegisterSystem("camera", 1, &gamesystems.CameraSystem{Input: game.Input()}); err != nil {
 		log.Fatalf("failed to register camera system: %v", err)
 	}
 
 	// Register the collision system (runs after movement to handle collision response)
-	if err := game.Systems.Register("collision", 2, gamesystems.NewCollisionSystem(), game.World); err != nil {
+	if err := world.RegisterSystem("collision", 2, gamesystems.NewCollisionSystem()); err != nil {
 		log.Fatalf("failed to register collision system: %v", err)
 	}
 
 	// Spawn a controllable circle on Layer1 at the center
-	_, createErr := game.World.CreateWithComponents(
+	_, createErr := world.CreateWithComponents(
 		"player",
 		components.Transform{
 			Position: geom.Vector2{X: 0, Y: 0},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		components.Sprite{TexturePath: "example.png", Visible: true, Layer: 0},
+		components.Sprite{TexturePath: "example.png", Visible: true, Layer: 1},
 		gamecomponents.Player{},
 		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
 		components.NewCollider(geom.NewRect(geom.NewVector2(-16, -16), geom.NewVector2(16, 16)), true, false, 0, 1),
@@ -101,7 +103,7 @@ func main() {
 			if i == 0 && j == 0 {
 				continue // Skip the center square
 			}
-			_, err := game.World.CreateWithComponents(
+			_, err := world.CreateWithComponents(
 				"Square",
 				components.Transform{
 					Position: geom.Vector2{X: float64(i) * spacing, Y: float64(j) * spacing},
@@ -109,7 +111,6 @@ func main() {
 					Color:    color.RGBA{R: 60, G: 220, B: 60, A: 255},
 				},
 				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0},
-				// components.Spin{AngularVelocity: 1.5 + 0.1*float64(i+j)},
 				gamecomponents.Pulse{StartScale: geom.Vector2{X: 32, Y: 32}, Amplitude: 0.5, Frequency: 1, TimeOffset: float64(i+j) * 0.1},
 			)
 			if err != nil {
@@ -129,15 +130,15 @@ func main() {
 	}
 
 	for i, pos := range circlePositions {
-		_, err := game.World.CreateWithComponents(
+		_, err := world.CreateWithComponents(
 			"circle_obstacle",
 			components.Transform{
 				Position: pos,
 				Scale:    geom.Vector2{X: 30, Y: 30},
 				Color:    color.RGBA{R: 255, G: 100, B: 100, A: 255},
 			},
-			components.Sprite{Primitive: components.PrimitiveKindCircle, Visible: true, Layer: 0},
-			// components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
+			components.Sprite{Primitive: components.PrimitiveKindCircle, Visible: true, Layer: 1},
+			components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
 		)
 		if err != nil {
 			log.Fatalf("failed to spawn circle %d: %v", i, err)
