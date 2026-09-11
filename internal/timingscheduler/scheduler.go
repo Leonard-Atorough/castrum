@@ -12,11 +12,12 @@ type Phase int
 
 const (
 	Input Phase = iota
-	Update
-	Render
+	PreUpdate
+	FixedUpdate
+	PostUpdate
 )
 
-var phaseOrder = []Phase{Input, Update, Render}
+var phaseOrder = []Phase{Input, PreUpdate, FixedUpdate}
 
 type Runnable interface{ Run(dt time.Duration) }
 
