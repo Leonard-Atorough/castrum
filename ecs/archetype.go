@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -34,6 +35,28 @@ func NewArchetypeKey(components ...reflect.Type) ArchetypeKey {
 		return sorted[i].String() < sorted[j].String()
 	})
 	return sorted
+}
+
+// Len returns the number of component types in the key.
+func (ak ArchetypeKey) Len() int {
+	return len(ak)
+}
+
+// String returns a string representation of the ArchetypeKey.
+func (ak ArchetypeKey) String() string {
+	if len(ak) == 0 {
+		return "[]"
+	}
+	var sb strings.Builder
+	sb.WriteString("[")
+	for i, t := range ak {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(t.String())
+	}
+	sb.WriteString("]")
+	return sb.String()
 }
 
 // Hash computes the FNV-1a hash of the ArchetypeKey using the full type string
@@ -282,4 +305,20 @@ func (am *ArchetypeManager) GetArchetypeByKeyHash(hash ArchetypeKeyHash) (*Arche
 		return am.archetypes[archetypeID], true
 	}
 	return nil, false
+}
+
+// CleanupEmptyArchetypes removes archetypes that have no entities.
+// This should be called periodically to prevent memory bloat from archetype proliferation.
+// Safe for concurrent use.
+func (am *ArchetypeManager) CleanupEmptyArchetypes() {
+	am.mu.Lock()
+	defer am.mu.Unlock()
+
+	for id, archetype := range am.archetypes {
+		if len(archetype.entities) == 0 {
+			delete(am.archetypes, id)
+			// Remove from keyToID map
+			delete(am.keyToID, archetype.componentTypes.Hash())
+		}
+	}
 }
