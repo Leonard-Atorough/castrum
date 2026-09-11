@@ -11,11 +11,10 @@ import (
 
 func TestSystem_RectCollision(t *testing.T) {
 	world := ecs.NewWorld()
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
+
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	if err := collisionSys.Init(world); err != nil {
 		t.Errorf("Init failed: %v", err)
@@ -34,7 +33,7 @@ func TestSystem_RectCollision(t *testing.T) {
 	)
 
 	// Update spatial index
-	if err := spatialMgr.Update(world, 0); err != nil {
+	if err := collisionSys.Update(world, 0); err != nil {
 		t.Errorf("Update failed: %v", err)
 	}
 
@@ -50,11 +49,10 @@ func TestSystem_RectCollision(t *testing.T) {
 
 func TestSystem_NoCollisionWhenFar(t *testing.T) {
 	world := ecs.NewWorld()
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
+
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
 
@@ -70,7 +68,7 @@ func TestSystem_NoCollisionWhenFar(t *testing.T) {
 		components.NewCollider(geom.NewRect(geom.NewVector2(-10, -10), geom.NewVector2(10, 10)), true, false, 1, 0),
 	)
 
-	spatialMgr.Update(world, 0)
+	collisionSys.Update(world, 0)
 
 	result, err := collisionSys.TestCollision(world, player.ID, obstacle.ID)
 	if err != nil {
@@ -83,11 +81,9 @@ func TestSystem_NoCollisionWhenFar(t *testing.T) {
 
 func TestSystem_CircleCollision(t *testing.T) {
 	world := ecs.NewWorld()
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
 
@@ -103,7 +99,7 @@ func TestSystem_CircleCollision(t *testing.T) {
 		components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
 	)
 
-	if err := spatialMgr.Update(world, 0); err != nil {
+	if err := collisionSys.Update(world, 0); err != nil {
 		t.Errorf("Update failed: %v", err)
 	}
 
@@ -118,11 +114,9 @@ func TestSystem_CircleCollision(t *testing.T) {
 
 func TestSystem_CircleRectCollision(t *testing.T) {
 	world := ecs.NewWorld()
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
 
@@ -138,7 +132,7 @@ func TestSystem_CircleRectCollision(t *testing.T) {
 		components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 8}, true, false, 1, 0),
 	)
 
-	if err := spatialMgr.Update(world, 0); err != nil {
+	if err := collisionSys.Update(world, 0); err != nil {
 		t.Errorf("Update failed: %v", err)
 	}
 
@@ -155,11 +149,7 @@ func TestSystem_EventLifecycle(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
 	ecs.SetResource(world, bus)
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
 	// Create two separated entities
@@ -172,7 +162,7 @@ func TestSystem_EventLifecycle(t *testing.T) {
 		components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 10}, true, false, 1, 0),
 	)
 
-	spatialMgr.Update(world, 0)
+	collisionSys.Update(world, 0)
 
 	// Track event state across updates
 	var lastEvent CollisionEvent
@@ -193,35 +183,33 @@ func TestSystem_EventLifecycle(t *testing.T) {
 
 	// Move enemy into collision range
 	world.SetComponent(enemy.ID, components.Transform{Position: geom.Vector2{X: 15, Y: 0}})
-	if err := spatialMgr.Update(world, 0); err != nil {
+
+	// Update after move: should emit Enter
+	eventFired = false
+	if err := collisionSys.Update(world, 0); err != nil {
 		t.Errorf("Update failed: %v", err)
 	}
-
-	// Second update: should emit Enter
-	eventFired = false
-	collisionSys.Update(world, 0)
 	if !eventFired || lastEvent.CollisionEventType != CollisionEnter {
-		t.Error("Expected CollisionEnter event")
+		t.Error("Expected CollisionEnter event after moving into collision range")
 	}
 
-	// Third update: no movement, should emit Stay
+	// Next update with no movement: should emit Stay
 	eventFired = false
 	collisionSys.Update(world, 0)
 	if !eventFired || lastEvent.CollisionEventType != CollisionStay {
-		t.Error("Expected CollisionStay event")
+		t.Error("Expected CollisionStay event when still colliding")
 	}
 
 	// Move enemy away
 	world.SetComponent(enemy.ID, components.Transform{Position: geom.Vector2{X: 100, Y: 0}})
-	if err := spatialMgr.Update(world, 0); err != nil {
+
+	// Update after moving away: should emit Exit
+	eventFired = false
+	if err := collisionSys.Update(world, 0); err != nil {
 		t.Errorf("Update failed: %v", err)
 	}
-
-	// Fourth update: should emit Exit
-	eventFired = false
-	collisionSys.Update(world, 0)
 	if !eventFired || lastEvent.CollisionEventType != CollisionExit {
-		t.Error("Expected CollisionExit event")
+		t.Error("Expected CollisionExit event after moving out of collision range")
 	}
 
 	bus.Unsubscribe(subID)
@@ -229,11 +217,9 @@ func TestSystem_EventLifecycle(t *testing.T) {
 
 func TestSystem_LayerMaskFiltering(t *testing.T) {
 	world := ecs.NewWorld()
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
 	// Entity on layer 0, collides with [1]
@@ -248,7 +234,7 @@ func TestSystem_LayerMaskFiltering(t *testing.T) {
 		components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 2, 0),
 	)
 
-	if err := spatialMgr.Update(world, 0); err != nil {
+	if err := collisionSys.Update(world, 0); err != nil {
 		t.Errorf("Update failed: %v", err)
 	}
 
@@ -264,11 +250,9 @@ func TestSystem_LayerMaskFiltering(t *testing.T) {
 
 func TestSystem_InactiveColliderSkipped(t *testing.T) {
 	world := ecs.NewWorld()
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
 	// Active collider
@@ -283,7 +267,7 @@ func TestSystem_InactiveColliderSkipped(t *testing.T) {
 		components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, false, false, 1, 0),
 	)
 
-	if err := spatialMgr.Update(world, 0); err != nil {
+	if err := collisionSys.Update(world, 0); err != nil {
 		t.Errorf("Update failed: %v", err)
 	}
 
@@ -296,11 +280,9 @@ func TestSystem_InactiveColliderSkipped(t *testing.T) {
 
 func TestSystem_CircleCircleContact(t *testing.T) {
 	world := ecs.NewWorld()
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
 	// Two circles
@@ -313,7 +295,7 @@ func TestSystem_CircleCircleContact(t *testing.T) {
 		components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 10}, true, false, 1, 0),
 	)
 
-	spatialMgr.Update(world, 0)
+	collisionSys.Update(world, 0)
 
 	result, err := collisionSys.TestCollision(world, circle1.ID, circle2.ID)
 	if err != nil {
@@ -342,11 +324,9 @@ func TestSystem_CircleCircleContact(t *testing.T) {
 
 func TestSystem_QueryCollisions(t *testing.T) {
 	world := ecs.NewWorld()
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
 
@@ -373,12 +353,12 @@ func TestSystem_QueryCollisions(t *testing.T) {
 		components.NewCollider(geom.NewRect(geom.NewVector2(-5, -5), geom.NewVector2(5, 5)), true, false, 1, 0),
 	)
 
-	if err := spatialMgr.Update(world, 0); err != nil {
+	if err := collisionSys.Update(world, 0); err != nil {
 		t.Errorf("Update failed: %v", err)
 	}
 
 	// Query collisions for player
-	collisions, err := collisionSys.QueryCollisions(world, player.ID)
+	collisions, err := collisionSys.CollidingWith(world, player.ID)
 	if err != nil {
 		t.Errorf("QueryCollisions failed: %v", err)
 	}
@@ -406,11 +386,9 @@ func TestSystem_QueryCollisions(t *testing.T) {
 
 func TestSystem_DisabledCollision(t *testing.T) {
 	world := ecs.NewWorld()
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: false})
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: false})
 
 	collisionSys.Init(world)
 
@@ -425,7 +403,7 @@ func TestSystem_DisabledCollision(t *testing.T) {
 		components.NewCollider(geom.NewRect(geom.NewVector2(-10, -10), geom.NewVector2(10, 10)), true, false, 1, 0),
 	)
 
-	spatialMgr.Update(world, 0)
+	collisionSys.Update(world, 0)
 
 	// Run with collision disabled
 	if err := collisionSys.Update(world, 0); err != nil {
@@ -441,11 +419,7 @@ func TestSystem_DisabledCollision(t *testing.T) {
 
 func TestSystem_TestCollisionMissingComponent(t *testing.T) {
 	world := ecs.NewWorld()
-	spatialMgr, err := NewManager(100.0)
-	if err != nil {
-		t.Errorf("NewManager failed: %v", err)
-	}
-	collisionSys := NewSystem(spatialMgr.Index, Config{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
 

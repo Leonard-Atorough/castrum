@@ -38,19 +38,19 @@ func TestNewIndex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			idx, err := NewIndex(tt.cellSize)
+			idx, err := newIndex(tt.cellSize)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("NewIndex() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("newIndex() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if !tt.wantErr && idx == nil {
-				t.Error("NewIndex() returned nil index when expected success")
+				t.Error("newIndex() returned nil index when expected success")
 			}
 		})
 	}
 }
 
 func TestSpatialIndex_Update(t *testing.T) {
-	idx, _ := NewIndex(10.0)
+	idx, _ := newIndex(10.0)
 
 	tests := []struct {
 		name      string
@@ -133,7 +133,7 @@ func TestSpatialIndex_Update(t *testing.T) {
 }
 
 func TestSpatialIndex_UpdateExistingEntity(t *testing.T) {
-	idx, _ := NewIndex(10.0)
+	idx, _ := newIndex(10.0)
 	entityID := ecs.EntityID(1)
 
 	// Add entity
@@ -178,7 +178,7 @@ func TestSpatialIndex_UpdateExistingEntity(t *testing.T) {
 }
 
 func TestSpatialIndex_Query(t *testing.T) {
-	idx, _ := NewIndex(10.0)
+	idx, _ := newIndex(10.0)
 
 	// Add some entities
 	entities := map[ecs.EntityID]geom.Vector2{
@@ -262,7 +262,7 @@ func TestSpatialIndex_Query(t *testing.T) {
 }
 
 func TestSpatialIndex_QueryEmpty(t *testing.T) {
-	idx, _ := NewIndex(10.0)
+	idx, _ := newIndex(10.0)
 
 	results := idx.Query(geom.Vector2{X: 0, Y: 0}, 10.0)
 	if len(results) != 0 {
@@ -271,7 +271,7 @@ func TestSpatialIndex_QueryEmpty(t *testing.T) {
 }
 
 func TestSpatialIndex_Remove(t *testing.T) {
-	idx, _ := NewIndex(10.0)
+	idx, _ := newIndex(10.0)
 	entityID := ecs.EntityID(1)
 
 	// Remove from empty index
@@ -296,7 +296,7 @@ func TestSpatialIndex_Remove(t *testing.T) {
 }
 
 func TestSpatialIndex_RemoveCleanupEmptyCells(t *testing.T) {
-	idx, _ := NewIndex(10.0)
+	idx, _ := newIndex(10.0)
 	entityID := ecs.EntityID(1)
 
 	pos := geom.Vector2{X: 5.0, Y: 5.0}
@@ -315,7 +315,7 @@ func TestSpatialIndex_RemoveCleanupEmptyCells(t *testing.T) {
 }
 
 func TestSpatialIndex_RemoveMultipleEntitiesInCell(t *testing.T) {
-	idx, _ := NewIndex(10.0)
+	idx, _ := newIndex(10.0)
 
 	// Add multiple entities in same cell
 	id1 := ecs.EntityID(1)
@@ -346,7 +346,7 @@ func TestSpatialIndex_RemoveMultipleEntitiesInCell(t *testing.T) {
 }
 
 func TestSpatialIndex_WorldToGrid(t *testing.T) {
-	idx, _ := NewIndex(10.0)
+	idx, _ := newIndex(10.0)
 
 	tests := []struct {
 		name     string
@@ -429,7 +429,7 @@ func TestSpatialIndex_DifferentCellSizes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			idx, _ := NewIndex(tt.cellSize)
+			idx, _ := newIndex(tt.cellSize)
 			result := idx.worldToGrid(tt.pos)
 			if result != tt.expected {
 				t.Errorf("worldToGrid(%v) with cellSize %f = %v, want %v", tt.pos, tt.cellSize, result, tt.expected)
@@ -439,7 +439,7 @@ func TestSpatialIndex_DifferentCellSizes(t *testing.T) {
 }
 
 func TestSpatialIndex_QueryRadiusAcrossCells(t *testing.T) {
-	idx, _ := NewIndex(10.0)
+	idx, _ := newIndex(10.0)
 
 	// Place entities at cell boundaries
 	idx.Update(1, geom.Vector2{X: 9.9, Y: 0})  // Cell (0, 0)
@@ -455,7 +455,7 @@ func TestSpatialIndex_QueryRadiusAcrossCells(t *testing.T) {
 }
 
 func TestSpatialIndex_LargeDataset(t *testing.T) {
-	idx, _ := NewIndex(50.0)
+	idx, _ := newIndex(50.0)
 
 	// Add 1000 entities in a grid
 	for i := 0; i < 1000; i++ {
@@ -480,7 +480,7 @@ func TestSpatialIndex_LargeDataset(t *testing.T) {
 }
 
 func TestSpatialIndex_UpdateToSamePosition(t *testing.T) {
-	idx, _ := NewIndex(10.0)
+	idx, _ := newIndex(10.0)
 	entityID := ecs.EntityID(1)
 	pos := geom.Vector2{X: 5.0, Y: 5.0}
 
