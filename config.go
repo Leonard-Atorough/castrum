@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/leonard-atorough/castrum/geom"
+	"github.com/leonard-atorough/castrum/input"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -62,10 +63,9 @@ type AudioConfig struct {
 }
 
 type InputConfig struct {
-	MouseVisible   bool `yaml:"mouse_visible"`
-	GamepadEnabled bool `yaml:"gamepad_enabled"`
-	// Need to add more input configurations as needed
-	// Keyboard config and keybinds could be handled using a typed map
+	MouseVisible   bool           `yaml:"mouse_visible"`
+	GamepadEnabled bool           `yaml:"gamepad_enabled"`
+	Bindings       input.Bindings `yaml:"bindings"`
 }
 
 type EngineConfig struct {
@@ -172,6 +172,9 @@ func ValidateConfig(config *Config) error {
 	if config.Engine.TimeScale <= 0 {
 		config.Engine.TimeScale = 1.0
 	}
+	if config.Input.Bindings == nil {
+		config.Input.Bindings = defaultInputBindings()
+	}
 	return nil
 }
 
@@ -211,6 +214,7 @@ func DefaultConfig() *Config {
 		Input: InputConfig{
 			MouseVisible:   true,
 			GamepadEnabled: true,
+			Bindings:       defaultInputBindings(),
 		},
 		Engine: EngineConfig{
 			TicksPerSecond:   60,
@@ -229,6 +233,17 @@ func DefaultConfig() *Config {
 	}
 	ValidateConfig(cfg)
 	return cfg
+}
+
+func defaultInputBindings() input.Bindings {
+	return input.Bindings{
+		"move_up":         {{Key: "arrow_up"}},
+		"move_down":       {{Key: "arrow_down"}},
+		"move_left":       {{Key: "arrow_left"}},
+		"move_right":      {{Key: "arrow_right"}},
+		"camera_zoom_in":  {{Key: "z", Modifiers: input.Modifiers{Ctrl: true}}},
+		"camera_zoom_out": {{Key: "x", Modifiers: input.Modifiers{Ctrl: true}}},
+	}
 }
 
 func normalizeWindowMode(mode string) string {

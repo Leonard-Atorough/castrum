@@ -1,7 +1,6 @@
 package systems
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
@@ -10,7 +9,7 @@ import (
 
 // CameraSystem is responsible for managing the camera within the game world.
 type CameraSystem struct {
-	Input       *input.InputHandler
+	Input       input.Reader
 	cameraQuery *ecs.Query
 	playerQuery *ecs.Query
 }
@@ -66,21 +65,21 @@ func (cs *CameraSystem) Update(world *ecs.World, delta float64) error {
 	// Handle zoom input
 	zoomFactor := 1.015 // 5% per frame
 
-	for _, key := range []struct {
-		ebitenKey ebiten.Key
-		multiply  float64
+	for _, action := range []struct {
+		name     input.Action
+		multiply float64
 	}{
-		{ebiten.KeyZ, zoomFactor},     // Zoom in
-		{ebiten.KeyX, 1 / zoomFactor}, // Zoom out (multiply by 0.95)
+		{actionCameraZoomIn, zoomFactor},
+		{actionCameraZoomOut, 1 / zoomFactor},
 	} {
-		if cs.Input.KeyHeld(key.ebitenKey, input.Modifiers{Shift: false, Ctrl: true, Alt: false}) {
+		if cs.Input.ActionHeld(action.name) {
 			// Get camera for zoom update
 			cam, err := world.GetComponent[components.Camera](cameraEntity)
 			if err != nil {
 				continue
 			}
 
-			cam.Zoom *= key.multiply
+			cam.Zoom *= action.multiply
 			// Clamp to sensible bounds
 			if cam.Zoom < 0.1 {
 				cam.Zoom = 0.1

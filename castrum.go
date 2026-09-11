@@ -13,6 +13,7 @@ import (
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
+	internalinput "github.com/leonard-atorough/castrum/internal/input"
 	"github.com/leonard-atorough/castrum/internal/timingscheduler"
 	"github.com/leonard-atorough/castrum/physics"
 	"github.com/leonard-atorough/castrum/render"
@@ -23,7 +24,8 @@ type Game struct {
 	world        *ecs.World
 	config       *Config
 	renderer     *render.Renderer
-	input        *input.InputHandler
+	input        input.Reader
+	inputHandler *internalinput.Handler
 	sched        *timingscheduler.Scheduler
 	cameraEntity ecs.Entity
 	lastTime     time.Time // the engine's ONLY wall-clock read
@@ -49,12 +51,12 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 
 	newWorld := ecs.NewWorld()
 
-	input := input.New()
+	inputHandler := internalinput.New(config.Input.Bindings)
 
 	assets := assets.NewAssetLoader(filesystem)
 	renderer := render.New(assets.Textures)
 
-	newWorld.SetResource(input)
+	newWorld.SetResource[input.Reader](inputHandler)
 	newWorld.SetResource(animation.NewAnimationClipStore())
 	newWorld.SetResource(events.NewEventBus())
 	newWorld.SetResource(assets)
@@ -92,7 +94,8 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		world:        newWorld,
 		config:       config,
 		renderer:     renderer,
-		input:        input,
+		input:        inputHandler,
+		inputHandler: inputHandler,
 		sched:        sched,
 		cameraEntity: *cameraEntity,
 		lastTime:     time.Now(),
@@ -107,7 +110,8 @@ func (g *Game) World() *ecs.World {
 	return g.world
 }
 
-func (g *Game) Input() *input.InputHandler {
+// Input returns the resolved action reader used by gameplay systems.
+func (g *Game) Input() input.Reader {
 	return g.input
 }
 
@@ -124,8 +128,8 @@ func (g *Game) Update() error {
 	realDt := now.Sub(g.lastTime)
 	g.lastTime = now
 
-	g.input.Snapshot()     // runs every frame, pause-agnostic
-	g.sched.Update(realDt) // 0..N fixed ticks inside
+	g.inputHandler.Snapshot() // runs every frame, pause-agnostic
+	g.sched.Update(realDt)    // 0..N fixed ticks inside
 	return nil
 }
 
