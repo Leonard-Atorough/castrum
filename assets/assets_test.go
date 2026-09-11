@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewAssets(t *testing.T) {
-	a := NewAssets(nil)
+	a := NewAssetLoader(nil)
 	if a.Textures == nil || a.Blueprints == nil {
 		t.Fatal("expected both stores to be initialized")
 	}
@@ -19,7 +19,7 @@ func TestAssetsLoad(t *testing.T) {
 		"test.yaml": {Data: []byte(validBlueprintYAML)},
 	}
 
-	a := NewAssets(fs)
+	a := NewAssetLoader(fs)
 
 	tests := []struct {
 		name      string
@@ -50,7 +50,7 @@ func TestLoadAsync(t *testing.T) {
 		"test.yaml": {Data: []byte(validBlueprintYAML)},
 	}
 
-	a := NewAssets(fs)
+	a := NewAssetLoader(fs)
 
 	tests := []struct {
 		name      string
@@ -84,7 +84,7 @@ func TestLoadAsyncCancellation(t *testing.T) {
 		"test.yaml": {Data: []byte(validBlueprintYAML)},
 	}
 
-	a := NewAssets(fs)
+	a := NewAssetLoader(fs)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
@@ -103,7 +103,7 @@ func TestLoadAsyncTimeout(t *testing.T) {
 		"test.yaml": {Data: []byte(validBlueprintYAML)},
 	}
 
-	a := NewAssets(fs)
+	a := NewAssetLoader(fs)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
@@ -127,7 +127,7 @@ func TestLoadBatch(t *testing.T) {
 		"test3.yaml": {Data: []byte(validBlueprintYAML)},
 	}
 
-	a := NewAssets(fs)
+	a := NewAssetLoader(fs)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -157,7 +157,7 @@ func TestLoadBatchPartialFailure(t *testing.T) {
 		"test2.yaml": {Data: []byte(validBlueprintYAML)},
 	}
 
-	a := NewAssets(fs)
+	a := NewAssetLoader(fs)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -195,7 +195,7 @@ func TestLoadBatchCancellation(t *testing.T) {
 		"test3.yaml": {Data: []byte(validBlueprintYAML)},
 	}
 
-	a := NewAssets(fs)
+	a := NewAssetLoader(fs)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately before submitting

@@ -3,8 +3,8 @@
 package physics
 
 import (
-	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/ecs"
+	"github.com/leonard-atorough/castrum/geom"
 )
 
 type CollisionEventType int

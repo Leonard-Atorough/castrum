@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
-	"github.com/leonard-atorough/castrum/ecs"
 )
 
 type CollisionState struct {

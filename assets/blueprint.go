@@ -5,29 +5,33 @@ import (
 	"io/fs"
 	"os"
 	"sync"
-	"testing"
 
 	"github.com/leonard-atorough/castrum/ecs"
 	"go.yaml.in/yaml/v3"
 )
 
+// Blueprint represents a reusable template for creating entities with predefined components.
 type Blueprint struct {
 	Name       string          `yaml:"name"`
 	Components []ComponentData `yaml:"components"`
 	Version    string          `yaml:"version"`
 }
 
+// ComponentData represents the data required to instantiate a component for an entity.
 type ComponentData struct {
 	Type       string         `yaml:"type"`
 	Properties map[string]any `yaml:"properties"`
 }
 
+// blueprintStore manages the caching and loading of blueprints from the filesystem.
 type blueprintStore struct {
 	fs         fs.FS
 	mu         sync.RWMutex
 	Blueprints map[string]*Blueprint
 }
 
+// newBlueprintStore creates a new blueprint store with the given filesystem.
+// If the provided filesystem is nil, it defaults to the current directory.
 func newBlueprintStore(filesystem fs.FS) *blueprintStore {
 	if filesystem == nil {
 		filesystem = os.DirFS(".")
@@ -38,8 +42,9 @@ func newBlueprintStore(filesystem fs.FS) *blueprintStore {
 	}
 }
 
+// Load retrieves a blueprint from the store by its path.
+// It first checks the cache and then loads from the filesystem if not cached.
 func (s *blueprintStore) Load(path string) (*Blueprint, error) {
-	// Check cache with read lock first
 	s.mu.RLock()
 	if bp, ok := s.Blueprints[path]; ok {
 		s.mu.RUnlock()
@@ -59,12 +64,29 @@ func (s *blueprintStore) Load(path string) (*Blueprint, error) {
 		return nil, err
 	}
 
-	// Store with write lock
 	s.mu.Lock()
-	s.Blueprints[path] = &blueprint // cache by path
+	s.Blueprints[path] = &blueprint
 	s.mu.Unlock()
 
 	return &blueprint, nil
+}
+
+// CreateFromBlueprint creates a new entity from a blueprint's component data.
+func CreateFromBlueprint(world *ecs.World, bp *Blueprint) (*ecs.Entity, error) {
+	components := make([]ecs.Component, len(bp.Components))
+	for i, comp := range bp.Components {
+		instance, err := ecs.Resolve(comp.Type, comp.Properties)
+		if err != nil {
+			return nil, err
+		}
+		components[i] = instance
+	}
+
+	return world.CreateWithComponents(bp.Name, components...)
+}
+
+type testComponent struct {
+	Value int
 }
 
 var (
@@ -87,65 +109,4 @@ func (e *blueprintError) Error() string {
 
 func (e *blueprintError) Unwrap() error {
 	return e.Err
-}
-
-// CreateFromBlueprint creates a new entity from a blueprint's component data.
-func CreateFromBlueprint(world *ecs.World, bp *Blueprint) (*ecs.Entity, error) {
-	components := make([]ecs.Component, len(bp.Components))
-	for i, comp := range bp.Components {
-		instance, err := ecs.Resolve(comp.Type, comp.Properties)
-		if err != nil {
-			return nil, err
-		}
-		components[i] = instance
-	}
-
-	return world.CreateWithComponents(bp.Name, components...)
-}
-
-type testComponent struct {
-	Value int
-}
-
-func TestCreateFromBlueprint(t *testing.T) {
-	ecs.Register[testComponent]()
-
-	t.Run("spawns an entity with resolved components", func(t *testing.T) {
-		world := ecs.NewWorld()
-		bp := &Blueprint{
-			Name: "Goblin",
-			Components: []ComponentData{
-				{Type: "testComponent", Properties: map[string]any{"Value": 5}},
-			},
-		}
-
-		entity, err := CreateFromBlueprint(world, bp)
-		if err != nil {
-			t.Fatalf("CreateFromBlueprint failed: %v", err)
-		}
-
-		// ecs.Resolve returns the resolved value (not a pointer), matching
-		// GetComponent/SetComponent's value semantics used everywhere else.
-		comp, err := world.GetComponent[testComponent](entity.ID)
-		if err != nil {
-			t.Fatalf("GetComponent failed: %v", err)
-		}
-		if comp.Value != 5 {
-			t.Fatalf("component Value = %d, want 5", comp.Value)
-		}
-	})
-
-	t.Run("an unregistered component type fails the spawn", func(t *testing.T) {
-		world := ecs.NewWorld()
-		bp := &Blueprint{
-			Name: "Broken",
-			Components: []ComponentData{
-				{Type: "doesNotExist", Properties: nil},
-			},
-		}
-
-		if _, err := CreateFromBlueprint(world, bp); err == nil {
-			t.Fatal("expected an error for an unregistered component type")
-		}
-	})
 }

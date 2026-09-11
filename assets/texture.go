@@ -9,6 +9,7 @@ import (
 	_ "image/png"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 type Texture struct {
@@ -44,7 +45,7 @@ func (s *textureStore) Load(path string) (*Texture, error) {
 		return nil, fmt.Errorf("texture store has no filesystem configured")
 	}
 
-	img, generic, err := loadImageFromFS(s.fs, path)
+	img, generic, err := ebitenutil.NewImageFromFileSystem(s.fs, path)
 	if err != nil {
 		return nil, err
 	}

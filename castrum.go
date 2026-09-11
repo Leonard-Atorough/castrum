@@ -117,7 +117,7 @@ type Game struct {
 
 	// Assets is the asset manager for loading and caching textures, animations, and blueprints.
 	// Use Assets to load game resources.
-	Assets *assets.Assets
+	Assets *assets.AssetLoader
 
 	// CameraEntityID is the entity ID of the primary camera (internal, do not modify).
 	CameraEntityID EntityID
@@ -173,7 +173,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		return nil, err
 	}
 
-	assets := assets.NewAssets(filesystem)
+	assets := assets.NewAssetLoader(filesystem)
 	renderer := render.New(assets.Textures, animMgr)
 
 	// Create primary camera as an entity

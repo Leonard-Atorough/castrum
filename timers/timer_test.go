@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/ecs"
+	"github.com/leonard-atorough/castrum/events"
 )
 
 // TestTimer_StateTransitions tests Timer component state methods
