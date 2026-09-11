@@ -3,6 +3,7 @@ package ecs
 import (
 	"reflect"
 	"sort"
+	"sync"
 )
 
 // FNV-1a hash constants for 64-bit
@@ -113,9 +114,28 @@ func NewArchetype(id uint64, componentTypes ArchetypeKey) *Archetype {
 	return &Archetype{
 		ID:             id,
 		componentTypes: componentTypes,
-		entities:       make([]EntityID, 0, 1024), // corresponds to 1024 entities per archetype by default which, if each entity is 16 bytes, would be 16KB per archetype, which is a reasonable default
+		entities:       make([]EntityID, 0, 16),
 		componentData:  make(map[reflect.Type]any),
 	}
+}
+
+func (a *Archetype) Entities() []EntityID {
+	return a.entities
+}
+
+func (a *Archetype) Components[T Component](entityID EntityID) []T {
+	var comps []T
+	for _, compType := range a.componentTypes {
+		if slice, exists := a.componentData[compType]; exists {
+			compSlice := slice.([]Component)
+			for _, comp := range compSlice {
+				if c, ok := comp.(T); ok {
+					comps = append(comps, c)
+				}
+			}
+		}
+	}
+	return comps
 }
 
 // removeEntity removes the entity at slot idx using swap-with-last-element,
@@ -153,6 +173,7 @@ type ArchetypeManager struct {
 	archetypes map[uint64]*Archetype
 	keyToID    map[ArchetypeKeyHash]uint64 //can't use ArchetypeKey as a map key directly, so we hash it
 	nextID     uint64
+	mu         sync.RWMutex
 }
 
 func NewArchetypeManager() *ArchetypeManager {
@@ -164,6 +185,9 @@ func NewArchetypeManager() *ArchetypeManager {
 }
 
 func (am *ArchetypeManager) GetOrCreateArchetype(componentTypes ...reflect.Type) *Archetype {
+	am.mu.Lock()
+	defer am.mu.Unlock()
+
 	key := NewArchetypeKey(componentTypes...)
 	hash := ArchetypeKeyHash(key.Hash())
 
@@ -180,11 +204,17 @@ func (am *ArchetypeManager) GetOrCreateArchetype(componentTypes ...reflect.Type)
 }
 
 func (am *ArchetypeManager) GetArchetypeByID(id uint64) (*Archetype, bool) {
+	am.mu.RLock()
+	defer am.mu.RUnlock()
+
 	archetype, exists := am.archetypes[id]
 	return archetype, exists
 }
 
 func (am *ArchetypeManager) GetArchetypeByKeyHash(hash ArchetypeKeyHash) (*Archetype, bool) {
+	am.mu.RLock()
+	defer am.mu.RUnlock()
+
 	if archetypeID, exists := am.keyToID[hash]; exists {
 		return am.archetypes[archetypeID], true
 	}
