@@ -37,10 +37,10 @@ func TestTextureStoreLoad(t *testing.T) {
 		store := newTextureStore(fs)
 		tex, err := store.Load("sprite.png")
 		if err != nil {
-			t.Fatalf("Load failed: %v", err)
+			t.Errorf("Load failed: %v", err)
 		}
 		if tex == nil {
-			t.Fatal("expected non-nil texture")
+			t.Error("expected non-nil texture")
 		}
 		if tex.Path != "sprite.png" {
 			t.Errorf("Path = %q, want %q", tex.Path, "sprite.png")
@@ -49,16 +49,16 @@ func TestTextureStoreLoad(t *testing.T) {
 			t.Errorf("dimensions = %dx%d, want 64x64", tex.Width, tex.Height)
 		}
 		if tex.Image == nil {
-			t.Fatal("expected non-nil Image")
+			t.Error("expected non-nil Image")
 		}
 
 		// Verify caching by checking it's in the store
 		cached, exists := store.Textures["sprite.png"]
 		if !exists {
-			t.Fatal("expected texture to be cached")
+			t.Error("expected texture to be cached")
 		}
 		if cached != tex {
-			t.Fatal("cached texture should be the same object")
+			t.Error("cached texture should be the same object")
 		}
 	})
 
@@ -73,7 +73,7 @@ func TestTextureStoreLoad(t *testing.T) {
 		tex2, _ := store.Load("cached.png")
 
 		if tex1 != tex2 {
-			t.Fatal("expected same object from cache")
+			t.Error("expected same object from cache")
 		}
 	})
 
@@ -83,16 +83,17 @@ func TestTextureStoreLoad(t *testing.T) {
 
 		_, err := store.Load("missing.png")
 		if err == nil {
-			t.Fatal("expected error for missing file")
+			t.Error("expected error for missing file")
 		}
 	})
 
-	t.Run("returns error when filesystem is nil", func(t *testing.T) {
+	t.Run("defaults to current directory when filesystem is nil", func(t *testing.T) {
 		store := newTextureStore(nil)
 
-		_, err := store.Load("any.png")
+		// Since the current directory is unlikely to have "sprite.png", we expect an error
+		_, err := store.Load("sprite.png")
 		if err == nil {
-			t.Fatal("expected error when filesystem is nil")
+			t.Error("expected error for missing file in default filesystem")
 		}
 	})
 
@@ -116,7 +117,7 @@ func TestTextureStoreLoad(t *testing.T) {
 		tex2, _ := store.Load("sprite2.png")
 
 		if tex1.Path == tex2.Path {
-			t.Fatal("expected different paths")
+			t.Error("expected different paths")
 		}
 		if tex1.Width == tex2.Width {
 			t.Errorf("expected different widths: %d vs %d", tex1.Width, tex2.Width)
@@ -135,13 +136,13 @@ func TestTextureStructure(t *testing.T) {
 		tex, _ := store.Load("test.png")
 
 		if tex.Path == "" {
-			t.Fatal("expected non-empty Path")
+			t.Error("expected non-empty Path")
 		}
 		if tex.Image == nil {
-			t.Fatal("expected non-nil Image")
+			t.Error("expected non-nil Image")
 		}
 		if tex.Width <= 0 || tex.Height <= 0 {
-			t.Fatalf("expected positive dimensions, got %dx%d", tex.Width, tex.Height)
+			t.Errorf("expected positive dimensions, got %dx%d", tex.Width, tex.Height)
 		}
 	})
 }
@@ -167,10 +168,10 @@ func TestTextureStoreThreadSafety(t *testing.T) {
 		}()
 
 		if err := <-done; err != nil {
-			t.Fatalf("concurrent load 1 failed: %v", err)
+			t.Errorf("concurrent load 1 failed: %v", err)
 		}
 		if err := <-done; err != nil {
-			t.Fatalf("concurrent load 2 failed: %v", err)
+			t.Errorf("concurrent load 2 failed: %v", err)
 		}
 	})
 }

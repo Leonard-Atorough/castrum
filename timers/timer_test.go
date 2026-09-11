@@ -19,19 +19,19 @@ func TestTimer_StateTransitions(t *testing.T) {
 	// Test Start
 	timer.Start()
 	if !timer.Running || timer.ElapsedTime != 0 {
-		t.Fatal("Start should set Running=true and reset ElapsedTime to 0")
+		t.Error("Start should set Running=true and reset ElapsedTime to 0")
 	}
 
 	// Test Stop
 	timer.Stop()
 	if timer.Running {
-		t.Fatal("Stop should set Running=false")
+		t.Error("Stop should set Running=false")
 	}
 
 	// Test Resume
 	timer.Resume()
 	if !timer.Running {
-		t.Fatal("Resume should set Running=true")
+		t.Error("Resume should set Running=true")
 	}
 }
 
@@ -46,12 +46,12 @@ func TestTimer_ElapsedTimeAccumulates(t *testing.T) {
 	// Simulate accumulating time
 	timer.ElapsedTime += 0.3
 	if timer.ElapsedTime != 0.3 {
-		t.Fatalf("expected ElapsedTime=0.3, got %f", timer.ElapsedTime)
+		t.Errorf("expected ElapsedTime=0.3, got %f", timer.ElapsedTime)
 	}
 
 	timer.ElapsedTime += 0.3
 	if timer.ElapsedTime != 0.6 {
-		t.Fatalf("expected ElapsedTime=0.6, got %f", timer.ElapsedTime)
+		t.Errorf("expected ElapsedTime=0.6, got %f", timer.ElapsedTime)
 	}
 }
 
@@ -65,7 +65,7 @@ func TestTimer_StoppedDoesNotAccumulate(t *testing.T) {
 
 	// Even though we try to accumulate, a real system wouldn't if Running is false
 	if timer.Running {
-		t.Fatal("timer should be stopped")
+		t.Error("timer should be stopped")
 	}
 }
 
@@ -84,7 +84,7 @@ func TestTimerSystem_EmitsEventWhenExpired(t *testing.T) {
 		},
 	)
 	if err != nil {
-		t.Fatalf("failed to create entity: %v", err)
+		t.Errorf("failed to create entity: %v", err)
 	}
 
 	system := NewTimerSystem(10)
@@ -100,14 +100,14 @@ func TestTimerSystem_EmitsEventWhenExpired(t *testing.T) {
 	system.Update(world, 1.5)
 
 	if !eventFired {
-		t.Fatalf("expected 1 event to fire")
+		t.Errorf("expected 1 event to fire")
 	}
 
 	if firedEvent.EntityID != entity.ID {
-		t.Fatal("event should reference the correct entity")
+		t.Error("event should reference the correct entity")
 	}
 	if firedEvent.TimerID != "timer1" {
-		t.Fatal("event should reference the correct timer ID")
+		t.Error("event should reference the correct timer ID")
 	}
 }
 
@@ -140,12 +140,12 @@ func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
 	// Timer should be removed after firing
 	_, err := world.GetComponent[components.Timer](entity.ID)
 	if err == nil {
-		t.Fatal("one-shot timer should be removed after firing")
+		t.Error("one-shot timer should be removed after firing")
 	}
 
 	// Event should have been emitted
 	if !eventFired {
-		t.Fatal("expected 1 event to fire")
+		t.Error("expected 1 event to fire")
 	}
 }
 
@@ -177,29 +177,29 @@ func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 	eventCount = 0
 	system.Update(world, 0.5)
 	if eventCount != 1 {
-		t.Fatalf("expected 1 event after first update, got %d", eventCount)
+		t.Errorf("expected 1 event after first update, got %d", eventCount)
 	}
 
 	// Get timer and verify it's still present and reset
 	timer, _ := world.GetComponent[components.Timer](entity.ID)
 	if timer.ElapsedTime != 0 {
-		t.Fatalf("repeating timer should reset ElapsedTime to 0, got %f", timer.ElapsedTime)
+		t.Errorf("repeating timer should reset ElapsedTime to 0, got %f", timer.ElapsedTime)
 	}
 	if !timer.Running {
-		t.Fatal("repeating timer should still be running")
+		t.Error("repeating timer should still be running")
 	}
 
 	// Second update at 0.5s - should fire again
 	eventCount = 0
 	system.Update(world, 0.5)
 	if eventCount != 1 {
-		t.Fatalf("expected 1 event after second update, got %d", eventCount)
+		t.Errorf("expected 1 event after second update, got %d", eventCount)
 	}
 
 	// Timer should still exist
 	_, err := world.GetComponent[components.Timer](entity.ID)
 	if err != nil {
-		t.Fatal("repeating timer should still exist after firing")
+		t.Error("repeating timer should still exist after firing")
 	}
 }
 
@@ -229,7 +229,7 @@ func TestTimerSystem_StoppedTimerDoesNotFire(t *testing.T) {
 	system.Update(world, 1.0)
 
 	if eventFired {
-		t.Fatalf("stopped timer should not fire")
+		t.Errorf("stopped timer should not fire")
 	}
 }
 
@@ -270,14 +270,14 @@ func TestTimerSystem_MultipleTimersOnDifferentEntities(t *testing.T) {
 	system.Update(world, 1.5)
 
 	if eventCount != 2 {
-		t.Fatalf("expected 2 events, got %d", eventCount)
+		t.Errorf("expected 2 events, got %d", eventCount)
 	}
 
 	// Both should be removed
 	_, err1 := world.GetComponent[components.Timer](entity1.ID)
 	_, err2 := world.GetComponent[components.Timer](entity2.ID)
 	if err1 == nil || err2 == nil {
-		t.Fatal("both one-shot timers should be removed")
+		t.Error("both one-shot timers should be removed")
 	}
 }
 
@@ -309,21 +309,21 @@ func TestTimerSystem_EventsClearedEachUpdate(t *testing.T) {
 	eventCount = 0
 	system.Update(world, 0.5)
 	if eventCount != 1 {
-		t.Fatal("expected 1 event after first update")
+		t.Error("expected 1 event after first update")
 	}
 
 	// Second update without firing should have no events
 	eventCount = 0
 	system.Update(world, 0.1)
 	if eventCount != 0 {
-		t.Fatal("expected 0 events after second update (no timer fired)")
+		t.Error("expected 0 events after second update (no timer fired)")
 	}
 
 	// Third update fires again
 	eventCount = 0
 	system.Update(world, 0.4)
 	if eventCount != 1 {
-		t.Fatal("expected 1 event after third update")
+		t.Error("expected 1 event after third update")
 	}
 }
 
@@ -369,13 +369,13 @@ func TestTimerSystem_ShutdownStopsAllTimers(t *testing.T) {
 	timer3, _ := world.GetComponent[components.Timer](entity3.ID)
 
 	if !timer1.Running || !timer2.Running || timer3.Running {
-		t.Fatal("timers not in expected initial state")
+		t.Error("timers not in expected initial state")
 	}
 
 	// Call Shutdown
 	err := system.Shutdown(world)
 	if err != nil {
-		t.Fatalf("Shutdown should not return error: %v", err)
+		t.Errorf("Shutdown should not return error: %v", err)
 	}
 
 	// Verify all timers are stopped
@@ -384,13 +384,13 @@ func TestTimerSystem_ShutdownStopsAllTimers(t *testing.T) {
 	timer3, _ = world.GetComponent[components.Timer](entity3.ID)
 
 	if timer1.Running {
-		t.Fatal("timer1 should be stopped after Shutdown")
+		t.Error("timer1 should be stopped after Shutdown")
 	}
 	if timer2.Running {
-		t.Fatal("timer2 should be stopped after Shutdown")
+		t.Error("timer2 should be stopped after Shutdown")
 	}
 	if timer3.Running {
-		t.Fatal("timer3 should still be stopped after Shutdown")
+		t.Error("timer3 should still be stopped after Shutdown")
 	}
 
 	// Verify timers still exist (just stopped)
@@ -399,6 +399,6 @@ func TestTimerSystem_ShutdownStopsAllTimers(t *testing.T) {
 	_, err3 := world.GetComponent[components.Timer](entity3.ID)
 
 	if err1 != nil || err2 != nil || err3 != nil {
-		t.Fatal("all timers should still exist after Shutdown")
+		t.Error("all timers should still exist after Shutdown")
 	}
 }

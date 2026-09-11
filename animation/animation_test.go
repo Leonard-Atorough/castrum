@@ -246,7 +246,7 @@ func TestSystem_Init(t *testing.T) {
 	sys := NewSystem(mgr)
 	err := sys.Init(world)
 	if err != nil {
-		t.Fatalf("Init failed: %v", err)
+		t.Errorf("Init failed: %v", err)
 	}
 }
 
@@ -265,14 +265,14 @@ func TestSystem_Update_AdvancesFrameTime(t *testing.T) {
 		SetLoop(false).
 		Build()
 	if err != nil {
-		t.Fatalf("Failed to build clip: %v", err)
+		t.Errorf("Failed to build clip: %v", err)
 	}
 
 	entity := createAnimatingEntity(world, "test_clip")
 
 	err = sys.Update(world, 0.05)
 	if err != nil {
-		t.Fatalf("Update failed: %v", err)
+		t.Errorf("Update failed: %v", err)
 	}
 
 	anim, _ := world.GetComponent[components.Animation](entity)
@@ -298,14 +298,14 @@ func TestSystem_Update_AdvancesFrame(t *testing.T) {
 		SetLoop(false).
 		Build()
 	if err != nil {
-		t.Fatalf("Failed to build clip: %v", err)
+		t.Errorf("Failed to build clip: %v", err)
 	}
 
 	entity := createAnimatingEntity(world, "test_clip")
 
 	err = sys.Update(world, 0.15)
 	if err != nil {
-		t.Fatalf("Update failed: %v", err)
+		t.Errorf("Update failed: %v", err)
 	}
 
 	anim, _ := world.GetComponent[components.Animation](entity)
@@ -337,7 +337,7 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 		SetLoop(true).
 		Build()
 	if err != nil {
-		t.Fatalf("Failed to build clip: %v", err)
+		t.Errorf("Failed to build clip: %v", err)
 	}
 
 	entity := createAnimatingEntity(world, "test_clip")
@@ -348,7 +348,7 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 	sys.Update(world, 0.15)
 
 	if !eventFired {
-		t.Fatal("expected loop event to be emitted")
+		t.Error("expected loop event to be emitted")
 	}
 	if emittedEvent.Type != EventClipLooped {
 		t.Errorf("Event type = %d, want EventClipLooped (%d)", emittedEvent.Type, EventClipLooped)
@@ -369,7 +369,7 @@ func TestSystem_Update_IgnoresNonPlayingAnimations(t *testing.T) {
 		SetLoop(false).
 		Build()
 	if err != nil {
-		t.Fatalf("Failed to build clip: %v", err)
+		t.Errorf("Failed to build clip: %v", err)
 	}
 
 	entity := createAnimatingEntity(world, "test_clip")
@@ -399,7 +399,7 @@ func TestSystem_Update_LoopsAnimation(t *testing.T) {
 		SetLoop(true).
 		Build()
 	if err != nil {
-		t.Fatalf("Failed to build clip: %v", err)
+		t.Errorf("Failed to build clip: %v", err)
 	}
 
 	entity := createAnimatingEntity(world, "test_clip")
@@ -441,7 +441,7 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 		SetLoop(false).
 		Build()
 	if err != nil {
-		t.Fatalf("Failed to build clip: %v", err)
+		t.Errorf("Failed to build clip: %v", err)
 	}
 
 	entity := createAnimatingEntity(world, "test_clip")
@@ -452,7 +452,7 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 	sys.Update(world, 0.15)
 
 	if !eventFired {
-		t.Fatal("expected completion event to be emitted")
+		t.Error("expected completion event to be emitted")
 	}
 	if emittedEvent.Type != EventClipFinished {
 		t.Errorf("Event type = %d, want EventClipFinished (%d)", emittedEvent.Type, EventClipFinished)
@@ -479,7 +479,7 @@ func TestSystem_Update_RespectPlaybackSpeed(t *testing.T) {
 		SetLoop(false).
 		Build()
 	if err != nil {
-		t.Fatalf("Failed to build clip: %v", err)
+		t.Errorf("Failed to build clip: %v", err)
 	}
 
 	entity := createAnimatingEntity(world, "test_clip")
@@ -507,7 +507,7 @@ func TestSystem_Update_SkipsMissingClips(t *testing.T) {
 
 	err := sys.Update(world, 0.1)
 	if err != nil {
-		t.Fatalf("Update should not fail on missing clip: %v", err)
+		t.Errorf("Update should not fail on missing clip: %v", err)
 	}
 
 	// Animation should remain unchanged
@@ -526,6 +526,6 @@ func TestSystem_Shutdown(t *testing.T) {
 	// Call Shutdown and ensure no panic or error occurs
 	err := sys.Shutdown(world)
 	if err != nil {
-		t.Fatalf("Shutdown failed: %v", err)
+		t.Errorf("Shutdown failed: %v", err)
 	}
 }

@@ -31,16 +31,16 @@ func TestRegister(t *testing.T) {
 	info := Register[registryTestComponent]()
 
 	if info.Name != "registryTestComponent" {
-		t.Fatalf("expected name %q, got %q", "registryTestComponent", info.Name)
+		t.Errorf("expected name %q, got %q", "registryTestComponent", info.Name)
 	}
 	if info.Type != reflect.TypeFor[registryTestComponent]() {
-		t.Fatal("registered type should match the requested type")
+		t.Error("registered type should match the requested type")
 	}
 
 	t.Run("registering the same type twice returns the cached info", func(t *testing.T) {
 		again := Register[registryTestComponent]()
 		if again != info {
-			t.Fatal("expected Register to return the same *ComponentType on repeat calls")
+			t.Error("expected Register to return the same *ComponentType on repeat calls")
 		}
 	})
 }
@@ -51,15 +51,15 @@ func TestResolve(t *testing.T) {
 
 		comp, err := Resolve("registryTestComponent", map[string]any{"Name": "goblin", "Value": 7})
 		if err != nil {
-			t.Fatalf("Resolve failed: %v", err)
+			t.Errorf("Resolve failed: %v", err)
 		}
 
 		got, ok := comp.(registryTestComponent)
 		if !ok {
-			t.Fatalf("expected registryTestComponent, got %T", comp)
+			t.Errorf("expected registryTestComponent, got %T", comp)
 		}
 		if got.Name != "goblin" || got.Value != 7 {
-			t.Fatalf("unexpected component values: %#v", got)
+			t.Errorf("unexpected component values: %#v", got)
 		}
 	})
 
@@ -68,26 +68,26 @@ func TestResolve(t *testing.T) {
 
 		comp, err := Resolve("registrySerializableComponent", map[string]any{"Value": "poisoned"})
 		if err != nil {
-			t.Fatalf("Resolve failed: %v", err)
+			t.Errorf("Resolve failed: %v", err)
 		}
 
 		// Resolve returns the mutated value, not the pointer used internally to
 		// call Deserialize - matches GetComponent/SetComponent's value semantics.
 		got, ok := comp.(registrySerializableComponent)
 		if !ok {
-			t.Fatalf("expected registrySerializableComponent, got %T", comp)
+			t.Errorf("expected registrySerializableComponent, got %T", comp)
 		}
 		if !got.deserializeCalled {
-			t.Fatal("expected Deserialize to be called for a Serializable component")
+			t.Error("expected Deserialize to be called for a Serializable component")
 		}
 		if got.Value != "poisoned" {
-			t.Fatalf("expected Deserialize to populate Value, got %q", got.Value)
+			t.Errorf("expected Deserialize to populate Value, got %q", got.Value)
 		}
 	})
 
 	t.Run("unknown type name returns an error", func(t *testing.T) {
 		if _, err := Resolve("nonexistentComponentType", nil); err == nil {
-			t.Fatal("expected an error for an unregistered type name")
+			t.Error("expected an error for an unregistered type name")
 		}
 	})
 }

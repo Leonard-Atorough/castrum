@@ -13,10 +13,10 @@ func TestSetResource_GetResource(t *testing.T) {
 
 	got, ok := GetResource[Config](w)
 	if !ok {
-		t.Fatal("expected resource to be found")
+		t.Error("expected resource to be found")
 	}
 	if got.Name != "level-1" {
-		t.Fatalf("expected Name 'level-1', got %q", got.Name)
+		t.Errorf("expected Name 'level-1', got %q", got.Name)
 	}
 }
 
@@ -27,7 +27,7 @@ func TestGetResource_NotSet(t *testing.T) {
 
 	_, ok := GetResource[Unset](w)
 	if ok {
-		t.Fatal("expected ok=false for a resource that was never set")
+		t.Error("expected ok=false for a resource that was never set")
 	}
 }
 
@@ -39,7 +39,7 @@ func TestSetResource_Overwrite(t *testing.T) {
 
 	got, ok := GetResource[int](w)
 	if !ok || got != 2 {
-		t.Fatalf("expected overwritten value 2, got %v (ok=%v)", got, ok)
+		t.Errorf("expected overwritten value 2, got %v (ok=%v)", got, ok)
 	}
 }
 
@@ -55,14 +55,14 @@ func TestSetResource_PointerType(t *testing.T) {
 
 	got, ok := GetResource[*Manager](w)
 	if !ok {
-		t.Fatal("expected pointer resource to be found")
+		t.Error("expected pointer resource to be found")
 	}
 	if got != mgr {
-		t.Fatal("expected the same pointer instance back")
+		t.Error("expected the same pointer instance back")
 	}
 	got.Count = 10
 	if mgr.Count != 10 {
-		t.Fatal("expected mutations through the retrieved pointer to be visible on the original")
+		t.Error("expected mutations through the retrieved pointer to be visible on the original")
 	}
 }
 
@@ -74,7 +74,7 @@ func TestRemoveResource(t *testing.T) {
 
 	_, ok := GetResource[string](w)
 	if ok {
-		t.Fatal("expected resource to be removed")
+		t.Error("expected resource to be removed")
 	}
 }
 
@@ -89,6 +89,6 @@ func TestGetResource_WrongTypeAssertionMismatch(t *testing.T) {
 
 	_, ok := GetResource[B](w)
 	if ok {
-		t.Fatal("expected no match for a different type with the same shape")
+		t.Error("expected no match for a different type with the same shape")
 	}
 }

@@ -12,7 +12,7 @@ func TestInputSnapshot(t *testing.T) {
 	t.Run("New", func(t *testing.T) {
 		s := NewInputSnapshot()
 		if s.Keyboard == nil || s.Mouse.Buttons == nil {
-			t.Fatal("maps not initialized")
+			t.Error("maps not initialized")
 		}
 		if s.Mouse.X != 0 || s.Mouse.Y != 0 {
 			t.Error("mouse position should be (0,0)")
@@ -148,7 +148,7 @@ func TestInputBuffer(t *testing.T) {
 		buf.Push(s2)
 
 		if buf.Count() != 2 {
-			t.Fatalf("expected count 2, got %d", buf.Count())
+			t.Errorf("expected count 2, got %d", buf.Count())
 		}
 
 		peeked, ok := buf.Peek()
@@ -191,7 +191,7 @@ func TestInputBuffer(t *testing.T) {
 		buf.Push(s3) // evicts s1
 
 		if buf.Count() != 2 {
-			t.Fatalf("expected count 2 after eviction, got %d", buf.Count())
+			t.Errorf("expected count 2 after eviction, got %d", buf.Count())
 		}
 
 		peeked, ok := buf.Peek()
@@ -209,14 +209,14 @@ func TestInputBuffer(t *testing.T) {
 		}
 
 		if buf.Count() != 3 {
-			t.Fatalf("expected count 3, got %d", buf.Count())
+			t.Errorf("expected count 3, got %d", buf.Count())
 		}
 
 		expected := []int{2, 3, 4}
 		for i, exp := range expected {
 			p, ok := buf.Pop()
 			if !ok {
-				t.Fatalf("Pop %d failed", i)
+				t.Errorf("Pop %d failed", i)
 			}
 			if p.Mouse.X != exp {
 				t.Errorf("Pop %d: expected X=%d, got %d", i, exp, p.Mouse.X)
@@ -252,7 +252,7 @@ func TestInputHandler(t *testing.T) {
 	t.Run("New", func(t *testing.T) {
 		h := New()
 		if h == nil {
-			t.Fatal("expected non-nil handler")
+			t.Error("expected non-nil handler")
 		}
 		if h.buffer == nil || h.buffer.size != 60 {
 			t.Errorf("expected buffer with size 60, got %d", h.buffer.size)
@@ -269,7 +269,7 @@ func TestInputHandler(t *testing.T) {
 		h := New()
 		buf := h.Buffer()
 		if buf == nil {
-			t.Fatal("expected non-nil buffer")
+			t.Error("expected non-nil buffer")
 		}
 		if buf != h.buffer {
 			t.Error("expected same buffer reference")
@@ -292,7 +292,7 @@ func TestInputHandler(t *testing.T) {
 
 		peeked, ok := h.buffer.Peek()
 		if !ok {
-			t.Fatal("expected snapshot in buffer after Snapshot()")
+			t.Error("expected snapshot in buffer after Snapshot()")
 		}
 		if peeked.Keyboard == nil || peeked.Mouse.Buttons == nil {
 			t.Error("expected pushed snapshot to have initialized maps")

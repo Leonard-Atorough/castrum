@@ -10,7 +10,7 @@ import (
 func TestNewAssets(t *testing.T) {
 	a := NewAssetLoader(nil)
 	if a.Textures == nil || a.Blueprints == nil {
-		t.Fatal("expected both stores to be initialized")
+		t.Error("expected both stores to be initialized")
 	}
 }
 
@@ -36,10 +36,10 @@ func TestAssetsLoad(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			res, err := a.LoadSync(tt.path)
 			if (err != nil) != tt.wantError {
-				t.Fatalf("Load(%q): got err %v, wantError %v", tt.path, err, tt.wantError)
+				t.Errorf("Load(%q): got err %v, wantError %v", tt.path, err, tt.wantError)
 			}
 			if (res == nil) != tt.wantNil {
-				t.Fatalf("Load(%q): got nil %v, wantNil %v", tt.path, res == nil, tt.wantNil)
+				t.Errorf("Load(%q): got nil %v, wantNil %v", tt.path, res == nil, tt.wantNil)
 			}
 		})
 	}
@@ -70,10 +70,10 @@ func TestLoadAsync(t *testing.T) {
 
 			result := <-a.LoadAsync(ctx, tt.path)
 			if (result.Err != nil) != tt.wantError {
-				t.Fatalf("LoadAsync(%q): got err %v, wantError %v", tt.path, result.Err, tt.wantError)
+				t.Errorf("LoadAsync(%q): got err %v, wantError %v", tt.path, result.Err, tt.wantError)
 			}
 			if (result.Value == nil) != tt.wantNil {
-				t.Fatalf("LoadAsync(%q): got nil %v, wantNil %v", tt.path, result.Value == nil, tt.wantNil)
+				t.Errorf("LoadAsync(%q): got nil %v, wantNil %v", tt.path, result.Value == nil, tt.wantNil)
 			}
 		})
 	}
@@ -91,10 +91,10 @@ func TestLoadAsyncCancellation(t *testing.T) {
 
 	result := <-a.LoadAsync(ctx, "test.yaml")
 	if result.Err == nil {
-		t.Fatal("LoadAsync: expected cancellation error, got nil")
+		t.Error("LoadAsync: expected cancellation error, got nil")
 	}
 	if result.Err != context.Canceled {
-		t.Fatalf("LoadAsync: expected context.Canceled, got %v", result.Err)
+		t.Errorf("LoadAsync: expected context.Canceled, got %v", result.Err)
 	}
 }
 
@@ -113,10 +113,10 @@ func TestLoadAsyncTimeout(t *testing.T) {
 
 	result := <-a.LoadAsync(ctx, "test.yaml")
 	if result.Err == nil {
-		t.Fatal("LoadAsync: expected timeout error, got nil")
+		t.Error("LoadAsync: expected timeout error, got nil")
 	}
 	if result.Err != context.DeadlineExceeded {
-		t.Fatalf("LoadAsync: expected context.DeadlineExceeded, got %v", result.Err)
+		t.Errorf("LoadAsync: expected context.DeadlineExceeded, got %v", result.Err)
 	}
 }
 
@@ -134,11 +134,11 @@ func TestLoadBatch(t *testing.T) {
 
 	results, err := a.LoadBatch(ctx, []string{"test1.yaml", "test2.yaml", "test3.yaml"})
 	if err != nil {
-		t.Fatalf("LoadBatch: got unexpected error %v", err)
+		t.Errorf("LoadBatch: got unexpected error %v", err)
 	}
 
 	if len(results) != 3 {
-		t.Fatalf("LoadBatch: expected 3 results, got %d", len(results))
+		t.Errorf("LoadBatch: expected 3 results, got %d", len(results))
 	}
 
 	for i, result := range results {
@@ -165,11 +165,11 @@ func TestLoadBatchPartialFailure(t *testing.T) {
 	// Mix valid and invalid paths
 	results, err := a.LoadBatch(ctx, []string{"test1.yaml", "missing.yaml", "test2.yaml"})
 	if err != nil {
-		t.Fatalf("LoadBatch: got unexpected error %v", err)
+		t.Errorf("LoadBatch: got unexpected error %v", err)
 	}
 
 	if len(results) != 3 {
-		t.Fatalf("LoadBatch: expected 3 results, got %d", len(results))
+		t.Errorf("LoadBatch: expected 3 results, got %d", len(results))
 	}
 
 	// test1.yaml should succeed
@@ -202,6 +202,6 @@ func TestLoadBatchCancellation(t *testing.T) {
 
 	_, err := a.LoadBatch(ctx, []string{"test1.yaml", "test2.yaml", "test3.yaml"})
 	if err != context.Canceled {
-		t.Fatalf("LoadBatch: expected context.Canceled, got %v", err)
+		t.Errorf("LoadBatch: expected context.Canceled, got %v", err)
 	}
 }

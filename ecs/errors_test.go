@@ -24,10 +24,10 @@ func TestErrorWrappers_Unwrap(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if !errors.Is(tc.err, tc.want) {
-				t.Fatalf("errors.Is failed to find %v through %T", tc.want, tc.err)
+				t.Errorf("errors.Is failed to find %v through %T", tc.want, tc.err)
 			}
 			if tc.err.Error() == "" {
-				t.Fatal("Error() should produce a non-empty message")
+				t.Error("Error() should produce a non-empty message")
 			}
 		})
 	}

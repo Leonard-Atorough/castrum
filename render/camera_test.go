@@ -22,7 +22,7 @@ func TestSystem_Update_ClampsCamera(t *testing.T) {
 
 	err := sys.Init(world)
 	if err != nil {
-		t.Fatalf("Init returned error: %v", err)
+		t.Errorf("Init returned error: %v", err)
 	}
 
 	// Create a camera with bounds
@@ -38,25 +38,25 @@ func TestSystem_Update_ClampsCamera(t *testing.T) {
 	// Create entity with camera
 	eid, err := world.CreateWithComponents("camera", cam)
 	if err != nil {
-		t.Fatalf("CreateWithComponents failed: %v", err)
+		t.Errorf("CreateWithComponents failed: %v", err)
 	}
 
 	// Update the system
 	err = sys.Update(world, 0.016)
 	if err != nil {
-		t.Fatalf("Update returned error: %v", err)
+		t.Errorf("Update returned error: %v", err)
 	}
 
 	// Retrieve camera and check it was clamped
 	updated, err := world.GetComponent[components.Camera](eid.ID)
 	if err != nil {
-		t.Fatalf("GetComponent failed: %v", err)
+		t.Errorf("GetComponent failed: %v", err)
 	}
 
 	viewport := updated.ViewportBounds()
 	if viewport.Min.X < updated.Bounds.Min.X-epsilonRect || viewport.Max.X > updated.Bounds.Max.X+epsilonRect ||
 		viewport.Min.Y < updated.Bounds.Min.Y-epsilonRect || viewport.Max.Y > updated.Bounds.Max.Y+epsilonRect {
-		t.Fatalf("viewport %v escapes bounds %v after system update", viewport, updated.Bounds)
+		t.Errorf("viewport %v escapes bounds %v after system update", viewport, updated.Bounds)
 	}
 }
 
@@ -66,7 +66,7 @@ func TestSystem_Update_MultipleCamera(t *testing.T) {
 
 	err := sys.Init(world)
 	if err != nil {
-		t.Fatalf("Init returned error: %v", err)
+		t.Errorf("Init returned error: %v", err)
 	}
 
 	// Create first camera with bounds
@@ -80,7 +80,7 @@ func TestSystem_Update_MultipleCamera(t *testing.T) {
 
 	eid1, err := world.CreateWithComponents("camera1", cam1)
 	if err != nil {
-		t.Fatalf("CreateWithComponents failed: %v", err)
+		t.Errorf("CreateWithComponents failed: %v", err)
 	}
 
 	// Create second camera with different bounds
@@ -94,27 +94,27 @@ func TestSystem_Update_MultipleCamera(t *testing.T) {
 
 	eid2, err := world.CreateWithComponents("camera2", cam2)
 	if err != nil {
-		t.Fatalf("CreateWithComponents failed: %v", err)
+		t.Errorf("CreateWithComponents failed: %v", err)
 	}
 
 	// Update system - should clamp both cameras
 	err = sys.Update(world, 0.016)
 	if err != nil {
-		t.Fatalf("Update returned error: %v", err)
+		t.Errorf("Update returned error: %v", err)
 	}
 
 	// Check first camera was clamped
 	cam1Updated, _ := world.GetComponent[components.Camera](eid1.ID)
 	vp1 := cam1Updated.ViewportBounds()
 	if vp1.Min.X < cam1Updated.Bounds.Min.X-epsilonRect {
-		t.Fatalf("camera1 viewport min escapes bounds after update")
+		t.Errorf("camera1 viewport min escapes bounds after update")
 	}
 
 	// Check second camera was clamped
 	cam2Updated, _ := world.GetComponent[components.Camera](eid2.ID)
 	vp2 := cam2Updated.ViewportBounds()
 	if vp2.Min.X < cam2Updated.Bounds.Min.X-epsilonRect {
-		t.Fatalf("camera2 viewport min escapes bounds after update")
+		t.Errorf("camera2 viewport min escapes bounds after update")
 	}
 }
 
@@ -124,7 +124,7 @@ func TestSystem_Update_UnboundedCameraNotAffected(t *testing.T) {
 
 	err := sys.Init(world)
 	if err != nil {
-		t.Fatalf("Init returned error: %v", err)
+		t.Errorf("Init returned error: %v", err)
 	}
 
 	// Create unbounded camera (no explicit bounds = infinite)
@@ -134,7 +134,7 @@ func TestSystem_Update_UnboundedCameraNotAffected(t *testing.T) {
 
 	eid, err := world.CreateWithComponents("camera", cam)
 	if err != nil {
-		t.Fatalf("CreateWithComponents failed: %v", err)
+		t.Errorf("CreateWithComponents failed: %v", err)
 	}
 
 	originalPos := cam.Position
@@ -142,13 +142,13 @@ func TestSystem_Update_UnboundedCameraNotAffected(t *testing.T) {
 	// Update system
 	err = sys.Update(world, 0.016)
 	if err != nil {
-		t.Fatalf("Update returned error: %v", err)
+		t.Errorf("Update returned error: %v", err)
 	}
 
 	// Check position was not modified
 	updated, _ := world.GetComponent[components.Camera](eid.ID)
 
 	if updated.Position != originalPos {
-		t.Fatalf("unbounded camera position changed from %v to %v", originalPos, updated.Position)
+		t.Errorf("unbounded camera position changed from %v to %v", originalPos, updated.Position)
 	}
 }

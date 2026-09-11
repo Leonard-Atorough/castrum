@@ -24,7 +24,7 @@ func TestScene_IntegrationWithRealWorld(t *testing.T) {
 	// Verify entities are in scene
 	entities := scene.Entities(world)
 	if len(entities) != 2 {
-		t.Fatalf("expected 2 entities in scene, got %d", len(entities))
+		t.Errorf("expected 2 entities in scene, got %d", len(entities))
 	}
 
 	// Verify both entities are in the scene's list
@@ -32,7 +32,7 @@ func TestScene_IntegrationWithRealWorld(t *testing.T) {
 	for _, id := range entities {
 		entity, exists := world.GetEntity(id)
 		if !exists {
-			t.Fatalf("entity %d does not exist in world", id)
+			t.Errorf("entity %d does not exist in world", id)
 		}
 		if entity.ID == entity1.ID {
 			foundEntity1 = true
@@ -42,14 +42,14 @@ func TestScene_IntegrationWithRealWorld(t *testing.T) {
 		}
 	}
 	if !foundEntity1 || !foundEntity2 {
-		t.Fatal("expected both entities to be in scene")
+		t.Error("expected both entities to be in scene")
 	}
 
 	// Remove from scene
 	_ = scene.RemoveFromScene(entity1.ID, world)
 	entities = scene.Entities(world)
 	if len(entities) != 1 {
-		t.Fatalf("expected 1 entity in scene after removal, got %d", len(entities))
+		t.Errorf("expected 1 entity in scene after removal, got %d", len(entities))
 	}
 }
 
@@ -75,20 +75,20 @@ func TestManager_IntegrationWithRealWorld(t *testing.T) {
 	_ = manager.TransitionTo(world, "level-1")
 
 	if manager.CurrentScene() != scene1 {
-		t.Fatal("expected current scene to be level-1")
+		t.Error("expected current scene to be level-1")
 	}
 
 	// Transition to level-2
 	_ = manager.TransitionTo(world, "level-2")
 
 	if manager.CurrentScene() != scene2 {
-		t.Fatal("expected current scene to be level-2")
+		t.Error("expected current scene to be level-2")
 	}
 
 	// Verify entity1 was removed from scene1 during transition
 	entities := scene1.Entities(world)
 	if len(entities) != 0 {
-		t.Fatalf("expected scene1 to have 0 entities after transition, got %d", len(entities))
+		t.Errorf("expected scene1 to have 0 entities after transition, got %d", len(entities))
 	}
 }
 
@@ -105,13 +105,13 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 
 	scene, err := builder.Build(world)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	// Verify scene has entities
 	entities := scene.Entities(world)
 	if len(entities) != 2 {
-		t.Fatalf("expected 2 entities in scene, got %d", len(entities))
+		t.Errorf("expected 2 entities in scene, got %d", len(entities))
 	}
 
 	// Test with hooks
@@ -126,7 +126,7 @@ func TestBuilder_IntegrationWithRealWorld(t *testing.T) {
 	_ = scene2.OnLoad(world)
 
 	if !loadCalled {
-		t.Fatal("expected load hook to be called")
+		t.Error("expected load hook to be called")
 	}
 }
 
@@ -155,33 +155,33 @@ func TestSceneManager_IntegrationWithRealWorld(t *testing.T) {
 
 	// Verify entities are in their respective scenes
 	if len(scene1.Entities(world)) != 2 {
-		t.Fatalf("expected 2 entities in level-1, got %d", len(scene1.Entities(world)))
+		t.Errorf("expected 2 entities in level-1, got %d", len(scene1.Entities(world)))
 	}
 	if len(scene2.Entities(world)) != 1 {
-		t.Fatalf("expected 1 entity in level-2, got %d", len(scene2.Entities(world)))
+		t.Errorf("expected 1 entity in level-2, got %d", len(scene2.Entities(world)))
 	}
 
 	// Transition to level-1
 	_ = manager.TransitionTo(world, "level-1")
 	if manager.CurrentScene() != scene1 {
-		t.Fatal("expected current scene to be level-1")
+		t.Error("expected current scene to be level-1")
 	}
 
 	// Transition to level-2
 	_ = manager.TransitionTo(world, "level-2")
 	if manager.CurrentScene() != scene2 {
-		t.Fatal("expected current scene to be level-2")
+		t.Error("expected current scene to be level-2")
 	}
 
 	// Verify level-1 entities were cleaned up
 	if len(scene1.Entities(world)) != 0 {
-		t.Fatalf("expected level-1 to have 0 entities after transition, got %d", len(scene1.Entities(world)))
+		t.Errorf("expected level-1 to have 0 entities after transition, got %d", len(scene1.Entities(world)))
 	}
 
 	// Unload level-2
 	_ = manager.UnloadScene(world, "level-2")
 	if manager.CurrentScene() != nil {
-		t.Fatal("expected no current scene after unloading level-2")
+		t.Error("expected no current scene after unloading level-2")
 	}
 }
 
@@ -211,29 +211,29 @@ func TestScene_Lifecycle_IntegrationWithRealWorld(t *testing.T) {
 	// Test OnLoad
 	err := scene.OnLoad(world)
 	if err != nil {
-		t.Fatalf("unexpected error during OnLoad: %v", err)
+		t.Errorf("unexpected error during OnLoad: %v", err)
 	}
 	if !loadCalled {
-		t.Fatal("expected load hook to be called")
+		t.Error("expected load hook to be called")
 	}
 
 	// Verify entity is in scene
 	if len(scene.Entities(world)) != 1 {
-		t.Fatalf("expected 1 entity in scene after load, got %d", len(scene.Entities(world)))
+		t.Errorf("expected 1 entity in scene after load, got %d", len(scene.Entities(world)))
 	}
 
 	// Test OnUnload
 	err = scene.OnUnload(world)
 	if err != nil {
-		t.Fatalf("unexpected error during OnUnload: %v", err)
+		t.Errorf("unexpected error during OnUnload: %v", err)
 	}
 	if !unloadCalled {
-		t.Fatal("expected unload hook to be called")
+		t.Error("expected unload hook to be called")
 	}
 
 	// Verify entities are removed
 	if len(scene.Entities(world)) != 0 {
-		t.Fatalf("expected 0 entities in scene after unload, got %d", len(scene.Entities(world)))
+		t.Errorf("expected 0 entities in scene after unload, got %d", len(scene.Entities(world)))
 	}
 }
 
@@ -250,23 +250,23 @@ func TestScene_Data_IntegrationWithRealWorld(t *testing.T) {
 	// Verify data retrieval
 	val, ok := scene.GetData("secs")
 	if !ok || val != 1000 {
-		t.Fatal("expected secs to be 1000")
+		t.Error("expected secs to be 1000")
 	}
 
 	val, ok = scene.GetData("name")
 	if !ok || val != "test-level" {
-		t.Fatal("expected name to be 'test-level'")
+		t.Error("expected name to be 'test-level'")
 	}
 
 	val, ok = scene.GetData("completed")
 	if !ok || val != true {
-		t.Fatal("expected completed to be true")
+		t.Error("expected completed to be true")
 	}
 
 	// Verify non-existent key
 	_, ok = scene.GetData("nonexistent")
 	if ok {
-		t.Fatal("expected nonexistent key to not exist")
+		t.Error("expected nonexistent key to not exist")
 	}
 
 	// Test with entities
@@ -276,6 +276,6 @@ func TestScene_Data_IntegrationWithRealWorld(t *testing.T) {
 	// Data should still be accessible
 	val, ok = scene.GetData("secs")
 	if !ok || val != 1000 {
-		t.Fatal("expected secs to still be 1000 after adding entity")
+		t.Error("expected secs to still be 1000 after adding entity")
 	}
 }

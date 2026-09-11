@@ -9,7 +9,7 @@ import (
 func TestNewWorld(t *testing.T) {
 	w := NewWorld()
 	if w.Count() != 0 {
-		t.Fatalf("expected a new world to have 0 entities, got %d", w.Count())
+		t.Errorf("expected a new world to have 0 entities, got %d", w.Count())
 	}
 }
 
@@ -19,13 +19,13 @@ func TestWorld_Create(t *testing.T) {
 		e := w.Create("Province")
 
 		if !w.HasEntity(e.ID) {
-			t.Fatal("created entity should exist in the world")
+			t.Error("created entity should exist in the world")
 		}
 		if e.Template() != "Province" {
-			t.Fatalf("expected template %q, got %q", "Province", e.Template())
+			t.Errorf("expected template %q, got %q", "Province", e.Template())
 		}
 		if got := w.Components(e.ID); len(got) != 0 {
-			t.Fatalf("bare entity should have no components, got %#v", got)
+			t.Errorf("bare entity should have no components, got %#v", got)
 		}
 	})
 
@@ -36,18 +36,18 @@ func TestWorld_Create(t *testing.T) {
 
 		e, err := w.CreateWithComponents("Unit", pos, vel)
 		if err != nil {
-			t.Fatalf("CreateWithComponents failed: %v", err)
+			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 
 		got, err := w.GetComponent[TestPosition](e.ID)
 		if err != nil {
-			t.Fatalf("GetComponent failed: %v", err)
+			t.Errorf("GetComponent failed: %v", err)
 		}
 		if got != pos {
-			t.Fatalf("expected position %#v, got %#v", pos, got)
+			t.Errorf("expected position %#v, got %#v", pos, got)
 		}
 		if !w.HasComponent[TestVelocity](e.ID) {
-			t.Fatal("expected entity to have TestVelocity")
+			t.Error("expected entity to have TestVelocity")
 		}
 	})
 
@@ -56,16 +56,16 @@ func TestWorld_Create(t *testing.T) {
 		entities := w.CreateMany("Grunt", 3)
 
 		if len(entities) != 3 {
-			t.Fatalf("expected 3 entities, got %d", len(entities))
+			t.Errorf("expected 3 entities, got %d", len(entities))
 		}
 		seen := make(map[EntityID]bool)
 		for _, e := range entities {
 			if seen[e.ID] {
-				t.Fatalf("duplicate entity ID %d", e.ID)
+				t.Errorf("duplicate entity ID %d", e.ID)
 			}
 			seen[e.ID] = true
 			if !w.HasEntity(e.ID) {
-				t.Fatalf("entity %d should exist in the world", e.ID)
+				t.Errorf("entity %d should exist in the world", e.ID)
 			}
 		}
 	})
@@ -77,15 +77,15 @@ func TestWorld_DestroyEntity(t *testing.T) {
 		e := w.Create("Generic")
 
 		if err := w.DestroyEntity(e.ID, false); err != nil {
-			t.Fatalf("DestroyEntity failed: %v", err)
+			t.Errorf("DestroyEntity failed: %v", err)
 		}
 		if !w.HasEntity(e.ID) {
-			t.Fatal("entity should still exist until Cleanup runs")
+			t.Error("entity should still exist until Cleanup runs")
 		}
 
 		w.Cleanup()
 		if w.HasEntity(e.ID) {
-			t.Fatal("entity should be gone after Cleanup")
+			t.Error("entity should be gone after Cleanup")
 		}
 	})
 
@@ -98,13 +98,13 @@ func TestWorld_DestroyEntity(t *testing.T) {
 		w.SetParent(grandchild.ID, child.ID)
 
 		if err := w.DestroyEntity(parent.ID, true); err != nil {
-			t.Fatalf("DestroyEntity failed: %v", err)
+			t.Errorf("DestroyEntity failed: %v", err)
 		}
 		w.Cleanup()
 
 		for _, id := range []EntityID{parent.ID, child.ID, grandchild.ID} {
 			if w.HasEntity(id) {
-				t.Fatalf("entity %d should be destroyed by cascade", id)
+				t.Errorf("entity %d should be destroyed by cascade", id)
 			}
 		}
 	})
@@ -116,22 +116,22 @@ func TestWorld_DestroyEntity(t *testing.T) {
 		w.SetParent(child.ID, parent.ID)
 
 		if err := w.DestroyEntity(parent.ID, false); err != nil {
-			t.Fatalf("DestroyEntity failed: %v", err)
+			t.Errorf("DestroyEntity failed: %v", err)
 		}
 		w.Cleanup()
 
 		if !w.HasEntity(child.ID) {
-			t.Fatal("child should survive a non-cascade destroy")
+			t.Error("child should survive a non-cascade destroy")
 		}
 		if _, ok := w.ParentOf(child.ID); ok {
-			t.Fatal("child should be detached from the destroyed parent")
+			t.Error("child should be detached from the destroyed parent")
 		}
 	})
 
 	t.Run("destroying an unknown entity returns an error", func(t *testing.T) {
 		w := NewWorld()
 		if err := w.DestroyEntity(999, false); !errors.Is(err, ErrEntityNotFound) {
-			t.Fatalf("expected ErrEntityNotFound, got %v", err)
+			t.Errorf("expected ErrEntityNotFound, got %v", err)
 		}
 	})
 
@@ -145,24 +145,24 @@ func TestWorld_DestroyEntity(t *testing.T) {
 		c, _ := w.CreateWithComponents("Unit", TestPosition{X: 3})
 
 		if err := w.DestroyEntity(b.ID, false); err != nil {
-			t.Fatalf("DestroyEntity failed: %v", err)
+			t.Errorf("DestroyEntity failed: %v", err)
 		}
 		w.Cleanup()
 
 		gotA, err := w.GetComponent[TestPosition](a.ID)
 		if err != nil {
-			t.Fatalf("GetComponent(a) failed: %v", err)
+			t.Errorf("GetComponent(a) failed: %v", err)
 		}
 		if gotA.X != 1 {
-			t.Fatalf("entity a's position corrupted after sibling removal: got %#v", gotA)
+			t.Errorf("entity a's position corrupted after sibling removal: got %#v", gotA)
 		}
 
 		gotC, err := w.GetComponent[TestPosition](c.ID)
 		if err != nil {
-			t.Fatalf("GetComponent(c) failed: %v", err)
+			t.Errorf("GetComponent(c) failed: %v", err)
 		}
 		if gotC.X != 3 {
-			t.Fatalf("entity c's position corrupted after sibling removal: got %#v", gotC)
+			t.Errorf("entity c's position corrupted after sibling removal: got %#v", gotC)
 		}
 	})
 }
@@ -173,18 +173,18 @@ func TestWorld_Components(t *testing.T) {
 		e := w.Create("Generic")
 
 		if err := w.AddComponent(e.ID, TestPosition{X: 1, Y: 2}); err != nil {
-			t.Fatalf("AddComponent failed: %v", err)
+			t.Errorf("AddComponent failed: %v", err)
 		}
 		if !w.HasComponent[TestPosition](e.ID) {
-			t.Fatal("entity should have TestPosition after AddComponent")
+			t.Error("entity should have TestPosition after AddComponent")
 		}
 
 		got, err := w.GetComponent[TestPosition](e.ID)
 		if err != nil {
-			t.Fatalf("GetComponent failed: %v", err)
+			t.Errorf("GetComponent failed: %v", err)
 		}
 		if got != (TestPosition{X: 1, Y: 2}) {
-			t.Fatalf("unexpected component value: %#v", got)
+			t.Errorf("unexpected component value: %#v", got)
 		}
 	})
 
@@ -194,17 +194,17 @@ func TestWorld_Components(t *testing.T) {
 
 		err := w.AddComponent(e.ID, TestPosition{X: 1, Y: 2}, TestVelocity{X: 3, Y: 4}, TestHealth{Value: 100})
 		if err != nil {
-			t.Fatalf("AddComponent failed: %v", err)
+			t.Errorf("AddComponent failed: %v", err)
 		}
 
 		if !w.HasComponent[TestPosition](e.ID) {
-			t.Fatalf("expected entity to have TestPosition component")
+			t.Errorf("expected entity to have TestPosition component")
 		}
 		if !w.HasComponent[TestVelocity](e.ID) {
-			t.Fatalf("expected entity to have TestVelocity component")
+			t.Errorf("expected entity to have TestVelocity component")
 		}
 		if !w.HasComponent[TestHealth](e.ID) {
-			t.Fatalf("expected entity to have TestHealth component")
+			t.Errorf("expected entity to have TestHealth component")
 		}
 	})
 
@@ -214,12 +214,12 @@ func TestWorld_Components(t *testing.T) {
 		w.AddComponent(e.ID, TestHealth{Value: 100})
 
 		if err := w.AddComponent(e.ID, TestHealth{Value: 50}); err != nil {
-			t.Fatalf("AddComponent failed: %v", err)
+			t.Errorf("AddComponent failed: %v", err)
 		}
 
 		got, _ := w.GetComponent[TestHealth](e.ID)
 		if got != (TestHealth{Value: 50}) {
-			t.Fatalf("expected updated health value, got %#v", got)
+			t.Errorf("expected updated health value, got %#v", got)
 		}
 	})
 
@@ -229,12 +229,12 @@ func TestWorld_Components(t *testing.T) {
 		w.AddComponent(e.ID, TestHealth{Value: 100})
 
 		if err := w.SetComponent(e.ID, TestHealth{Value: 10}); err != nil {
-			t.Fatalf("SetComponent failed: %v", err)
+			t.Errorf("SetComponent failed: %v", err)
 		}
 
 		got, _ := w.GetComponent[TestHealth](e.ID)
 		if got != (TestHealth{Value: 10}) {
-			t.Fatalf("expected health 10, got %#v", got)
+			t.Errorf("expected health 10, got %#v", got)
 		}
 	})
 
@@ -244,13 +244,13 @@ func TestWorld_Components(t *testing.T) {
 		w.AddComponent(e.ID, TestPosition{X: 1, Y: 2}, TestVelocity{X: 3, Y: 4})
 
 		if err := w.RemoveComponent[TestPosition](e.ID); err != nil {
-			t.Fatalf("RemoveComponent failed: %v", err)
+			t.Errorf("RemoveComponent failed: %v", err)
 		}
 		if w.HasComponent[TestPosition](e.ID) {
-			t.Fatal("TestPosition should have been removed")
+			t.Error("TestPosition should have been removed")
 		}
 		if !w.HasComponent[TestVelocity](e.ID) {
-			t.Fatal("TestVelocity should still be present")
+			t.Error("TestVelocity should still be present")
 		}
 	})
 
@@ -259,7 +259,7 @@ func TestWorld_Components(t *testing.T) {
 		e := w.Create("Generic")
 
 		if err := w.RemoveComponent[TestPosition](e.ID); err != nil {
-			t.Fatalf("expected no error, got %v", err)
+			t.Errorf("expected no error, got %v", err)
 		}
 	})
 
@@ -268,7 +268,7 @@ func TestWorld_Components(t *testing.T) {
 		e := w.Create("Generic")
 
 		if _, err := w.GetComponent[TestPosition](e.ID); err == nil {
-			t.Fatal("expected an error getting a component the entity doesn't have")
+			t.Error("expected an error getting a component the entity doesn't have")
 		}
 	})
 
@@ -277,13 +277,13 @@ func TestWorld_Components(t *testing.T) {
 		unknown := EntityID(999)
 
 		if err := w.AddComponent(unknown, TestPosition{}); !errors.Is(err, ErrEntityNotFound) {
-			t.Fatalf("AddComponent: expected ErrEntityNotFound, got %v", err)
+			t.Errorf("AddComponent: expected ErrEntityNotFound, got %v", err)
 		}
 		if _, err := w.GetComponent[TestPosition](unknown); !errors.Is(err, ErrEntityNotFound) {
-			t.Fatalf("GetComponent: expected ErrEntityNotFound, got %v", err)
+			t.Errorf("GetComponent: expected ErrEntityNotFound, got %v", err)
 		}
 		if err := w.RemoveComponent[TestPosition](unknown); !errors.Is(err, ErrEntityNotFound) {
-			t.Fatalf("RemoveComponent: expected ErrEntityNotFound, got %v", err)
+			t.Errorf("RemoveComponent: expected ErrEntityNotFound, got %v", err)
 		}
 	})
 }
@@ -302,27 +302,27 @@ func TestWorld_Query(t *testing.T) {
 	t.Run("NewQuery Builder returns entities that have every requested component", func(t *testing.T) {
 		got := w.NewQuery().WithRequiredComponents(TestPosition{}, TestVelocity{}).EntityIDs()
 		if !idsMatchUnordered(got, []EntityID{posAndVel.ID}) {
-			t.Fatalf("expected only the entity with both components, got %#v", got)
+			t.Errorf("expected only the entity with both components, got %#v", got)
 		}
 	})
 
 	t.Run("Query required component matches archetypes with extra components", func(t *testing.T) {
 		got := w.NewQuery().WithRequiredComponents(TestPosition{}).EntityIDs()
 		if !idsMatchUnordered(got, []EntityID{posOnly.ID, posAndVel.ID}) {
-			t.Fatalf("expected entities with TestPosition including supersets, got %#v", got)
+			t.Errorf("expected entities with TestPosition including supersets, got %#v", got)
 		}
 	})
 
 	t.Run("Query excluded component filters out matching entities", func(t *testing.T) {
 		got := w.NewQuery().WithExcludedComponents(TestVelocity{}).EntityIDs()
 		if !idsMatchUnordered(got, []EntityID{posOnly.ID}) {
-			t.Fatalf("expected entities without TestVelocity, got %#v", got)
+			t.Errorf("expected entities without TestVelocity, got %#v", got)
 		}
 	})
 
 	t.Run("Query for a component nobody has returns nothing", func(t *testing.T) {
 		if got := w.NewQuery().WithRequiredComponents(TestHealth{}).EntityIDs(); len(got) != 0 {
-			t.Fatalf("expected no matches, got %#v", got)
+			t.Errorf("expected no matches, got %#v", got)
 		}
 	})
 }
@@ -334,30 +334,30 @@ func TestWorld_TypedComponentHelpers(t *testing.T) {
 
 	t.Run("SetComponent updates an existing typed component", func(t *testing.T) {
 		if err := w.SetComponent(e.ID, TestPosition{X: 5, Y: 6}); err != nil {
-			t.Fatalf("SetComponent failed: %v", err)
+			t.Errorf("SetComponent failed: %v", err)
 		}
 
 		got, err := w.GetComponent[TestPosition](e.ID)
 		if err != nil {
-			t.Fatalf("GetComponent failed: %v", err)
+			t.Errorf("GetComponent failed: %v", err)
 		}
 		if got != (TestPosition{X: 5, Y: 6}) {
-			t.Fatalf("unexpected value: %#v", got)
+			t.Errorf("unexpected value: %#v", got)
 		}
 	})
 
 	t.Run("HasComponent reflects presence of the typed component", func(t *testing.T) {
 		if !w.HasComponent[TestPosition](e.ID) {
-			t.Fatal("expected entity to have TestPosition")
+			t.Error("expected entity to have TestPosition")
 		}
 		if w.HasComponent[TestVelocity](e.ID) {
-			t.Fatal("did not expect entity to have TestVelocity")
+			t.Error("did not expect entity to have TestVelocity")
 		}
 	})
 
 	t.Run("GetComponent returns an error for a type the entity doesn't have", func(t *testing.T) {
 		if _, err := w.GetComponent[TestVelocity](e.ID); err == nil {
-			t.Fatal("expected an error")
+			t.Error("expected an error")
 		}
 	})
 }
@@ -372,10 +372,10 @@ func TestWorld_Hierarchy(t *testing.T) {
 
 		gotParent, ok := w.ParentOf(child.ID)
 		if !ok || gotParent != parent.ID {
-			t.Fatalf("expected parent %d, got %d (ok=%v)", parent.ID, gotParent, ok)
+			t.Errorf("expected parent %d, got %d (ok=%v)", parent.ID, gotParent, ok)
 		}
 		if !slices.Contains(w.ChildrenOf(parent.ID), child.ID) {
-			t.Fatal("expected child to be listed under parent")
+			t.Error("expected child to be listed under parent")
 		}
 	})
 
@@ -383,7 +383,7 @@ func TestWorld_Hierarchy(t *testing.T) {
 		w.Detach(child.ID)
 
 		if _, ok := w.ParentOf(child.ID); ok {
-			t.Fatal("expected child to have no parent after Detach")
+			t.Error("expected child to have no parent after Detach")
 		}
 	})
 }
@@ -398,15 +398,15 @@ func TestWorld_Reset(t *testing.T) {
 	w.Reset()
 
 	if w.Count() != 0 {
-		t.Fatalf("expected 0 entities after reset, got %d", w.Count())
+		t.Errorf("expected 0 entities after reset, got %d", w.Count())
 	}
 	if w.HasEntity(child.ID) {
-		t.Fatal("entity should not exist after reset")
+		t.Error("entity should not exist after reset")
 	}
 
 	fresh := w.Create("Generic")
 	if !w.HasEntity(fresh.ID) {
-		t.Fatal("should be able to create entities after reset")
+		t.Error("should be able to create entities after reset")
 	}
 }
 

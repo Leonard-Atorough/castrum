@@ -140,7 +140,7 @@ func TestSpatialIndex_UpdateExistingEntity(t *testing.T) {
 	pos1 := geom.Vector2{X: 5.0, Y: 5.0}
 	err := idx.Update(entityID, pos1)
 	if err != nil {
-		t.Fatalf("Update() failed: %v", err)
+		t.Errorf("Update() failed: %v", err)
 	}
 
 	cell1 := idx.worldToGrid(pos1)
@@ -152,7 +152,7 @@ func TestSpatialIndex_UpdateExistingEntity(t *testing.T) {
 	pos2 := geom.Vector2{X: 25.0, Y: 25.0}
 	err = idx.Update(entityID, pos2)
 	if err != nil {
-		t.Fatalf("Update() failed: %v", err)
+		t.Errorf("Update() failed: %v", err)
 	}
 
 	cell2 := idx.worldToGrid(pos2)
@@ -168,7 +168,7 @@ func TestSpatialIndex_UpdateExistingEntity(t *testing.T) {
 	pos3 := geom.Vector2{X: 26.0, Y: 26.0}
 	err = idx.Update(entityID, pos3)
 	if err != nil {
-		t.Fatalf("Update() failed: %v", err)
+		t.Errorf("Update() failed: %v", err)
 	}
 
 	// Verify entity still in same cell
@@ -191,7 +191,7 @@ func TestSpatialIndex_Query(t *testing.T) {
 
 	for id, pos := range entities {
 		if err := idx.Update(id, pos); err != nil {
-			t.Fatalf("Update() failed: %v", err)
+			t.Errorf("Update() failed: %v", err)
 		}
 	}
 
@@ -462,7 +462,7 @@ func TestSpatialIndex_LargeDataset(t *testing.T) {
 		x := float64((i % 100) * 5)
 		y := float64((i / 100) * 5)
 		if err := idx.Update(ecs.EntityID(i), geom.Vector2{X: x, Y: y}); err != nil {
-			t.Fatalf("Update() failed: %v", err)
+			t.Errorf("Update() failed: %v", err)
 		}
 	}
 
@@ -491,7 +491,7 @@ func TestSpatialIndex_UpdateToSamePosition(t *testing.T) {
 	// Same position update should not error and keep entity in same place
 	err := idx.Update(entityID, pos)
 	if err != nil {
-		t.Fatalf("Update() failed: %v", err)
+		t.Errorf("Update() failed: %v", err)
 	}
 
 	if _, exists := idx.cells[cell][entityID]; !exists {

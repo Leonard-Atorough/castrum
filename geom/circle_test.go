@@ -20,7 +20,7 @@ func TestCircle_Contains(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := c.Contains(tc.point); got != tc.want {
-				t.Fatalf("Contains(%v) = %v, want %v", tc.point, got, tc.want)
+				t.Errorf("Contains(%v) = %v, want %v", tc.point, got, tc.want)
 			}
 		})
 	}
@@ -40,7 +40,7 @@ func TestCircle_Intersects(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := c.Intersects(tc.other); got != tc.want {
-				t.Fatalf("Intersects(%v) = %v, want %v", tc.other, got, tc.want)
+				t.Errorf("Intersects(%v) = %v, want %v", tc.other, got, tc.want)
 			}
 		})
 	}
@@ -50,9 +50,9 @@ func TestCircle_AreaAndCircumference(t *testing.T) {
 	c := Circle{Radius: 2}
 
 	if got, want := c.Area(), math.Pi*4; math.Abs(got-want) > 1e-9 {
-		t.Fatalf("Area() = %v, want %v", got, want)
+		t.Errorf("Area() = %v, want %v", got, want)
 	}
 	if got, want := c.Circumference(), 2*math.Pi*2; math.Abs(got-want) > 1e-9 {
-		t.Fatalf("Circumference() = %v, want %v", got, want)
+		t.Errorf("Circumference() = %v, want %v", got, want)
 	}
 }

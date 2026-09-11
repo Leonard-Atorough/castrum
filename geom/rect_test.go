@@ -8,13 +8,13 @@ func TestRect_Dimensions(t *testing.T) {
 	r := Rect{Min: Vector2{X: 0, Y: 0}, Max: Vector2{X: 10, Y: 5}}
 
 	if got := r.Width(); got != 10 {
-		t.Fatalf("Width() = %v, want 10", got)
+		t.Errorf("Width() = %v, want 10", got)
 	}
 	if got := r.Height(); got != 5 {
-		t.Fatalf("Height() = %v, want 5", got)
+		t.Errorf("Height() = %v, want 5", got)
 	}
 	if got := r.Area(); got != 50 {
-		t.Fatalf("Area() = %v, want 50", got)
+		t.Errorf("Area() = %v, want 50", got)
 	}
 }
 
@@ -33,7 +33,7 @@ func TestRect_Contains(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := r.Contains(tc.point); got != tc.want {
-				t.Fatalf("Contains(%v) = %v, want %v", tc.point, got, tc.want)
+				t.Errorf("Contains(%v) = %v, want %v", tc.point, got, tc.want)
 			}
 		})
 	}
@@ -54,7 +54,7 @@ func TestRect_Intersects(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := r.Intersects(tc.other); got != tc.want {
-				t.Fatalf("Intersects(%v) = %v, want %v", tc.other, got, tc.want)
+				t.Errorf("Intersects(%v) = %v, want %v", tc.other, got, tc.want)
 			}
 		})
 	}
@@ -63,6 +63,6 @@ func TestRect_Intersects(t *testing.T) {
 func TestRect_String(t *testing.T) {
 	r := Rect{Min: Vector2{X: 0, Y: 0}, Max: Vector2{X: 1, Y: 1}}
 	if got := r.String(); got == "" {
-		t.Fatal("String() should not be empty")
+		t.Error("String() should not be empty")
 	}
 }

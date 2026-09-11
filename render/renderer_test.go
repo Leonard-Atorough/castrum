@@ -70,7 +70,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("empty world draws nothing and does not panic", func(t *testing.T) {
 		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
 		renderer.DrawScene(screen, world)
 	})
@@ -78,7 +78,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("primitive entities of every kind draw without panicking", func(t *testing.T) {
 		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
 		kinds := []components.PrimitiveType{
 			components.PrimitiveKindRectangle,
@@ -91,7 +91,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 				components.Sprite{Primitive: kind, Visible: true},
 			)
 			if err != nil {
-				t.Fatalf("CreateWithComponents failed: %v", err)
+				t.Errorf("CreateWithComponents failed: %v", err)
 			}
 		}
 		renderer.DrawScene(screen, world)
@@ -100,14 +100,14 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("a Transform with a nil Color does not panic (regression)", func(t *testing.T) {
 		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
 		_, err := world.CreateWithComponents("shape",
 			components.Transform{Scale: geom.Vector2{X: 10, Y: 10}, Color: nil},
 			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true},
 		)
 		if err != nil {
-			t.Fatalf("CreateWithComponents failed: %v", err)
+			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 		renderer.DrawScene(screen, world)
 	})
@@ -115,14 +115,14 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("sprite entities with a registered texture draw without panicking", func(t *testing.T) {
 		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
 		_, err := world.CreateWithComponents("sprite",
 			components.Transform{Scale: geom.Vector2{X: 1, Y: 1}, Color: color.White},
 			components.Sprite{TexturePath: "square", Visible: true},
 		)
 		if err != nil {
-			t.Fatalf("CreateWithComponents failed: %v", err)
+			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 		renderer.DrawScene(screen, world)
 	})
@@ -130,14 +130,14 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("sprite entities with a missing texture are silently skipped", func(t *testing.T) {
 		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
 		_, err := world.CreateWithComponents("sprite",
 			components.Transform{},
 			components.Sprite{TexturePath: "does-not-exist", Visible: true},
 		)
 		if err != nil {
-			t.Fatalf("CreateWithComponents failed: %v", err)
+			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 		renderer.DrawScene(screen, world)
 	})
@@ -145,14 +145,14 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("invisible entities are skipped", func(t *testing.T) {
 		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
 		id, err := world.CreateWithComponents("shape",
 			components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
 			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: false},
 		)
 		if err != nil {
-			t.Fatalf("CreateWithComponents failed: %v", err)
+			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 		renderer.DrawScene(screen, world)
 		_ = id
@@ -161,7 +161,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("draws entities in ascending layer order without panicking", func(t *testing.T) {
 		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
 		for _, layer := range []uint8{31, 0, 10} {
 			_, err := world.CreateWithComponents("shape",
@@ -169,7 +169,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: layer},
 			)
 			if err != nil {
-				t.Fatalf("CreateWithComponents failed: %v", err)
+				t.Errorf("CreateWithComponents failed: %v", err)
 			}
 		}
 		renderer.DrawScene(screen, world)
@@ -178,7 +178,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("depth sorting within same layer and Y position", func(t *testing.T) {
 		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
 		// Create three entities at same layer, same Y, different depths.
 		// Expected render order (first to last): depth 10, 50, 100
@@ -190,7 +190,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0, SortOrder: depth},
 			)
 			if err != nil {
-				t.Fatalf("CreateWithComponents failed: %v", err)
+				t.Errorf("CreateWithComponents failed: %v", err)
 			}
 		}
 		renderer.DrawScene(screen, world)
@@ -199,7 +199,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("depth takes priority over Y position within same layer", func(t *testing.T) {
 		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
 		// Create two entities at same layer but different Y positions and depths.
 		// Higher depth should render on top regardless of Y.
@@ -210,14 +210,14 @@ func TestRenderer_DrawScene(t *testing.T) {
 			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0, SortOrder: 50},
 		)
 		if err != nil {
-			t.Fatalf("CreateWithComponents failed: %v", err)
+			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 		_, err = world.CreateWithComponents("front",
 			components.Transform{Position: geom.Vector2{X: 0, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
 			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0, SortOrder: 100},
 		)
 		if err != nil {
-			t.Fatalf("CreateWithComponents failed: %v", err)
+			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 		renderer.DrawScene(screen, world)
 	})
@@ -225,7 +225,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 	t.Run("Y position is fallback when layer and depth are equal", func(t *testing.T) {
 		world := ecs.NewWorld()
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
 		// Create two entities at same layer, same depth, different Y.
 		// Should sort by Y (smaller Y renders first).
@@ -234,14 +234,14 @@ func TestRenderer_DrawScene(t *testing.T) {
 			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0, SortOrder: 50},
 		)
 		if err != nil {
-			t.Fatalf("CreateWithComponents failed: %v", err)
+			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 		_, err = world.CreateWithComponents("higher",
 			components.Transform{Position: geom.Vector2{X: 0, Y: 70}, Scale: geom.Vector2{X: 10, Y: 10}},
 			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0, SortOrder: 50},
 		)
 		if err != nil {
-			t.Fatalf("CreateWithComponents failed: %v", err)
+			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 		renderer.DrawScene(screen, world)
 	})
@@ -252,7 +252,7 @@ func TestRenderer_DrawDebugInfo(t *testing.T) {
 	screen := ebiten.NewImage(200, 200)
 	world := ecs.NewWorld()
 	if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-		t.Fatalf("setupTestWorldWithCamera failed: %v", err)
+		t.Errorf("setupTestWorldWithCamera failed: %v", err)
 	}
 
 	renderer.DrawDebugInfo(screen, world)

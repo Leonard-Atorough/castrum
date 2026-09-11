@@ -9,7 +9,7 @@ import (
 func TestNewEventBus(t *testing.T) {
 	bus := NewEventBus()
 	if bus == nil {
-		t.Fatal("NewEventBus returned nil")
+		t.Error("NewEventBus returned nil")
 	}
 	if bus.nextSubID != 1 {
 		t.Errorf("expected nextSubID to be 1, got %d", bus.nextSubID)
@@ -33,7 +33,7 @@ func TestOn_SingleHandler(t *testing.T) {
 
 	bus.Emit(TestEvent{value: 42}, "test")
 	if !called {
-		t.Fatal("handler was not called")
+		t.Error("handler was not called")
 	}
 }
 
@@ -50,7 +50,7 @@ func TestOn_MultipleHandlers(t *testing.T) {
 
 	bus.Emit(TestEvent{value: 42}, "test")
 	if !call1 || !call2 {
-		t.Fatal("not all handlers were called")
+		t.Error("not all handlers were called")
 	}
 }
 
@@ -61,7 +61,7 @@ func TestOn_ReturnsUniqueIDs(t *testing.T) {
 	id3 := bus.On(func(meta EventMeta, e TestEvent) {}, false)
 
 	if id1 == id2 || id2 == id3 || id1 == id3 {
-		t.Fatalf("expected unique IDs, got %d, %d, %d", id1, id2, id3)
+		t.Errorf("expected unique IDs, got %d, %d, %d", id1, id2, id3)
 	}
 }
 
@@ -80,10 +80,10 @@ func TestOn_MetadataPassedCorrectly(t *testing.T) {
 		t.Errorf("expected source 'mySource', got '%s'", capturedMeta.Source)
 	}
 	if capturedMeta.EventType == "" {
-		t.Fatal("EventType was empty")
+		t.Error("EventType was empty")
 	}
 	if capturedMeta.Timestamp == 0 {
-		t.Fatal("Timestamp was zero")
+		t.Error("Timestamp was zero")
 	}
 }
 
@@ -132,7 +132,7 @@ func TestUnsubscribe(t *testing.T) {
 	bus.Emit(TestEvent{value: 42}, "test")
 
 	if called {
-		t.Fatal("handler was called after unsubscribe")
+		t.Error("handler was called after unsubscribe")
 	}
 }
 
@@ -156,7 +156,7 @@ func TestOffAll(t *testing.T) {
 	bus.Emit(TestEvent{value: 42}, "test")
 
 	if call1 || call2 {
-		t.Fatal("handlers were called after OffAll")
+		t.Error("handlers were called after OffAll")
 	}
 }
 
@@ -177,7 +177,7 @@ func TestClear(t *testing.T) {
 	bus.Emit(AnotherEvent{name: "test"}, "test")
 
 	if call1 || call2 {
-		t.Fatal("handlers were called after Clear")
+		t.Error("handlers were called after Clear")
 	}
 }
 
@@ -185,19 +185,19 @@ func TestHasSubscribers(t *testing.T) {
 	bus := NewEventBus()
 
 	if bus.HasSubscribers[TestEvent]() {
-		t.Fatal("expected no subscribers initially")
+		t.Error("expected no subscribers initially")
 	}
 
 	bus.On(func(meta EventMeta, e TestEvent) {}, false)
 
 	if !bus.HasSubscribers[TestEvent]() {
-		t.Fatal("expected HasSubscribers to return true")
+		t.Error("expected HasSubscribers to return true")
 	}
 
 	bus.OffAll[TestEvent]()
 
 	if bus.HasSubscribers[TestEvent]() {
-		t.Fatal("expected HasSubscribers to return false after OffAll")
+		t.Error("expected HasSubscribers to return false after OffAll")
 	}
 }
 
@@ -205,7 +205,7 @@ func TestSubscriberCount(t *testing.T) {
 	bus := NewEventBus()
 
 	if bus.SubscriberCount[TestEvent]() != 0 {
-		t.Fatal("expected count 0 initially")
+		t.Error("expected count 0 initially")
 	}
 
 	bus.On(func(meta EventMeta, e TestEvent) {}, false)
@@ -248,10 +248,10 @@ func TestHandlerPanicDoesNotCrashBus(t *testing.T) {
 	}()
 
 	if recovered {
-		t.Fatal("panic propagated from bus.Emit")
+		t.Error("panic propagated from bus.Emit")
 	}
 	if !secondHandlerCalled {
-		t.Fatal("second handler was not called after first handler panicked")
+		t.Error("second handler was not called after first handler panicked")
 	}
 }
 
@@ -284,7 +284,7 @@ func TestHandlerCanEmitEvents_NoDeadlock(t *testing.T) {
 	case <-done:
 		// Success
 	case <-time.After(1 * time.Second):
-		t.Fatal("deadlock detected: handler emit blocked")
+		t.Error("deadlock detected: handler emit blocked")
 	}
 
 	if len(eventChain) != 2 || eventChain[0] != "first" || eventChain[1] != "second" {
@@ -308,14 +308,14 @@ func TestDifferentEventTypes_Isolated(t *testing.T) {
 	bus.Emit(TestEvent{value: 1}, "test")
 
 	if !testCalled || anotherCalled {
-		t.Fatal("event isolation failed")
+		t.Error("event isolation failed")
 	}
 
 	testCalled = false
 	bus.Emit(AnotherEvent{name: "test"}, "test")
 
 	if testCalled || !anotherCalled {
-		t.Fatal("event isolation failed for second event type")
+		t.Error("event isolation failed for second event type")
 	}
 }
 

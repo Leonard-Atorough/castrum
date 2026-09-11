@@ -10,11 +10,11 @@ func TestNewBuilder(t *testing.T) {
 	builder := NewBuilder("test-scene")
 
 	if builder.scene.ID != "test-scene" {
-		t.Fatalf("expected scene ID 'test-scene', got %q", builder.scene.ID)
+		t.Errorf("expected scene ID 'test-scene', got %q", builder.scene.ID)
 	}
 
 	if len(builder.entityIDs) != 0 {
-		t.Fatalf("expected empty entity IDs, got %d", len(builder.entityIDs))
+		t.Errorf("expected empty entity IDs, got %d", len(builder.entityIDs))
 	}
 }
 
@@ -25,15 +25,15 @@ func TestBuilder_WithEntity(t *testing.T) {
 	result := builder.WithEntity(entityID)
 
 	if result != builder {
-		t.Fatal("WithEntity should return the same builder for chaining")
+		t.Error("WithEntity should return the same builder for chaining")
 	}
 
 	if len(builder.entityIDs) != 1 {
-		t.Fatalf("expected 1 entity ID, got %d", len(builder.entityIDs))
+		t.Errorf("expected 1 entity ID, got %d", len(builder.entityIDs))
 	}
 
 	if builder.entityIDs[0] != entityID {
-		t.Fatalf("expected entity ID %d, got %d", entityID, builder.entityIDs[0])
+		t.Errorf("expected entity ID %d, got %d", entityID, builder.entityIDs[0])
 	}
 }
 
@@ -43,7 +43,7 @@ func TestBuilder_WithEntity_Multiple(t *testing.T) {
 	builder.WithEntity(1).WithEntity(2).WithEntity(3)
 
 	if len(builder.entityIDs) != 3 {
-		t.Fatalf("expected 3 entity IDs, got %d", len(builder.entityIDs))
+		t.Errorf("expected 3 entity IDs, got %d", len(builder.entityIDs))
 	}
 }
 
@@ -58,17 +58,17 @@ func TestBuilder_Build(t *testing.T) {
 
 	scene, err := builder.Build(world)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if scene.ID != "test-scene" {
-		t.Fatalf("expected scene ID 'test-scene', got %q", scene.ID)
+		t.Errorf("expected scene ID 'test-scene', got %q", scene.ID)
 	}
 
 	// Verify entities are in the scene
 	entities := scene.Entities(world)
 	if len(entities) != 2 {
-		t.Fatalf("expected 2 entities in scene, got %d", len(entities))
+		t.Errorf("expected 2 entities in scene, got %d", len(entities))
 	}
 }
 
@@ -78,16 +78,16 @@ func TestBuilder_Build_Empty(t *testing.T) {
 
 	scene, err := builder.Build(world)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if scene.ID != "empty-scene" {
-		t.Fatalf("expected scene ID 'empty-scene', got %q", scene.ID)
+		t.Errorf("expected scene ID 'empty-scene', got %q", scene.ID)
 	}
 
 	entities := scene.Entities(world)
 	if len(entities) != 0 {
-		t.Fatalf("expected 0 entities in empty scene, got %d", len(entities))
+		t.Errorf("expected 0 entities in empty scene, got %d", len(entities))
 	}
 }
 
@@ -99,7 +99,7 @@ func TestBuilder_Build_WithNonExistentEntity(t *testing.T) {
 
 	_, err := builder.Build(world)
 	if err == nil {
-		t.Fatal("expected error when building with non-existent entity")
+		t.Error("expected error when building with non-existent entity")
 	}
 }
 
@@ -113,7 +113,7 @@ func TestBuilder_WithLoadHook(t *testing.T) {
 	})
 
 	if builder.scene.loadHook == nil {
-		t.Fatal("expected load hook to be set")
+		t.Error("expected load hook to be set")
 	}
 
 	// Verify the hook works
@@ -122,7 +122,7 @@ func TestBuilder_WithLoadHook(t *testing.T) {
 	_ = scene.OnLoad(world)
 
 	if !loadCalled {
-		t.Fatal("expected load hook to be called")
+		t.Error("expected load hook to be called")
 	}
 }
 
@@ -136,7 +136,7 @@ func TestBuilder_WithUnloadHook(t *testing.T) {
 	})
 
 	if builder.scene.unloadHook == nil {
-		t.Fatal("expected unload hook to be set")
+		t.Error("expected unload hook to be set")
 	}
 
 	// Verify the hook works
@@ -145,7 +145,7 @@ func TestBuilder_WithUnloadHook(t *testing.T) {
 	_ = scene.OnUnload(world)
 
 	if !unloadCalled {
-		t.Fatal("expected unload hook to be called")
+		t.Error("expected unload hook to be called")
 	}
 }
 
@@ -169,12 +169,12 @@ func TestBuilder_WithHooks(t *testing.T) {
 
 	_ = scene.OnLoad(world)
 	if !loadCalled {
-		t.Fatal("expected load hook to be called")
+		t.Error("expected load hook to be called")
 	}
 
 	_ = scene.OnUnload(world)
 	if !unloadCalled {
-		t.Fatal("expected unload hook to be called")
+		t.Error("expected unload hook to be called")
 	}
 }
 
@@ -188,12 +188,12 @@ func TestBuilder_WithData(t *testing.T) {
 
 	val, ok := scene.GetData("secs")
 	if !ok || val != 100 {
-		t.Fatal("expected secs to be 100")
+		t.Error("expected secs to be 100")
 	}
 
 	val, ok = scene.GetData("level")
 	if !ok || val != 5 {
-		t.Fatal("expected level to be 5")
+		t.Error("expected level to be 5")
 	}
 }
 
@@ -212,10 +212,10 @@ func TestBuilder_WithDataMap(t *testing.T) {
 	for k, v := range data {
 		val, ok := scene.GetData(k)
 		if !ok {
-			t.Fatalf("expected key %q to exist", k)
+			t.Errorf("expected key %q to exist", k)
 		}
 		if val != v {
-			t.Fatalf("expected value %v for key %q, got %v", v, k, val)
+			t.Errorf("expected value %v for key %q, got %v", v, k, val)
 		}
 	}
 }
@@ -226,17 +226,17 @@ func TestBuilder_Scene(t *testing.T) {
 	scene := builder.Scene()
 
 	if scene.ID != "test-scene" {
-		t.Fatalf("expected scene ID 'test-scene', got %q", scene.ID)
+		t.Errorf("expected scene ID 'test-scene', got %q", scene.ID)
 	}
 
 	// Verify we can still build after getting the scene
 	world := ecs.NewWorld()
 	builtScene, err := builder.Build(world)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if builtScene != scene {
-		t.Fatal("expected Scene() to return the same scene instance")
+		t.Error("expected Scene() to return the same scene instance")
 	}
 }

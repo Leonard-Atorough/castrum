@@ -11,19 +11,19 @@ func TestNewScene(t *testing.T) {
 	scene := NewScene("test-scene")
 
 	if scene.ID != "test-scene" {
-		t.Fatalf("expected ID 'test-scene', got %q", scene.ID)
+		t.Errorf("expected ID 'test-scene', got %q", scene.ID)
 	}
 
 	if scene.Name() != "test-scene" {
-		t.Fatalf("expected Name() 'test-scene', got %q", scene.Name())
+		t.Errorf("expected Name() 'test-scene', got %q", scene.Name())
 	}
 
 	if scene.data == nil {
-		t.Fatal("expected data map to be initialized")
+		t.Error("expected data map to be initialized")
 	}
 
 	if len(scene.data) != 0 {
-		t.Fatalf("expected empty data map, got %d items", len(scene.data))
+		t.Errorf("expected empty data map, got %d items", len(scene.data))
 	}
 }
 
@@ -36,7 +36,7 @@ func TestScene_AddToScene(t *testing.T) {
 
 	err := scene.AddToScene(entityID, world)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	entities := scene.Entities(world)
@@ -48,7 +48,7 @@ func TestScene_AddToScene(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("expected entity to be in scene after AddToScene")
+		t.Error("expected entity to be in scene after AddToScene")
 	}
 }
 
@@ -58,7 +58,7 @@ func TestScene_AddToScene_NonExistentEntity(t *testing.T) {
 
 	err := scene.AddToScene(999, world)
 	if err == nil {
-		t.Fatal("expected error when adding non-existent entity")
+		t.Error("expected error when adding non-existent entity")
 	}
 }
 
@@ -72,13 +72,13 @@ func TestScene_RemoveFromScene(t *testing.T) {
 
 	err := scene.RemoveFromScene(entityID, world)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	entities := scene.Entities(world)
 	for _, id := range entities {
 		if id == entityID {
-			t.Fatal("expected entity to not be in scene after RemoveFromScene")
+			t.Error("expected entity to not be in scene after RemoveFromScene")
 		}
 	}
 }
@@ -89,7 +89,7 @@ func TestScene_RemoveFromScene_NonExistentEntity(t *testing.T) {
 
 	err := scene.RemoveFromScene(999, world)
 	if err == nil {
-		t.Fatal("expected error when removing non-existent entity")
+		t.Error("expected error when removing non-existent entity")
 	}
 }
 
@@ -106,7 +106,7 @@ func TestScene_Entities(t *testing.T) {
 
 	entities := scene.Entities(world)
 	if len(entities) != 2 {
-		t.Fatalf("expected 2 entities, got %d", len(entities))
+		t.Errorf("expected 2 entities, got %d", len(entities))
 	}
 
 	found1, found2 := false, false
@@ -119,7 +119,7 @@ func TestScene_Entities(t *testing.T) {
 		}
 	}
 	if !found1 || !found2 {
-		t.Fatal("expected both entities to be in the scene")
+		t.Error("expected both entities to be in the scene")
 	}
 }
 
@@ -135,10 +135,10 @@ func TestScene_Entities_MultipleScenesDoNotOverlap(t *testing.T) {
 	_ = sceneB.AddToScene(entity2.ID, world)
 
 	if entities := sceneA.Entities(world); len(entities) != 1 || entities[0] != entity1.ID {
-		t.Fatalf("expected scene a to contain only entity1, got %v", entities)
+		t.Errorf("expected scene a to contain only entity1, got %v", entities)
 	}
 	if entities := sceneB.Entities(world); len(entities) != 1 || entities[0] != entity2.ID {
-		t.Fatalf("expected scene b to contain only entity2, got %v", entities)
+		t.Errorf("expected scene b to contain only entity2, got %v", entities)
 	}
 }
 
@@ -148,15 +148,15 @@ func TestScene_SetGetData(t *testing.T) {
 	scene.SetData("secs", 100)
 	val, ok := scene.GetData("secs")
 	if !ok {
-		t.Fatal("expected to find 'secs' in data")
+		t.Error("expected to find 'secs' in data")
 	}
 	if val != 100 {
-		t.Fatalf("expected secs 100, got %v", val)
+		t.Errorf("expected secs 100, got %v", val)
 	}
 
 	_, ok = scene.GetData("nonexistent")
 	if ok {
-		t.Fatal("expected 'nonexistent' key to not exist")
+		t.Error("expected 'nonexistent' key to not exist")
 	}
 }
 
@@ -172,10 +172,10 @@ func TestScene_OnLoad_WithHook(t *testing.T) {
 
 	err := scene.OnLoad(world)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	if !loadCalled {
-		t.Fatal("expected load hook to be called")
+		t.Error("expected load hook to be called")
 	}
 }
 
@@ -190,10 +190,10 @@ func TestScene_OnLoad_HookError(t *testing.T) {
 
 	err := scene.OnLoad(world)
 	if err == nil {
-		t.Fatal("expected error from load hook")
+		t.Error("expected error from load hook")
 	}
 	if err.Error() != "failed to execute load hook for scene test: load failed" {
-		t.Fatalf("unexpected error message: %v", err)
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
 
@@ -207,16 +207,16 @@ func TestScene_OnUnload_WithEntities(t *testing.T) {
 	_ = scene.AddToScene(entity2.ID, world)
 
 	if len(scene.Entities(world)) != 2 {
-		t.Fatal("expected 2 entities in scene before unload")
+		t.Error("expected 2 entities in scene before unload")
 	}
 
 	err := scene.OnUnload(world)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if len(scene.Entities(world)) != 0 {
-		t.Fatal("expected 0 entities in scene after unload")
+		t.Error("expected 0 entities in scene after unload")
 	}
 }
 
@@ -232,10 +232,10 @@ func TestScene_OnUnload_WithHook(t *testing.T) {
 
 	err := scene.OnUnload(world)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	if !unloadCalled {
-		t.Fatal("expected unload hook to be called")
+		t.Error("expected unload hook to be called")
 	}
 }
 
@@ -253,10 +253,10 @@ func TestScene_OnUnload_HookError(t *testing.T) {
 
 	err := scene.OnUnload(world)
 	if err == nil {
-		t.Fatal("expected error from unload hook")
+		t.Error("expected error from unload hook")
 	}
 	if err.Error() != "failed to execute unload hook for scene test: unload failed" {
-		t.Fatalf("unexpected error message: %v", err)
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
 
@@ -282,16 +282,16 @@ func TestScene_OnUnload_WithBothEntitiesAndHook(t *testing.T) {
 
 	err := scene.OnUnload(world)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if !unloadCalled {
-		t.Fatal("expected unload hook to be called")
+		t.Error("expected unload hook to be called")
 	}
 
 	entities := scene.Entities(world)
 	if len(entities) != 0 {
-		t.Fatalf("expected 0 entities after unload, got %d", len(entities))
+		t.Errorf("expected 0 entities after unload, got %d", len(entities))
 	}
 }
 
@@ -299,15 +299,15 @@ func TestNewManager(t *testing.T) {
 	manager := NewManager()
 
 	if manager.scenes == nil {
-		t.Fatal("expected scenes map to be initialized")
+		t.Error("expected scenes map to be initialized")
 	}
 
 	if len(manager.scenes) != 0 {
-		t.Fatalf("expected empty scenes map, got %d scenes", len(manager.scenes))
+		t.Errorf("expected empty scenes map, got %d scenes", len(manager.scenes))
 	}
 
 	if len(manager.stack) != 0 {
-		t.Fatalf("expected empty stack, got %d entries", len(manager.stack))
+		t.Errorf("expected empty stack, got %d entries", len(manager.stack))
 	}
 }
 
@@ -318,15 +318,15 @@ func TestManager_LoadScene(t *testing.T) {
 
 	err := manager.LoadScene("level-1", scene)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if len(manager.scenes) != 1 {
-		t.Fatalf("expected 1 scene loaded, got %d", len(manager.scenes))
+		t.Errorf("expected 1 scene loaded, got %d", len(manager.scenes))
 	}
 
 	if manager.scenes["level-1"] != scene {
-		t.Fatal("expected loaded scene to be retrievable")
+		t.Error("expected loaded scene to be retrievable")
 	}
 }
 
@@ -340,11 +340,11 @@ func TestManager_LoadScene_Duplicate(t *testing.T) {
 
 	err := manager.LoadScene("level-1", scene2)
 	if err == nil {
-		t.Fatal("expected error when loading duplicate scene")
+		t.Error("expected error when loading duplicate scene")
 	}
 
 	if err.Error() != "scene level-1 already loaded" {
-		t.Fatalf("unexpected error message: %v", err)
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
 
@@ -357,11 +357,11 @@ func TestManager_UnloadScene(t *testing.T) {
 
 	err := manager.UnloadScene(world, "level-1")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if len(manager.scenes) != 0 {
-		t.Fatalf("expected 0 scenes after unload, got %d", len(manager.scenes))
+		t.Errorf("expected 0 scenes after unload, got %d", len(manager.scenes))
 	}
 }
 
@@ -371,11 +371,11 @@ func TestManager_UnloadScene_NotFound(t *testing.T) {
 
 	err := manager.UnloadScene(world, "nonexistent")
 	if err == nil {
-		t.Fatal("expected error when unloading non-existent scene")
+		t.Error("expected error when unloading non-existent scene")
 	}
 
 	if err.Error() != "scene nonexistent not found" {
-		t.Fatalf("unexpected error message: %v", err)
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
 
@@ -388,16 +388,16 @@ func TestManager_UnloadScene_CurrentScene(t *testing.T) {
 	_ = manager.TransitionTo(world, "level-1")
 
 	if manager.CurrentScene() != scene {
-		t.Fatal("expected level-1 to be current scene")
+		t.Error("expected level-1 to be current scene")
 	}
 
 	err := manager.UnloadScene(world, "level-1")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if manager.CurrentScene() != nil {
-		t.Fatal("expected current scene to be nil after unloading")
+		t.Error("expected current scene to be nil after unloading")
 	}
 }
 
@@ -416,7 +416,7 @@ func TestManager_UnloadScene_CurrentSceneWithUnloadError(t *testing.T) {
 
 	err := manager.UnloadScene(world, "level-1")
 	if err == nil {
-		t.Fatal("expected error when unloading current scene with failing hook")
+		t.Error("expected error when unloading current scene with failing hook")
 	}
 }
 
@@ -425,7 +425,7 @@ func TestManager_CurrentScene(t *testing.T) {
 	manager := NewManager()
 
 	if manager.CurrentScene() != nil {
-		t.Fatal("expected nil for current scene when none is set")
+		t.Error("expected nil for current scene when none is set")
 	}
 
 	scene := NewScene("level-1")
@@ -433,7 +433,7 @@ func TestManager_CurrentScene(t *testing.T) {
 	_ = manager.TransitionTo(world, "level-1")
 
 	if manager.CurrentScene() != scene {
-		t.Fatal("expected CurrentScene() to return the current scene")
+		t.Error("expected CurrentScene() to return the current scene")
 	}
 }
 
@@ -449,24 +449,24 @@ func TestManager_TransitionTo(t *testing.T) {
 
 	err := manager.TransitionTo(world, "level-1")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if manager.CurrentScene() != scene1 {
-		t.Fatal("expected current scene to be level-1")
+		t.Error("expected current scene to be level-1")
 	}
 
 	err = manager.TransitionTo(world, "level-2")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if manager.CurrentScene() != scene2 {
-		t.Fatal("expected current scene to be level-2")
+		t.Error("expected current scene to be level-2")
 	}
 
 	if len(manager.Stack()) != 1 {
-		t.Fatalf("expected stack of size 1 after transition, got %d", len(manager.Stack()))
+		t.Errorf("expected stack of size 1 after transition, got %d", len(manager.Stack()))
 	}
 }
 
@@ -476,11 +476,11 @@ func TestManager_TransitionTo_NotFound(t *testing.T) {
 
 	err := manager.TransitionTo(world, "nonexistent")
 	if err == nil {
-		t.Fatal("expected error when transitioning to non-existent scene")
+		t.Error("expected error when transitioning to non-existent scene")
 	}
 
 	if err.Error() != "scene nonexistent not found" {
-		t.Fatalf("unexpected error message: %v", err)
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
 
@@ -502,7 +502,7 @@ func TestManager_TransitionTo_UnloadCurrentError(t *testing.T) {
 
 	err := manager.TransitionTo(world, "level-2")
 	if err == nil {
-		t.Fatal("expected error when transitioning with failing unload")
+		t.Error("expected error when transitioning with failing unload")
 	}
 }
 
@@ -523,7 +523,7 @@ func TestManager_TransitionTo_LoadError(t *testing.T) {
 
 	err := manager.TransitionTo(world, "level-2")
 	if err == nil {
-		t.Fatal("expected error when transitioning with failing load")
+		t.Error("expected error when transitioning with failing load")
 	}
 }
 
@@ -536,11 +536,11 @@ func TestManager_TransitionTo_FromEmpty(t *testing.T) {
 
 	err := manager.TransitionTo(world, "level-1")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if manager.CurrentScene() != scene {
-		t.Fatal("expected current scene to be level-1")
+		t.Error("expected current scene to be level-1")
 	}
 }
 
@@ -554,10 +554,10 @@ func TestManager_Scenes(t *testing.T) {
 
 	scenes := manager.Scenes()
 	if len(scenes) != 2 {
-		t.Fatalf("expected 2 scenes, got %d", len(scenes))
+		t.Errorf("expected 2 scenes, got %d", len(scenes))
 	}
 	if scenes["level-1"] != scene1 || scenes["level-2"] != scene2 {
-		t.Fatal("expected scenes map to contain loaded scenes")
+		t.Error("expected scenes map to contain loaded scenes")
 	}
 }
 
@@ -566,7 +566,7 @@ func TestManager_Current(t *testing.T) {
 	manager := NewManager()
 
 	if manager.Current() != nil {
-		t.Fatal("expected nil for current scene when none is set")
+		t.Error("expected nil for current scene when none is set")
 	}
 
 	scene := NewScene("level-1")
@@ -574,7 +574,7 @@ func TestManager_Current(t *testing.T) {
 	_ = manager.TransitionTo(world, "level-1")
 
 	if manager.Current() != scene {
-		t.Fatal("expected Current() to return the current scene")
+		t.Error("expected Current() to return the current scene")
 	}
 }
 
@@ -583,12 +583,12 @@ func TestManager_SceneBuilder(t *testing.T) {
 
 	builder := manager.SceneBuilder("test-scene")
 	if builder == nil {
-		t.Fatal("expected SceneBuilder to return a builder")
+		t.Error("expected SceneBuilder to return a builder")
 	}
 
 	builder2 := manager.SceneBuilder("test-scene")
 	if builder != builder2 {
-		t.Fatal("expected SceneBuilder to return the same builder instance")
+		t.Error("expected SceneBuilder to return the same builder instance")
 	}
 }
 
@@ -602,30 +602,30 @@ func TestManager_Push_Pop(t *testing.T) {
 	_ = manager.LoadScene("pause", pause)
 
 	if err := manager.Push(world, "gameplay"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	if manager.Current() != gameplay {
-		t.Fatal("expected gameplay to be current after push")
+		t.Error("expected gameplay to be current after push")
 	}
 
 	if err := manager.Push(world, "pause"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	if manager.Current() != pause {
-		t.Fatal("expected pause to be current after push")
+		t.Error("expected pause to be current after push")
 	}
 	if len(manager.Stack()) != 2 {
-		t.Fatalf("expected stack size 2, got %d", len(manager.Stack()))
+		t.Errorf("expected stack size 2, got %d", len(manager.Stack()))
 	}
 
 	if err := manager.Pop(world); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	if manager.Current() != gameplay {
-		t.Fatal("expected gameplay to be current after popping pause")
+		t.Error("expected gameplay to be current after popping pause")
 	}
 	if len(manager.Stack()) != 1 {
-		t.Fatalf("expected stack size 1 after pop, got %d", len(manager.Stack()))
+		t.Errorf("expected stack size 1 after pop, got %d", len(manager.Stack()))
 	}
 }
 
@@ -635,7 +635,7 @@ func TestManager_Push_NotFound(t *testing.T) {
 
 	err := manager.Push(world, "nonexistent")
 	if err == nil {
-		t.Fatal("expected error when pushing non-existent scene")
+		t.Error("expected error when pushing non-existent scene")
 	}
 }
 
@@ -652,10 +652,10 @@ func TestManager_Push_LoadErrorRollsBackStack(t *testing.T) {
 
 	err := manager.Push(world, "broken")
 	if err == nil {
-		t.Fatal("expected error when push load hook fails")
+		t.Error("expected error when push load hook fails")
 	}
 	if len(manager.Stack()) != 0 {
-		t.Fatalf("expected stack to remain empty after failed push, got %d", len(manager.Stack()))
+		t.Errorf("expected stack to remain empty after failed push, got %d", len(manager.Stack()))
 	}
 }
 
@@ -665,7 +665,7 @@ func TestManager_Pop_EmptyStack(t *testing.T) {
 
 	err := manager.Pop(world)
 	if err == nil {
-		t.Fatal("expected error when popping empty stack")
+		t.Error("expected error when popping empty stack")
 	}
 }
 
@@ -690,7 +690,7 @@ func TestManager_Push_KeepsUnderlyingSceneLoaded(t *testing.T) {
 	_ = manager.Push(world, "pause")
 
 	if gameplayUnloaded {
-		t.Fatal("expected gameplay scene to remain loaded while pause is pushed on top")
+		t.Error("expected gameplay scene to remain loaded while pause is pushed on top")
 	}
 }
 
@@ -710,13 +710,13 @@ func TestManager_TransitionTo_ClearsWholeStack(t *testing.T) {
 	_ = manager.Push(world, "pause")
 
 	if err := manager.TransitionTo(world, "menu"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
 	if len(manager.Stack()) != 1 {
-		t.Fatalf("expected stack size 1 after transition, got %d", len(manager.Stack()))
+		t.Errorf("expected stack size 1 after transition, got %d", len(manager.Stack()))
 	}
 	if manager.Current() != menu {
-		t.Fatal("expected menu to be the sole active scene after transition")
+		t.Error("expected menu to be the sole active scene after transition")
 	}
 }

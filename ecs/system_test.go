@@ -47,19 +47,19 @@ func TestManager_Register(t *testing.T) {
 
 	err := sm.Register("test", 0, mockSys, world)
 	if err != nil {
-		t.Fatalf("Register failed: %v", err)
+		t.Errorf("Register failed: %v", err)
 	}
 
 	if mockSys.initCalled != 1 {
-		t.Fatalf("expected Init to be called once, got %d", mockSys.initCalled)
+		t.Errorf("expected Init to be called once, got %d", mockSys.initCalled)
 	}
 
 	if sm.Count() != 1 {
-		t.Fatalf("expected 1 system, got %d", sm.Count())
+		t.Errorf("expected 1 system, got %d", sm.Count())
 	}
 
 	if !sm.Has("test") {
-		t.Fatal("expected system 'test' to be registered")
+		t.Error("expected system 'test' to be registered")
 	}
 }
 
@@ -74,11 +74,11 @@ func TestManager_RegisterDuplicate(t *testing.T) {
 	err := sm.Register("test", 1, mockSys2, world)
 
 	if !errors.Is(err, ErrSystemAlreadyRegistered) {
-		t.Fatalf("expected ErrSystemAlreadyRegistered, got %v", err)
+		t.Errorf("expected ErrSystemAlreadyRegistered, got %v", err)
 	}
 
 	if sm.Count() != 1 {
-		t.Fatalf("expected only 1 system, got %d", sm.Count())
+		t.Errorf("expected only 1 system, got %d", sm.Count())
 	}
 }
 
@@ -90,11 +90,11 @@ func TestManager_RegisterInitFails(t *testing.T) {
 
 	err := sm.Register("test", 0, mockSys, world)
 	if err == nil {
-		t.Fatal("expected error when Init fails")
+		t.Error("expected error when Init fails")
 	}
 
 	if sm.Count() != 0 {
-		t.Fatalf("expected 0 systems after failed Init, got %d", sm.Count())
+		t.Errorf("expected 0 systems after failed Init, got %d", sm.Count())
 	}
 }
 
@@ -108,19 +108,19 @@ func TestManager_Unregister(t *testing.T) {
 	err := sm.Unregister("test", world)
 
 	if err != nil {
-		t.Fatalf("Unregister failed: %v", err)
+		t.Errorf("Unregister failed: %v", err)
 	}
 
 	if mockSys.shutdownCalled != 1 {
-		t.Fatalf("expected Shutdown to be called once, got %d", mockSys.shutdownCalled)
+		t.Errorf("expected Shutdown to be called once, got %d", mockSys.shutdownCalled)
 	}
 
 	if sm.Count() != 0 {
-		t.Fatalf("expected 0 systems after unregister, got %d", sm.Count())
+		t.Errorf("expected 0 systems after unregister, got %d", sm.Count())
 	}
 
 	if sm.Has("test") {
-		t.Fatal("expected system 'test' to be unregistered")
+		t.Error("expected system 'test' to be unregistered")
 	}
 }
 
@@ -131,7 +131,7 @@ func TestManager_UnregisterNotFound(t *testing.T) {
 
 	err := sm.Unregister("nonexistent", world)
 	if !errors.Is(err, ErrSystemNotFound) {
-		t.Fatalf("expected ErrSystemNotFound, got %v", err)
+		t.Errorf("expected ErrSystemNotFound, got %v", err)
 	}
 }
 
@@ -153,22 +153,22 @@ func TestManager_UnregisterIndexFix(t *testing.T) {
 	// Verify remaining systems can still be found and unregistered
 	retrieved, err := sm.GetSystem("sys0")
 	if err != nil || retrieved != sys0 {
-		t.Fatal("failed to retrieve sys0 after removal of sys1")
+		t.Error("failed to retrieve sys0 after removal of sys1")
 	}
 
 	retrieved, err = sm.GetSystem("sys2")
 	if err != nil || retrieved != sys2 {
-		t.Fatal("failed to retrieve sys2 after removal of sys1")
+		t.Error("failed to retrieve sys2 after removal of sys1")
 	}
 
 	// Unregister should still work
 	err = sm.Unregister("sys0", world)
 	if err != nil {
-		t.Fatalf("Unregister sys0 failed: %v", err)
+		t.Errorf("Unregister sys0 failed: %v", err)
 	}
 
 	if sys0.shutdownCalled != 1 {
-		t.Fatalf("expected sys0 Shutdown to be called, got %d", sys0.shutdownCalled)
+		t.Errorf("expected sys0 Shutdown to be called, got %d", sys0.shutdownCalled)
 	}
 }
 
@@ -184,15 +184,15 @@ func TestManager_Update(t *testing.T) {
 
 	err := sm.Update(world, 0.016)
 	if err != nil {
-		t.Fatalf("Update failed: %v", err)
+		t.Errorf("Update failed: %v", err)
 	}
 
 	if sys1.updateCalled != 1 {
-		t.Fatalf("expected sys1 update to be called, got %d", sys1.updateCalled)
+		t.Errorf("expected sys1 update to be called, got %d", sys1.updateCalled)
 	}
 
 	if sys2.updateCalled != 1 {
-		t.Fatalf("expected sys2 update to be called, got %d", sys2.updateCalled)
+		t.Errorf("expected sys2 update to be called, got %d", sys2.updateCalled)
 	}
 }
 
@@ -210,19 +210,19 @@ func TestManager_UpdateError(t *testing.T) {
 
 	err := sm.Update(world, 0.016)
 	if err == nil {
-		t.Fatal("expected error from failed system")
+		t.Error("expected error from failed system")
 	}
 
 	if sys1.updateCalled != 1 {
-		t.Fatal("sys1 should have been updated")
+		t.Error("sys1 should have been updated")
 	}
 
 	if sys2.updateCalled != 1 {
-		t.Fatal("sys2 should have been updated (where error occurred)")
+		t.Error("sys2 should have been updated (where error occurred)")
 	}
 
 	if sys3.updateCalled != 0 {
-		t.Fatal("sys3 should not have been updated (stopped at sys2 error)")
+		t.Error("sys3 should not have been updated (stopped at sys2 error)")
 	}
 }
 
@@ -243,16 +243,16 @@ func TestManager_UpdatePriorityOrder(t *testing.T) {
 	sm.Register("highB", 10, highB, world)
 
 	if err := sm.Update(world, 0.016); err != nil {
-		t.Fatalf("Update failed: %v", err)
+		t.Errorf("Update failed: %v", err)
 	}
 
 	want := []string{"low", "highA", "highB"}
 	if len(order) != len(want) {
-		t.Fatalf("expected order %v, got %v", want, order)
+		t.Errorf("expected order %v, got %v", want, order)
 	}
 	for i := range want {
 		if order[i] != want[i] {
-			t.Fatalf("expected order %v, got %v", want, order)
+			t.Errorf("expected order %v, got %v", want, order)
 		}
 	}
 }
@@ -273,18 +273,18 @@ func TestManager_Shutdown(t *testing.T) {
 
 	err := sm.Shutdown(world)
 	if err != nil {
-		t.Fatalf("Shutdown failed: %v", err)
+		t.Errorf("Shutdown failed: %v", err)
 	}
 
 	want := []string{"third", "second", "first"}
 	for i := range want {
 		if order[i] != want[i] {
-			t.Fatalf("expected shutdown order %v, got %v", want, order)
+			t.Errorf("expected shutdown order %v, got %v", want, order)
 		}
 	}
 
 	if sm.Count() != 0 {
-		t.Fatalf("expected 0 systems after shutdown, got %d", sm.Count())
+		t.Errorf("expected 0 systems after shutdown, got %d", sm.Count())
 	}
 }
 
@@ -301,11 +301,11 @@ func TestManager_ShutdownError(t *testing.T) {
 	err := sm.Shutdown(world)
 	// Shutdown should return error but complete all shutdowns
 	if err == nil {
-		t.Fatal("expected error from failed shutdown")
+		t.Error("expected error from failed shutdown")
 	}
 
 	if sys1.shutdownCalled != 1 || sys2.shutdownCalled != 1 {
-		t.Fatal("both systems should have been shut down despite error")
+		t.Error("both systems should have been shut down despite error")
 	}
 }
 
@@ -319,11 +319,11 @@ func TestManager_GetSystem(t *testing.T) {
 	retrieved, err := sm.GetSystem("test")
 
 	if err != nil {
-		t.Fatalf("GetSystem failed: %v", err)
+		t.Errorf("GetSystem failed: %v", err)
 	}
 
 	if retrieved != mockSys {
-		t.Fatal("retrieved system does not match registered system")
+		t.Error("retrieved system does not match registered system")
 	}
 }
 
@@ -333,7 +333,7 @@ func TestManager_GetSystemNotFound(t *testing.T) {
 	_, err := sm.GetSystem("nonexistent")
 
 	if !errors.Is(err, ErrSystemNotFound) {
-		t.Fatalf("expected ErrSystemNotFound, got %v", err)
+		t.Errorf("expected ErrSystemNotFound, got %v", err)
 	}
 }
 
@@ -351,10 +351,10 @@ func TestManager_Systems(t *testing.T) {
 
 	systems := sm.Systems()
 	if len(systems) != 3 {
-		t.Fatalf("expected 3 systems, got %d", len(systems))
+		t.Errorf("expected 3 systems, got %d", len(systems))
 	}
 	if systems[0] != sys1 || systems[1] != sys2 || systems[2] != sys3 {
-		t.Fatal("Systems should be returned in priority order")
+		t.Error("Systems should be returned in priority order")
 	}
 }
 
@@ -364,7 +364,7 @@ func TestManager_Count(t *testing.T) {
 	world := NewWorld()
 
 	if sm.Count() != 0 {
-		t.Fatalf("new manager should have 0 systems, got %d", sm.Count())
+		t.Errorf("new manager should have 0 systems, got %d", sm.Count())
 	}
 
 	sys1 := &mockSystem{}
@@ -373,12 +373,12 @@ func TestManager_Count(t *testing.T) {
 	sm.Register("sys2", 1, sys2, world)
 
 	if sm.Count() != 2 {
-		t.Fatalf("expected 2 systems, got %d", sm.Count())
+		t.Errorf("expected 2 systems, got %d", sm.Count())
 	}
 
 	sm.Unregister("sys1", world)
 	if sm.Count() != 1 {
-		t.Fatalf("expected 1 system after unregister, got %d", sm.Count())
+		t.Errorf("expected 1 system after unregister, got %d", sm.Count())
 	}
 }
 
@@ -389,16 +389,16 @@ func TestManager_Has(t *testing.T) {
 	mockSys := &mockSystem{}
 
 	if sm.Has("test") {
-		t.Fatal("new manager should not have any systems")
+		t.Error("new manager should not have any systems")
 	}
 
 	sm.Register("test", 0, mockSys, world)
 	if !sm.Has("test") {
-		t.Fatal("manager should have 'test' system after register")
+		t.Error("manager should have 'test' system after register")
 	}
 
 	sm.Unregister("test", world)
 	if sm.Has("test") {
-		t.Fatal("manager should not have 'test' system after unregister")
+		t.Error("manager should not have 'test' system after unregister")
 	}
 }

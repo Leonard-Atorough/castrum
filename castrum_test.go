@@ -16,37 +16,37 @@ func TestNewGame(t *testing.T) {
 
 		game, err := NewGame(config, nil)
 		if err != nil {
-			t.Fatalf("NewGame failed: %v", err)
+			t.Errorf("NewGame failed: %v", err)
 		}
 
 		if want := 1.0 / 30.0; game.fixedDelta != want {
-			t.Fatalf("fixedDelta = %v, want %v", game.fixedDelta, want)
+			t.Errorf("fixedDelta = %v, want %v", game.fixedDelta, want)
 		}
 
 		// Check camera entity
 		cam, err := game.World.GetComponent[Camera](game.CameraEntityID)
 		if err != nil {
-			t.Fatalf("Failed to get camera component: %v", err)
+			t.Errorf("Failed to get camera component: %v", err)
 		}
 		if cam.ScreenSize.X != 320 || cam.ScreenSize.Y != 240 {
-			t.Fatalf("Camera.ScreenSize = %v, want {320 240}", cam.ScreenSize)
+			t.Errorf("Camera.ScreenSize = %v, want {320 240}", cam.ScreenSize)
 		}
 		if game.renderer == nil || game.World == nil || game.Systems == nil {
-			t.Fatal("expected NewGame to wire all core subsystems")
+			t.Error("expected NewGame to wire all core subsystems")
 		}
 	})
 
 	t.Run("validates a sparse config instead of dividing by zero", func(t *testing.T) {
 		game, err := NewGame(&Config{}, nil)
 		if err != nil {
-			t.Fatalf("NewGame failed: %v", err)
+			t.Errorf("NewGame failed: %v", err)
 		}
 
 		if game.Config.Engine.TicksPerSecond <= 0 {
-			t.Fatalf("expected ValidateConfig to fill in TicksPerSecond, got %d", game.Config.Engine.TicksPerSecond)
+			t.Errorf("expected ValidateConfig to fill in TicksPerSecond, got %d", game.Config.Engine.TicksPerSecond)
 		}
 		if game.fixedDelta <= 0 {
-			t.Fatalf("fixedDelta = %v, want a positive value", game.fixedDelta)
+			t.Errorf("fixedDelta = %v, want a positive value", game.fixedDelta)
 		}
 	})
 }
@@ -57,22 +57,22 @@ func TestGame_Layout(t *testing.T) {
 	config.Graphics.VirtualHeight = 480
 	game, err := NewGame(config, nil)
 	if err != nil {
-		t.Fatalf("NewGame failed: %v", err)
+		t.Errorf("NewGame failed: %v", err)
 	}
 
 	w, h := game.Layout(1920, 1080)
 
 	if w != 640 || h != 480 {
-		t.Fatalf("Layout() = (%d, %d), want (640, 480)", w, h)
+		t.Errorf("Layout() = (%d, %d), want (640, 480)", w, h)
 	}
 
 	// Check camera entity after layout
 	cam, err := game.World.GetComponent[Camera](game.CameraEntityID)
 	if err != nil {
-		t.Fatalf("Failed to get camera component: %v", err)
+		t.Errorf("Failed to get camera component: %v", err)
 	}
 	if cam.ScreenSize.X != 640 || cam.ScreenSize.Y != 480 {
-		t.Fatalf("Camera.ScreenSize = %v, want {640 480}", cam.ScreenSize)
+		t.Errorf("Camera.ScreenSize = %v, want {640 480}", cam.ScreenSize)
 	}
 }
 
@@ -82,7 +82,7 @@ func TestGame_Layout(t *testing.T) {
 func TestGame_Update_DoesNotHang(t *testing.T) {
 	game, err := NewGame(DefaultConfig(), nil)
 	if err != nil {
-		t.Fatalf("NewGame failed: %v", err)
+		t.Errorf("NewGame failed: %v", err)
 	}
 
 	done := make(chan error, 1)
@@ -93,10 +93,10 @@ func TestGame_Update_DoesNotHang(t *testing.T) {
 	select {
 	case err := <-done:
 		if err != nil {
-			t.Fatalf("Update() returned an error: %v", err)
+			t.Errorf("Update() returned an error: %v", err)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("Update() did not return - possible fixedDelta accumulator hang")
+		t.Error("Update() did not return - possible fixedDelta accumulator hang")
 	}
 }
 

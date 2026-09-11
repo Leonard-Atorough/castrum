@@ -54,60 +54,60 @@ func TestWorld_EndToEndGameLoop(t *testing.T) {
 
 	sys := &movementSystem{}
 	if err := manager.Register("movement", 0, sys, world); err != nil {
-		t.Fatalf("Register failed: %v", err)
+		t.Errorf("Register failed: %v", err)
 	}
 	if !sys.initCalled {
-		t.Fatal("expected Init to be called on registration")
+		t.Error("expected Init to be called on registration")
 	}
 
 	unit, err := world.CreateWithComponents("Unit", TestPosition{X: 0, Y: 0}, TestVelocity{X: 1, Y: 2})
 	if err != nil {
-		t.Fatalf("CreateWithComponents failed: %v", err)
+		t.Errorf("CreateWithComponents failed: %v", err)
 	}
 
 	turret, err := world.CreateWithComponents("Turret", TestPosition{X: 5, Y: 5})
 	if err != nil {
-		t.Fatalf("CreateWithComponents failed: %v", err)
+		t.Errorf("CreateWithComponents failed: %v", err)
 	}
 	world.SetParent(turret.ID, unit.ID)
 
 	const ticks = 3
 	for i := 0; i < ticks; i++ {
 		if err := manager.Update(world, 1.0); err != nil {
-			t.Fatalf("Update failed on tick %d: %v", i, err)
+			t.Errorf("Update failed on tick %d: %v", i, err)
 		}
 	}
 
 	gotPos, err := world.GetComponent[TestPosition](unit.ID)
 	if err != nil {
-		t.Fatalf("GetComponent failed: %v", err)
+		t.Errorf("GetComponent failed: %v", err)
 	}
 	if gotPos != (TestPosition{X: 3, Y: 6}) {
-		t.Fatalf("expected unit to have moved to (3,6) after %d ticks, got %#v", ticks, gotPos)
+		t.Errorf("expected unit to have moved to (3,6) after %d ticks, got %#v", ticks, gotPos)
 	}
 
 	// The turret has no velocity, so the movement system must leave it untouched.
 	turretPos, err := world.GetComponent[TestPosition](turret.ID)
 	if err != nil {
-		t.Fatalf("GetComponent failed: %v", err)
+		t.Errorf("GetComponent failed: %v", err)
 	}
 	if turretPos != (TestPosition{X: 5, Y: 5}) {
-		t.Fatalf("expected turret to stay put, got %#v", turretPos)
+		t.Errorf("expected turret to stay put, got %#v", turretPos)
 	}
 
 	if err := world.DestroyEntity(unit.ID, true); err != nil {
-		t.Fatalf("DestroyEntity failed: %v", err)
+		t.Errorf("DestroyEntity failed: %v", err)
 	}
 	world.Cleanup()
 
 	if world.HasEntity(unit.ID) || world.HasEntity(turret.ID) {
-		t.Fatal("cascade destroy should have removed both the unit and its child turret")
+		t.Error("cascade destroy should have removed both the unit and its child turret")
 	}
 
 	if err := manager.Shutdown(world); err != nil {
-		t.Fatalf("Shutdown failed: %v", err)
+		t.Errorf("Shutdown failed: %v", err)
 	}
 	if !sys.shutdownCalled {
-		t.Fatal("expected Shutdown to be called")
+		t.Error("expected Shutdown to be called")
 	}
 }
