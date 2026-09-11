@@ -2,6 +2,7 @@ package ecs
 
 import (
 	"reflect"
+	"slices"
 	"sort"
 	"sync"
 )
@@ -30,7 +31,7 @@ func NewArchetypeKey(components ...reflect.Type) ArchetypeKey {
 	sorted := make([]reflect.Type, len(components))
 	copy(sorted, components)
 	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Name() < sorted[j].Name()
+		return sorted[i].String() < sorted[j].String()
 	})
 	return sorted
 }
@@ -74,11 +75,19 @@ func (ak ArchetypeKey) ContainsAll(other ArchetypeKey) bool {
 	if len(other) == 0 {
 		return true
 	}
-
 	if len(ak) < len(other) {
 		return false
 	}
-
+	if len(ak) < 8 {
+		for _, t := range other {
+			found := slices.Contains(ak, t)
+			if !found {
+				return false
+			}
+		}
+		return true
+	}
+	// Fall back to using a map for larger archetypes
 	typeSet := make(map[reflect.Type]struct{}, len(ak))
 	for _, t := range ak {
 		typeSet[t] = struct{}{}
@@ -99,6 +108,15 @@ func (ak ArchetypeKey) ContainsAny(other ArchetypeKey) bool {
 	}
 
 	if len(ak) == 0 {
+		return false
+	}
+	if len(ak) < 8 {
+		for _, t := range other {
+			found := slices.Contains(ak, t)
+			if found {
+				return true
+			}
+		}
 		return false
 	}
 
