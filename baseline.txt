@@ -1,0 +1,37 @@
+goos: windows
+goarch: amd64
+pkg: github.com/leonard-atorough/castrum/benchmark
+cpu: AMD Ryzen 5 5600 6-Core Processor              
+BenchmarkCreateMany-12                       	   31148	     37544 ns/op	   13782 B/op	     100 allocs/op
+BenchmarkCreateManyVsIndividual/CreateMany-12         	   32270	     35243 ns/op	   13469 B/op	     100 allocs/op
+BenchmarkCreateManyVsIndividual/IndividualCreate-12   	   37660	     39581 ns/op	   16201 B/op	     100 allocs/op
+BenchmarkBulkAddAndRemoveComponents-12                	  199694	      6045 ns/op	    1160 B/op	      44 allocs/op
+BenchmarkBulkRemoveAndAddComponents-12                	  210495	      6902 ns/op	    1144 B/op	      43 allocs/op
+BenchmarkAddComponent-12                              	 1000000	      1407 ns/op	     168 B/op	       7 allocs/op
+BenchmarkGetComponent-12                              	18223345	        66.00 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHasComponent-12                              	32641336	        34.84 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRemoveComponent-12                           	 1000000	      1252 ns/op	     168 B/op	       8 allocs/op
+BenchmarkDestroyEntityWithCleanup-12                  	 4793894	       263.3 ns/op	      69 B/op	       1 allocs/op
+BenchmarkComponentAddMigration-12                     	 1000000	      1127 ns/op	     168 B/op	       8 allocs/op
+BenchmarkComponentRemoveMigration-12                  	  496893	      2910 ns/op	     613 B/op	      21 allocs/op
+BenchmarkEntityCreation-12                            	 3049653	       339.4 ns/op	     139 B/op	       1 allocs/op
+BenchmarkEntityCreationWithComponents-12              	  855096	      1392 ns/op	     630 B/op	      10 allocs/op
+BenchmarkDestroyAndRecreateEntity-12                  	 2310278	       527.8 ns/op	     161 B/op	       1 allocs/op
+BenchmarkGameLoopSimple-12                            	    1802	    705317 ns/op	     360 B/op	      12 allocs/op
+BenchmarkGameLoopWithUpdates-12                       	     972	   1224167 ns/op	     360 B/op	      12 allocs/op
+BenchmarkGameLoopWithSpawning-12                      	     878	   1504772 ns/op	   49102 B/op	    1512 allocs/op
+BenchmarkGameLoopWithDestruction-12                   	     936	   1365024 ns/op	   22009 B/op	     762 allocs/op
+BenchmarkGameLoopMixed-12                             	     933	   1318121 ns/op	   22054 B/op	     762 allocs/op
+BenchmarkSetParent-12                                 	20794234	        51.75 ns/op	       0 B/op	       0 allocs/op
+BenchmarkChildrenOf-12                                	   14596	     78861 ns/op	   81920 B/op	       1 allocs/op
+BenchmarkMemoryPerEntity-12                           	     705	   1609920 ns/op	 1429961 B/op	   10109 allocs/op
+BenchmarkMemoryPerEntityWithComponents-12             	     141	   8425965 ns/op	 4318872 B/op	   80142 allocs/op
+BenchmarkQuerySingleComponent-12                      	    3573	    375333 ns/op	  357585 B/op	      19 allocs/op
+BenchmarkQueryMultipleComponents-12                   	    2943	    357549 ns/op	  357864 B/op	      27 allocs/op
+BenchmarkQuerySparsely-12                             	  391118	      2676 ns/op	    2000 B/op	       8 allocs/op
+BenchmarkQueryDensely-12                              	    3559	    367343 ns/op	  357585 B/op	      19 allocs/op
+BenchmarkIterateQueryResults-12                       	    2698	    455195 ns/op	      80 B/op	       4 allocs/op
+BenchmarkComponentTypeRegistry-12                     	770109483	         1.654 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEntityReuse-12                               	  347072	      3182 ns/op	     552 B/op	      23 allocs/op
+PASS
+ok  	github.com/leonard-atorough/castrum/benchmark	39.082s
