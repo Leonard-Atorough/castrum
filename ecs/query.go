@@ -21,13 +21,28 @@ type ResultEntry struct {
 func (r ResultEntry) Get[T any]() (T, error) {
 	t := reflect.TypeFor[T]()
 
-	// Access directly from archetype (no allocation)
+	// Access directly from archetype
 	if r._archetype != nil {
 		if raw, ok := r._archetype.componentData[t]; ok {
-			if comps, ok := raw.([]Component); ok && r._idx >= 0 && r._idx < len(comps) {
-				typed, ok := comps[r._idx].(T)
-				if ok {
-					return typed, nil
+			// Fast path: try direct type assertion to []T
+			if typedSlice, ok := raw.([]T); ok {
+				if r._idx >= 0 && r._idx < len(typedSlice) {
+					return typedSlice[r._idx], nil
+				}
+				return *new(T), &EntityError{
+					EntityID: r.EntityID,
+					Op:       "ResultEntry.Get",
+					Err:      ErrEntityNotFound,
+				}
+			}
+			// Fallback: use reflection for generic access
+			sliceVal := reflect.ValueOf(raw)
+			if sliceVal.Kind() == reflect.Slice && r._idx >= 0 && r._idx < sliceVal.Len() {
+				compVal := sliceVal.Index(r._idx)
+				if compVal.IsValid() {
+					if typed, ok := compVal.Interface().(T); ok {
+						return typed, nil
+					}
 				}
 			}
 		}

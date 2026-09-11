@@ -56,6 +56,19 @@ func (ak ArchetypeKey) Hash() ArchetypeKeyHash {
 	return h
 }
 
+// Equals checks if the current ArchetypeKey is equal to another ArchetypeKey.
+func (ak ArchetypeKey) Equals(other ArchetypeKey) bool {
+	if len(ak) != len(other) {
+		return false
+	}
+	for i, t := range ak {
+		if t != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // ContainsAll checks if the current ArchetypeKey contains all types from another ArchetypeKey.
 func (ak ArchetypeKey) ContainsAll(other ArchetypeKey) bool {
 	if len(other) == 0 {
@@ -66,7 +79,6 @@ func (ak ArchetypeKey) ContainsAll(other ArchetypeKey) bool {
 		return false
 	}
 
-	// Create a map for quick lookup of types in the current key
 	typeSet := make(map[reflect.Type]struct{}, len(ak))
 	for _, t := range ak {
 		typeSet[t] = struct{}{}
@@ -80,6 +92,7 @@ func (ak ArchetypeKey) ContainsAll(other ArchetypeKey) bool {
 	return true
 }
 
+// ContainsAny checks if the current ArchetypeKey contains any of the types from another ArchetypeKey.
 func (ak ArchetypeKey) ContainsAny(other ArchetypeKey) bool {
 	if len(other) == 0 {
 		return false
@@ -102,12 +115,20 @@ func (ak ArchetypeKey) ContainsAny(other ArchetypeKey) bool {
 	return false
 }
 
+// ContainsOnly checks if the current ArchetypeKey contains exactly the same types as another ArchetypeKey.
+func (ak ArchetypeKey) ContainsExactly(other ArchetypeKey) bool {
+	return ak.Equals(other)
+}
+
 type Archetype struct {
 	ID             uint64
 	componentTypes ArchetypeKey
 	entities       []EntityID
 
-	componentData map[reflect.Type]any // could switch to a byte slice for more efficient storage
+	// componentData stores typed slices directly (e.g., []Position, []Velocity)
+	// instead of []Component to avoid per-element boxing overhead.
+	// Keys are reflect.Type, values are the typed slices (stored as any).
+	componentData map[reflect.Type]any
 }
 
 func NewArchetype(id uint64, componentTypes ArchetypeKey) *Archetype {
@@ -123,19 +144,34 @@ func (a *Archetype) Entities() []EntityID {
 	return a.entities
 }
 
-func (a *Archetype) Components[T Component](entityID EntityID) []T {
+func (a *Archetype) ComponentsAtIndex[T Component](archetypIdx int) []T {
 	var comps []T
-	for _, compType := range a.componentTypes {
-		if slice, exists := a.componentData[compType]; exists {
-			compSlice := slice.([]Component)
-			for _, comp := range compSlice {
-				if c, ok := comp.(T); ok {
+	compType := reflect.TypeFor[T]()
+
+	// Use the provided archetypIdx directly
+	idx := archetypIdx
+	if idx < 0 || idx >= len(a.entities) {
+		return comps
+	}
+
+	// Get the typed slice for this component type
+	if rawSlice, exists := a.componentData[compType]; exists {
+		// Use reflection to access the slice generically
+		sliceVal := reflect.ValueOf(rawSlice)
+		if sliceVal.Kind() == reflect.Slice && idx < sliceVal.Len() {
+			compVal := sliceVal.Index(idx)
+			if compVal.IsValid() {
+				if c, ok := compVal.Interface().(T); ok {
 					comps = append(comps, c)
 				}
 			}
 		}
 	}
 	return comps
+}
+
+func (a *Archetype) Len() int {
+	return len(a.entities)
 }
 
 // removeEntity removes the entity at slot idx using swap-with-last-element,
@@ -154,16 +190,25 @@ func (a *Archetype) removeEntity(idx int) (movedID EntityID, moved bool) {
 	}
 	a.entities = a.entities[:last]
 
-	for compType, raw := range a.componentData {
-		compSlice := raw.([]Component)
-		compLast := len(compSlice) - 1
+	for compType, rawSlice := range a.componentData {
+		// Use reflection to handle typed slices generically
+		sliceVal := reflect.ValueOf(rawSlice)
+		if sliceVal.Kind() != reflect.Slice {
+			continue
+		}
+		compLast := sliceVal.Len() - 1
 		if compLast < 0 {
 			continue
 		}
 		if idx != last && idx <= compLast {
-			compSlice[idx] = compSlice[compLast]
+			// Swap element at idx with element at compLast
+			if sliceVal.Index(idx).IsValid() && sliceVal.Index(compLast).IsValid() {
+				sliceVal.Index(idx).Set(sliceVal.Index(compLast))
+			}
 		}
-		a.componentData[compType] = compSlice[:compLast]
+		// Truncate the slice and update storage
+		newSlice := sliceVal.Slice(0, compLast)
+		a.componentData[compType] = newSlice.Interface()
 	}
 
 	return movedID, moved

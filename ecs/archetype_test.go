@@ -161,8 +161,9 @@ func TestArchetype_RemoveEntity(t *testing.T) {
 	posType := reflect.TypeFor[TestPosition]()
 	arch := NewArchetype(1, NewArchetypeKey(posType))
 	arch.entities = []EntityID{10, 20, 30}
-	arch.componentData[posType] = []Component{
-		TestPosition{X: 1}, TestPosition{X: 2}, TestPosition{X: 3},
+	// Store typed slice directly instead of []Component
+	arch.componentData[posType] = []TestPosition{
+		{X: 1}, {X: 2}, {X: 3},
 	}
 
 	t.Run("removing a middle slot swaps in the last entity and keeps component data aligned", func(t *testing.T) {
@@ -174,10 +175,23 @@ func TestArchetype_RemoveEntity(t *testing.T) {
 			t.Errorf("unexpected entities after removal: %#v", arch.entities)
 		}
 
-		got := arch.componentData[posType].([]Component)
-		want := []Component{TestPosition{X: 1}, TestPosition{X: 3}}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("component data desynced from entities slice: got %#v, want %#v", got, want)
+		// Verify component data was swapped correctly using reflection
+		rawSlice := arch.componentData[posType]
+		sliceVal := reflect.ValueOf(rawSlice)
+		if sliceVal.Kind() != reflect.Slice || sliceVal.Len() != 2 {
+			t.Errorf("expected slice of length 2, got kind=%v, len=%d", sliceVal.Kind(), sliceVal.Len())
+		}
+		
+		// Check first element (should be X:1)
+		first := sliceVal.Index(0).Interface().(TestPosition)
+		if first.X != 1 {
+			t.Errorf("expected first element X=1, got X=%f", first.X)
+		}
+		
+		// Check second element (should be X:3, swapped from last position)
+		second := sliceVal.Index(1).Interface().(TestPosition)
+		if second.X != 3 {
+			t.Errorf("expected second element X=3, got X=%f", second.X)
 		}
 	})
 
