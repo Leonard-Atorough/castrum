@@ -12,6 +12,7 @@ import (
 // Handler polls Ebiten and resolves its physical input into game actions.
 // It is internal so gameplay code does not depend on Ebiten's key types.
 type Handler struct {
+	backend         backend
 	actions         *publicinput.ActionMap
 	lastFrameTime   time.Time
 	currentKeys     map[string]publicinput.KeyState
@@ -21,9 +22,35 @@ type Handler struct {
 	releasedKeys    []ebiten.Key
 }
 
+type backend interface {
+	JustPressedKeys() []ebiten.Key
+	PressedKeys() []ebiten.Key
+	JustReleasedKeys() []ebiten.Key
+	IsKeyPressed(ebiten.Key) bool
+}
+
+type ebitenBackend struct{}
+
+func (ebitenBackend) JustPressedKeys() []ebiten.Key {
+	return inpututil.AppendJustPressedKeys(nil)
+}
+
+func (ebitenBackend) PressedKeys() []ebiten.Key {
+	return inpututil.AppendPressedKeys(nil)
+}
+
+func (ebitenBackend) JustReleasedKeys() []ebiten.Key {
+	return inpututil.AppendJustReleasedKeys(nil)
+}
+
+func (ebitenBackend) IsKeyPressed(key ebiten.Key) bool {
+	return ebiten.IsKeyPressed(key)
+}
+
 // New creates an Ebiten-backed input handler.
 func New(bindings publicinput.Bindings) *Handler {
 	return &Handler{
+		backend:      ebitenBackend{},
 		actions:      publicinput.NewActionMap(bindings),
 		currentKeys:  make(map[string]publicinput.KeyState),
 		previousKeys: make(map[string]publicinput.KeyState),
@@ -40,9 +67,9 @@ func (h *Handler) Snapshot() {
 	h.lastFrameTime = now
 
 	clear(h.currentKeys)
-	h.justPressedKeys = inpututil.AppendJustPressedKeys(h.justPressedKeys[:0])
-	h.pressedKeys = inpututil.AppendPressedKeys(h.pressedKeys[:0])
-	h.releasedKeys = inpututil.AppendJustReleasedKeys(h.releasedKeys[:0])
+	h.justPressedKeys = append(h.justPressedKeys[:0], h.backend.JustPressedKeys()...)
+	h.pressedKeys = append(h.pressedKeys[:0], h.backend.PressedKeys()...)
+	h.releasedKeys = append(h.releasedKeys[:0], h.backend.JustReleasedKeys()...)
 
 	for _, key := range h.pressedKeys {
 		name := keyName(key)
@@ -66,9 +93,9 @@ func (h *Handler) Snapshot() {
 	}
 
 	modifiers := publicinput.Modifiers{
-		Shift: ebiten.IsKeyPressed(ebiten.KeyShift),
-		Ctrl:  ebiten.IsKeyPressed(ebiten.KeyControl),
-		Alt:   ebiten.IsKeyPressed(ebiten.KeyAlt),
+		Shift: h.backend.IsKeyPressed(ebiten.KeyShift),
+		Ctrl:  h.backend.IsKeyPressed(ebiten.KeyControl),
+		Alt:   h.backend.IsKeyPressed(ebiten.KeyAlt),
 	}
 	h.actions.Update(h.currentKeys, modifiers)
 	h.previousKeys = cloneStates(h.currentKeys)
