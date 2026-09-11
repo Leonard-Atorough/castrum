@@ -1,7 +1,6 @@
 package systems
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
@@ -11,10 +10,10 @@ import (
 
 // PlayerController reads input and updates velocity on entities with a Player marker.
 type PlayerController struct {
-	input *input.InputHandler
+	input input.Reader
 }
 
-func NewPlayerController(input *input.InputHandler) *PlayerController {
+func NewPlayerController(input input.Reader) *PlayerController {
 	return &PlayerController{input: input}
 }
 
@@ -33,16 +32,16 @@ func (pc *PlayerController) Update(world *ecs.World, delta float64) error {
 		speed := 300.0 // pixels per second
 		vel.Linear = geom.Vector2{X: 0, Y: 0}
 
-		if pc.input.KeyHeld(ebiten.KeyArrowUp, input.Modifiers{Shift: false, Ctrl: false, Alt: false}) {
+		if pc.input.ActionHeld(actionMoveUp) {
 			vel.Linear.Y -= speed
 		}
-		if pc.input.KeyHeld(ebiten.KeyArrowDown, input.Modifiers{Shift: false, Ctrl: false, Alt: false}) {
+		if pc.input.ActionHeld(actionMoveDown) {
 			vel.Linear.Y += speed
 		}
-		if pc.input.KeyHeld(ebiten.KeyArrowLeft, input.Modifiers{Shift: false, Ctrl: false, Alt: false}) {
+		if pc.input.ActionHeld(actionMoveLeft) {
 			vel.Linear.X -= speed
 		}
-		if pc.input.KeyHeld(ebiten.KeyArrowRight, input.Modifiers{Shift: false, Ctrl: false, Alt: false}) {
+		if pc.input.ActionHeld(actionMoveRight) {
 			vel.Linear.X += speed
 		}
 

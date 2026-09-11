@@ -1,6 +1,11 @@
 package castrum
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/leonard-atorough/castrum/input"
+)
 
 func TestValidateConfig_SetsSensibleDefaults(t *testing.T) {
 	cfg := &Config{}
@@ -33,6 +38,9 @@ func TestValidateConfig_SetsSensibleDefaults(t *testing.T) {
 	}
 	if cfg.Engine.MaxFPS != 60 {
 		t.Errorf("Engine.MaxFPS = %d, want 60", cfg.Engine.MaxFPS)
+	}
+	if len(cfg.Input.Bindings) == 0 {
+		t.Fatal("expected default input bindings")
 	}
 }
 
@@ -116,4 +124,21 @@ func TestValidateConfig_ClampsAndNormalizes(t *testing.T) {
 func TestValidateConfig_AllowsNilPointer(t *testing.T) {
 	var cfg *Config
 	ValidateConfig(cfg)
+}
+
+func TestLoadConfig_InputBindings(t *testing.T) {
+	cfg, err := LoadConfig(strings.NewReader(`
+input:
+  bindings:
+    jump:
+      - key: space
+`))
+	if err != nil {
+		t.Fatalf("LoadConfig returned error: %v", err)
+	}
+
+	bindings := cfg.Input.Bindings[input.Action("jump")]
+	if len(bindings) != 1 || bindings[0].Key != "space" {
+		t.Fatalf("unexpected jump bindings: %+v", bindings)
+	}
 }
