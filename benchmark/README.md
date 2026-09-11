@@ -1,6 +1,6 @@
 # Castrum Engine Benchmarks
 
-**28 benchmarks** across 7 categories measuring ECS performance, allocation efficiency, and game loop throughput. This guide covers running benchmarks, profiling techniques, performance expectations, and regression tracking.
+**30 benchmarks** across 7 core categories plus 2 utility benchmarks measuring ECS performance, allocation efficiency, and game loop throughput. This guide covers running benchmarks, profiling techniques, performance expectations, and regression tracking.
 
 ---
 
@@ -21,7 +21,7 @@ go test -bench=Bulk -benchmem ./benchmark -benchtime=1s
 go test -bench=BenchmarkEntityCreation -v -benchmem ./benchmark
 
 # Save results for comparison
-go test -bench=. -benchmem ./benchmark > baseline.txt
+go test ./benchmark -run='^$' -bench='^Benchmark' -benchmem > baseline.txt
 ```
 
 ---
@@ -100,13 +100,13 @@ For reference, competitive ECS engines achieve:
 **Establish a baseline:**
 
 ```bash
-go test -bench=. -benchmem ./benchmark -benchtime=1s > baseline.txt
+go test ./benchmark -run='^$' -bench='^Benchmark' -benchmem -benchtime=1s > baseline.txt
 ```
 
 **After code changes, compare:**
 
 ```bash
-go test -bench=. -benchmem ./benchmark -benchtime=1s > current.txt
+go test ./benchmark -run='^$' -bench='^Benchmark' -benchmem -benchtime=1s > current.txt
 go install golang.org/x/perf/cmd/benchstat@latest
 benchstat baseline.txt current.txt
 ```
@@ -398,10 +398,10 @@ go test -bench=BenchmarkName -benchtime=100ms ./benchmark
 
 ```bash
 # Run longer to get statistical stability
-go test -bench=. -benchtime=3s ./benchmark
+go test ./benchmark -run='^$' -bench='^Benchmark' -benchtime=3s
 
 # Or run multiple times and average
-for i in {1..3}; do go test -bench=. -benchmem ./benchmark; done
+for i in {1..3}; do go test ./benchmark -run='^$' -bench='^Benchmark' -benchmem; done
 ```
 
 ### pprof doesn't show the function I'm looking for
@@ -417,6 +417,6 @@ go tool pprof -nodecount=50 cpu.prof  # Show more nodes
 ```bash
 # Make sure to use -memprofile, not -memprofile=alloc_objects
 # For detailed heap profile:
-go test -bench=. -memprofile=mem.prof ./benchmark
+go test ./benchmark -run='^$' -bench='^Benchmark' -memprofile=mem.prof
 go tool pprof -http=:8080 -alloc_space mem.prof
 ```

@@ -273,38 +273,3 @@ func RunStressTest(config StressTestConfig) (int, int, float64) {
 
 	return operations, errors, totalTime
 }
-
-// BenchmarkComponentTypeRegistry benchmarks component type lookups
-func BenchmarkComponentTypeRegistry(b *testing.B) {
-	// This would be more relevant if we had a component registry
-	// For now, just benchmark reflect.TypeFor
-
-	for b.Loop() {
-		_ = reflect.TypeFor[Position]()
-		_ = reflect.TypeFor[Velocity]()
-		_ = reflect.TypeFor[Health]()
-		_ = reflect.TypeFor[Sprite]()
-	}
-}
-
-// BenchmarkEntityReuse benchmarks entity reuse patterns
-func BenchmarkEntityReuse(b *testing.B) {
-	world := ecs.NewWorld()
-
-	// Pre-create a pool of entities
-	entityPool := make([]ecs.EntityID, 1000)
-	for i := range entityPool {
-		entityPool[i] = world.Create("PooledEntity").ID
-	}
-
-	for i := 0; b.Loop(); i++ {
-		// Reuse entities from pool
-		entityID := entityPool[i%1000]
-		world.AddComponent(entityID, Position{X: float64(i), Y: float64(i)})
-		world.AddComponent(entityID, Velocity{X: 1.0, Y: 1.0})
-
-		// Clean up components for next use
-		world.RemoveComponent[Position](entityID)
-		world.RemoveComponent[Velocity](entityID)
-	}
-}
