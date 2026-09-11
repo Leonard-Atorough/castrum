@@ -5,10 +5,21 @@ import (
 	"sort"
 )
 
+// FNV-1a hash constants for 64-bit
+const (
+	fnvOffsetBasis64 = 14695981039346656037
+	fnvPrime64       = 1099511628211
+)
+
+// ArchetypeKey represents a sorted list of component types that define an archetype.
 type ArchetypeKey []reflect.Type
 
+// ArchetypeKeyHash represents the hash of an ArchetypeKey.
 type ArchetypeKeyHash uint64
 
+// NewArchetypeKey creates a new ArchetypeKey from the given component types.
+// The returned key is sorted to ensure consistent ordering. If no component types
+// are provided, it returns nil.
 func NewArchetypeKey(components ...reflect.Type) ArchetypeKey {
 	if len(components) == 0 {
 		return nil
@@ -23,25 +34,22 @@ func NewArchetypeKey(components ...reflect.Type) ArchetypeKey {
 	return sorted
 }
 
+// Hash computes the FNV-1a hash of the ArchetypeKey using the full type string
+// (including package path) for each component type. This ensures unique hashes even
+// for types with the same name in different packages, preventing hash collisions.
+// Returns a 64-bit hash value that uniquely identifies the combination of component types.
 func (ak ArchetypeKey) Hash() ArchetypeKeyHash {
 	if len(ak) == 0 {
 		return 0
 	}
 
-	// Use a better hash that includes the full type name to avoid collisions
-	var h ArchetypeKeyHash
+	var h ArchetypeKeyHash = fnvOffsetBasis64
 	for _, t := range ak {
-		// Combine type name length and actual name content
-		h = h*31 + ArchetypeKeyHash(len(t.Name()))
-		// Add hash of the type name string itself
-		for _, c := range t.Name() {
-			h = h*31 + ArchetypeKeyHash(c)
-		}
-		// Add the type's package path for additional uniqueness
-		if t.PkgPath() != "" {
-			for _, c := range t.PkgPath() {
-				h = h*31 + ArchetypeKeyHash(c)
-			}
+		// Use t.String() to get the fully qualified type name (e.g., "package.Name")
+		typeStr := t.String()
+		for i := 0; i < len(typeStr); i++ {
+			h ^= ArchetypeKeyHash(typeStr[i])
+			h *= fnvPrime64
 		}
 	}
 	return h

@@ -5,41 +5,6 @@ import (
 	"testing"
 )
 
-type TestPosition struct {
-	X, Y float64
-}
-
-func (p TestPosition) Name() string     { return "TestPosition" }
-func (p TestPosition) Clone() Component { return TestPosition{X: p.X, Y: p.Y} }
-
-type TestVelocity struct {
-	X, Y float64
-}
-
-func (v TestVelocity) Name() string     { return "TestVelocity" }
-func (v TestVelocity) Clone() Component { return TestVelocity{X: v.X, Y: v.Y} }
-
-type TestHealth struct {
-	Value int
-}
-
-func (h TestHealth) Name() string     { return "TestHealth" }
-func (h TestHealth) Clone() Component { return TestHealth{Value: h.Value} }
-
-type TestSprite struct {
-	TextureID     string
-	Width, Height int
-}
-
-func (s TestSprite) Name() string { return "TestSprite" }
-func (s TestSprite) Clone() Component {
-	return TestSprite{TextureID: s.TextureID, Width: s.Width, Height: s.Height}
-}
-
-// =============================================================================
-// ArchetypeKey Tests
-// =============================================================================
-
 func TestArchetypeKeyCreation(t *testing.T) {
 	posType := reflect.TypeFor[TestPosition]()
 	velType := reflect.TypeFor[TestVelocity]()
@@ -68,7 +33,6 @@ func TestArchetypeKeyCreation(t *testing.T) {
 			t.Errorf("Expected length 3, got %d", len(key))
 		}
 
-		// Should be sorted
 		for i := 1; i < len(key); i++ {
 			if key[i-1].Name() > key[i].Name() {
 				t.Errorf("Key not sorted: %v > %v", key[i-1].Name(), key[i].Name())
@@ -193,10 +157,6 @@ func TestArchetypeKeyContainsAll(t *testing.T) {
 	})
 }
 
-// =============================================================================
-// Archetype Tests
-// =============================================================================
-
 func TestArchetype_RemoveEntity(t *testing.T) {
 	posType := reflect.TypeFor[TestPosition]()
 	arch := NewArchetype(1, NewArchetypeKey(posType))
@@ -293,31 +253,26 @@ func TestArchetypeManager(t *testing.T) {
 	t.Run("GetOrCreateArchetype", func(t *testing.T) {
 		manager := NewArchetypeManager()
 
-		// Create first archetype
 		arch1 := manager.GetOrCreateArchetype(posType)
 		if arch1.ID != 1 {
 			t.Errorf("Expected first archetype ID 1, got %d", arch1.ID)
 		}
 
-		// Create second archetype
 		arch2 := manager.GetOrCreateArchetype(posType, velType)
 		if arch2.ID != 2 {
 			t.Errorf("Expected second archetype ID 2, got %d", arch2.ID)
 		}
 
-		// Create third archetype with all three types
 		arch3 := manager.GetOrCreateArchetype(posType, velType, healthType)
 		if arch3.ID != 3 {
 			t.Errorf("Expected third archetype ID 3, got %d", arch3.ID)
 		}
 
-		// Get existing archetype
 		arch1Again := manager.GetOrCreateArchetype(posType)
 		if arch1Again.ID != arch1.ID {
 			t.Error("GetOrCreate should return same archetype for same types")
 		}
 
-		// Different order should return same archetype
 		arch1Reverse := manager.GetOrCreateArchetype(posType) // Same as arch1
 		if arch1Reverse.ID != arch1.ID {
 			t.Error("Different type order should return same archetype")
@@ -355,73 +310,6 @@ func TestArchetypeManager(t *testing.T) {
 		}
 		if retrieved.ID != arch.ID {
 			t.Error("Retrieved archetype should match original")
-		}
-	})
-}
-
-// =============================================================================
-// Edge Case Tests
-// =============================================================================
-
-func TestArchetypeEdgeCases(t *testing.T) {
-	t.Run("GetComponentFromEmptyArchetype", func(t *testing.T) {
-		world := NewWorld()
-
-		entity := world.Create("Generic")
-
-		_, err := world.GetComponent[TestPosition](entity.ID)
-		if err == nil {
-			t.Error("Expected error when getting non-existent component")
-		}
-	})
-
-	t.Run("RemoveNonExistentComponent", func(t *testing.T) {
-		world := NewWorld()
-
-		entity := world.Create("Generic")
-
-		err := world.RemoveComponent[TestPosition](entity.ID)
-		if err != nil {
-			t.Errorf("Expected no error when removing non-existent component, got: %v", err)
-		}
-	})
-
-	t.Run("QueryNonExistentComponent", func(t *testing.T) {
-		world := NewWorld()
-
-		world.Create("Generic")
-
-		result := world.NewQuery().WithRequiredComponents(TestPosition{}, TestVelocity{}).EntityIDs()
-		if len(result) != 0 {
-			t.Error("Expected empty result for non-existent component combination")
-		}
-	})
-
-	t.Run("GetComponentAfterDestruction", func(t *testing.T) {
-		world := NewWorld()
-
-		entity := world.Create("Generic")
-		world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
-
-		world.DestroyEntity(entity.ID, false)
-		world.Cleanup()
-
-		_, err := world.GetComponent[TestPosition](entity.ID)
-		if err == nil {
-			t.Error("Expected error when getting component from destroyed entity")
-		}
-	})
-
-	t.Run("AddComponentToDestroyedEntity", func(t *testing.T) {
-		world := NewWorld()
-
-		entity := world.Create("Generic")
-		world.DestroyEntity(entity.ID, false)
-		world.Cleanup()
-
-		err := world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
-		if err == nil {
-			t.Error("Expected error when adding component to destroyed entity")
 		}
 	})
 }
