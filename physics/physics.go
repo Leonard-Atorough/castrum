@@ -216,12 +216,13 @@ func (s *PhysicsSystem) syncIndex(world *ecs.World) ([]PairKey, error) {
 }
 
 func (s *PhysicsSystem) narrowphase(world *ecs.World, candidates []PairKey, bus *events.EventBus) *CollisionErrors {
-	if len(candidates) == 0 {
-		return nil
-	}
-
 	tested := make(map[PairKey]struct{}, len(candidates))
 	collisionErrors := &CollisionErrors{}
+
+	// If no candidates and no previous pairs, return early
+	if len(candidates) == 0 && len(s.previousPairs) == 0 {
+		return collisionErrors
+	}
 
 	for _, pair := range candidates {
 		tested[pair] = struct{}{}

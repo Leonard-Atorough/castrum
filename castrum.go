@@ -90,10 +90,13 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 
 	// SceneManager is registered as a World resource (not a typed struct field) so ecs
 	// never needs to import the scene package; see internal/ecs/resource.go.
-	ecs.SetResource(newWorld, scene.NewManager())
 
 	input := input.New()
 	EventBus := events.NewEventBus()
+
+	ecs.SetResource(newWorld, scene.NewManager())
+
+	ecs.SetResource(newWorld, EventBus)
 
 	systems := ecs.NewManager()
 

@@ -11,6 +11,8 @@ import (
 
 func TestSystem_RectCollision(t *testing.T) {
 	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
 
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
@@ -47,6 +49,8 @@ func TestSystem_RectCollision(t *testing.T) {
 
 func TestSystem_NoCollisionWhenFar(t *testing.T) {
 	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
 
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
@@ -77,6 +81,8 @@ func TestSystem_NoCollisionWhenFar(t *testing.T) {
 
 func TestSystem_CircleCollision(t *testing.T) {
 	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
@@ -108,6 +114,8 @@ func TestSystem_CircleCollision(t *testing.T) {
 
 func TestSystem_CircleRectCollision(t *testing.T) {
 	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
@@ -175,35 +183,33 @@ func TestSystem_EventLifecycle(t *testing.T) {
 
 	// Move enemy into collision range
 	world.SetComponent(enemy.ID, components.Transform{Position: geom.Vector2{X: 15, Y: 0}})
+
+	// Update after move: should emit Enter
+	eventFired = false
 	if err := collisionSys.Update(world, 0); err != nil {
 		t.Errorf("Update failed: %v", err)
 	}
-
-	// Second update: should emit Enter
-	eventFired = false
-	collisionSys.Update(world, 0)
 	if !eventFired || lastEvent.CollisionEventType != CollisionEnter {
-		t.Error("Expected CollisionEnter event")
+		t.Error("Expected CollisionEnter event after moving into collision range")
 	}
 
-	// Third update: no movement, should emit Stay
+	// Next update with no movement: should emit Stay
 	eventFired = false
 	collisionSys.Update(world, 0)
 	if !eventFired || lastEvent.CollisionEventType != CollisionStay {
-		t.Error("Expected CollisionStay event")
+		t.Error("Expected CollisionStay event when still colliding")
 	}
 
 	// Move enemy away
 	world.SetComponent(enemy.ID, components.Transform{Position: geom.Vector2{X: 100, Y: 0}})
+
+	// Update after moving away: should emit Exit
+	eventFired = false
 	if err := collisionSys.Update(world, 0); err != nil {
 		t.Errorf("Update failed: %v", err)
 	}
-
-	// Fourth update: should emit Exit
-	eventFired = false
-	collisionSys.Update(world, 0)
 	if !eventFired || lastEvent.CollisionEventType != CollisionExit {
-		t.Error("Expected CollisionExit event")
+		t.Error("Expected CollisionExit event after moving out of collision range")
 	}
 
 	bus.Unsubscribe(subID)
@@ -211,6 +217,8 @@ func TestSystem_EventLifecycle(t *testing.T) {
 
 func TestSystem_LayerMaskFiltering(t *testing.T) {
 	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
@@ -242,6 +250,8 @@ func TestSystem_LayerMaskFiltering(t *testing.T) {
 
 func TestSystem_InactiveColliderSkipped(t *testing.T) {
 	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
@@ -270,6 +280,8 @@ func TestSystem_InactiveColliderSkipped(t *testing.T) {
 
 func TestSystem_CircleCircleContact(t *testing.T) {
 	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 	collisionSys.Init(world)
 
@@ -312,6 +324,8 @@ func TestSystem_CircleCircleContact(t *testing.T) {
 
 func TestSystem_QueryCollisions(t *testing.T) {
 	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
 
 	collisionSys.Init(world)
@@ -372,6 +386,8 @@ func TestSystem_QueryCollisions(t *testing.T) {
 
 func TestSystem_DisabledCollision(t *testing.T) {
 	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	ecs.SetResource(world, bus)
 	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: false})
 
 	collisionSys.Init(world)
