@@ -33,6 +33,9 @@ type PhysicsSystem struct {
 	previousPairs map[PairKey]*CollisionState
 	lastPositions map[ecs.EntityID]geom.Vector2
 	dirty         map[ecs.EntityID]struct{}
+	seen          map[ecs.EntityID]struct{}
+	candidates    []PairKey
+	tested        map[PairKey]struct{}
 	query         *ecs.Query
 }
 
@@ -51,6 +54,8 @@ func NewSystem(cfg PhysicsConfig) *PhysicsSystem {
 		previousPairs: make(map[PairKey]*CollisionState),
 		lastPositions: make(map[ecs.EntityID]geom.Vector2),
 		dirty:         make(map[ecs.EntityID]struct{}),
+		seen:          make(map[ecs.EntityID]struct{}),
+		tested:        make(map[PairKey]struct{}),
 	}
 }
 
@@ -140,7 +145,9 @@ func (s *PhysicsSystem) CollidingWith(world *ecs.World, entityID ecs.EntityID) (
 
 // internal — one pass, one query, three stages
 func (s *PhysicsSystem) syncIndex(world *ecs.World) ([]PairKey, error) {
-	seen := make(map[ecs.EntityID]struct{}, len(s.lastPositions))
+	clear(s.seen)
+	s.candidates = s.candidates[:0]
+	clear(s.tested)
 
 	// One pass: index sync + dirty marking + liveness tracking.
 	for result := range s.query.Execute() {
@@ -158,7 +165,7 @@ func (s *PhysicsSystem) syncIndex(world *ecs.World) ([]PairKey, error) {
 		if err := s.index.Update(entityID, transform.Position); err != nil {
 			return nil, err
 		}
-		seen[entityID] = struct{}{}
+		s.seen[entityID] = struct{}{}
 
 		lastPos, exists := s.lastPositions[entityID]
 		if !exists || lastPos != transform.Position {
@@ -170,30 +177,27 @@ func (s *PhysicsSystem) syncIndex(world *ecs.World) ([]PairKey, error) {
 	// Orphans: entity removed, or its Collider went inactive.
 	// The index must be told, or stale entries pollute queries forever.
 	for entityID := range s.lastPositions {
-		if _, ok := seen[entityID]; !ok {
+		if _, ok := s.seen[entityID]; !ok {
 			s.index.Remove(entityID)
 			delete(s.lastPositions, entityID)
 		}
 	}
 	for entityID := range s.dirty {
-		if _, ok := seen[entityID]; !ok {
+		if _, ok := s.seen[entityID]; !ok {
 			delete(s.dirty, entityID)
 		}
 	}
 
 	// Drop pair-cache entries for pairs whose members vanished.
 	for pair := range s.previousPairs {
-		_, okA := seen[pair.EntityA]
-		_, okB := seen[pair.EntityB]
+		_, okA := s.seen[pair.EntityA]
+		_, okB := s.seen[pair.EntityB]
 		if !okA || !okB {
 			delete(s.previousPairs, pair)
 		}
 	}
 
 	// Broadphase, fused: query neighbors around each dirty entity only.
-	candidates := make([]PairKey, 0, len(s.dirty))
-	tested := make(map[PairKey]struct{}, len(s.dirty))
-
 	for entityID := range s.dirty {
 		transform, err := world.GetComponent[components.Transform](entityID)
 		if err != nil {
@@ -204,19 +208,19 @@ func (s *PhysicsSystem) syncIndex(world *ecs.World) ([]PairKey, error) {
 				continue
 			}
 			pair := canonicalPair(entityID, neighborID)
-			if _, ok := tested[pair]; ok {
+			if _, ok := s.tested[pair]; ok {
 				continue
 			}
-			tested[pair] = struct{}{}
-			candidates = append(candidates, pair)
+			s.tested[pair] = struct{}{}
+			s.candidates = append(s.candidates, pair)
 		}
 	}
 
-	return candidates, nil
+	return s.candidates, nil
 }
 
 func (s *PhysicsSystem) narrowphase(world *ecs.World, candidates []PairKey, bus *events.EventBus) *CollisionErrors {
-	tested := make(map[PairKey]struct{}, len(candidates))
+	clear(s.tested)
 	collisionErrors := &CollisionErrors{}
 
 	// If no candidates and no previous pairs, return early
@@ -225,7 +229,7 @@ func (s *PhysicsSystem) narrowphase(world *ecs.World, candidates []PairKey, bus 
 	}
 
 	for _, pair := range candidates {
-		tested[pair] = struct{}{}
+		s.tested[pair] = struct{}{}
 
 		result, err := s.TestCollision(world, pair.EntityA, pair.EntityB)
 		if err != nil {
@@ -256,7 +260,7 @@ func (s *PhysicsSystem) narrowphase(world *ecs.World, candidates []PairKey, bus 
 	// Pairs untouched this frame - neither member moved, so the cached result
 	// still holds. Replay Stay without re-testing geometry.
 	for pair, state := range s.previousPairs {
-		if _, ok := tested[pair]; ok {
+		if _, ok := s.tested[pair]; ok {
 			continue
 		}
 
