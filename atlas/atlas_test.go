@@ -38,7 +38,7 @@ func TestTextureAtlas(t *testing.T) {
 		atlas := NewTextureAtlas("test_atlas", texture)
 
 		if atlas == nil {
-			t.Fatal("expected atlas to be non-nil")
+			t.Error("expected atlas to be non-nil")
 		}
 		if atlas.ID != "test_atlas" {
 			t.Errorf("expected ID 'test_atlas', got %q", atlas.ID)
@@ -81,7 +81,7 @@ func TestBuilder(t *testing.T) {
 		builder := NewBuilder("test_builder", texture, mockStore)
 
 		if builder == nil {
-			t.Fatal("expected builder to be non-nil")
+			t.Error("expected builder to be non-nil")
 		}
 	})
 
@@ -94,15 +94,15 @@ func TestBuilder(t *testing.T) {
 
 		atlas, err := builder.Build()
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 		if len(atlas.Regions) != 1 {
-			t.Fatalf("expected 1 region, got %d", len(atlas.Regions))
+			t.Errorf("expected 1 region, got %d", len(atlas.Regions))
 		}
 
 		region := atlas.Regions["test_region"]
 		if region == nil {
-			t.Fatal("expected region 'test_region' to exist")
+			t.Error("expected region 'test_region' to exist")
 		}
 		if region.Name != "test_region" {
 			t.Errorf("expected region name 'test_region', got %q", region.Name)
@@ -130,7 +130,7 @@ func TestBuilder(t *testing.T) {
 
 		atlas, err := builder.Build()
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 		if len(atlas.Regions) != 1 {
 			t.Errorf("expected 1 region (out-of-bounds skipped), got %d", len(atlas.Regions))
@@ -155,7 +155,7 @@ func TestBuilder(t *testing.T) {
 
 		atlas, err := builder.Build()
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 		if len(atlas.Regions) != 1 {
 			t.Errorf("expected 1 region (negative dims skipped), got %d", len(atlas.Regions))
@@ -178,7 +178,7 @@ func TestBuilder(t *testing.T) {
 
 		atlas, err := builder.Build()
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 
 		if len(atlas.Regions) != 16 {
@@ -206,7 +206,7 @@ func TestBuilder(t *testing.T) {
 
 		atlas, err := builder.Build()
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 
 		if len(atlas.Regions) != 4 {
@@ -268,7 +268,7 @@ func TestBuilder(t *testing.T) {
 
 		atlas, err := builder.Build()
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 
 		if mockStore.storedID != "test_builder" {
@@ -296,7 +296,7 @@ func TestBuilder(t *testing.T) {
 
 		atlas, err := builder.Build()
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 
 		if len(atlas.Regions) != 3 {
@@ -334,7 +334,7 @@ func TestAtlasStore(t *testing.T) {
 	t.Run("NewAtlasStore creates a new store", func(t *testing.T) {
 		store := NewAtlasStore()
 		if store == nil {
-			t.Fatal("expected store to be non-nil")
+			t.Error("expected store to be non-nil")
 		}
 	})
 
@@ -343,7 +343,7 @@ func TestAtlasStore(t *testing.T) {
 		builder := store.NewAtlas("test_atlas")
 
 		if builder == nil {
-			t.Fatal("expected builder to be non-nil")
+			t.Error("expected builder to be non-nil")
 		}
 	})
 
@@ -358,13 +358,13 @@ func TestAtlasStore(t *testing.T) {
 
 		atlas, err := builder.Build()
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 
 		// Verify the atlas was stored
 		retrieved := store.Get("test_atlas")
 		if retrieved == nil {
-			t.Fatal("expected atlas to be stored")
+			t.Error("expected atlas to be stored")
 		}
 		if retrieved != atlas {
 			t.Error("expected retrieved atlas to match built atlas")
@@ -385,7 +385,7 @@ func TestAtlasStore(t *testing.T) {
 
 		retrieved := store.Get("test_atlas")
 		if retrieved == nil {
-			t.Fatal("expected atlas to be retrieved")
+			t.Error("expected atlas to be retrieved")
 		}
 		if retrieved != atlas {
 			t.Error("expected retrieved atlas to match stored atlas")

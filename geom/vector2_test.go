@@ -33,7 +33,7 @@ func TestVector2_Arithmetic(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if !vecAlmostEqual(tc.got, tc.want) {
-				t.Fatalf("got %v, want %v", tc.got, tc.want)
+				t.Errorf("got %v, want %v", tc.got, tc.want)
 			}
 		})
 	}
@@ -42,7 +42,7 @@ func TestVector2_Arithmetic(t *testing.T) {
 func TestVector2_Length(t *testing.T) {
 	v := Vector2{X: 3, Y: 4}
 	if got := v.Length(); !almostEqual(got, 5) {
-		t.Fatalf("Length() = %v, want 5", got)
+		t.Errorf("Length() = %v, want 5", got)
 	}
 }
 
@@ -51,17 +51,17 @@ func TestVector2_Normalize(t *testing.T) {
 		v := Vector2{X: 3, Y: 4}
 		got := v.Normalize()
 		if !almostEqual(got.Length(), 1) {
-			t.Fatalf("normalized length = %v, want 1", got.Length())
+			t.Errorf("normalized length = %v, want 1", got.Length())
 		}
 		if !vecAlmostEqual(got, Vector2{X: 0.6, Y: 0.8}) {
-			t.Fatalf("Normalize() = %v, want {0.6 0.8}", got)
+			t.Errorf("Normalize() = %v, want {0.6 0.8}", got)
 		}
 	})
 
 	t.Run("zero vector normalizes to zero instead of NaN", func(t *testing.T) {
 		got := Vector2{}.Normalize()
 		if got != (Vector2{}) {
-			t.Fatalf("Normalize() of zero vector = %v, want zero vector", got)
+			t.Errorf("Normalize() of zero vector = %v, want zero vector", got)
 		}
 	})
 }
@@ -71,10 +71,10 @@ func TestVector2_DotAndCross(t *testing.T) {
 	b := Vector2{X: 0, Y: 1}
 
 	if got := a.Dot(b); got != 0 {
-		t.Fatalf("Dot() = %v, want 0 for perpendicular vectors", got)
+		t.Errorf("Dot() = %v, want 0 for perpendicular vectors", got)
 	}
 	if got := a.Cross(b); got != 1 {
-		t.Fatalf("Cross() = %v, want 1", got)
+		t.Errorf("Cross() = %v, want 1", got)
 	}
 }
 
@@ -82,7 +82,7 @@ func TestVector2_Angle(t *testing.T) {
 	a := Vector2{X: 1, Y: 0}
 	b := Vector2{X: 0, Y: 1}
 	if got := a.Angle(b); !almostEqual(got, math.Pi/2) {
-		t.Fatalf("Angle() = %v, want pi/2", got)
+		t.Errorf("Angle() = %v, want pi/2", got)
 	}
 }
 
@@ -90,7 +90,7 @@ func TestVector2_Distance(t *testing.T) {
 	a := Vector2{X: 0, Y: 0}
 	b := Vector2{X: 3, Y: 4}
 	if got := a.Distance(b); !almostEqual(got, 5) {
-		t.Fatalf("Distance() = %v, want 5", got)
+		t.Errorf("Distance() = %v, want 5", got)
 	}
 }
 
@@ -108,7 +108,7 @@ func TestVector2_Lerp(t *testing.T) {
 	}
 	for _, tc := range cases {
 		if got := a.Lerp(b, tc.t); !vecAlmostEqual(got, tc.want) {
-			t.Fatalf("Lerp(%v) = %v, want %v", tc.t, got, tc.want)
+			t.Errorf("Lerp(%v) = %v, want %v", tc.t, got, tc.want)
 		}
 	}
 }
@@ -118,7 +118,7 @@ func TestVector2_Reflect(t *testing.T) {
 	normal := Vector2{X: 0, Y: 1}
 	got := v.Reflect(normal)
 	if !vecAlmostEqual(got, Vector2{X: 1, Y: 1}) {
-		t.Fatalf("Reflect() = %v, want {1 1}", got)
+		t.Errorf("Reflect() = %v, want {1 1}", got)
 	}
 }
 
@@ -128,14 +128,14 @@ func TestVector2_Project(t *testing.T) {
 		onto := Vector2{X: 1, Y: 0}
 		got := v.Project(onto)
 		if !vecAlmostEqual(got, Vector2{X: 2, Y: 0}) {
-			t.Fatalf("Project() = %v, want {2 0}", got)
+			t.Errorf("Project() = %v, want {2 0}", got)
 		}
 	})
 
 	t.Run("projecting onto a zero vector returns zero instead of NaN", func(t *testing.T) {
 		got := Vector2{X: 1, Y: 1}.Project(Vector2{})
 		if got != (Vector2{}) {
-			t.Fatalf("Project() onto zero vector = %v, want zero vector", got)
+			t.Errorf("Project() onto zero vector = %v, want zero vector", got)
 		}
 	})
 }
@@ -144,7 +144,7 @@ func TestVector2_Rotate(t *testing.T) {
 	v := Vector2{X: 1, Y: 0}
 	got := v.Rotate(math.Pi / 2)
 	if !vecAlmostEqual(got, Vector2{X: 0, Y: 1}) {
-		t.Fatalf("Rotate(pi/2) = %v, want {0 1}", got)
+		t.Errorf("Rotate(pi/2) = %v, want {0 1}", got)
 	}
 }
 
@@ -152,6 +152,6 @@ func TestVector2_String(t *testing.T) {
 	got := Vector2{X: 1, Y: 2}.String()
 	want := "Vector2{X: 1.000000, Y: 2.000000}"
 	if got != want {
-		t.Fatalf("String() = %q, want %q", got, want)
+		t.Errorf("String() = %q, want %q", got, want)
 	}
 }

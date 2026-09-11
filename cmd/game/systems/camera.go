@@ -2,11 +2,10 @@ package systems
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/leonard-atorough/castrum"
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/input"
-	"github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 // CameraSystem is responsible for managing the camera within the game world.
@@ -18,10 +17,10 @@ type CameraSystem struct {
 
 // Update finds the player and updates the primary camera to follow it.
 // Camera is now an ECS component, so we query it from the world.
-func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
+func (cs *CameraSystem) Update(world *ecs.World, delta float64) error {
 	// Query for the primary camera
 	cameras := cs.cameraQuery.EntityIDs()
-	var cameraEntity castrum.EntityID
+	var cameraEntity ecs.EntityID
 	var found bool
 
 	for _, eid := range cameras {
@@ -100,12 +99,12 @@ func (cs *CameraSystem) Update(world *castrum.World, delta float64) error {
 	return nil
 }
 
-func (cs *CameraSystem) Init(world *castrum.World) error {
+func (cs *CameraSystem) Init(world *ecs.World) error {
 	cs.cameraQuery = ecs.NewQuery(world).WithRequiredComponents(components.Camera{})
 	cs.playerQuery = ecs.NewQuery(world).WithRequiredComponents(gamecomponents.Player{})
 	return nil
 }
 
-func (cs *CameraSystem) Shutdown(world *castrum.World) error {
+func (cs *CameraSystem) Shutdown(world *ecs.World) error {
 	return nil
 }

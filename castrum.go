@@ -9,69 +9,15 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/assets"
-	"github.com/leonard-atorough/castrum/atlas"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
-	"github.com/leonard-atorough/castrum/internal/animationsystem"
-	"github.com/leonard-atorough/castrum/internal/assetsystem"
-	"github.com/leonard-atorough/castrum/internal/camerasystem"
-	"github.com/leonard-atorough/castrum/internal/ecs"
-	"github.com/leonard-atorough/castrum/internal/physicssystem"
-	"github.com/leonard-atorough/castrum/internal/render"
-	"github.com/leonard-atorough/castrum/internal/scene"
-	"github.com/leonard-atorough/castrum/internal/spatial"
-	"github.com/leonard-atorough/castrum/internal/timersystem"
-)
-
-// ecs components (data attached to entities)
-type (
-	Transform  = components.Transform
-	Renderable = components.Sprite
-	Collider   = components.Collider
-	Animation  = components.Animation
-	SceneTag   = components.SceneTag
-	Timer      = components.Timer
-	TimerID    = components.TimerID
-	Camera     = components.Camera
-)
-
-type (
-	// World is the entity-component system container
-	World       = ecs.World
-	Entity      = ecs.Entity
-	Component   = ecs.Component
-	EntityID    = ecs.EntityID
-	Query       = ecs.Query
-	QueryResult = ecs.ResultEntry
-)
-
-type (
-	// System is the interface for game logic systems
-	System  = ecs.System
-	Systems = ecs.Manager
-)
-
-type (
-	// AnimationManager provides programmatic creation and storage of animation clips
-	AnimationManager = animation.AnimationClipStore
-	// AtlasManager provides programmatic creation and storage of texture atlases
-	AtlasManager = atlas.AtlasStore
-)
-
-type (
-	Scene        = scene.Scene
-	SceneBuilder = scene.Builder
-)
-
-// Sentinel errors returned by engine operations. Use errors.Is() for checking.
-var (
-	ErrEntityNotFound          = ecs.ErrEntityNotFound
-	ErrInvalidEntity           = ecs.ErrInvalidEntity
-	ErrComponentNotFound       = ecs.ErrComponentNotFound
-	ErrSystemNotFound          = ecs.ErrSystemNotFound
-	ErrSystemAlreadyRegistered = ecs.ErrSystemAlreadyRegistered
+	"github.com/leonard-atorough/castrum/physics"
+	"github.com/leonard-atorough/castrum/render"
+	"github.com/leonard-atorough/castrum/scene"
+	"github.com/leonard-atorough/castrum/timers"
 )
 
 const (
@@ -90,7 +36,7 @@ func unboundedRect() geom.Rect {
 type Game struct {
 	// World is the ECS container managing all entities and components.
 	// Use World to create/destroy entities, add/remove components, and query entities.
-	World *World
+	World *ecs.World
 
 	// Config is the engine configuration (graphics, audio, input, engine settings).
 	// Generally immutable after NewGame.
@@ -113,7 +59,7 @@ type Game struct {
 
 	// Spatial is the spatial index for efficient entity queries by position (advanced use only).
 	// Most games should not interact with this directly; it's managed by the collision system.
-	Spatial *spatial.SpatialIndexHandler
+	Spatial *physics.SpatialIndexHandler
 
 	// Input is the input handler for keyboard, mouse, and gamepad state.
 	// Use Input.KeyPressed, MouseHeld, etc. to poll input state.
@@ -121,10 +67,10 @@ type Game struct {
 
 	// Assets is the asset manager for loading and caching textures, animations, and blueprints.
 	// Use Assets to load game resources.
-	Assets *assets.Assets
+	Assets *assets.AssetLoader
 
 	// CameraEntityID is the entity ID of the primary camera (internal, do not modify).
-	CameraEntityID EntityID
+	CameraEntityID ecs.EntityID
 
 	// Timestep state (internal, do not modify).
 	accumulator float64
@@ -157,27 +103,27 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 
 	// all ecs systems are allowed a priority of -1 for now. Better to have a field for ecs system priorities in the future.
 	var err error
-	if err = systems.Register("timer", -1, &timersystem.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
+	if err = systems.Register("timer", -1, &timers.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
 		return nil, err
 	}
-	if err = systems.Register("camera", -1, &camerasystem.System{}, newWorld); err != nil {
+	if err = systems.Register("camera", -1, &render.CameraSystem{}, newWorld); err != nil {
 		return nil, err
 	}
 	// Create animation manager and register it as a resource
 	animMgr := animation.NewAnimationClipStore()
 	ecs.SetResource(newWorld, animMgr)
-	if err = systems.Register("animation", -1, animationsystem.NewSystem(animMgr), newWorld); err != nil {
+	if err = systems.Register("animation", -1, animation.NewSystem(animMgr), newWorld); err != nil {
 		return nil, err
 	}
-	spatial, err := spatial.NewManager(config.World.GridCellSize)
+	spatial, err := physics.NewManager(config.World.GridCellSize)
 	if err != nil {
 		return nil, err
 	}
-	if err = systems.Register("collision", -1, physicssystem.NewSystem(spatial.Index, physicssystem.DefaultConfig()), newWorld); err != nil {
+	if err = systems.Register("collision", -1, physics.NewSystem(spatial.Index, physics.DefaultConfig()), newWorld); err != nil {
 		return nil, err
 	}
 
-	assets := assets.NewAssets(filesystem)
+	assets := assets.NewAssetLoader(filesystem)
 	renderer := render.New(assets.Textures, animMgr)
 
 	// Create primary camera as an entity
@@ -258,7 +204,7 @@ func (g *Game) Scenes() *scene.Manager {
 
 // GetResource retrieves a typed resource from the world's resource store.
 // Returns a zero value and false if the resource is not registered.
-func GetResource[T any](world *World) (T, bool) {
+func GetResource[T any](world *ecs.World) (T, bool) {
 	return ecs.GetResource[T](world)
 }
 
@@ -326,25 +272,25 @@ func (g *Game) GetCameraViewport() (geom.Rect, error) {
 
 // Spawn creates a new entity in the world from a blueprint's component data.
 // Load the blueprint first via g.Assets.Blueprints.Load(path).
-func (g *Game) Spawn(bp *assets.Blueprint) (*Entity, error) {
-	return assetsystem.CreateFromBlueprint(g.World, bp)
+func (g *Game) Spawn(bp *assets.Blueprint) (*ecs.Entity, error) {
+	return assets.CreateFromBlueprint(g.World, bp)
 }
 
 // FindAll returns all entities that have at least a component of type T.
 // Each QueryResult includes component access via result.Get[ComponentType]().
-func FindAll[T Component](w *World) []QueryResult {
+func FindAll[T ecs.Component](w *ecs.World) []ecs.ResultEntry {
 	var zero T
 	return w.NewQuery().WithRequiredComponents(zero).All()
 }
 
 // FindOne returns the first entity with a component of type T, or false if none found.
-func FindOne[T Component](w *World) (QueryResult, bool) {
+func FindOne[T ecs.Component](w *ecs.World) (ecs.ResultEntry, bool) {
 	var zero T
 	return w.NewQuery().WithRequiredComponents(zero).First()
 }
 
 // CountWith returns the number of entities that have a component of type T.
-func CountWith[T Component](w *World) int {
+func CountWith[T ecs.Component](w *ecs.World) int {
 	var zero T
 	return w.NewQuery().WithRequiredComponents(zero).Count()
 }
@@ -352,7 +298,7 @@ func CountWith[T Component](w *World) int {
 // RegisterSystem registers a system with the game.
 // Priority controls execution order: lower values run first. Use negative values for systems
 // that should run before ecs systems (e.g., shader prep), 0 for most game logic, positive for post-processing.
-func (g *Game) RegisterSystem(name string, priority int, system System) error {
+func (g *Game) RegisterSystem(name string, priority int, system ecs.System) error {
 	return g.Systems.Register(name, priority, system, g.World)
 }
 

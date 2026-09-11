@@ -3,6 +3,8 @@ package assets
 import (
 	"testing"
 	"testing/fstest"
+
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 const validBlueprintYAML = `name: Goblin
@@ -24,19 +26,19 @@ func TestStore_Load(t *testing.T) {
 
 		bp, err := s.Load("goblin.yaml")
 		if err != nil {
-			t.Fatalf("Load failed: %v", err)
+			t.Errorf("Load failed: %v", err)
 		}
 		if bp.Name != "Goblin" {
-			t.Fatalf("Name = %q, want %q", bp.Name, "Goblin")
+			t.Errorf("Name = %q, want %q", bp.Name, "Goblin")
 		}
 		if len(bp.Components) != 1 || bp.Components[0].Type != "testComponent" {
-			t.Fatalf("unexpected components: %#v", bp.Components)
+			t.Errorf("unexpected components: %#v", bp.Components)
 		}
 
 		// Verify caching by path
 		got, exists := s.Blueprints["goblin.yaml"]
 		if !exists || got != bp {
-			t.Fatal("expected Load to cache the blueprint under its path")
+			t.Errorf("expected Load to cache the blueprint under its path")
 		}
 	})
 
@@ -47,7 +49,7 @@ func TestStore_Load(t *testing.T) {
 		s := newBlueprintStore(fs)
 
 		if _, err := s.Load("broken.yaml"); err == nil {
-			t.Fatal("expected an error for malformed YAML")
+			t.Errorf("expected an error for malformed YAML")
 		}
 	})
 
@@ -56,7 +58,7 @@ func TestStore_Load(t *testing.T) {
 		s := newBlueprintStore(fs)
 
 		if _, err := s.Load("missing.yaml"); err == nil {
-			t.Fatal("expected an error for a missing file")
+			t.Errorf("expected an error for a missing file")
 		}
 	})
 
@@ -70,7 +72,52 @@ func TestStore_Load(t *testing.T) {
 		bp2, _ := s.Load("hero.yaml")
 
 		if bp1 != bp2 {
-			t.Fatal("expected Load to return cached blueprint on second call")
+			t.Errorf("expected Load to return cached blueprint on second call")
+		}
+	})
+}
+
+type testComponent struct {
+	Value int
+}
+
+func TestCreateFromBlueprint(t *testing.T) {
+	ecs.Register[testComponent]()
+
+	t.Run("spawns an entity with resolved components", func(t *testing.T) {
+		world := ecs.NewWorld()
+		bp := &Blueprint{
+			Name: "Goblin",
+			Components: []ComponentData{
+				{Type: "testComponent", Properties: map[string]any{"Value": 5}},
+			},
+		}
+
+		entity, err := CreateFromBlueprint(world, bp)
+		if err != nil {
+			t.Errorf("CreateFromBlueprint failed: %v", err)
+		}
+
+		comp, err := world.GetComponent[testComponent](entity.ID)
+		if err != nil {
+			t.Errorf("GetComponent failed: %v", err)
+		}
+		if comp.Value != 5 {
+			t.Errorf("component Value = %d, want 5", comp.Value)
+		}
+	})
+
+	t.Run("an unregistered component type fails the spawn", func(t *testing.T) {
+		world := ecs.NewWorld()
+		bp := &Blueprint{
+			Name: "Broken",
+			Components: []ComponentData{
+				{Type: "doesNotExist", Properties: nil},
+			},
+		}
+
+		if _, err := CreateFromBlueprint(world, bp); err == nil {
+			t.Errorf("expected an error for an unregistered component type")
 		}
 	})
 }

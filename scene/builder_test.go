@@ -1,0 +1,242 @@
+package scene
+
+import (
+	"testing"
+
+	"github.com/leonard-atorough/castrum/ecs"
+)
+
+func TestNewBuilder(t *testing.T) {
+	builder := NewBuilder("test-scene")
+
+	if builder.scene.ID != "test-scene" {
+		t.Errorf("expected scene ID 'test-scene', got %q", builder.scene.ID)
+	}
+
+	if len(builder.entityIDs) != 0 {
+		t.Errorf("expected empty entity IDs, got %d", len(builder.entityIDs))
+	}
+}
+
+func TestBuilder_WithEntity(t *testing.T) {
+	builder := NewBuilder("test-scene")
+
+	entityID := ecs.EntityID(1)
+	result := builder.WithEntity(entityID)
+
+	if result != builder {
+		t.Error("WithEntity should return the same builder for chaining")
+	}
+
+	if len(builder.entityIDs) != 1 {
+		t.Errorf("expected 1 entity ID, got %d", len(builder.entityIDs))
+	}
+
+	if builder.entityIDs[0] != entityID {
+		t.Errorf("expected entity ID %d, got %d", entityID, builder.entityIDs[0])
+	}
+}
+
+func TestBuilder_WithEntity_Multiple(t *testing.T) {
+	builder := NewBuilder("test-scene")
+
+	builder.WithEntity(1).WithEntity(2).WithEntity(3)
+
+	if len(builder.entityIDs) != 3 {
+		t.Errorf("expected 3 entity IDs, got %d", len(builder.entityIDs))
+	}
+}
+
+func TestBuilder_Build(t *testing.T) {
+	world := ecs.NewWorld()
+	builder := NewBuilder("test-scene")
+
+	entity1 := world.Create("player")
+	entity2 := world.Create("enemy")
+
+	builder.WithEntity(entity1.ID).WithEntity(entity2.ID)
+
+	scene, err := builder.Build(world)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	if scene.ID != "test-scene" {
+		t.Errorf("expected scene ID 'test-scene', got %q", scene.ID)
+	}
+
+	// Verify entities are in the scene
+	entities := scene.Entities(world)
+	if len(entities) != 2 {
+		t.Errorf("expected 2 entities in scene, got %d", len(entities))
+	}
+}
+
+func TestBuilder_Build_Empty(t *testing.T) {
+	world := ecs.NewWorld()
+	builder := NewBuilder("empty-scene")
+
+	scene, err := builder.Build(world)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	if scene.ID != "empty-scene" {
+		t.Errorf("expected scene ID 'empty-scene', got %q", scene.ID)
+	}
+
+	entities := scene.Entities(world)
+	if len(entities) != 0 {
+		t.Errorf("expected 0 entities in empty scene, got %d", len(entities))
+	}
+}
+
+func TestBuilder_Build_WithNonExistentEntity(t *testing.T) {
+	world := ecs.NewWorld()
+	builder := NewBuilder("test-scene")
+
+	builder.WithEntity(999) // Non-existent entity
+
+	_, err := builder.Build(world)
+	if err == nil {
+		t.Error("expected error when building with non-existent entity")
+	}
+}
+
+func TestBuilder_WithLoadHook(t *testing.T) {
+	builder := NewBuilder("test-scene")
+
+	loadCalled := false
+	builder.WithLoadHook(func(w *ecs.World) error {
+		loadCalled = true
+		return nil
+	})
+
+	if builder.scene.loadHook == nil {
+		t.Error("expected load hook to be set")
+	}
+
+	// Verify the hook works
+	world := ecs.NewWorld()
+	scene, _ := builder.Build(world)
+	_ = scene.OnLoad(world)
+
+	if !loadCalled {
+		t.Error("expected load hook to be called")
+	}
+}
+
+func TestBuilder_WithUnloadHook(t *testing.T) {
+	builder := NewBuilder("test-scene")
+
+	unloadCalled := false
+	builder.WithUnloadHook(func(w *ecs.World) error {
+		unloadCalled = true
+		return nil
+	})
+
+	if builder.scene.unloadHook == nil {
+		t.Error("expected unload hook to be set")
+	}
+
+	// Verify the hook works
+	world := ecs.NewWorld()
+	scene, _ := builder.Build(world)
+	_ = scene.OnUnload(world)
+
+	if !unloadCalled {
+		t.Error("expected unload hook to be called")
+	}
+}
+
+func TestBuilder_WithHooks(t *testing.T) {
+	builder := NewBuilder("test-scene")
+
+	loadCalled, unloadCalled := false, false
+	builder.WithHooks(
+		func(w *ecs.World) error {
+			loadCalled = true
+			return nil
+		},
+		func(w *ecs.World) error {
+			unloadCalled = true
+			return nil
+		},
+	)
+
+	world := ecs.NewWorld()
+	scene, _ := builder.Build(world)
+
+	_ = scene.OnLoad(world)
+	if !loadCalled {
+		t.Error("expected load hook to be called")
+	}
+
+	_ = scene.OnUnload(world)
+	if !unloadCalled {
+		t.Error("expected unload hook to be called")
+	}
+}
+
+func TestBuilder_WithData(t *testing.T) {
+	builder := NewBuilder("test-scene")
+
+	builder.WithData("secs", 100)
+	builder.WithData("level", 5)
+
+	scene := builder.Scene()
+
+	val, ok := scene.GetData("secs")
+	if !ok || val != 100 {
+		t.Error("expected secs to be 100")
+	}
+
+	val, ok = scene.GetData("level")
+	if !ok || val != 5 {
+		t.Error("expected level to be 5")
+	}
+}
+
+func TestBuilder_WithDataMap(t *testing.T) {
+	builder := NewBuilder("test-scene")
+
+	data := map[string]any{
+		"health": 100,
+		"mana":   50,
+		"name":   "player",
+	}
+	builder.WithDataMap(data)
+
+	scene := builder.Scene()
+
+	for k, v := range data {
+		val, ok := scene.GetData(k)
+		if !ok {
+			t.Errorf("expected key %q to exist", k)
+		}
+		if val != v {
+			t.Errorf("expected value %v for key %q, got %v", v, k, val)
+		}
+	}
+}
+
+func TestBuilder_Scene(t *testing.T) {
+	builder := NewBuilder("test-scene")
+
+	scene := builder.Scene()
+
+	if scene.ID != "test-scene" {
+		t.Errorf("expected scene ID 'test-scene', got %q", scene.ID)
+	}
+
+	// Verify we can still build after getting the scene
+	world := ecs.NewWorld()
+	builtScene, err := builder.Build(world)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	if builtScene != scene {
+		t.Error("expected Scene() to return the same scene instance")
+	}
+}

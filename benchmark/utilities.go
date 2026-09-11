@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/leonard-atorough/castrum/internal/ecs"
+	"github.com/leonard-atorough/castrum/ecs"
 )
 
 // BenchmarkConfig holds configuration for benchmark scenarios
