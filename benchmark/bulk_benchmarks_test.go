@@ -15,7 +15,7 @@ func BenchmarkCreateMany(b *testing.B) {
 	world := ecs.NewWorld()
 
 	b.ResetTimer()
-	for i := 0; b.Loop(); i++ {
+	for b.Loop() {
 		world.CreateMany("Generic", 100)
 	}
 }
@@ -27,7 +27,7 @@ func BenchmarkCreateManyVsIndividual(b *testing.B) {
 	b.Run("CreateMany", func(b *testing.B) {
 		world := ecs.NewWorld()
 		b.ResetTimer()
-		for i := 0; b.Loop(); i++ {
+		for b.Loop() {
 			world.CreateMany("Generic", 100)
 		}
 	})
@@ -35,7 +35,7 @@ func BenchmarkCreateManyVsIndividual(b *testing.B) {
 	b.Run("IndividualCreate", func(b *testing.B) {
 		world := ecs.NewWorld()
 		b.ResetTimer()
-		for i := 0; b.Loop(); i++ {
+		for b.Loop() {
 			for j := 0; j < 100; j++ {
 				world.Create("Generic")
 			}
@@ -43,14 +43,15 @@ func BenchmarkCreateManyVsIndividual(b *testing.B) {
 	})
 }
 
-// BenchmarkBulkAddComponents measures performance of adding multiple components rapidly.
-func BenchmarkBulkAddComponents(b *testing.B) {
-	// Add multiple components to same entity in rapid succession
+// BenchmarkBulkAddAndRemoveComponents measures performance of adding and removing multiple components rapidly.
+func BenchmarkBulkAddAndRemoveComponents(b *testing.B) {
+	// Add and remove multiple components to same entity in rapid succession
 	world := ecs.NewWorld()
 	entity := world.Create("Generic")
 
 	b.ResetTimer()
-	for i := 0; b.Loop(); i++ {
+	i := 0
+	for b.Loop() {
 		// Remove existing components
 		world.RemoveComponent[Position](entity.ID)
 		world.RemoveComponent[Velocity](entity.ID)
@@ -60,12 +61,13 @@ func BenchmarkBulkAddComponents(b *testing.B) {
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(entity.ID, Velocity{X: 1.0, Y: 1.0})
 		world.AddComponent(entity.ID, Health{Value: 100})
+		i++
 	}
 }
 
-// BenchmarkBulkRemoveComponents measures performance of removing multiple components rapidly.
-func BenchmarkBulkRemoveComponents(b *testing.B) {
-	// Remove multiple components in rapid succession
+// BenchmarkBulkRemoveAndAddComponents measures performance of removing and adding multiple components rapidly.
+func BenchmarkBulkRemoveAndAddComponents(b *testing.B) {
+	// Remove and add multiple components in rapid succession
 	world := ecs.NewWorld()
 	entity := world.Create("Generic")
 	world.AddComponent(entity.ID, Position{X: 1, Y: 1})
@@ -73,7 +75,7 @@ func BenchmarkBulkRemoveComponents(b *testing.B) {
 	world.AddComponent(entity.ID, Health{Value: 100})
 
 	b.ResetTimer()
-	for i := 0; b.Loop(); i++ {
+	for b.Loop() {
 		world.RemoveComponent[Position](entity.ID)
 		world.RemoveComponent[Velocity](entity.ID)
 		world.RemoveComponent[Health](entity.ID)
