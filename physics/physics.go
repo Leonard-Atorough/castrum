@@ -13,6 +13,7 @@ import (
 
 type spatialIndexer interface {
 	Query(position geom.Vector2, radius float64) []ecs.EntityID
+	QueryInto(position geom.Vector2, radius float64, ids []ecs.EntityID) []ecs.EntityID
 	Update(entityID ecs.EntityID, position geom.Vector2) error
 	Remove(entityID ecs.EntityID)
 }
@@ -36,6 +37,7 @@ type PhysicsSystem struct {
 	seen          map[ecs.EntityID]struct{}
 	candidates    []PairKey
 	tested        map[PairKey]struct{}
+	nearby        []ecs.EntityID
 	query         *ecs.Query
 }
 
@@ -56,6 +58,7 @@ func NewSystem(cfg PhysicsConfig) *PhysicsSystem {
 		dirty:         make(map[ecs.EntityID]struct{}),
 		seen:          make(map[ecs.EntityID]struct{}),
 		tested:        make(map[PairKey]struct{}),
+		nearby:        make([]ecs.EntityID, 0, 16),
 	}
 }
 
@@ -118,10 +121,10 @@ func (s *PhysicsSystem) CollidingWith(world *ecs.World, entityID ecs.EntityID) (
 	if err != nil {
 		return nil, fmt.Errorf("entity %d: %w", entityID, err)
 	}
-	nearby := s.index.Query(transform.Position, s.config.QueryRadius)
+	s.nearby = s.index.QueryInto(transform.Position, s.config.QueryRadius, s.nearby[:0])
 
 	var collisions []ecs.EntityID
-	for _, otherID := range nearby {
+	for _, otherID := range s.nearby {
 		if otherID == entityID {
 			continue
 		}
@@ -203,7 +206,8 @@ func (s *PhysicsSystem) syncIndex(world *ecs.World) ([]PairKey, error) {
 		if err != nil {
 			continue
 		}
-		for _, neighborID := range s.index.Query(transform.Position, s.config.QueryRadius) {
+		s.nearby = s.index.QueryInto(transform.Position, s.config.QueryRadius, s.nearby[:0])
+		for _, neighborID := range s.nearby {
 			if neighborID == entityID {
 				continue
 			}
