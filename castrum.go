@@ -57,10 +57,6 @@ type Game struct {
 	// Exposed for custom rendering (e.g., debug overlays, post-processing).
 	renderer *render.Renderer
 
-	// Spatial is the spatial index for efficient entity queries by position (advanced use only).
-	// Most games should not interact with this directly; it's managed by the collision system.
-	Spatial *physics.SpatialIndexHandler
-
 	// Input is the input handler for keyboard, mouse, and gamepad state.
 	// Use Input.KeyPressed, MouseHeld, etc. to poll input state.
 	Input *input.InputHandler
@@ -115,11 +111,8 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	if err = systems.Register("animation", -1, animation.NewSystem(animMgr), newWorld); err != nil {
 		return nil, err
 	}
-	spatial, err := physics.NewManager(config.World.GridCellSize)
-	if err != nil {
-		return nil, err
-	}
-	if err = systems.Register("collision", -1, physics.NewSystem(spatial.Index, physics.DefaultConfig()), newWorld); err != nil {
+
+	if err = systems.Register("physics", -1, physics.NewSystem(physics.DefaultConfig()), newWorld); err != nil {
 		return nil, err
 	}
 
@@ -148,7 +141,6 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		EventBus:       EventBus,
 		renderer:       renderer,
 		CameraEntityID: cameraEntity.ID,
-		Spatial:        spatial,
 		Input:          input,
 		fixedDelta:     1.0 / float64(config.Engine.TicksPerSecond),
 		Speed:          config.Engine.TimeScale,
@@ -179,9 +171,6 @@ func (g *Game) Update() error {
 	iterator := 0
 	for g.accumulator >= g.fixedDelta && iterator < maxIterationsPerFrame {
 		iterator++
-		if err := g.Spatial.Update(g.World, g.fixedDelta); err != nil {
-			return err
-		}
 		g.Systems.Update(g.World, g.fixedDelta)
 		g.accumulator -= g.fixedDelta
 	}

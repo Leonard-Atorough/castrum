@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
 )
@@ -19,7 +18,7 @@ type SpatialIndex struct {
 	entities map[ecs.EntityID]GridCell
 }
 
-func NewIndex(cellSize float64) (*SpatialIndex, error) {
+func newIndex(cellSize float64) (*SpatialIndex, error) {
 	if cellSize <= 0 {
 		return nil, fmt.Errorf("cellSize must be positive, got %f", cellSize)
 	}
@@ -96,38 +95,4 @@ func (idx *SpatialIndex) Remove(entityID ecs.EntityID) {
 		delete(idx.cells, cell)
 	}
 	delete(idx.entities, entityID)
-}
-
-type SpatialIndexHandler struct {
-	Index          *SpatialIndex
-	transformQuery *ecs.Query
-}
-
-func NewManager(cellSize float64) (*SpatialIndexHandler, error) {
-	idx, err := NewIndex(cellSize)
-	if err != nil {
-		return nil, err
-	}
-	return &SpatialIndexHandler{
-		Index: idx,
-	}, nil
-}
-
-func (mgr *SpatialIndexHandler) Update(world *ecs.World, deltaTime float64) error {
-	if mgr.transformQuery == nil {
-		mgr.transformQuery = world.NewQuery().WithRequiredComponents(components.Transform{})
-	}
-
-	for result := range mgr.transformQuery.Execute() {
-		entityID := result.EntityID
-		transform, _ := world.GetComponent[components.Transform](entityID)
-		if err := mgr.Index.Update(entityID, transform.Position); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (mgr *SpatialIndexHandler) RemoveEntity(entityID ecs.EntityID) {
-	mgr.Index.Remove(entityID)
 }
