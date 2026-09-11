@@ -54,14 +54,14 @@ func (s *blueprintStore) Load(path string) (*Blueprint, error) {
 
 	file, err := s.fs.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, &BlueprintError{Message: "failed to open blueprint file", Err: err}
 	}
 	defer file.Close()
 
 	var blueprint Blueprint
 	decoder := yaml.NewDecoder(file)
 	if err := decoder.Decode(&blueprint); err != nil {
-		return nil, err
+		return nil, &BlueprintError{Message: "failed to decode blueprint file", Err: err}
 	}
 
 	s.mu.Lock()
@@ -85,28 +85,24 @@ func CreateFromBlueprint(world *ecs.World, bp *Blueprint) (*ecs.Entity, error) {
 	return world.CreateWithComponents(bp.Name, components...)
 }
 
-type testComponent struct {
-	Value int
-}
-
 var (
 	// ErrComponentTypeNotRegistered is returned when a component type is not registered in the registry.
-	ErrComponentTypeNotRegistered = &blueprintError{Message: "component type is not registered"}
+	ErrComponentTypeNotRegistered = &BlueprintError{Message: "component type is not registered"}
 	// ErrComponentTypeAlreadyRegistered is returned when a component type is already registered in the registry.
-	ErrComponentTypeAlreadyRegistered = &blueprintError{Message: "component type is already registered"}
+	ErrComponentTypeAlreadyRegistered = &BlueprintError{Message: "component type is already registered"}
 	// ErrBlueprintNotFound is returned when a blueprint is not found in the manager.
-	ErrBlueprintNotFound = &blueprintError{Message: "blueprint not found"}
+	ErrBlueprintNotFound = &BlueprintError{Message: "blueprint not found"}
 )
 
-type blueprintError struct {
+type BlueprintError struct {
 	Message string
 	Err     error
 }
 
-func (e *blueprintError) Error() string {
+func (e *BlueprintError) Error() string {
 	return fmt.Sprintf("blueprint error: %s: %v", e.Message, e.Err)
 }
 
-func (e *blueprintError) Unwrap() error {
+func (e *BlueprintError) Unwrap() error {
 	return e.Err
 }
