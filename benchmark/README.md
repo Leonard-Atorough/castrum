@@ -8,7 +8,7 @@
 
 ```bash
 # All benchmarks with memory tracking
-go test -bench=. -benchmem ./benchmark -benchtime=1s
+go test ./benchmark -run='^$' -bench='^Benchmark' -benchmem -benchtime=1s
 
 # By category
 go test -bench=Entity -benchmem ./benchmark -benchtime=1s
@@ -89,7 +89,7 @@ For reference, competitive ECS engines achieve:
 - `hierarchy_benchmarks_test.go` — Parent/children operations (2 benchmarks)
 - `gameloop_benchmarks_test.go` — Realistic game loop scenarios (5 benchmarks)
 - `bulk_benchmarks_test.go` — Batch operations (4 benchmarks)
-- `memory_benchmarks_test.go` — Memory overhead measurement (2 benchmarks)
+- `memory_benchmarks_test.go` — World construction allocation measurements (2 benchmarks)
 
 ---
 

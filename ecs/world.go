@@ -538,10 +538,12 @@ func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component
 				sliceVal := reflect.ValueOf(rawSlice)
 				if sliceVal.Kind() == reflect.Slice && sliceVal.Len() <= targetIdx {
 					newLen := targetIdx + 1
-					newCap := sliceVal.Cap()
-					if newCap < newLen {
-						newCap = max(newCap*2, newLen)
+					if sliceVal.Cap() >= newLen {
+						newArchetype.componentData[compType] = sliceVal.Slice(0, newLen).Interface()
+						continue
 					}
+
+					newCap := max(sliceVal.Cap()*2, newLen)
 					newSlice := reflect.MakeSlice(sliceVal.Type(), newLen, newCap)
 					reflect.Copy(newSlice, sliceVal)
 					newArchetype.componentData[compType] = newSlice.Interface()

@@ -72,11 +72,12 @@ func BenchmarkGameLoopWithSpawning(b *testing.B) {
 		world.AddComponent(entity.ID, Velocity{X: 1.0, Y: 1.0})
 	}
 	query := world.NewQuery().WithRequiredComponents(Position{}, Velocity{})
+	entities := make([]ecs.EntityID, 0, DefaultEntityCount)
 
 	b.ResetTimer()
 	for b.Loop() {
 		// Query and update
-		var entities []ecs.EntityID
+		entities = entities[:0]
 		for entry := range query.Execute() {
 			entities = append(entities, entry.EntityID)
 			pos, _ := entry.Get[Position]()
@@ -109,12 +110,13 @@ func BenchmarkGameLoopWithDestruction(b *testing.B) {
 		world.AddComponent(entity.ID, Velocity{X: 1.0, Y: 1.0})
 	}
 	query := world.NewQuery().WithRequiredComponents(Position{}, Velocity{})
+	entities := make([]ecs.EntityID, 0, DefaultEntityCount)
 
 	b.ResetTimer()
 	cleanupCount := 0
 	for b.Loop() {
 		// Query and update
-		var entities []ecs.EntityID
+		entities = entities[:0]
 		for entry := range query.Execute() {
 			entities = append(entities, entry.EntityID)
 			pos, _ := entry.Get[Position]()
@@ -153,12 +155,13 @@ func BenchmarkGameLoopMixed(b *testing.B) {
 		world.AddComponent(entity.ID, Velocity{X: 1.0, Y: 1.0})
 	}
 	query := world.NewQuery().WithRequiredComponents(Position{}, Velocity{})
+	entities := make([]ecs.EntityID, 0, DefaultEntityCount)
 
 	b.ResetTimer()
 	cleanupCount := 0
 	for b.Loop() {
 		// Query and update
-		var entities []ecs.EntityID
+		entities = entities[:0]
 		for entry := range query.Execute() {
 			entities = append(entities, entry.EntityID)
 			pos, _ := entry.Get[Position]()
