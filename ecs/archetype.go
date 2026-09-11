@@ -110,7 +110,6 @@ func (ak ArchetypeKey) ContainsAll(other ArchetypeKey) bool {
 		}
 		return true
 	}
-	// Fall back to using a map for larger archetypes
 	typeSet := make(map[reflect.Type]struct{}, len(ak))
 	for _, t := range ak {
 		typeSet[t] = struct{}{}
@@ -161,17 +160,16 @@ func (ak ArchetypeKey) ContainsExactly(other ArchetypeKey) bool {
 	return ak.Equals(other)
 }
 
+// Archetype represents a collection of entities that share the same set of component types.
 type Archetype struct {
-	ID             uint64
-	componentTypes ArchetypeKey
-	entities       []EntityID
+	ID uint64 // Unique identifier for the archetype
 
-	// componentData stores typed slices directly (e.g., []Position, []Velocity)
-	// instead of []Component to avoid per-element boxing overhead.
-	// Keys are reflect.Type, values are the typed slices (stored as any).
-	componentData map[reflect.Type]any
+	componentTypes ArchetypeKey         // The set of component types for this archetype
+	entities       []EntityID           // The list of entity IDs in this archetype
+	componentData  map[reflect.Type]any // The actual component data, keyed by component type
 }
 
+// NewArchetype creates a new Archetype with the given ID and component types. It initializes the entities slice and component data map.
 func NewArchetype(id uint64, componentTypes ArchetypeKey) *Archetype {
 	return &Archetype{
 		ID:             id,
@@ -181,10 +179,12 @@ func NewArchetype(id uint64, componentTypes ArchetypeKey) *Archetype {
 	}
 }
 
+// Entities returns the list of entity IDs in the archetype.
 func (a *Archetype) Entities() []EntityID {
 	return a.entities
 }
 
+// ComponentsAtIndex returns the components of type T at the given index in the archetype.
 func (a *Archetype) ComponentsAtIndex[T Component](archetypIdx int) []T {
 	var comps []T
 	compType := reflect.TypeFor[T]()
@@ -211,14 +211,13 @@ func (a *Archetype) ComponentsAtIndex[T Component](archetypIdx int) []T {
 	return comps
 }
 
+// Len returns the number of entities in the archetype.
 func (a *Archetype) Len() int {
 	return len(a.entities)
 }
 
-// removeEntity removes the entity at slot idx using swap-with-last-element,
-// which keeps every component slice aligned with the entities slice in O(1).
-// It reports the EntityID that was moved into idx (if any) so the caller can
-// update that entity's archetypeIdx bookkeeping.
+// removeEntity removes the entity at the given index using the swap-with-last-element strategy.
+// It returns the ID of the entity that was moved into the removed entity's slot (if any) and a boolean indicating if a move occurred.
 func (a *Archetype) removeEntity(idx int) (movedID EntityID, moved bool) {
 	last := len(a.entities) - 1
 	if idx < 0 || idx > last {
@@ -255,13 +254,15 @@ func (a *Archetype) removeEntity(idx int) (movedID EntityID, moved bool) {
 	return movedID, moved
 }
 
+// ArchetypeManager manages all archetypes in the ECS, providing efficient lookup and creation.
 type ArchetypeManager struct {
 	archetypes map[uint64]*Archetype
-	keyToID    map[ArchetypeKeyHash]uint64 //can't use ArchetypeKey as a map key directly, so we hash it
+	keyToID    map[ArchetypeKeyHash]uint64
 	nextID     uint64
 	mu         sync.RWMutex
 }
 
+// NewArchetypeManager creates and initializes a new ArchetypeManager.
 func NewArchetypeManager() *ArchetypeManager {
 	return &ArchetypeManager{
 		archetypes: make(map[uint64]*Archetype),
@@ -270,6 +271,8 @@ func NewArchetypeManager() *ArchetypeManager {
 	}
 }
 
+// GetOrCreateArchetype retrieves an existing archetype matching the given component types,
+// or creates a new one if none exists. It returns the archetype instance.
 func (am *ArchetypeManager) GetOrCreateArchetype(componentTypes ...reflect.Type) *Archetype {
 	am.mu.Lock()
 	defer am.mu.Unlock()
@@ -289,6 +292,7 @@ func (am *ArchetypeManager) GetOrCreateArchetype(componentTypes ...reflect.Type)
 	return newArchetype
 }
 
+// GetArchetypeByID retrieves an archetype by its unique ID. It returns the archetype and a boolean indicating if it was found.
 func (am *ArchetypeManager) GetArchetypeByID(id uint64) (*Archetype, bool) {
 	am.mu.RLock()
 	defer am.mu.RUnlock()
@@ -297,6 +301,7 @@ func (am *ArchetypeManager) GetArchetypeByID(id uint64) (*Archetype, bool) {
 	return archetype, exists
 }
 
+// GetArchetypeByKeyHash retrieves an archetype by the hash of its component types key. It returns the archetype and a boolean indicating if it was found.
 func (am *ArchetypeManager) GetArchetypeByKeyHash(hash ArchetypeKeyHash) (*Archetype, bool) {
 	am.mu.RLock()
 	defer am.mu.RUnlock()
