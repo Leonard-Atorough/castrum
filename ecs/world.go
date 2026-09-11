@@ -473,6 +473,27 @@ func (w *World) Detach(id EntityID) {
 	}
 }
 
+func (w *World) GetResource[T any]() (T, bool) {
+	var zero T
+	v, ok := w.resources[reflect.TypeFor[T]()]
+	if !ok {
+		return zero, false
+	}
+	typed, ok := v.(T)
+	if !ok {
+		return zero, false
+	}
+	return typed, true
+}
+
+func (w *World) SetResource[T any](resource T) {
+	w.resources[reflect.TypeFor[T]()] = resource
+}
+
+func (w *World) RemoveResource[T any]() {
+	delete(w.resources, reflect.TypeFor[T]())
+}
+
 func (w *World) migrateEntityToNewArchetype(entity *Entity, newComps []Component, newComponentTypes []reflect.Type) {
 	newArchetype := w.archetypeManager.GetOrCreateArchetype(newComponentTypes...)
 

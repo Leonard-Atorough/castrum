@@ -73,7 +73,7 @@ func TestTimer_StoppedDoesNotAccumulate(t *testing.T) {
 func TestTimerSystem_EmitsEventWhenExpired(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 
 	entity, err := world.CreateWithComponents(
 		"test-entity",
@@ -115,7 +115,7 @@ func TestTimerSystem_EmitsEventWhenExpired(t *testing.T) {
 func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 
 	entity, _ := world.CreateWithComponents(
 		"test-entity",
@@ -131,6 +131,7 @@ func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
 	system.Init(world)
 
 	var eventFired bool
+
 	bus.On(func(_ events.EventMeta, e TimerCompletedEvent) {
 		eventFired = true
 	}, false)
@@ -153,7 +154,7 @@ func TestTimerSystem_OneShotTimerRemovedAfterFiring(t *testing.T) {
 func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 
 	entity, _ := world.CreateWithComponents(
 		"test-entity",
@@ -207,7 +208,7 @@ func TestTimerSystem_RepeatingTimerKeepsFiring(t *testing.T) {
 func TestTimerSystem_StoppedTimerDoesNotFire(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 
 	world.CreateWithComponents(
 		"test-entity",
@@ -237,7 +238,7 @@ func TestTimerSystem_StoppedTimerDoesNotFire(t *testing.T) {
 func TestTimerSystem_MultipleTimersOnDifferentEntities(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 
 	entity1, _ := world.CreateWithComponents(
 		"entity1",
@@ -285,7 +286,7 @@ func TestTimerSystem_MultipleTimersOnDifferentEntities(t *testing.T) {
 func TestTimerSystem_EventsClearedEachUpdate(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
-	ecs.SetResource(world, bus)
+	world.SetResource(bus)
 
 	world.CreateWithComponents(
 		"entity1",

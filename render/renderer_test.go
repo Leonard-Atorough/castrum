@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/assets"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
@@ -39,8 +38,7 @@ func newTestRenderer() *Renderer {
 	textureLoader := &mockTextureLoader{textures: map[string]*assets.Texture{
 		"square": {Path: "square", Image: testImage, Width: 1, Height: 1},
 	}}
-	animationMgr := animation.NewAnimationClipStore()
-	return New(textureLoader, animationMgr)
+	return New(textureLoader)
 }
 
 // setupTestWorldWithCamera creates a world with a primary camera entity.

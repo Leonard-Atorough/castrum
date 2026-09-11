@@ -68,7 +68,7 @@ func (s *PhysicsSystem) Update(world *ecs.World, deltaTime float64) error {
 		return err
 	}
 
-	bus, ok := ecs.GetResource[*events.EventBus](world)
+	bus, ok := world.GetResource[*events.EventBus]()
 	if !ok {
 		return fmt.Errorf("event bus not found")
 	}

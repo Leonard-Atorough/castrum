@@ -16,7 +16,6 @@ import (
 	"github.com/leonard-atorough/castrum/input"
 	"github.com/leonard-atorough/castrum/physics"
 	"github.com/leonard-atorough/castrum/render"
-	"github.com/leonard-atorough/castrum/scene"
 	"github.com/leonard-atorough/castrum/timers"
 )
 
@@ -46,11 +45,6 @@ type Game struct {
 	// Use Systems.Register to add custom game logic systems.
 	// Note: ecs systems (physics, animation, rendering) are auto-registered.
 	Systems *ecs.Manager
-
-	// EventBus is the event bus for subscribing to and publishing events.
-	// Use EventBus.On to subscribe to events, and EventBus.Publish to emit events.
-	// Example: EventBus.On[CollisionEvent](func(meta EventMeta, event CollisionEvent) { ... })
-	EventBus *events.EventBus
 
 	// renderer is the rendering backend (advanced use only).
 	// Most games should not interact with this directly; rendering is automatic.
@@ -87,40 +81,19 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	}
 
 	newWorld := ecs.NewWorld()
-
-	// SceneManager is registered as a World resource (not a typed struct field) so ecs
-	// never needs to import the scene package; see internal/ecs/resource.go.
-
 	input := input.New()
-	EventBus := events.NewEventBus()
-
-	ecs.SetResource(newWorld, scene.NewManager())
-
-	ecs.SetResource(newWorld, EventBus)
-
 	systems := ecs.NewManager()
 
-	// all ecs systems are allowed a priority of -1 for now. Better to have a field for ecs system priorities in the future.
-	var err error
-	if err = systems.Register("timer", -1, &timers.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
-		return nil, err
-	}
-	if err = systems.Register("camera", -1, &render.CameraSystem{}, newWorld); err != nil {
-		return nil, err
-	}
-	// Create animation manager and register it as a resource
-	animMgr := animation.NewAnimationClipStore()
-	ecs.SetResource(newWorld, animMgr)
-	if err = systems.Register("animation", -1, animation.NewSystem(animMgr), newWorld); err != nil {
-		return nil, err
-	}
+	newWorld.SetResource(animation.NewAnimationClipStore())
+	newWorld.SetResource(events.NewEventBus())
 
-	if err = systems.Register("physics", -1, physics.NewSystem(physics.DefaultConfig()), newWorld); err != nil {
-		return nil, err
+	result, err := registerCoreSystems(systems, newWorld)
+	if err != nil {
+		return result, err
 	}
 
 	assets := assets.NewAssetLoader(filesystem)
-	renderer := render.New(assets.Textures, animMgr)
+	renderer := render.New(assets.Textures)
 
 	// Create primary camera as an entity
 	cameraEntity, err := newWorld.CreateWithComponents(
@@ -141,7 +114,6 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		Config:         config,
 		Systems:        systems,
 		Assets:         assets,
-		EventBus:       EventBus,
 		renderer:       renderer,
 		CameraEntityID: cameraEntity.ID,
 		Input:          input,
@@ -149,6 +121,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		Speed:          config.Engine.TimeScale,
 	}, nil
 }
+
 
 // Scenes returns the scene manager registered on this game's world.
 
@@ -162,7 +135,7 @@ func (g *Game) Update() error {
 	g.lastTime = time.Now()
 
 	g.Input.Snapshot()
-
+	
 	if g.Paused {
 		return nil
 	}
@@ -189,38 +162,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.renderer.DrawDebugInfo(screen, g.World)
 	}
 }
-func (g *Game) Scenes() *scene.Manager {
-	mgr, _ := ecs.GetResource[*scene.Manager](g.World)
-	return mgr
-}
-
-// GetResource retrieves a typed resource from the world's resource store.
-// Returns a zero value and false if the resource is not registered.
-func GetResource[T any](world *ecs.World) (T, bool) {
-	return ecs.GetResource[T](world)
-}
-
-// PushScene activates a pre-loaded scene on top of the stack (useful for overlays/pause menus).
-// The scene must have been loaded via Scenes().LoadScene() first.
-func (g *Game) PushScene(id string) error {
-	return g.Scenes().Push(g.World, id)
-}
-
-// PopScene deactivates and removes the top scene from the stack.
-func (g *Game) PopScene() error {
-	return g.Scenes().Pop(g.World)
-}
-
-// TransitionToScene unloads all active scenes and loads a new one.
-// The scene must have been loaded via Scenes().LoadScene() first.
-func (g *Game) TransitionToScene(id string) error {
-	return g.Scenes().TransitionTo(g.World, id)
-}
-
-// UnloadScene removes a scene from the registry.
-func (g *Game) UnloadScene(id string) error {
-	return g.Scenes().UnloadScene(g.World, id)
-}
 
 // Layout reports the engine's virtual resolution and keeps the camera's
 // screen size in sync with it.
@@ -234,7 +175,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 		cam.ScreenSize = geom.Vector2I{X: w, Y: h}
 		g.World.SetComponent(g.CameraEntityID, cam)
 	}
-
+	
 	return w, h
 }
 
@@ -311,4 +252,22 @@ func (g *Game) SetTimeScale(scale float64) {
 
 func (g *Game) GetTimeScale() float64 {
 	return g.Speed
+}
+func registerCoreSystems(systems *ecs.Manager, newWorld *ecs.World) (*Game, error) {
+	var err error
+	if err = systems.Register("timer", -1, &timers.TimerSystem{Capacity: timersToRemove}, newWorld); err != nil {
+		return nil, err
+	}
+	if err = systems.Register("camera", -1, &render.CameraSystem{}, newWorld); err != nil {
+		return nil, err
+	}
+
+	if err = systems.Register("animation", -1, animation.NewSystem(), newWorld); err != nil {
+		return nil, err
+	}
+
+	if err = systems.Register("physics", -1, physics.NewSystem(physics.DefaultConfig()), newWorld); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }

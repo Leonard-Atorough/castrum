@@ -3,8 +3,7 @@ package systems
 import (
 	"fmt"
 
-	"github.com/leonard-atorough/castrum"
-	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
+	"github.com/leonard-atorough/castrum/cmd/game/components"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/physics"
@@ -27,7 +26,7 @@ func NewCollisionSystem() *CollisionSystem {
 
 func (c *CollisionSystem) Init(world *ecs.World) error {
 	// Get the EventBus from world resources
-	bus, ok := castrum.GetResource[*events.EventBus](world)
+	bus, ok := world.GetResource[*events.EventBus]()
 	if !ok {
 		return fmt.Errorf("EventBus not registered in world resources")
 	}
@@ -88,6 +87,6 @@ func (c *CollisionSystem) Shutdown(world *ecs.World) error {
 
 // isPlayer checks if an entity has a Player component.
 func (c *CollisionSystem) isPlayer(world *ecs.World, entityID ecs.EntityID) bool {
-	_, err := world.GetComponent[gamecomponents.Player](entityID)
+	_, err := world.GetComponent[components.Player](entityID)
 	return err == nil
 }
