@@ -15,16 +15,19 @@ func BenchmarkAddComponent(b *testing.B) {
 	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]*ecs.Entity, 10000)
+	entityPool := make([]*ecs.Entity, BenchmarkEntityPoolSize)
 	for i := range entityPool {
 		entityPool[i] = world.Create("Generic")
 	}
 
-	for i := 0; b.Loop(); i++ {
+	b.ResetTimer()
+	i := 0
+	for b.Loop() {
 		// Reuse entities from pool, remove old component if exists
-		entity := entityPool[i%10000]
+		entity := entityPool[i%BenchmarkEntityPoolSize]
 		world.RemoveComponent[Position](entity.ID)
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
+		i++
 	}
 }
 
@@ -33,15 +36,18 @@ func BenchmarkGetComponent(b *testing.B) {
 	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]ecs.EntityID, 10000)
-	for i := range 10000 {
+	entityPool := make([]ecs.EntityID, BenchmarkEntityPoolSize)
+	for i := range BenchmarkEntityPoolSize {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 		entityPool[i] = entity.ID
 	}
 
-	for i := 0; b.Loop(); i++ {
-		world.GetComponent[Position](entityPool[i%10000])
+	b.ResetTimer()
+	i := 0
+	for b.Loop() {
+		world.GetComponent[Position](entityPool[i%BenchmarkEntityPoolSize])
+		i++
 	}
 }
 
@@ -50,15 +56,18 @@ func BenchmarkHasComponent(b *testing.B) {
 	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]ecs.EntityID, 10000)
-	for i := range 10000 {
+	entityPool := make([]ecs.EntityID, BenchmarkEntityPoolSize)
+	for i := range BenchmarkEntityPoolSize {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 		entityPool[i] = entity.ID
 	}
 
-	for i := 0; b.Loop(); i++ {
-		world.HasComponent[Position](entityPool[i%10000])
+	b.ResetTimer()
+	i := 0
+	for b.Loop() {
+		world.HasComponent[Position](entityPool[i%BenchmarkEntityPoolSize])
+		i++
 	}
 }
 
@@ -67,18 +76,21 @@ func BenchmarkRemoveComponent(b *testing.B) {
 	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities with components
-	entityPool := make([]ecs.EntityID, 10000)
-	for i := range 10000 {
+	entityPool := make([]ecs.EntityID, BenchmarkEntityPoolSize)
+	for i := range BenchmarkEntityPoolSize {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 		entityPool[i] = entity.ID
 	}
 
-	for i := 0; b.Loop(); i++ {
-		entityID := entityPool[i%10000]
+	b.ResetTimer()
+	i := 0
+	for b.Loop() {
+		entityID := entityPool[i%BenchmarkEntityPoolSize]
 		world.RemoveComponent[Position](entityID)
 		// Re-add component for next iteration
 		world.AddComponent(entityID, Position{X: float64(i), Y: float64(i)})
+		i++
 	}
 }
 
@@ -87,15 +99,16 @@ func BenchmarkDestroyEntityWithCleanup(b *testing.B) {
 	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]*ecs.Entity, 10000)
-	for i := range 10000 {
+	entityPool := make([]*ecs.Entity, BenchmarkEntityPoolSize)
+	for i := range BenchmarkEntityPoolSize {
 		entityPool[i] = world.Create("Generic")
 	}
 
 	b.ResetTimer()
 	destroyCount := 0
-	for i := 0; b.Loop(); i++ {
-		entity := entityPool[i%10000]
+	i := 0
+	for b.Loop() {
+		entity := entityPool[i%BenchmarkEntityPoolSize]
 		world.DestroyEntity(entity.ID, false)
 		destroyCount++
 
@@ -105,7 +118,8 @@ func BenchmarkDestroyEntityWithCleanup(b *testing.B) {
 		}
 
 		// Recreate entity for next iteration
-		entityPool[i%10000] = world.Create("Generic")
+		entityPool[i%BenchmarkEntityPoolSize] = world.Create("Generic")
+		i++
 	}
 
 	// Final cleanup
@@ -124,10 +138,12 @@ func BenchmarkComponentAddMigration(b *testing.B) {
 	entity := world.Create("Generic")
 
 	b.ResetTimer()
-	for i := 0; b.Loop(); i++ {
+	i := 0
+	for b.Loop() {
 		// Remove and re-add to test archetype migration
 		world.RemoveComponent[Position](entity.ID)
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
+		i++
 	}
 }
 
@@ -142,7 +158,8 @@ func BenchmarkComponentRemoveMigration(b *testing.B) {
 	world.AddComponent(entity.ID, Health{Value: 100})
 
 	b.ResetTimer()
-	for i := 0; b.Loop(); i++ {
+	i := 0
+	for b.Loop() {
 		// Cycle through removing each component type
 		switch i % 3 {
 		case 0:
@@ -161,5 +178,6 @@ func BenchmarkComponentRemoveMigration(b *testing.B) {
 		case 2:
 			world.AddComponent(entity.ID, Health{Value: 100})
 		}
+		i++
 	}
 }

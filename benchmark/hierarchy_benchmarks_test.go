@@ -15,15 +15,18 @@ func BenchmarkSetParent(b *testing.B) {
 	world := ecs.NewWorld()
 
 	// Pre-Create entities
-	parents := make([]*ecs.Entity, 10000)
-	children := make([]*ecs.Entity, 10000)
-	for i := range 10000 {
+	parents := make([]*ecs.Entity, BenchmarkEntityPoolSize)
+	children := make([]*ecs.Entity, BenchmarkEntityPoolSize)
+	for i := range BenchmarkEntityPoolSize {
 		parents[i] = world.Create("Generic")
 		children[i] = world.Create("Generic")
 	}
 
-	for i := 0; b.Loop(); i++ {
-		world.SetParent(children[i%10000].ID, parents[i%10000].ID)
+	b.ResetTimer()
+	i := 0
+	for b.Loop() {
+		world.SetParent(children[i%BenchmarkEntityPoolSize].ID, parents[i%BenchmarkEntityPoolSize].ID)
+		i++
 	}
 }
 
@@ -33,13 +36,14 @@ func BenchmarkChildrenOf(b *testing.B) {
 
 	// Pre-Create hierarchy - one parent with many children
 	parent := world.Create("Generic")
-	children := make([]*ecs.Entity, 10000)
-	for i := range 10000 {
+	children := make([]*ecs.Entity, BenchmarkEntityPoolSize)
+	for i := range BenchmarkEntityPoolSize {
 		children[i] = world.Create("Generic")
 		world.SetParent(children[i].ID, parent.ID)
 	}
 
-	for i := 0; b.Loop(); i++ {
+	b.ResetTimer()
+	for b.Loop() {
 		world.ChildrenOf(parent.ID)
 	}
 }

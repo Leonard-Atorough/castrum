@@ -15,7 +15,7 @@ func BenchmarkQuerySingleComponent(b *testing.B) {
 	world := ecs.NewWorld()
 
 	// Pre-create entities with Position
-	for i := range 10000 {
+	for i := range DefaultEntityCount {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 	}
@@ -32,15 +32,16 @@ func BenchmarkQueryMultipleComponents(b *testing.B) {
 	world := ecs.NewWorld()
 
 	// Pre-create entities with Position + Velocity
-	for i := range 10000 {
+	for i := range DefaultEntityCount {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(entity.ID, Velocity{X: 0.1, Y: 0.1})
 	}
+	query := world.NewQuery().WithRequiredComponents(Position{}, Velocity{})
 
 	b.ResetTimer()
 	for b.Loop() {
-		world.NewQuery().WithRequiredComponents(Position{}, Velocity{}).EntityIDs()
+		query.EntityIDs()
 	}
 }
 
@@ -52,16 +53,17 @@ func BenchmarkQueryMultipleComponents(b *testing.B) {
 func BenchmarkQuerySparsely(b *testing.B) {
 	// Create 10,000 entities, only 1% have Position (100 entities match)
 	world := ecs.NewWorld()
-	for i := range 10000 {
+	for i := range DefaultEntityCount {
 		entity := world.Create("Generic")
 		if i%100 == 0 {
 			world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 		}
 	}
+	query := world.NewQuery().WithRequiredComponents(Position{})
 
 	b.ResetTimer()
 	for b.Loop() {
-		world.NewQuery().WithRequiredComponents(Position{}).EntityIDs()
+		query.EntityIDs()
 	}
 }
 
@@ -69,29 +71,30 @@ func BenchmarkQuerySparsely(b *testing.B) {
 func BenchmarkQueryDensely(b *testing.B) {
 	// Create 10,000 entities, all have Position (100% match)
 	world := ecs.NewWorld()
-	for i := range 10000 {
+	for i := range DefaultEntityCount {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 	}
+	query := world.NewQuery().WithRequiredComponents(Position{})
 
 	b.ResetTimer()
 	for b.Loop() {
-		world.NewQuery().WithRequiredComponents(Position{}).EntityIDs()
+		query.EntityIDs()
 	}
 }
 
 // BenchmarkIterateQueryResults measures cost of iterating query results and accessing components.
 func BenchmarkIterateQueryResults(b *testing.B) {
 	world := ecs.NewWorld()
-	for i := range 10000 {
+	for i := range DefaultEntityCount {
 		entity := world.Create("Generic")
 		world.AddComponent(entity.ID, Position{X: float64(i), Y: float64(i)})
 	}
+	query := world.NewQuery().WithRequiredComponents(Position{})
 
 	b.ResetTimer()
 	for b.Loop() {
-
-		for entry := range world.NewQuery().WithRequiredComponents(Position{}).Execute() {
+		for entry := range query.Execute() {
 			entry.Get[Position]()
 		}
 	}

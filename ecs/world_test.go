@@ -410,19 +410,69 @@ func TestWorld_Reset(t *testing.T) {
 	}
 }
 
-// idsMatchUnordered checks if two entity ID slices contain the same elements regardless of order.
-func idsMatchUnordered(got, want []EntityID) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	seen := make(map[EntityID]bool)
-	for _, id := range want {
-		seen[id] = true
-	}
-	for _, id := range got {
-		if !seen[id] {
-			return false
+// =============================================================================
+// Component Edge Case Tests
+// =============================================================================
+
+func TestWorld_ComponentEdgeCases(t *testing.T) {
+	t.Run("GetComponentFromEmptyArchetype", func(t *testing.T) {
+		world := NewWorld()
+
+		entity := world.Create("Generic")
+
+		_, err := world.GetComponent[TestPosition](entity.ID)
+		if err == nil {
+			t.Error("Expected error when getting non-existent component")
 		}
-	}
-	return true
+	})
+
+	t.Run("RemoveNonExistentComponent", func(t *testing.T) {
+		world := NewWorld()
+
+		entity := world.Create("Generic")
+
+		err := world.RemoveComponent[TestPosition](entity.ID)
+		if err != nil {
+			t.Errorf("Expected no error when removing non-existent component, got: %v", err)
+		}
+	})
+
+	t.Run("QueryNonExistentComponent", func(t *testing.T) {
+		world := NewWorld()
+
+		world.Create("Generic")
+
+		result := world.NewQuery().WithRequiredComponents(TestPosition{}, TestVelocity{}).EntityIDs()
+		if len(result) != 0 {
+			t.Error("Expected empty result for non-existent component combination")
+		}
+	})
+
+	t.Run("GetComponentAfterDestruction", func(t *testing.T) {
+		world := NewWorld()
+
+		entity := world.Create("Generic")
+		world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
+
+		world.DestroyEntity(entity.ID, false)
+		world.Cleanup()
+
+		_, err := world.GetComponent[TestPosition](entity.ID)
+		if err == nil {
+			t.Error("Expected error when getting component from destroyed entity")
+		}
+	})
+
+	t.Run("AddComponentToDestroyedEntity", func(t *testing.T) {
+		world := NewWorld()
+
+		entity := world.Create("Generic")
+		world.DestroyEntity(entity.ID, false)
+		world.Cleanup()
+
+		err := world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
+		if err == nil {
+			t.Error("Expected error when adding component to destroyed entity")
+		}
+	})
 }
