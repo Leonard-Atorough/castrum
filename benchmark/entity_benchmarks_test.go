@@ -15,7 +15,7 @@ func BenchmarkEntityCreation(b *testing.B) {
 	world := ecs.NewWorld()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		world.Create("Generic")
 	}
 
@@ -34,7 +34,7 @@ func BenchmarkEntityCreationWithComponents(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; b.Loop(); i++ {
+	for b.Loop() {
 		_, err := world.CreateWithComponents("Generic", components...)
 		if err != nil {
 			panic(err)
@@ -42,21 +42,24 @@ func BenchmarkEntityCreationWithComponents(b *testing.B) {
 	}
 }
 
-// BenchmarkDestroyEntity measures the time to destroy entities.
-func BenchmarkDestroyEntity(b *testing.B) {
+// BenchmarkDestroyAndRecreateEntity measures the time to destroy and recreate entities.
+func BenchmarkDestroyAndRecreateEntity(b *testing.B) {
 	world := ecs.NewWorld()
 
 	// Pre-Create a fixed pool of entities to avoid setup time dominating
-	entityPool := make([]*ecs.Entity, 10000)
-	for i := range 10000 {
+	entityPool := make([]*ecs.Entity, BenchmarkEntityPoolSize)
+	for i := range BenchmarkEntityPoolSize {
 		entityPool[i] = world.Create("Generic")
 	}
 
-	for i := 0; b.Loop(); i++ {
-		entity := entityPool[i%10000]
+	b.ResetTimer()
+	i := 0
+	for b.Loop() {
+		entity := entityPool[i%BenchmarkEntityPoolSize]
 		world.DestroyEntity(entity.ID, false)
 		// Recreate entity for next iteration
-		entityPool[i%10000] = world.Create("Generic")
+		entityPool[i%BenchmarkEntityPoolSize] = world.Create("Generic")
+		i++
 	}
 
 	// Cleanup after benchmark

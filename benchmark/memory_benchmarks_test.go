@@ -17,7 +17,7 @@ func BenchmarkMemoryPerEntity(b *testing.B) {
 	world := ecs.NewWorld()
 
 	b.ResetTimer()
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < DefaultEntityCount; i++ {
 		world.Create("Generic")
 	}
 
@@ -31,7 +31,7 @@ func BenchmarkMemoryPerEntityWithComponents(b *testing.B) {
 	world := ecs.NewWorld()
 
 	b.ResetTimer()
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < DefaultEntityCount; i++ {
 		e := world.Create("Generic")
 		world.AddComponent(e.ID, Position{X: float64(i), Y: float64(i)})
 		world.AddComponent(e.ID, Velocity{X: 1.0, Y: 1.0})

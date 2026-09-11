@@ -22,7 +22,7 @@ type BenchmarkConfig struct {
 // DefaultBenchmarkConfig returns a sensible default configuration
 func DefaultBenchmarkConfig() BenchmarkConfig {
 	return BenchmarkConfig{
-		EntityCount:      10000,
+		EntityCount:      DefaultEntityCount,
 		ComponentTypes:   []reflect.Type{reflect.TypeFor[Position](), reflect.TypeFor[Velocity](), reflect.TypeFor[Health](), reflect.TypeFor[Sprite]()},
 		TagNames:         []string{"Player", "Enemy", "Neutral", "Environment"},
 		TemplateNames:    []string{"Generic", "Province", "City"},
