@@ -42,6 +42,42 @@ func TestValidateConfig_SetsSensibleDefaults(t *testing.T) {
 	if len(cfg.Input.Bindings) == 0 {
 		t.Fatal("expected default input bindings")
 	}
+	if cfg.Physics.CellSize != 50 {
+		t.Errorf("Physics.CellSize = %v, want 50", cfg.Physics.CellSize)
+	}
+}
+
+func TestDefaultConfig_EnablesPhysics(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if !cfg.Physics.Enabled {
+		t.Fatal("expected physics to be enabled by default")
+	}
+	if cfg.Physics.CellSize != 50 {
+		t.Errorf("Physics.CellSize = %v, want 50", cfg.Physics.CellSize)
+	}
+}
+
+func TestLoadConfig_PhysicsSettings(t *testing.T) {
+	cfg, err := LoadConfig(strings.NewReader(`
+physics:
+  enabled: false
+  cell_size: 24
+  debug_draw: true
+`))
+	if err != nil {
+		t.Fatalf("LoadConfig returned error: %v", err)
+	}
+
+	if cfg.Physics.Enabled {
+		t.Error("Physics.Enabled = true, want false")
+	}
+	if cfg.Physics.CellSize != 24 {
+		t.Errorf("Physics.CellSize = %v, want 24", cfg.Physics.CellSize)
+	}
+	if !cfg.Physics.DebugDraw {
+		t.Error("Physics.DebugDraw = false, want true")
+	}
 }
 
 func TestValidateConfig_ClampsAndNormalizes(t *testing.T) {

@@ -1,6 +1,8 @@
 package physics
 
 import (
+	"image/color"
+	"math"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/components"
@@ -9,12 +11,161 @@ import (
 	"github.com/leonard-atorough/castrum/geom"
 )
 
+func TestCollisionProxyChangedIgnoresVisualColor(t *testing.T) {
+	previous := collisionProxy{
+		transform: components.Transform{Color: color.RGBA{R: 255, A: 255}},
+	}
+	current := previous
+	current.transform.Color = color.RGBA{B: 255, A: 255}
+
+	if collisionProxyChanged(previous, current) {
+		t.Fatal("color-only transform change marked collision proxy dirty")
+	}
+
+	current.transform.Position.X = 1
+	if !collisionProxyChanged(previous, current) {
+		t.Fatal("position change did not mark collision proxy dirty")
+	}
+}
+
+func TestTransformedCollider_RectRotationBuildsConservativeBounds(t *testing.T) {
+	shape := geom.Rect{Min: geom.Vector2{X: -2, Y: -1}, Max: geom.Vector2{X: 2, Y: 1}}
+
+	rotated90, err := transformedCollider(shape, components.Transform{
+		Rotation: math.Pi / 2,
+		Scale:    geom.Vector2{X: 1, Y: 1},
+	})
+	if err != nil {
+		t.Fatalf("transformedCollider() error = %v", err)
+	}
+	if got := rotated90.bounds.Width(); math.Abs(got-2) > 1e-9 {
+		t.Errorf("90-degree bounds width = %v, want 2", got)
+	}
+	if got := rotated90.bounds.Height(); math.Abs(got-4) > 1e-9 {
+		t.Errorf("90-degree bounds height = %v, want 4", got)
+	}
+
+	rotated45, err := transformedCollider(shape, components.Transform{
+		Rotation: math.Pi / 4,
+		Scale:    geom.Vector2{X: 1, Y: 1},
+	})
+	if err != nil {
+		t.Fatalf("transformedCollider() error = %v", err)
+	}
+	wantExtent := 3 * math.Sqrt(2)
+	if got := rotated45.bounds.Width(); math.Abs(got-wantExtent) > 1e-9 {
+		t.Errorf("45-degree bounds width = %v, want %v", got, wantExtent)
+	}
+	if got := rotated45.bounds.Height(); math.Abs(got-wantExtent) > 1e-9 {
+		t.Errorf("45-degree bounds height = %v, want %v", got, wantExtent)
+	}
+}
+
+func TestTransformedCollider_PreservesLocalOffsetThroughRotation(t *testing.T) {
+	shape := geom.Circle{Center: geom.Vector2{X: 2, Y: 0}, Radius: 1}
+	transformed, err := transformedCollider(shape, components.Transform{
+		Position: geom.Vector2{X: 10, Y: 5},
+		Rotation: math.Pi / 2,
+		Scale:    geom.Vector2{X: 1, Y: 1},
+	})
+	if err != nil {
+		t.Fatalf("transformedCollider() error = %v", err)
+	}
+
+	circle, ok := transformed.shape.(geom.Circle)
+	if !ok {
+		t.Fatalf("transformed shape type = %T, want geom.Circle", transformed.shape)
+	}
+	if math.Abs(circle.Center.X-10) > 1e-9 || math.Abs(circle.Center.Y-7) > 1e-9 {
+		t.Errorf("transformed circle center = %v, want (10, 7)", circle.Center)
+	}
+}
+
+func TestTransformedCollider_CircleUsesConservativeMaximumScale(t *testing.T) {
+	transformed, err := transformedCollider(geom.Circle{Radius: 2}, components.Transform{
+		Scale: geom.Vector2{X: 2, Y: 3},
+	})
+	if err != nil {
+		t.Fatalf("transformedCollider() error = %v", err)
+	}
+
+	circle, ok := transformed.shape.(geom.Circle)
+	if !ok {
+		t.Fatalf("transformed shape type = %T, want geom.Circle", transformed.shape)
+	}
+	if circle.Radius != 6 {
+		t.Errorf("transformed circle radius = %v, want 6", circle.Radius)
+	}
+}
+
+func TestIntersectsAny_RotatedRectanglesUseOrientedGeometry(t *testing.T) {
+	shape := geom.Rect{Min: geom.Vector2{X: -2, Y: -0.5}, Max: geom.Vector2{X: 2, Y: 0.5}}
+	verticalA, err := transformedCollider(shape, components.Transform{
+		Rotation: math.Pi / 2,
+		Scale:    geom.Vector2{X: 1, Y: 1},
+	})
+	if err != nil {
+		t.Fatalf("transformedCollider() error = %v", err)
+	}
+	verticalB, err := transformedCollider(shape, components.Transform{
+		Position: geom.Vector2{Y: 3.5},
+		Rotation: math.Pi / 2,
+		Scale:    geom.Vector2{X: 1, Y: 1},
+	})
+	if err != nil {
+		t.Fatalf("transformedCollider() error = %v", err)
+	}
+
+	result := intersectsAny(verticalA.shape, verticalB.shape)
+	if !result.Collided {
+		t.Fatal("expected vertically aligned rotated rectangles to collide")
+	}
+}
+
+func TestSystem_BroadphaseUsesColliderBounds(t *testing.T) {
+	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	world.SetResource(bus)
+	collisionSys := NewSystem(PhysicsConfig{CellSize: 10, Enabled: true})
+	if err := collisionSys.Init(world); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := world.CreateWithComponents("",
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+		components.NewCollider(geom.NewRect(geom.Vector2{X: -50, Y: -1}, geom.Vector2{X: 50, Y: 1}), true, false, 0, 1),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = world.CreateWithComponents("",
+		components.Transform{Position: geom.Vector2{X: 45}, Rotation: math.Pi / 2, Scale: geom.Vector2{X: 1, Y: 1}},
+		components.NewCollider(geom.NewRect(geom.Vector2{X: -50, Y: -1}, geom.Vector2{X: 50, Y: 1}), true, false, 1, 0),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var entered bool
+	bus.On(func(_ events.EventMeta, event CollisionEvent) {
+		if event.CollisionEventType == CollisionEnter {
+			entered = true
+		}
+	}, false)
+	if err := collisionSys.Update(world, 0); err != nil {
+		t.Fatal(err)
+	}
+	if !entered {
+		t.Fatal("expected broad phase to find colliding bounds in different center cells")
+	}
+}
+
 func TestSystem_RectCollision(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
 	world.SetResource(bus)
 
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: true})
 
 	if err := collisionSys.Init(world); err != nil {
 		t.Errorf("Init failed: %v", err)
@@ -52,7 +203,7 @@ func TestSystem_NoCollisionWhenFar(t *testing.T) {
 	bus := events.NewEventBus()
 	world.SetResource(bus)
 
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: true})
 
 	collisionSys.Init(world)
 
@@ -83,7 +234,7 @@ func TestSystem_CircleCollision(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
 	world.SetResource(bus)
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: true})
 
 	collisionSys.Init(world)
 
@@ -116,7 +267,7 @@ func TestSystem_CircleRectCollision(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
 	world.SetResource(bus)
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: true})
 
 	collisionSys.Init(world)
 
@@ -149,7 +300,7 @@ func TestSystem_EventLifecycle(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
 	world.SetResource(bus)
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: true})
 	collisionSys.Init(world)
 
 	// Create two separated entities
@@ -219,7 +370,7 @@ func TestSystem_LayerMaskFiltering(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
 	world.SetResource(bus)
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: true})
 	collisionSys.Init(world)
 
 	// Entity on layer 0, collides with [1]
@@ -252,7 +403,7 @@ func TestSystem_InactiveColliderSkipped(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
 	world.SetResource(bus)
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: true})
 	collisionSys.Init(world)
 
 	// Active collider
@@ -282,7 +433,7 @@ func TestSystem_CircleCircleContact(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
 	world.SetResource(bus)
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: true})
 	collisionSys.Init(world)
 
 	// Two circles
@@ -326,7 +477,7 @@ func TestSystem_QueryCollisions(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
 	world.SetResource(bus)
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: true})
 
 	collisionSys.Init(world)
 
@@ -388,7 +539,7 @@ func TestSystem_DisabledCollision(t *testing.T) {
 	world := ecs.NewWorld()
 	bus := events.NewEventBus()
 	world.SetResource(bus)
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: false})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: false})
 
 	collisionSys.Init(world)
 
@@ -419,7 +570,7 @@ func TestSystem_DisabledCollision(t *testing.T) {
 
 func TestSystem_TestCollisionMissingComponent(t *testing.T) {
 	world := ecs.NewWorld()
-	collisionSys := NewSystem(PhysicsConfig{QueryRadius: 300, Enabled: true})
+	collisionSys := NewSystem(PhysicsConfig{Enabled: true})
 
 	collisionSys.Init(world)
 
