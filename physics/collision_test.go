@@ -133,14 +133,14 @@ func TestSystem_BroadphaseUsesColliderBounds(t *testing.T) {
 
 	_, err := world.CreateWithComponents("",
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
-		components.NewCollider(geom.NewRect(geom.Vector2{X: -50, Y: -1}, geom.Vector2{X: 50, Y: 1}), true, false, 0, 1),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -50, Y: -1}, Max: geom.Vector2{X: 50, Y: 1}}, true, false, 0, 1),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 45}, Rotation: math.Pi / 2, Scale: geom.Vector2{X: 1, Y: 1}},
-		components.NewCollider(geom.NewRect(geom.Vector2{X: -50, Y: -1}, geom.Vector2{X: 50, Y: 1}), true, false, 1, 0),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -50, Y: -1}, Max: geom.Vector2{X: 50, Y: 1}}, true, false, 1, 0),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -174,13 +174,13 @@ func TestSystem_RectCollision(t *testing.T) {
 	// Create player at origin with box collider
 	player, _ := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 0, Y: 0}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-10, -10), geom.NewVector2(10, 10)), true, false, 0, 1),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -10, Y: -10}, Max: geom.Vector2{X: 10, Y: 10}}, true, false, 0, 1),
 	)
 
 	// Create obstacle at (5, 5) - should collide
 	obstacle, _ := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 5, Y: 5}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-10, -10), geom.NewVector2(10, 10)), true, false, 1, 0),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -10, Y: -10}, Max: geom.Vector2{X: 10, Y: 10}}, true, false, 1, 0),
 	)
 
 	// Update spatial index
@@ -210,13 +210,13 @@ func TestSystem_NoCollisionWhenFar(t *testing.T) {
 	// Create player at origin
 	player, _ := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 0, Y: 0}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-10, -10), geom.NewVector2(10, 10)), true, false, 0, 1),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -10, Y: -10}, Max: geom.Vector2{X: 10, Y: 10}}, true, false, 0, 1),
 	)
 
 	// Create obstacle far away at (200, 200) - should NOT collide
 	obstacle, _ := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 200, Y: 200}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-10, -10), geom.NewVector2(10, 10)), true, false, 1, 0),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -10, Y: -10}, Max: geom.Vector2{X: 10, Y: 10}}, true, false, 1, 0),
 	)
 
 	collisionSys.Update(world, 0)
@@ -274,7 +274,7 @@ func TestSystem_CircleRectCollision(t *testing.T) {
 	// Create rect at origin
 	rect, _ := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 0, Y: 0}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-10, -10), geom.NewVector2(10, 10)), true, false, 0, 1),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -10, Y: -10}, Max: geom.Vector2{X: 10, Y: 10}}, true, false, 0, 1),
 	)
 
 	// Create circle at (15, 0) - should collide
@@ -484,24 +484,24 @@ func TestSystem_QueryCollisions(t *testing.T) {
 	// Create player
 	player, _ := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 0, Y: 0}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-10, -10), geom.NewVector2(10, 10)), true, false, 0, 1),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -10, Y: -10}, Max: geom.Vector2{X: 10, Y: 10}}, true, false, 0, 1),
 	)
 
 	// Create two colliding obstacles
 	obs1, _ := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 5, Y: 0}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-5, -5), geom.NewVector2(5, 5)), true, false, 1, 0),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -5, Y: -5}, Max: geom.Vector2{X: 5, Y: 5}}, true, false, 1, 0),
 	)
 
 	obs2, _ := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 0, Y: 8}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-5, -5), geom.NewVector2(5, 5)), true, false, 1, 0),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -5, Y: -5}, Max: geom.Vector2{X: 5, Y: 5}}, true, false, 1, 0),
 	)
 
 	// Create one non-colliding obstacle
 	obs3, _ := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 100, Y: 100}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-5, -5), geom.NewVector2(5, 5)), true, false, 1, 0),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -5, Y: -5}, Max: geom.Vector2{X: 5, Y: 5}}, true, false, 1, 0),
 	)
 
 	if err := collisionSys.Update(world, 0); err != nil {
@@ -546,12 +546,12 @@ func TestSystem_DisabledCollision(t *testing.T) {
 	// Create colliding entities
 	_, _ = world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 0, Y: 0}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-10, -10), geom.NewVector2(10, 10)), true, false, 0, 1),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -10, Y: -10}, Max: geom.Vector2{X: 10, Y: 10}}, true, false, 0, 1),
 	)
 
 	obstacle, _ := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 5, Y: 5}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-10, -10), geom.NewVector2(10, 10)), true, false, 1, 0),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -10, Y: -10}, Max: geom.Vector2{X: 10, Y: 10}}, true, false, 1, 0),
 	)
 
 	collisionSys.Update(world, 0)

@@ -52,7 +52,7 @@ func main() {
 		log.Fatalf("failed to get camera component: %v", err)
 	}
 
-	camComp.Bounds = geom.NewRect(geom.NewVector2(minX, minY), geom.NewVector2(maxX, maxY))
+	camComp.Bounds = geom.Rect{Min: geom.Vector2{X: minX, Y: minY}, Max: geom.Vector2{X: maxX, Y: maxY}}
 	world.SetComponent(cam, camComp)
 
 	// Register input controller (runs first to read input and set velocity)
@@ -91,7 +91,7 @@ func main() {
 		components.Sprite{TexturePath: "example.png", Visible: true, Layer: 1},
 		gamecomponents.Player{},
 		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-16, -16), geom.NewVector2(16, 16)), true, false, 0, 1),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -16, Y: -16}, Max: geom.Vector2{X: 16, Y: 16}}, true, false, 0, 1),
 	)
 	if createErr != nil {
 		log.Fatalf("failed to spawn player circle: %v", createErr)

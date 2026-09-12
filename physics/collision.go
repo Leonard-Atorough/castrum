@@ -85,6 +85,10 @@ func intersectsAny(shapeA, shapeB any) CollisionResult {
 }
 
 func circleCircleContact(a, b geom.Circle) CollisionResult {
+	if !geom.CirclesIntersect(a, b) {
+		return CollisionResult{Collided: false}
+	}
+
 	dx := b.Center.X - a.Center.X
 	dy := b.Center.Y - a.Center.Y
 	dist := math.Sqrt(dx*dx + dy*dy)

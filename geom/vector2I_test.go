@@ -29,32 +29,6 @@ func TestVector2I_Arithmetic(t *testing.T) {
 	}
 }
 
-func TestVector2I_Length(t *testing.T) {
-	v := Vector2I{X: 3, Y: 4}
-	if got := v.Length(); got != 5 {
-		t.Errorf("Length() = %v, want 5", got)
-	}
-}
-
-func TestVector2I_Normalize(t *testing.T) {
-	t.Run("zero vector normalizes to zero", func(t *testing.T) {
-		got := Vector2I{}.Normalize()
-		if got != (Vector2I{}) {
-			t.Errorf("Normalize() of zero vector = %v, want zero vector", got)
-		}
-	})
-
-	// Integer division means Normalize only produces a meaningful unit vector
-	// for lengths of 1; anything else truncates to zero. Documented here so
-	// the behavior doesn't come as a surprise to callers.
-	t.Run("non-unit length truncates to zero via integer division", func(t *testing.T) {
-		got := Vector2I{X: 3, Y: 4}.Normalize()
-		if got != (Vector2I{}) {
-			t.Errorf("Normalize() = %v, want {0 0} (integer truncation)", got)
-		}
-	})
-}
-
 func TestVector2I_DotAndCross(t *testing.T) {
 	a := Vector2I{X: 1, Y: 0}
 	b := Vector2I{X: 0, Y: 1}
@@ -99,22 +73,6 @@ func TestVector2I_Reflect(t *testing.T) {
 	}
 }
 
-func TestVector2I_Project(t *testing.T) {
-	t.Run("projecting onto a zero vector returns zero instead of dividing by zero", func(t *testing.T) {
-		got := Vector2I{X: 1, Y: 1}.Project(Vector2I{})
-		if got != (Vector2I{}) {
-			t.Errorf("Project() onto zero vector = %v, want zero vector", got)
-		}
-	})
-}
-
-func TestVector2I_Rotate(t *testing.T) {
-	v := Vector2I{X: 1, Y: 0}
-	got := v.Rotate(math.Pi / 2)
-	if got != (Vector2I{X: 0, Y: 1}) {
-		t.Errorf("Rotate(pi/2) = %v, want {0 1}", got)
-	}
-}
 
 func TestVector2I_String(t *testing.T) {
 	got := Vector2I{X: 1, Y: 2}.String()

@@ -1,8 +1,23 @@
 package geom
 
 import (
+	"math"
 	"testing"
 )
+
+func TestRect_ConstructorsCanonicalizeBounds(t *testing.T) {
+	centered := RectFromCenterSize(Vector2{X: -200, Y: -200}, Vector2{X: -10, Y: 10})
+	want := Rect{Min: Vector2{X: -205, Y: -205}, Max: Vector2{X: -195, Y: -195}}
+	if centered != want {
+		t.Errorf("RectFromCenterSize() = %v, want %v", centered, want)
+	}
+
+	fromCorners := RectFromMinMax(Vector2{X: 10, Y: -5}, Vector2{X: -10, Y: 5})
+	want = Rect{Min: Vector2{X: -10, Y: -5}, Max: Vector2{X: 10, Y: 5}}
+	if fromCorners != want {
+		t.Errorf("RectFromMinMax() = %v, want %v", fromCorners, want)
+	}
+}
 
 func TestRect_Dimensions(t *testing.T) {
 	r := Rect{Min: Vector2{X: 0, Y: 0}, Max: Vector2{X: 10, Y: 5}}
@@ -57,6 +72,73 @@ func TestRect_Intersects(t *testing.T) {
 				t.Errorf("Intersects(%v) = %v, want %v", tc.other, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestRect_ValidationAndNormalization(t *testing.T) {
+	invalid := Rect{Min: Vector2{X: 10, Y: 10}, Max: Vector2{X: 0, Y: 0}}
+	if invalid.IsValid() {
+		t.Error("inverted rectangle IsValid() = true, want false")
+	}
+	if !invalid.IsEmpty() {
+		t.Error("inverted rectangle IsEmpty() = false, want true")
+	}
+	if got := invalid.Area(); got != 0 {
+		t.Errorf("inverted rectangle Area() = %v, want 0", got)
+	}
+	if got, want := invalid.Normalize(), (Rect{Min: Vector2{}, Max: Vector2{X: 10, Y: 10}}); got != want {
+		t.Errorf("Normalize() = %v, want %v", got, want)
+	}
+
+	nonFinite := Rect{Min: Vector2{}, Max: Vector2{X: math.Inf(1), Y: 1}}
+	if nonFinite.IsValid() {
+		t.Error("non-finite rectangle IsValid() = true, want false")
+	}
+}
+
+func TestRect_OverlapsOrTouches(t *testing.T) {
+	r := RectFromMinMax(Vector2{}, Vector2{X: 10, Y: 10})
+	touching := RectFromMinMax(Vector2{X: 10}, Vector2{X: 20, Y: 10})
+	if r.Intersects(touching) {
+		t.Error("edge-touching rectangles Intersects() = true, want false")
+	}
+	if !r.OverlapsOrTouches(touching) {
+		t.Error("edge-touching rectangles OverlapsOrTouches() = false, want true")
+	}
+}
+
+func TestRect_IntersectionAndUnion(t *testing.T) {
+	a := RectFromMinMax(Vector2{}, Vector2{X: 10, Y: 10})
+	b := RectFromMinMax(Vector2{X: 5, Y: -5}, Vector2{X: 15, Y: 5})
+
+	if got, want := a.Union(b), (Rect{Min: Vector2{X: 0, Y: -5}, Max: Vector2{X: 15, Y: 10}}); got != want {
+		t.Errorf("Union() = %v, want %v", got, want)
+	}
+	got, ok := a.Intersection(b)
+	want := Rect{Min: Vector2{X: 5, Y: 0}, Max: Vector2{X: 10, Y: 5}}
+	if !ok || got != want {
+		t.Errorf("Intersection() = %v, want %v", got, want)
+	}
+	if _, ok := a.Intersection(RectFromMinMax(Vector2{X: 10, Y: 0}, Vector2{X: 20, Y: 10})); ok {
+		t.Error("edge-only Intersection() reported an overlap")
+	}
+}
+
+func TestRect_ExpandClosestPointAndDistance(t *testing.T) {
+	r := RectFromCenterSize(Vector2{X: -200, Y: -200}, Vector2{X: 10, Y: 10})
+	if got, want := r.Expand(5), (Rect{Min: Vector2{X: -210, Y: -210}, Max: Vector2{X: -190, Y: -190}}); got != want {
+		t.Errorf("Expand() = %v, want %v", got, want)
+	}
+	if got, want := r.Expand(-10), (Rect{Min: Vector2{X: -200, Y: -200}, Max: Vector2{X: -200, Y: -200}}); got != want {
+		t.Errorf("Expand() with negative amount = %v, want %v", got, want)
+	}
+
+	point := Vector2{X: -190, Y: -210}
+	if got, want := r.ClosestPoint(point), (Vector2{X: -195, Y: -205}); got != want {
+		t.Errorf("ClosestPoint() = %v, want %v", got, want)
+	}
+	if got, want := r.DistanceSquared(point), 50.0; got != want {
+		t.Errorf("DistanceSquared() = %v, want %v", got, want)
 	}
 }
 
