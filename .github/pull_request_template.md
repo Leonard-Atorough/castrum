@@ -9,6 +9,7 @@ Please include a summary of the changes and the related issue. Please also inclu
 Please select all options that are relevant.
 
 - [ ] Bug fix (non-breaking change which fixes an issue)
+- [ ] Refactor (non-breaking change which improves the code structure or readability)
 - [ ] New feature (non-breaking change which adds functionality)
 - [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
 - [ ] Documentation change (non-breaking change which updates documentation)
