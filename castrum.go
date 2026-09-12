@@ -72,7 +72,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 
 	// Physics runs after gameplay systems update transforms and before systems
 	// that consume collision events.
-	if err = newWorld.RegisterSystem("physics", 1, physics.NewSystem(physics.PhysicsConfig{
+	if err = newWorld.RegisterSystem("physics", ecs.SystemPriorityPhysics, physics.NewSystem(physics.PhysicsConfig{
 		CellSize: config.Physics.CellSize,
 		Enabled:  config.Physics.Enabled,
 	})); err != nil {

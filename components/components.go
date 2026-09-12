@@ -98,7 +98,9 @@ func NewAnimation(clipID string, autoplay bool) Animation {
 	}
 }
 
-// ColliderShapeContext defines the interface that collision shapes must implement to provide a bounding box.
+// ColliderShapeContext defines the local-space bounds required by a collider.
+// Physics currently supports geom.Circle and geom.Rect for exact collision
+// testing. Other bounds-providing types are not valid physics shapes yet.
 type ColliderShapeContext interface {
 	BoundingBox() geom.Rect
 }
@@ -108,7 +110,7 @@ type Collider struct {
 	Shape   ColliderShapeContext // geom.Circle or geom.Rect, defined in local space
 	Layer   uint8                // The layer this collider belongs to
 	Mask    uint32               // The collision masks determine which layers this collider can interact with.
-	Trigger bool                 // Indicates if this collider is a trigger (does not generate physical collisions)
+	Trigger bool                 // Detects and emits events without implying collision response.
 	Active  bool                 // Indicates if this collider is currently active
 }
 
@@ -128,7 +130,21 @@ func NewCollider(shape ColliderShapeContext, active, trigger bool, layer uint8, 
 }
 
 func (c Collider) BoundingBox() geom.Rect {
+	if c.Shape == nil {
+		return geom.Rect{}
+	}
 	return c.Shape.BoundingBox()
+}
+
+// IsSupportedShape reports whether physics has exact narrow-phase support for
+// the collider's concrete shape type.
+func (c Collider) IsSupportedShape() bool {
+	switch c.Shape.(type) {
+	case geom.Circle, geom.Rect:
+		return true
+	default:
+		return false
+	}
 }
 
 func (c Collider) CanCollideWith(other *Collider) bool {

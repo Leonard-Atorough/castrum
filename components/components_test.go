@@ -187,6 +187,18 @@ func TestColliderComponent(t *testing.T) {
 			t.Errorf("Expected colliderB to be able to collide with colliderA")
 		}
 	})
+
+	t.Run("Supported collider shapes", func(t *testing.T) {
+		if !NewCollider(geom.Circle{Radius: 1}, true, false, 0).IsSupportedShape() {
+			t.Error("Circle should be supported")
+		}
+		if !NewCollider(geom.Rect{}, true, false, 0).IsSupportedShape() {
+			t.Error("Rect should be supported")
+		}
+		if NewCollider(&ColliderTestShape{}, true, false, 0).IsSupportedShape() {
+			t.Error("custom bounds-only shape should not be reported as supported")
+		}
+	})
 }
 
 func TestTimerComponent(t *testing.T) {

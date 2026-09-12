@@ -237,7 +237,7 @@ func transformedCollider(shape any, transform components.Transform) (transformed
 		world := geom.Circle{Center: center, Radius: radius}
 		return transformedShape{shape: world, bounds: world.BoundingBox()}, nil
 	default:
-		return transformedShape{}, fmt.Errorf("unsupported collider shape %T", shape)
+		return transformedShape{}, fmt.Errorf("unsupported collider shape %T: physics supports geom.Circle and geom.Rect", shape)
 	}
 }
 

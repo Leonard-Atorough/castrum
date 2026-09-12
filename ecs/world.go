@@ -415,7 +415,7 @@ func (w *World) SetComponent[T Component](entityID EntityID, newComp T) error {
 	return nil
 }
 
-func (w *World) RegisterSystem(name string, priority int, system System) error {
+func (w *World) RegisterSystem(name string, priority SystemPriority, system System) error {
 	return w.systemManager.Register(name, priority, system, w)
 }
 

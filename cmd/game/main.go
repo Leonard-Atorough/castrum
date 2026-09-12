@@ -13,6 +13,7 @@ import (
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	gamesystems "github.com/leonard-atorough/castrum/cmd/game/systems"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
 )
 
@@ -61,23 +62,23 @@ func main() {
 	}
 
 	// Register movement system (applies velocity to position)
-	if err := world.RegisterSystem("movement", 0, gamesystems.NewMovementSystem()); err != nil {
+	if err := world.RegisterSystem("movement", ecs.SystemPriorityPrePhysics, gamesystems.NewMovementSystem()); err != nil {
 		log.Fatalf("failed to register movement system: %v", err)
 	}
 
 	// Register the pulse system
-	if err := world.RegisterSystem("pulse", 0, &gamesystems.PulseSystem{}); err != nil {
+	if err := world.RegisterSystem("pulse", ecs.SystemPriorityPrePhysics, &gamesystems.PulseSystem{}); err != nil {
 		log.Fatalf("failed to register pulse system: %v", err)
 	}
 
 	// Register the camera system (runs after movement to update the camera position)
 	// CameraSystem now queries the camera from the world, no need to pass it
-	if err := world.RegisterSystem("camera", 1, &gamesystems.CameraSystem{Input: game.Input()}); err != nil {
+	if err := world.RegisterSystem("camera", ecs.SystemPriorityPostPhysics, &gamesystems.CameraSystem{Input: game.Input()}); err != nil {
 		log.Fatalf("failed to register camera system: %v", err)
 	}
 
 	// Register the collision system (runs after movement to handle collision response)
-	if err := world.RegisterSystem("collision", 2, gamesystems.NewCollisionSystem()); err != nil {
+	if err := world.RegisterSystem("collision", ecs.SystemPriorityPostPhysics, gamesystems.NewCollisionSystem()); err != nil {
 		log.Fatalf("failed to register collision system: %v", err)
 	}
 
