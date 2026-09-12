@@ -26,7 +26,7 @@ type Grid struct {
 
 // NewGrid creates a bounds-based grid with cells of cellSize world units.
 func NewGrid(cellSize float64) (*Grid, error) {
-	if cellSize <= 0 {
+	if cellSize <= 0 || math.IsNaN(cellSize) || math.IsInf(cellSize, 0) {
 		return nil, fmt.Errorf("cellSize must be positive, got %f", cellSize)
 	}
 	return &Grid{
