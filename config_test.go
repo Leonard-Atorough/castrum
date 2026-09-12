@@ -80,6 +80,22 @@ physics:
 	}
 }
 
+func TestLoadConfig_DefaultsPhysicsWhenOmitted(t *testing.T) {
+	cfg, err := LoadConfig(strings.NewReader(`project:
+  name: Test Project
+`))
+	if err != nil {
+		t.Fatalf("LoadConfig returned error: %v", err)
+	}
+
+	if !cfg.Physics.Enabled {
+		t.Error("Physics.Enabled = false, want true when omitted")
+	}
+	if cfg.Physics.CellSize != 50 {
+		t.Errorf("Physics.CellSize = %v, want 50 when omitted", cfg.Physics.CellSize)
+	}
+}
+
 func TestValidateConfig_ClampsAndNormalizes(t *testing.T) {
 	cfg := &Config{
 		Project: ProjectConfig{Name: ""},

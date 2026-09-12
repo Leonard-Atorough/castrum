@@ -92,7 +92,7 @@ type PhysicsConfig struct {
 }
 
 func LoadConfig(reader io.Reader) (*Config, error) {
-	var config Config
+	config := *DefaultConfig()
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&config); err != nil {
 		return nil, err
