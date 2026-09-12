@@ -89,10 +89,10 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *ecs.World) {
 		renderable, _ := entry.Get[components.Sprite]()
 		transform, _ := entry.Get[components.Transform]()
 
-		entityBounds := geom.NewRect(
-			geom.Vector2{X: transform.Position.X - transform.Scale.X, Y: transform.Position.Y - transform.Scale.Y},
-			geom.Vector2{X: transform.Position.X + transform.Scale.X, Y: transform.Position.Y + transform.Scale.Y},
-		)
+		entityBounds := geom.Rect{
+			Min: geom.Vector2{X: transform.Position.X - transform.Scale.X, Y: transform.Position.Y - transform.Scale.Y},
+			Max: geom.Vector2{X: transform.Position.X + transform.Scale.X, Y: transform.Position.Y + transform.Scale.Y},
+		}
 		if !viewportBounds.Intersects(entityBounds) {
 			continue
 		}

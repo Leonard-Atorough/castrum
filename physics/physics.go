@@ -131,7 +131,9 @@ func (s *PhysicsSystem) TestCollision(world *ecs.World, entityA, entityB ecs.Ent
 		return CollisionResult{}, nil
 	}
 
-	return intersectsAny(shapeA.shape, shapeB.shape), nil
+	result := intersectsAny(shapeA.shape, shapeB.shape)
+	result.Trigger = colliderA.Trigger || colliderB.Trigger
+	return result, nil
 }
 
 // CollidingWith returns the entities whose exact transformed shapes collide
@@ -333,6 +335,8 @@ func (s *PhysicsSystem) emit(bus *events.EventBus, eventType CollisionEventType,
 		PairKey:            pair,
 		Point:              result.Point,
 		Normal:             result.Normal,
+		Penetration:        result.Penetration,
+		Trigger:            result.Trigger,
 	}, "CollisionSystem")
 }
 
@@ -397,8 +401,10 @@ const (
 type CollisionEvent struct {
 	CollisionEventType
 	PairKey
-	Point  geom.Vector2
-	Normal geom.Vector2
+	Point       geom.Vector2
+	Normal      geom.Vector2
+	Penetration float64
+	Trigger     bool
 }
 
 // CollisionResult contains the exact narrow-phase result for a pair.
@@ -407,4 +413,7 @@ type CollisionResult struct {
 	Point       geom.Vector2
 	Normal      geom.Vector2
 	Penetration float64
+	// Trigger is true when either collider is a trigger. Trigger pairs still
+	// participate in detection and lifecycle events, but do not imply response.
+	Trigger bool
 }

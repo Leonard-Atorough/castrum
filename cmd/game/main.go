@@ -13,6 +13,7 @@ import (
 	gamecomponents "github.com/leonard-atorough/castrum/cmd/game/components"
 	gamesystems "github.com/leonard-atorough/castrum/cmd/game/systems"
 	"github.com/leonard-atorough/castrum/components"
+	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
 )
 
@@ -52,7 +53,7 @@ func main() {
 		log.Fatalf("failed to get camera component: %v", err)
 	}
 
-	camComp.Bounds = geom.NewRect(geom.NewVector2(minX, minY), geom.NewVector2(maxX, maxY))
+	camComp.Bounds = geom.Rect{Min: geom.Vector2{X: minX, Y: minY}, Max: geom.Vector2{X: maxX, Y: maxY}}
 	world.SetComponent(cam, camComp)
 
 	// Register input controller (runs first to read input and set velocity)
@@ -61,23 +62,23 @@ func main() {
 	}
 
 	// Register movement system (applies velocity to position)
-	if err := world.RegisterSystem("movement", 0, gamesystems.NewMovementSystem()); err != nil {
+	if err := world.RegisterSystem("movement", ecs.SystemPriorityPrePhysics, gamesystems.NewMovementSystem()); err != nil {
 		log.Fatalf("failed to register movement system: %v", err)
 	}
 
 	// Register the pulse system
-	if err := world.RegisterSystem("pulse", 0, &gamesystems.PulseSystem{}); err != nil {
+	if err := world.RegisterSystem("pulse", ecs.SystemPriorityPrePhysics, &gamesystems.PulseSystem{}); err != nil {
 		log.Fatalf("failed to register pulse system: %v", err)
 	}
 
 	// Register the camera system (runs after movement to update the camera position)
 	// CameraSystem now queries the camera from the world, no need to pass it
-	if err := world.RegisterSystem("camera", 1, &gamesystems.CameraSystem{Input: game.Input()}); err != nil {
+	if err := world.RegisterSystem("camera", ecs.SystemPriorityPostPhysics, &gamesystems.CameraSystem{Input: game.Input()}); err != nil {
 		log.Fatalf("failed to register camera system: %v", err)
 	}
 
 	// Register the collision system (runs after movement to handle collision response)
-	if err := world.RegisterSystem("collision", 2, gamesystems.NewCollisionSystem()); err != nil {
+	if err := world.RegisterSystem("collision", ecs.SystemPriorityPostPhysics, gamesystems.NewCollisionSystem()); err != nil {
 		log.Fatalf("failed to register collision system: %v", err)
 	}
 
@@ -91,7 +92,7 @@ func main() {
 		components.Sprite{TexturePath: "example.png", Visible: true, Layer: 1},
 		gamecomponents.Player{},
 		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
-		components.NewCollider(geom.NewRect(geom.NewVector2(-16, -16), geom.NewVector2(16, 16)), true, false, 0, 1),
+		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -16, Y: -16}, Max: geom.Vector2{X: 16, Y: 16}}, true, false, 0, 1),
 	)
 	if createErr != nil {
 		log.Fatalf("failed to spawn player circle: %v", createErr)

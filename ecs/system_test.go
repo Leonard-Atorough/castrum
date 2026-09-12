@@ -2,6 +2,7 @@ package ecs
 
 import (
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -254,6 +255,34 @@ func TestManager_UpdatePriorityOrder(t *testing.T) {
 		if order[i] != want[i] {
 			t.Errorf("expected order %v, got %v", want, order)
 		}
+	}
+}
+
+func TestManager_BuiltInPipelinePriorities(t *testing.T) {
+	sm := NewSystemManager()
+	world := NewWorld()
+	var order []string
+
+	physics := &mockSystem{name: "physics", order: &order}
+	prePhysics := &mockSystem{name: "pre-physics", order: &order}
+	postPhysics := &mockSystem{name: "post-physics", order: &order}
+
+	if err := sm.Register("physics", SystemPriorityPhysics, physics, world); err != nil {
+		t.Fatal(err)
+	}
+	if err := sm.Register("post-physics", SystemPriorityPostPhysics, postPhysics, world); err != nil {
+		t.Fatal(err)
+	}
+	if err := sm.Register("pre-physics", SystemPriorityPrePhysics, prePhysics, world); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sm.Update(world, 0); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"pre-physics", "physics", "post-physics"}
+	if !slices.Equal(order, want) {
+		t.Fatalf("pipeline order = %v, want %v", order, want)
 	}
 }
 

@@ -85,6 +85,10 @@ func intersectsAny(shapeA, shapeB any) CollisionResult {
 }
 
 func circleCircleContact(a, b geom.Circle) CollisionResult {
+	if !geom.CirclesIntersect(a, b) {
+		return CollisionResult{Collided: false}
+	}
+
 	dx := b.Center.X - a.Center.X
 	dy := b.Center.Y - a.Center.Y
 	dist := math.Sqrt(dx*dx + dy*dy)
@@ -233,7 +237,7 @@ func transformedCollider(shape any, transform components.Transform) (transformed
 		world := geom.Circle{Center: center, Radius: radius}
 		return transformedShape{shape: world, bounds: world.BoundingBox()}, nil
 	default:
-		return transformedShape{}, fmt.Errorf("unsupported collider shape %T", shape)
+		return transformedShape{}, fmt.Errorf("unsupported collider shape %T: physics supports geom.Circle and geom.Rect", shape)
 	}
 }
 

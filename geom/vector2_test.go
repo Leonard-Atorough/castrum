@@ -122,6 +122,28 @@ func TestVector2_Reflect(t *testing.T) {
 	}
 }
 
+func TestVector2_Clamp(t *testing.T) {
+	got := Vector2{X: 5, Y: -5}.Clamp(Vector2{X: 10, Y: 0}, Vector2{X: 0, Y: -10})
+	want := Vector2{X: 5, Y: -5}
+	if got != want {
+		t.Errorf("Clamp() with reversed bounds = %v, want %v", got, want)
+	}
+}
+
+func TestVector2_ClampMagnitude_NonPositiveLimit(t *testing.T) {
+	for _, maxLength := range []float64{0, -1} {
+		if got := (Vector2{X: 3, Y: 4}).ClampMagnitude(maxLength); got != (Vector2{}) {
+			t.Errorf("ClampMagnitude(%v) = %v, want zero vector", maxLength, got)
+		}
+	}
+}
+
+func TestVector2_AlmostEqual_ZeroEpsilon(t *testing.T) {
+	if !(Vector2{X: 1, Y: 2}).AlmostEqual(Vector2{X: 1, Y: 2}, 0) {
+		t.Error("AlmostEqual() with zero epsilon should report identical vectors as equal")
+	}
+}
+
 func TestVector2_Project(t *testing.T) {
 	t.Run("projects onto a non-zero vector", func(t *testing.T) {
 		v := Vector2{X: 2, Y: 2}

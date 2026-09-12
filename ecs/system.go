@@ -11,9 +11,19 @@ type System interface {
 	Shutdown(world *World) error
 }
 
+type SystemPriority int
+
+// Built-in scheduling phases used by the engine's default system pipeline.
+// Systems with lower priorities run first.
+const (
+	SystemPriorityPrePhysics  SystemPriority = iota
+	SystemPriorityPhysics     SystemPriority = 100
+	SystemPriorityPostPhysics SystemPriority = 200
+)
+
 type systemEntry struct {
 	name     string
-	priority int
+	priority SystemPriority
 	system   System
 }
 
@@ -34,7 +44,7 @@ func NewSystemManager() *SystemManager {
 // Register adds sys under name, scheduled at the given priority (lower runs
 // earlier). Init is called immediately; if it returns an error the system is
 // not added.
-func (sm *SystemManager) Register(name string, priority int, sys System, world *World) error {
+func (sm *SystemManager) Register(name string, priority SystemPriority, sys System, world *World) error {
 	if _, exists := sm.nameToIndex[name]; exists {
 		return &SystemError{Name: name, Op: "Register", Err: ErrSystemAlreadyRegistered}
 	}
