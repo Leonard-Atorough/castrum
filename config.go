@@ -18,13 +18,13 @@ const (
 )
 
 type Config struct {
-	Project  ProjectConfig   `yaml:"project"`
-	Window   WindowConfig    `yaml:"window"`
-	Graphics GraphicsConfig  `yaml:"graphics"`
-	Audio    AudioConfig     `yaml:"audio"`
-	Input    InputConfig     `yaml:"input"`
-	Engine   EngineConfig    `yaml:"engine"`
-	World    CollisionConfig `yaml:"world"`
+	Project  ProjectConfig  `yaml:"project"`
+	Window   WindowConfig   `yaml:"window"`
+	Graphics GraphicsConfig `yaml:"graphics"`
+	Audio    AudioConfig    `yaml:"audio"`
+	Input    InputConfig    `yaml:"input"`
+	Engine   EngineConfig   `yaml:"engine"`
+	Physics  PhysicsConfig  `yaml:"physics"`
 }
 
 type ProjectConfig struct {
@@ -78,14 +78,21 @@ type EngineConfig struct {
 	EnableLogging    bool    `yaml:"enable_logging"`
 }
 
-type CollisionConfig struct {
-	BoundingArea    geom.Rect `yaml:"bounds"`
-	GridCellSize    float64   `yaml:"grid_cell_size"`
-	EnableDebugDraw bool      `yaml:"enable_debug_draw"`
+// PhysicsConfig controls collision simulation and reserves settings for
+// future world-bound and debug-drawing support.
+type PhysicsConfig struct {
+	// Enabled controls whether the physics system processes colliders.
+	Enabled bool `yaml:"enabled"`
+	// CellSize is the world-space width and height of each broad-phase grid cell.
+	CellSize float64 `yaml:"cell_size"`
+	// Bounds is reserved for a future world-boundary or streaming policy.
+	Bounds geom.Rect `yaml:"bounds"`
+	// DebugDraw is reserved for future physics visualization.
+	DebugDraw bool `yaml:"debug_draw"`
 }
 
 func LoadConfig(reader io.Reader) (*Config, error) {
-	var config Config
+	config := *DefaultConfig()
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&config); err != nil {
 		return nil, err
@@ -166,8 +173,8 @@ func ValidateConfig(config *Config) error {
 	if config.Engine.MaxFPS <= 0 {
 		config.Engine.MaxFPS = 60
 	}
-	if config.World.GridCellSize <= 0 {
-		config.World.GridCellSize = 256
+	if config.Physics.CellSize <= 0 {
+		config.Physics.CellSize = 50
 	}
 	if config.Engine.TimeScale <= 0 {
 		config.Engine.TimeScale = 1.0
@@ -225,10 +232,9 @@ func DefaultConfig() *Config {
 			EnableDebug:      false,
 			EnableLogging:    true,
 		},
-		World: CollisionConfig{
-			BoundingArea:    geom.Rect{}, //default to unbounded
-			GridCellSize:    256,         // Used for spatial partitioning of the world grid
-			EnableDebugDraw: false,
+		Physics: PhysicsConfig{
+			Enabled:  true,
+			CellSize: 50,
 		},
 	}
 	ValidateConfig(cfg)

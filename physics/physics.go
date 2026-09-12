@@ -1,38 +1,39 @@
-// Package physics defines collision event and result data types shared between
-// game code and the engine's collision system. The system lives in internal/physicssystem.
+// Package physics provides broad-phase indexing, narrow-phase collision tests,
+// and collision lifecycle events for ECS entities.
 package physics
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
+	"github.com/leonard-atorough/castrum/internal/spatial"
 )
 
 type spatialIndexer interface {
-	Query(position geom.Vector2, radius float64) []ecs.EntityID
-	QueryInto(position geom.Vector2, radius float64, ids []ecs.EntityID) []ecs.EntityID
-	Update(entityID ecs.EntityID, position geom.Vector2) error
+	QueryInto(bounds geom.Rect, ids []ecs.EntityID) []ecs.EntityID
+	Update(entityID ecs.EntityID, bounds geom.Rect) error
 	Remove(entityID ecs.EntityID)
 }
 
-// QueryConfig controls collision detection behavior
+// PhysicsConfig controls collision detection behavior.
 type PhysicsConfig struct {
-	// CellSize is the size of each cell in the spatial index
+	// CellSize is the size of each spatial-index cell.
 	CellSize float64
-	// QueryRadius is the default radius for spatial queries
-	QueryRadius float64
-	// Enabled toggles collision detection on/off
+	// Enabled toggles collision detection on and off.
 	Enabled bool
 }
 
+// PhysicsSystem synchronizes active colliders with a bounds-based spatial
+// index, tests candidate pairs, and emits collision lifecycle events.
 type PhysicsSystem struct {
 	index         spatialIndexer
 	config        PhysicsConfig
 	previousPairs map[PairKey]*CollisionState
-	lastPositions map[ecs.EntityID]geom.Vector2
+	lastProxies   map[ecs.EntityID]collisionProxy
 	dirty         map[ecs.EntityID]struct{}
 	seen          map[ecs.EntityID]struct{}
 	candidates    []PairKey
@@ -41,12 +42,22 @@ type PhysicsSystem struct {
 	query         *ecs.Query
 }
 
+type collisionProxy struct {
+	transform components.Transform
+	shape     any
+	bounds    geom.Rect
+	layer     uint8
+	mask      uint32
+}
+
+// NewSystem creates a physics system using cfg. A non-positive cell size uses
+// the default size of 50 world units.
 func NewSystem(cfg PhysicsConfig) *PhysicsSystem {
 	var cellSize = cfg.CellSize
 	if cellSize <= 0 {
 		cellSize = 50.0 // sensible default
 	}
-	index, err := newIndex(cellSize)
+	index, err := spatial.NewGrid(cellSize)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create spatial index: %v", err))
 	}
@@ -54,7 +65,7 @@ func NewSystem(cfg PhysicsConfig) *PhysicsSystem {
 		index:         index,
 		config:        cfg,
 		previousPairs: make(map[PairKey]*CollisionState),
-		lastPositions: make(map[ecs.EntityID]geom.Vector2),
+		lastProxies:   make(map[ecs.EntityID]collisionProxy),
 		dirty:         make(map[ecs.EntityID]struct{}),
 		seen:          make(map[ecs.EntityID]struct{}),
 		tested:        make(map[PairKey]struct{}),
@@ -62,6 +73,7 @@ func NewSystem(cfg PhysicsConfig) *PhysicsSystem {
 	}
 }
 
+// Init prepares the ECS query used to find active collider and transform pairs.
 func (s *PhysicsSystem) Init(world *ecs.World) error {
 	s.query = world.NewQuery().WithRequiredComponents(
 		components.Collider{},
@@ -70,8 +82,15 @@ func (s *PhysicsSystem) Init(world *ecs.World) error {
 	return nil
 }
 
+// Update synchronizes collider proxies and processes collision events for one
+// simulation tick. When collision processing is disabled, it performs no
+// indexing, narrow-phase work, or event emission.
 func (s *PhysicsSystem) Update(world *ecs.World, deltaTime float64) error {
-	candidates, err := s.syncIndex(world)
+	if !s.config.Enabled {
+		return nil
+	}
+
+	candidates, err := s.syncIndex()
 	if err != nil {
 		return err
 	}
@@ -89,11 +108,14 @@ func (s *PhysicsSystem) Update(world *ecs.World, deltaTime float64) error {
 	return nil
 }
 
+// Shutdown releases no external resources and is provided to satisfy the ECS
+// system contract.
 func (s *PhysicsSystem) Shutdown(world *ecs.World) error {
 	return nil
 }
 
-// query helpers for game systems (read-only, after Update ran)
+// TestCollision performs an immediate exact collision test for two entities.
+// It does not update pair state or emit events.
 func (s *PhysicsSystem) TestCollision(world *ecs.World, entityA, entityB ecs.EntityID) (CollisionResult, error) {
 	colliderA, shapeA, err := s.worldShape(world, entityA)
 	if err != nil {
@@ -109,19 +131,19 @@ func (s *PhysicsSystem) TestCollision(world *ecs.World, entityA, entityB ecs.Ent
 		return CollisionResult{}, nil
 	}
 
-	return intersectsAny(shapeA, shapeB), nil
+	return intersectsAny(shapeA.shape, shapeB.shape), nil
 }
+
+// CollidingWith returns the entities whose exact transformed shapes collide
+// with entityID. The spatial index supplies conservative candidates; the
+// returned slice contains only narrow-phase hits.
 func (s *PhysicsSystem) CollidingWith(world *ecs.World, entityID ecs.EntityID) ([]ecs.EntityID, error) {
 	collider, shapeA, err := s.worldShape(world, entityID)
 	if err != nil {
 		return nil, err
 	}
 
-	transform, err := world.GetComponent[components.Transform](entityID)
-	if err != nil {
-		return nil, fmt.Errorf("entity %d: %w", entityID, err)
-	}
-	s.nearby = s.index.QueryInto(transform.Position, s.config.QueryRadius, s.nearby[:0])
+	s.nearby = s.index.QueryInto(shapeA.bounds, s.nearby[:0])
 
 	var collisions []ecs.EntityID
 	for _, otherID := range s.nearby {
@@ -138,7 +160,7 @@ func (s *PhysicsSystem) CollidingWith(world *ecs.World, entityID ecs.EntityID) (
 			continue
 		}
 
-		if intersectsAny(shapeA, shapeB).Collided {
+		if intersectsAny(shapeA.shape, shapeB.shape).Collided {
 			collisions = append(collisions, otherID)
 		}
 	}
@@ -146,13 +168,13 @@ func (s *PhysicsSystem) CollidingWith(world *ecs.World, entityID ecs.EntityID) (
 	return collisions, nil
 }
 
-// internal — one pass, one query, three stages
-func (s *PhysicsSystem) syncIndex(world *ecs.World) ([]PairKey, error) {
+// syncIndex updates changed proxies, removes inactive or deleted entities, and
+// builds candidate pairs for dirty proxies and previously colliding pairs.
+func (s *PhysicsSystem) syncIndex() ([]PairKey, error) {
 	clear(s.seen)
 	s.candidates = s.candidates[:0]
 	clear(s.tested)
 
-	// One pass: index sync + dirty marking + liveness tracking.
 	for result := range s.query.Execute() {
 		entityID := result.EntityID
 
@@ -165,33 +187,40 @@ func (s *PhysicsSystem) syncIndex(world *ecs.World) ([]PairKey, error) {
 			continue
 		}
 
-		if err := s.index.Update(entityID, transform.Position); err != nil {
-			return nil, err
+		shape, err := transformedCollider(collider.Shape, transform)
+		if err != nil {
+			return nil, fmt.Errorf("entity %d: %w", entityID, err)
 		}
 		s.seen[entityID] = struct{}{}
 
-		lastPos, exists := s.lastPositions[entityID]
-		if !exists || lastPos != transform.Position {
+		proxy := collisionProxy{
+			transform: transform,
+			shape:     shape.shape,
+			bounds:    shape.bounds,
+			layer:     collider.Layer,
+			mask:      collider.Mask,
+		}
+		lastProxy, exists := s.lastProxies[entityID]
+		if !exists || collisionProxyChanged(lastProxy, proxy) {
+			if err := s.index.Update(entityID, proxy.bounds); err != nil {
+				return nil, err
+			}
 			s.dirty[entityID] = struct{}{}
-			s.lastPositions[entityID] = transform.Position
+			s.lastProxies[entityID] = proxy
 		}
 	}
 
-	// Orphans: entity removed, or its Collider went inactive.
-	// The index must be told, or stale entries pollute queries forever.
-	for entityID := range s.lastPositions {
+	// An entity absent from this query was deleted or became inactive. Remove it
+	// from every owner of proxy state so stale cells cannot produce candidates.
+	for entityID := range s.lastProxies {
 		if _, ok := s.seen[entityID]; !ok {
 			s.index.Remove(entityID)
-			delete(s.lastPositions, entityID)
-		}
-	}
-	for entityID := range s.dirty {
-		if _, ok := s.seen[entityID]; !ok {
+			delete(s.lastProxies, entityID)
 			delete(s.dirty, entityID)
 		}
 	}
 
-	// Drop pair-cache entries for pairs whose members vanished.
+	// Pair state cannot survive the removal of either member.
 	for pair := range s.previousPairs {
 		_, okA := s.seen[pair.EntityA]
 		_, okB := s.seen[pair.EntityB]
@@ -200,13 +229,12 @@ func (s *PhysicsSystem) syncIndex(world *ecs.World) ([]PairKey, error) {
 		}
 	}
 
-	// Broadphase, fused: query neighbors around each dirty entity only.
 	for entityID := range s.dirty {
-		transform, err := world.GetComponent[components.Transform](entityID)
-		if err != nil {
+		proxy, ok := s.lastProxies[entityID]
+		if !ok {
 			continue
 		}
-		s.nearby = s.index.QueryInto(transform.Position, s.config.QueryRadius, s.nearby[:0])
+		s.nearby = s.index.QueryInto(proxy.bounds, s.nearby[:0])
 		for _, neighborID := range s.nearby {
 			if neighborID == entityID {
 				continue
@@ -219,15 +247,37 @@ func (s *PhysicsSystem) syncIndex(world *ecs.World) ([]PairKey, error) {
 			s.candidates = append(s.candidates, pair)
 		}
 	}
+	for pair := range s.previousPairs {
+		if _, dirtyA := s.dirty[pair.EntityA]; !dirtyA {
+			if _, dirtyB := s.dirty[pair.EntityB]; !dirtyB {
+				continue
+			}
+		}
+		if _, tested := s.tested[pair]; tested {
+			continue
+		}
+		s.tested[pair] = struct{}{}
+		s.candidates = append(s.candidates, pair)
+	}
 
 	return s.candidates, nil
+}
+
+func collisionProxyChanged(previous, current collisionProxy) bool {
+	return previous.transform.Position != current.transform.Position ||
+		previous.transform.Rotation != current.transform.Rotation ||
+		previous.transform.Scale != current.transform.Scale ||
+		previous.layer != current.layer ||
+		previous.mask != current.mask ||
+		!reflect.DeepEqual(previous.shape, current.shape) ||
+		previous.bounds != current.bounds
 }
 
 func (s *PhysicsSystem) narrowphase(world *ecs.World, candidates []PairKey, bus *events.EventBus) *CollisionErrors {
 	clear(s.tested)
 	collisionErrors := &CollisionErrors{}
 
-	// If no candidates and no previous pairs, return early
+	// If no candidates and no previous pairs, there is no work to perform.
 	if len(candidates) == 0 && len(s.previousPairs) == 0 {
 		return collisionErrors
 	}
@@ -261,8 +311,8 @@ func (s *PhysicsSystem) narrowphase(world *ecs.World, candidates []PairKey, bus 
 		}
 	}
 
-	// Pairs untouched this frame - neither member moved, so the cached result
-	// still holds. Replay Stay without re-testing geometry.
+	// Untouched pairs have unchanged proxies, so replay Stay from the cached
+	// result without repeating the exact geometry test.
 	for pair, state := range s.previousPairs {
 		if _, ok := s.tested[pair]; ok {
 			continue
@@ -286,22 +336,26 @@ func (s *PhysicsSystem) emit(bus *events.EventBus, eventType CollisionEventType,
 	}, "CollisionSystem")
 }
 
-func (s *PhysicsSystem) worldShape(world *ecs.World, entityID ecs.EntityID) (components.Collider, any, error) {
+func (s *PhysicsSystem) worldShape(world *ecs.World, entityID ecs.EntityID) (components.Collider, transformedShape, error) {
 	collider, err := world.GetComponent[components.Collider](entityID)
 	if err != nil {
-		return components.Collider{}, nil, fmt.Errorf("entity %d: %w", entityID, err)
+		return components.Collider{}, transformedShape{}, fmt.Errorf("entity %d: %w", entityID, err)
 	}
 
 	if !collider.Active {
-		return components.Collider{}, nil, fmt.Errorf("collider inactive")
+		return components.Collider{}, transformedShape{}, fmt.Errorf("collider inactive")
 	}
 
 	transform, err := world.GetComponent[components.Transform](entityID)
 	if err != nil {
-		return components.Collider{}, nil, fmt.Errorf("entity %d: %w", entityID, err)
+		return components.Collider{}, transformedShape{}, fmt.Errorf("entity %d: %w", entityID, err)
 	}
 
-	return collider, toWorldSpace(collider.Shape, transform.Position), nil
+	shape, err := transformedCollider(collider.Shape, transform)
+	if err != nil {
+		return components.Collider{}, transformedShape{}, fmt.Errorf("entity %d: %w", entityID, err)
+	}
+	return collider, shape, nil
 }
 
 // canonicalPair orders a pair so (a, b) and (b, a) collapse to one key.
@@ -312,27 +366,34 @@ func canonicalPair(a, b ecs.EntityID) PairKey {
 	return PairKey{EntityA: b, EntityB: a}
 }
 
-// DefaultConfig returns a sensible default collision configuration
+// DefaultConfig returns a collision configuration suitable for a typical game.
 func DefaultConfig() PhysicsConfig {
 	return PhysicsConfig{
-		QueryRadius: 300.0,
-		CellSize:    50.0, // default cell size for the spatial index
-		Enabled:     true,
+		CellSize: 50.0, // default cell size for the spatial index
+		Enabled:  true,
 	}
 }
 
+// PairKey identifies an unordered pair of entities involved in collision
+// processing. Use canonicalPair when constructing one from two IDs.
 type PairKey struct {
 	EntityA, EntityB ecs.EntityID
 }
 
+// CollisionEventType identifies a collision lifecycle transition.
 type CollisionEventType int
 
 const (
+	// CollisionEnter is emitted when a pair starts colliding.
 	CollisionEnter CollisionEventType = iota
+	// CollisionStay is emitted while a pair remains colliding.
 	CollisionStay
+	// CollisionExit is emitted when a previously colliding pair separates.
 	CollisionExit
 )
 
+// CollisionEvent describes a collision lifecycle transition and its contact
+// information at the time of the transition.
 type CollisionEvent struct {
 	CollisionEventType
 	PairKey
@@ -340,6 +401,7 @@ type CollisionEvent struct {
 	Normal geom.Vector2
 }
 
+// CollisionResult contains the exact narrow-phase result for a pair.
 type CollisionResult struct {
 	Collided    bool
 	Point       geom.Vector2

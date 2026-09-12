@@ -42,6 +42,58 @@ func TestValidateConfig_SetsSensibleDefaults(t *testing.T) {
 	if len(cfg.Input.Bindings) == 0 {
 		t.Fatal("expected default input bindings")
 	}
+	if cfg.Physics.CellSize != 50 {
+		t.Errorf("Physics.CellSize = %v, want 50", cfg.Physics.CellSize)
+	}
+}
+
+func TestDefaultConfig_EnablesPhysics(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if !cfg.Physics.Enabled {
+		t.Fatal("expected physics to be enabled by default")
+	}
+	if cfg.Physics.CellSize != 50 {
+		t.Errorf("Physics.CellSize = %v, want 50", cfg.Physics.CellSize)
+	}
+}
+
+func TestLoadConfig_PhysicsSettings(t *testing.T) {
+	cfg, err := LoadConfig(strings.NewReader(`
+physics:
+  enabled: false
+  cell_size: 24
+  debug_draw: true
+`))
+	if err != nil {
+		t.Fatalf("LoadConfig returned error: %v", err)
+	}
+
+	if cfg.Physics.Enabled {
+		t.Error("Physics.Enabled = true, want false")
+	}
+	if cfg.Physics.CellSize != 24 {
+		t.Errorf("Physics.CellSize = %v, want 24", cfg.Physics.CellSize)
+	}
+	if !cfg.Physics.DebugDraw {
+		t.Error("Physics.DebugDraw = false, want true")
+	}
+}
+
+func TestLoadConfig_DefaultsPhysicsWhenOmitted(t *testing.T) {
+	cfg, err := LoadConfig(strings.NewReader(`project:
+  name: Test Project
+`))
+	if err != nil {
+		t.Fatalf("LoadConfig returned error: %v", err)
+	}
+
+	if !cfg.Physics.Enabled {
+		t.Error("Physics.Enabled = false, want true when omitted")
+	}
+	if cfg.Physics.CellSize != 50 {
+		t.Errorf("Physics.CellSize = %v, want 50 when omitted", cfg.Physics.CellSize)
+	}
 }
 
 func TestValidateConfig_ClampsAndNormalizes(t *testing.T) {
