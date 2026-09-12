@@ -124,3 +124,79 @@ func TestPhysicsSystem_InactiveColliderRemovesPreviousPair(t *testing.T) {
 		t.Fatalf("events after deactivation = %v, want none", eventsSeen)
 	}
 }
+
+func TestCollisionProxyChanged_WhenFilterChanges(t *testing.T) {
+	previous := collisionProxy{layer: 1, mask: 1 << 2}
+
+	current := previous
+	current.layer = 2
+	if !collisionProxyChanged(previous, current) {
+		t.Fatal("layer change did not mark collision proxy dirty")
+	}
+
+	current = previous
+	current.mask = 1 << 3
+	if !collisionProxyChanged(previous, current) {
+		t.Fatal("mask change did not mark collision proxy dirty")
+	}
+}
+
+func TestPhysicsSystem_FilterChangesReevaluateStaticPair(t *testing.T) {
+	world := ecs.NewWorld()
+	bus := events.NewEventBus()
+	world.SetResource(bus)
+	system := NewSystem(PhysicsConfig{Enabled: true})
+	if err := system.Init(world); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	first, err := world.CreateWithComponents("",
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+		components.NewCollider(geom.Circle{Radius: 10}, true, false, 0, 1),
+	)
+	if err != nil {
+		t.Fatalf("Create first entity: %v", err)
+	}
+	_, err = world.CreateWithComponents("",
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+		components.NewCollider(geom.Circle{Radius: 10}, true, false, 1, 0),
+	)
+	if err != nil {
+		t.Fatalf("Create second entity: %v", err)
+	}
+
+	var eventTypes []CollisionEventType
+	bus.On(func(_ events.EventMeta, event CollisionEvent) {
+		eventTypes = append(eventTypes, event.CollisionEventType)
+	}, false)
+
+	if err := system.Update(world, 0); err != nil {
+		t.Fatalf("initial Update() error = %v", err)
+	}
+	if len(eventTypes) != 1 || eventTypes[0] != CollisionEnter {
+		t.Fatalf("initial events = %v, want [CollisionEnter]", eventTypes)
+	}
+
+	eventTypes = nil
+	if err := world.SetComponent(first.ID, components.NewCollider(geom.Circle{Radius: 10}, true, false, 0)); err != nil {
+		t.Fatalf("remove collision mask: %v", err)
+	}
+	if err := system.Update(world, 0); err != nil {
+		t.Fatalf("Update() after filter removal error = %v", err)
+	}
+	if len(eventTypes) != 1 || eventTypes[0] != CollisionExit {
+		t.Fatalf("events after filter removal = %v, want [CollisionExit]", eventTypes)
+	}
+
+	eventTypes = nil
+	if err := world.SetComponent(first.ID, components.NewCollider(geom.Circle{Radius: 10}, true, false, 0, 1)); err != nil {
+		t.Fatalf("restore collision mask: %v", err)
+	}
+	if err := system.Update(world, 0); err != nil {
+		t.Fatalf("Update() after filter restoration error = %v", err)
+	}
+	if len(eventTypes) != 1 || eventTypes[0] != CollisionEnter {
+		t.Fatalf("events after filter restoration = %v, want [CollisionEnter]", eventTypes)
+	}
+
+}

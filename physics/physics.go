@@ -46,6 +46,8 @@ type collisionProxy struct {
 	transform components.Transform
 	shape     any
 	bounds    geom.Rect
+	layer     uint8
+	mask      uint32
 }
 
 // NewSystem creates a physics system using cfg. A non-positive cell size uses
@@ -191,7 +193,13 @@ func (s *PhysicsSystem) syncIndex() ([]PairKey, error) {
 		}
 		s.seen[entityID] = struct{}{}
 
-		proxy := collisionProxy{transform: transform, shape: shape.shape, bounds: shape.bounds}
+		proxy := collisionProxy{
+			transform: transform,
+			shape:     shape.shape,
+			bounds:    shape.bounds,
+			layer:     collider.Layer,
+			mask:      collider.Mask,
+		}
 		lastProxy, exists := s.lastProxies[entityID]
 		if !exists || collisionProxyChanged(lastProxy, proxy) {
 			if err := s.index.Update(entityID, proxy.bounds); err != nil {
@@ -259,6 +267,8 @@ func collisionProxyChanged(previous, current collisionProxy) bool {
 	return previous.transform.Position != current.transform.Position ||
 		previous.transform.Rotation != current.transform.Rotation ||
 		previous.transform.Scale != current.transform.Scale ||
+		previous.layer != current.layer ||
+		previous.mask != current.mask ||
 		!reflect.DeepEqual(previous.shape, current.shape) ||
 		previous.bounds != current.bounds
 }
