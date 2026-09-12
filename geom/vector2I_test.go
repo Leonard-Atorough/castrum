@@ -73,7 +73,6 @@ func TestVector2I_Reflect(t *testing.T) {
 	}
 }
 
-
 func TestVector2I_String(t *testing.T) {
 	got := Vector2I{X: 1, Y: 2}.String()
 	if want := "Vector2I{X: 1, Y: 2}"; got != want {
