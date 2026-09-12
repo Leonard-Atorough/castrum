@@ -47,14 +47,15 @@ func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, t
 }
 
 func drawPolygonPath(renderable components.Sprite, cam components.Camera, clr color.Color, screen *ebiten.Image) int {
-	if polygon, ok := renderable.Data.(*geom.Polygon); ok {
-		if len(polygon.Points) < 3 {
+	if polygon, ok := renderable.Data.(geom.Polygon); ok {
+		if err := polygon.Validate(); err != nil {
 			return 1
 		}
+		points := polygon.Points()
 		var path vector.Path
-		first := cam.WorldToScreen(polygon.Points[0])
+		first := cam.WorldToScreen(points[0])
 		path.MoveTo(float32(first.X), float32(first.Y))
-		for _, point := range polygon.Points[1:] {
+		for _, point := range points[1:] {
 			p := cam.WorldToScreen(point)
 			path.LineTo(float32(p.X), float32(p.Y))
 		}

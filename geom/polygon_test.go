@@ -1,207 +1,180 @@
 package geom
 
-import "testing"
+import (
+	"errors"
+	"math"
+	"testing"
+)
 
-func TestPolygon_PointManagement(t *testing.T) {
-	polygon := Polygon{}
-	points := []Vector2{
-		{X: 0, Y: 0},
-		{X: 4, Y: 0},
-		{X: 4, Y: 3},
-	}
-
-	for _, point := range points {
-		polygon.AddPoint(point)
-	}
-
-	if got := polygon.NumPoints(); got != len(points) {
-		t.Errorf("NumPoints() = %v, want %v", got, len(points))
-	}
-	for index, want := range points {
-		if got := polygon.GetPoint(index); got != want {
-			t.Errorf("GetPoint(%v) = %v, want %v", index, got, want)
-		}
-	}
-
-	polygon.RemovePoint(1)
-	wantPoints := []Vector2{points[0], points[2]}
-	if got := polygon.GetPoints(); len(got) != len(wantPoints) {
-		t.Errorf("GetPoints() after RemovePoint() returned %v points, want %v", len(got), len(wantPoints))
-	}
-	for index, want := range wantPoints {
-		if got := polygon.GetPoint(index); got != want {
-			t.Errorf("GetPoint(%v) after RemovePoint() = %v, want %v", index, got, want)
-		}
-	}
-
-	polygon.RemovePoint(-1)
-	polygon.RemovePoint(polygon.NumPoints())
-	if polygon.NumPoints() != len(wantPoints) {
-		t.Errorf("invalid RemovePoint() changed polygon, got %v points", polygon.NumPoints())
-	}
-
-	polygon.Clear()
-	if polygon.NumPoints() != 0 {
-		t.Errorf("NumPoints() after Clear() = %v, want 0", polygon.NumPoints())
-	}
-}
-
-func TestPolygon_GetPoint_InvalidIndex(t *testing.T) {
-	polygon := Polygon{Points: []Vector2{{X: 1, Y: 2}}}
-
-	for _, index := range []int{-1, 1} {
-		if got := polygon.GetPoint(index); got != (Vector2{}) {
-			t.Errorf("GetPoint(%v) = %v, want zero vector", index, got)
-		}
-	}
-}
-
-func TestPolygon_GetEdges(t *testing.T) {
-	polygon := Polygon{Points: []Vector2{
-		{X: 0, Y: 0},
-		{X: 4, Y: 0},
-		{X: 4, Y: 3},
-	}}
-	want := [][2]Vector2{
-		{{X: 0, Y: 0}, {X: 4, Y: 0}},
-		{{X: 4, Y: 0}, {X: 4, Y: 3}},
-		{{X: 4, Y: 3}, {X: 0, Y: 0}},
-	}
-
-	if got := polygon.GetEdges(); len(got) != len(want) {
-		t.Errorf("GetEdges() returned %v edges, want %v", len(got), len(want))
-	} else {
-		for index := range want {
-			if got[index] != want[index] {
-				t.Errorf("GetEdges()[%v] = %v, want %v", index, got[index], want[index])
-			}
-		}
-	}
-
-	if got := (&Polygon{}).GetEdges(); len(got) != 0 {
-		t.Errorf("empty polygon GetEdges() returned %v edges, want 0", len(got))
-	}
-}
-
-func TestPolygon_Perimeter(t *testing.T) {
-	polygon := Polygon{Points: []Vector2{
+func rectanglePolygon(t *testing.T) Polygon {
+	t.Helper()
+	polygon, err := NewPolygon([]Vector2{
 		{X: 0, Y: 0},
 		{X: 4, Y: 0},
 		{X: 4, Y: 3},
 		{X: 0, Y: 3},
-	}}
-
-	if got := polygon.Perimeter(); !almostEqual(got, 14) {
-		t.Errorf("Perimeter() = %v, want 14", got)
+	})
+	if err != nil {
+		t.Fatalf("NewPolygon() error = %v", err)
 	}
-	if got := (&Polygon{}).Perimeter(); got != 0 {
-		t.Errorf("empty polygon Perimeter() = %v, want 0", got)
+	return polygon
+}
+
+func TestNewPolygonCopiesAndNormalizesInput(t *testing.T) {
+	points := []Vector2{{0, 0}, {0, 3}, {4, 3}, {4, 0}, {0, 0}}
+	polygon, err := NewPolygon(points)
+	if err != nil {
+		t.Fatalf("NewPolygon() error = %v", err)
+	}
+	points[0] = Vector2{100, 100}
+
+	if polygon.Len() != 4 {
+		t.Fatalf("Len() = %d, want 4", polygon.Len())
+	}
+	if !polygon.IsClockwise() {
+		t.Error("NewPolygon() did not normalize winding to clockwise")
+	}
+	if got := polygon.Points(); got[0] == points[0] {
+		t.Error("polygon retained caller point storage")
+	}
+	copyOfPoints := polygon.Points()
+	copyOfPoints[0] = Vector2{200, 200}
+	if got, _ := polygon.Point(0); got == copyOfPoints[0] {
+		t.Error("Points() exposed polygon storage")
 	}
 }
 
-func TestPolygon_Area(t *testing.T) {
-	polygon := Polygon{Points: []Vector2{
-		{X: 0, Y: 0},
-		{X: 4, Y: 0},
-		{X: 4, Y: 3},
-		{X: 0, Y: 3},
-	}}
-
-	if got := polygon.Area(); !almostEqual(got, 12) {
-		t.Errorf("Area() = %v, want 12", got)
+func TestPolygonPointAccessAndImplicitClosure(t *testing.T) {
+	polygon := rectanglePolygon(t)
+	if got := polygon.Len(); got != 4 {
+		t.Errorf("Len() = %d, want 4", got)
 	}
-
-	reversed := Polygon{Points: []Vector2{
-		{X: 0, Y: 3},
-		{X: 4, Y: 3},
-		{X: 4, Y: 0},
-		{X: 0, Y: 0},
-	}}
-	if got := reversed.Area(); !almostEqual(got, 12) {
-		t.Errorf("Area() for reversed polygon = %v, want 12", got)
+	if _, ok := polygon.Point(-1); ok {
+		t.Error("Point(-1) returned a point")
 	}
-
-	for _, points := range [][]Vector2{nil, {{X: 0, Y: 0}}, {{X: 0, Y: 0}, {X: 1, Y: 1}}} {
-		if got := (&Polygon{Points: points}).Area(); got != 0 {
-			t.Errorf("Area() for %v points = %v, want 0", len(points), got)
-		}
+	if _, ok := polygon.Point(polygon.Len()); ok {
+		t.Error("Point(Len()) returned a point")
+	}
+	last, _ := polygon.Point(3)
+	first, _ := polygon.Point(0)
+	closing, ok := polygon.Edge(3)
+	if !ok || closing.Start != last || closing.End != first {
+		t.Errorf("closing edge = %v, want %v -> %v", closing, last, first)
+	}
+	if got := polygon.Edges(); len(got) != 4 {
+		t.Errorf("Edges() length = %d, want 4", len(got))
 	}
 }
 
-func TestPolygon_Contains(t *testing.T) {
-	polygon := Polygon{Points: []Vector2{
-		{X: 0, Y: 0},
-		{X: 10, Y: 0},
-		{X: 10, Y: 10},
-		{X: 0, Y: 10},
-	}}
-
-	cases := []struct {
-		name  string
-		point Vector2
-		want  bool
+func TestPolygonValidation(t *testing.T) {
+	tests := []struct {
+		name   string
+		points []Vector2
+		err    error
 	}{
-		{"inside", Vector2{X: 5, Y: 5}, true},
-		{"outside", Vector2{X: 11, Y: 5}, false},
-		{"on edge", Vector2{X: 0, Y: 5}, true},
-		{"on vertex", Vector2{X: 0, Y: 0}, true},
+		{"too few", []Vector2{{0, 0}, {1, 1}}, ErrPolygonTooFewPoints},
+		{"duplicate", []Vector2{{0, 0}, {4, 0}, {4, 3}, {4, 0}}, ErrPolygonDuplicatePoint},
+		{"collinear", []Vector2{{0, 0}, {2, 0}, {4, 0}, {4, 3}, {0, 3}}, ErrPolygonCollinearPoint},
+		{"zero area", []Vector2{{0, 0}, {1, 0}, {2, 0}}, ErrPolygonCollinearPoint},
+		{"non finite", []Vector2{{0, 0}, {1, 0}, {math.Inf(1), 1}}, ErrPolygonNonFinitePoint},
+		{"self crossing", []Vector2{{0, 0}, {4, 4}, {0, 4}, {4, 0}}, ErrPolygonSelfIntersecting},
+		{"non adjacent touch", []Vector2{{0, 0}, {4, 0}, {4, 4}, {0, 4}, {2, -1}}, ErrPolygonSelfIntersecting},
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := polygon.Contains(tc.point); got != tc.want {
-				t.Errorf("Contains(%v) = %v, want %v", tc.point, got, tc.want)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := NewPolygon(test.points)
+			if !errors.Is(err, test.err) {
+				t.Fatalf("NewPolygon() error = %v, want %v", err, test.err)
 			}
 		})
 	}
 
-	if got := (&Polygon{}).Contains(Vector2{}); got {
-		t.Error("empty polygon Contains() = true, want false")
+	concave, err := NewPolygon([]Vector2{{0, 0}, {4, 0}, {4, 4}, {2, 2}, {0, 4}})
+	if err != nil {
+		t.Fatalf("concave NewPolygon() error = %v", err)
+	}
+	if !concave.IsValid() || !concave.IsClockwise() {
+		t.Error("valid concave polygon failed its invariants")
 	}
 }
 
-func TestPolygon_BoundingBox(t *testing.T) {
-	polygon := Polygon{Points: []Vector2{
-		{X: 3, Y: 8},
-		{X: -2, Y: 4},
-		{X: 5, Y: -1},
-	}}
-	want := Rect{Min: Vector2{X: -2, Y: -1}, Max: Vector2{X: 5, Y: 8}}
-
-	if got := polygon.BoundingBox(); got != want {
-		t.Errorf("BoundingBox() = %v, want %v", got, want)
+func TestPolygonGeometry(t *testing.T) {
+	polygon := rectanglePolygon(t)
+	if got := polygon.Perimeter(); !almostEqual(got, 14) {
+		t.Errorf("Perimeter() = %v, want 14", got)
 	}
-	if got := (&Polygon{}).BoundingBox(); got != (Rect{}) {
-		t.Errorf("empty polygon BoundingBox() = %v, want zero rect", got)
+	if got := polygon.Area(); !almostEqual(got, 12) {
+		t.Errorf("Area() = %v, want 12", got)
 	}
-}
-
-func TestPolygon_Centroid(t *testing.T) {
-	polygon := Polygon{Points: []Vector2{
-		{X: 0, Y: 0},
-		{X: 6, Y: 0},
-		{X: 6, Y: 4},
-		{X: 0, Y: 4},
-	}}
-
-	if got := polygon.Centroid(); !vecAlmostEqual(got, Vector2{X: 3, Y: 2}) {
-		t.Errorf("Centroid() = %v, want {3 2}", got)
+	if got := polygon.SignedArea(); !almostEqual(got, -12) {
+		t.Errorf("SignedArea() = %v, want -12", got)
 	}
-	if got := (&Polygon{}).Centroid(); got != (Vector2{}) {
-		t.Errorf("empty polygon Centroid() = %v, want zero vector", got)
+	if got := polygon.Centroid(); !vecAlmostEqual(got, Vector2{X: 2, Y: 1.5}) {
+		t.Errorf("Centroid() = %v, want {2 1.5}", got)
+	}
+	if got := polygon.BoundingBox(); got != (Rect{Min: Vector2{0, 0}, Max: Vector2{4, 3}}) {
+		t.Errorf("BoundingBox() = %v", got)
 	}
 }
 
-func TestPolygon_Translate(t *testing.T) {
-	polygon := Polygon{Points: []Vector2{
-		{X: 1, Y: 2},
-		{X: 3, Y: 4},
-	}}
-	polygon.Translate(Vector2{X: -1, Y: 5})
-
-	want := []Vector2{{X: 0, Y: 7}, {X: 2, Y: 9}}
-	for index, point := range want {
-		if got := polygon.GetPoint(index); got != point {
-			t.Errorf("GetPoint(%v) after Translate() = %v, want %v", index, got, point)
+func TestPolygonContainsBoundary(t *testing.T) {
+	polygon := rectanglePolygon(t)
+	for _, test := range []struct {
+		point Vector2
+		want  bool
+	}{
+		{Vector2{2, 1}, true},
+		{Vector2{5, 1}, false},
+		{Vector2{0, 1}, true},
+		{Vector2{0, 0}, true},
+	} {
+		if got := polygon.Contains(test.point); got != test.want {
+			t.Errorf("Contains(%v) = %v, want %v", test.point, got, test.want)
 		}
+	}
+}
+
+func TestPolygonValueOperationsDoNotMutateOriginal(t *testing.T) {
+	polygon := rectanglePolygon(t)
+	originalPoints := polygon.Points()
+	translated := polygon.Translate(Vector2{X: 10, Y: -2})
+	if got := polygon.Points(); !equalPoints(got, originalPoints) {
+		t.Errorf("original points after Translate() = %v, want %v", got, originalPoints)
+	}
+	if got, _ := translated.Point(0); got != originalPoints[0].Add(Vector2{10, -2}) {
+		t.Errorf("translated first point = %v", got)
+	}
+
+	if _, err := polygon.AddPoint(originalPoints[1]); err == nil {
+		t.Error("AddPoint() accepted a duplicate point")
+	}
+	removed, err := polygon.RemovePoint(0)
+	if err != nil || removed.Len() != 3 {
+		t.Errorf("RemovePoint() = (%v, %v), want valid triangle", removed, err)
+	}
+	if polygon.Len() != 4 {
+		t.Error("value operation changed original polygon")
+	}
+}
+
+func equalPoints(first, second []Vector2) bool {
+	if len(first) != len(second) {
+		return false
+	}
+	for index := range first {
+		if first[index] != second[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestEmptyPolygonMethods(t *testing.T) {
+	polygon := Polygon{}
+	if polygon.IsValid() || polygon.Contains(Vector2{}) {
+		t.Error("zero Polygon reported valid or contained a point")
+	}
+	if polygon.Perimeter() != 0 || polygon.Area() != 0 || polygon.BoundingBox() != (Rect{}) || polygon.Centroid() != (Vector2{}) {
+		t.Error("zero Polygon returned non-zero geometry")
 	}
 }
