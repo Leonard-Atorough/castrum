@@ -189,7 +189,7 @@ func orientedRectContact(a, b orientedRect) CollisionResult {
 		Collided:    true,
 		Penetration: minimumOverlap,
 		Normal:      minimumAxis,
-		Point:       a.center.Add(minimumAxis.Mul(a.halfExtents.X)),
+		Point:       a.center.Add(a.axes[0].Mul(a.halfExtents.X * math.Copysign(1, minimumAxis.Dot(a.axes[0])))).Add(a.axes[1].Mul(a.halfExtents.Y * math.Copysign(1, minimumAxis.Dot(a.axes[1])))),
 	}
 }
 
