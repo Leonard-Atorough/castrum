@@ -15,10 +15,9 @@ import (
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
 	internalinput "github.com/leonard-atorough/castrum/internal/input"
-	internalrender "github.com/leonard-atorough/castrum/internal/render"
+"github.com/leonard-atorough/castrum/internal/render"
 	"github.com/leonard-atorough/castrum/internal/timingscheduler"
 	"github.com/leonard-atorough/castrum/physics"
-	"github.com/leonard-atorough/castrum/render"
 	"github.com/leonard-atorough/castrum/timers"
 )
 
@@ -61,7 +60,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	assetsLoader := assetSys.AssetLoader()
 	assetsSaver := assetSys.AssetSaver()
 
-	textureProvider := internalrender.NewTextureProvider(assetsLoader)
+	textureProvider := render.NewTextureProvider(assetsLoader)
 	renderer := render.New(textureProvider)
 
 	newWorld.SetResource[input.Reader](inputHandler)

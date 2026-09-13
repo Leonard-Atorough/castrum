@@ -9,7 +9,7 @@ import (
 	"github.com/leonard-atorough/castrum/assets"
 )
 
-type TextureProvider struct {
+type Texture struct {
 	loader *assets.Loader
 
 	mu        sync.RWMutex
@@ -30,8 +30,8 @@ type subtextureResource struct {
 	height int
 }
 
-func NewTextureProvider(loader *assets.Loader) *TextureProvider {
-	provider := &TextureProvider{
+func NewTextureProvider(loader *assets.Loader) *Texture {
+	provider := &Texture{
 		loader:    loader,
 		images:    make(map[assets.ID]*textureResource),
 		subimages: make(map[assets.ID]*subtextureResource),
@@ -40,7 +40,7 @@ func NewTextureProvider(loader *assets.Loader) *TextureProvider {
 	return provider
 }
 
-func (p *TextureProvider) Load(
+func (p *Texture) Load(
 	ctx context.Context,
 	id assets.ID,
 ) (*ebiten.Image, int, int, error) {
@@ -74,7 +74,7 @@ func (p *TextureProvider) Load(
 	return resource.image, resource.width, resource.height, nil
 }
 
-func (p *TextureProvider) Invalidate(id assets.ID) {
+func (p *Texture) Invalidate(id assets.ID) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if id == "" {
@@ -86,7 +86,7 @@ func (p *TextureProvider) Invalidate(id assets.ID) {
 	delete(p.subimages, id)
 }
 
-func (p *TextureProvider) Clear() {
+func (p *Texture) Clear() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.images = make(map[assets.ID]*textureResource)
