@@ -133,8 +133,6 @@ func (k Key) ContainsNoKey(other Key) bool {
 	return k.ContainsNone(other...)
 }
 
-
-
 // IndexOf returns the index of the specified component type in the key, or -1 if not found.
 func (k Key) IndexOf(t reflect.Type) int {
 	for i, typ := range k {
@@ -353,6 +351,9 @@ func (s *ArchetypeStore) Matching(required Key, excluded Key) []*Archetype {
 			result = append(result, arch)
 		}
 	}
+	slices.SortFunc(result, func(left, right *Archetype) int {
+		return int(left.ID() - right.ID())
+	})
 	return result
 }
 

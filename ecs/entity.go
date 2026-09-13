@@ -11,6 +11,7 @@ type Entity struct {
 	template string
 	alive    bool
 	version  uint32
+	stored   bool
 
 	archetypeID  uint64 // ID of the archetype this entity belongs to
 	archetypeIdx int    // Index of the entity within its archetype's entity slice
@@ -22,6 +23,7 @@ func NewEntity(id EntityID, template string) *Entity {
 		template: template,
 		alive:    true,
 		version:  0,
+		stored:   true,
 	}
 }
 
@@ -42,5 +44,6 @@ func (e *Entity) Clone(newID EntityID) *Entity {
 		template: e.template,
 		alive:    e.alive,
 		version:  e.version,
+		stored:   e.stored,
 	}
 }

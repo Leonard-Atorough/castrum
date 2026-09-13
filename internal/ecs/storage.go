@@ -112,6 +112,27 @@ func (s *Storage) Has(location EntityLocation, typ reflect.Type) bool {
 	return has
 }
 
+// Components retrieves all components associated with an entity at the specified location.
+func (s *Storage) Components(location EntityLocation) []any {
+	arch, ok := s.archetypes.Get(location.ArchetypeID)
+	if !ok {
+		return nil
+	}
+	components := make([]any, 0)
+	for _, compType := range arch.ComponentTypes() {
+		if val, exists := arch.Get(location.Index, compType); exists {
+			components = append(components, val)
+		}
+	}
+	return components
+}
+
+// MatchingByTypes returns archetypes whose component sets contain every
+// required type and none of the excluded types.
+func (s *Storage) MatchingByTypes(requiredTypes, excludedTypes []reflect.Type) []*Archetype {
+	return s.archetypes.MatchingByTypes(requiredTypes, excludedTypes)
+}
+
 func validateComponentData(types []reflect.Type, values []any) error {
 	if len(types) != len(values) {
 		return fmt.Errorf("component type/value count mismatch: %d types, %d values", len(types), len(values))
