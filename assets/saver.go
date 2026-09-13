@@ -91,7 +91,15 @@ func (s *Saver) SavePath[T any](ctx context.Context, path string, value T, optio
 				Source:  "SavePath",
 			}
 		}
-		return s.saveToFile(ctx, writer, path, value, *opts)
+if err := s.saveToFile(ctx, writer, path, value, *opts); err != nil {
+	return err
+}
+if s.invalidate != nil {
+	s.invalidate(assetIDForSavePath(path))
+} else {
+	s.service.Invalidate(string(assetIDForSavePath(path)))
+}
+return nil
 	}
 
 	dir := filepath.Dir(path)
