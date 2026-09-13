@@ -160,6 +160,9 @@ func (l *Loader) Load[T any](ctx context.Context, path string, options ...LoadOp
 	if err != nil {
 		return zero, err
 	}
+if result == nil {
+		return zero, nil
+	}
 	return result.(T), nil
 }
 
