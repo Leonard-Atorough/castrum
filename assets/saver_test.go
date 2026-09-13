@@ -17,7 +17,7 @@ type saveTestAsset struct {
 func newSaveTestAssets(t *testing.T) *Assets {
 	t.Helper()
 	assets := NewAssets(nil)
-	if err := assets.saver.RegisterEncoder[saveTestAsset](FormatYAML, func(_ context.Context, writer io.Writer, value saveTestAsset) error {
+	if err := assets.saver.RegisterEncoder(FormatYAML, func(_ context.Context, writer io.Writer, value saveTestAsset) error {
 		_, err := fmt.Fprint(writer, value.Value)
 		return err
 	}, false); err != nil {

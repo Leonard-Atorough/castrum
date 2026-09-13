@@ -59,7 +59,7 @@ func TestLoaderNormalizesFSPathBeforeOpening(t *testing.T) {
 	assets := NewAssets(fstest.MapFS{
 		"asset.test": &fstest.MapFile{Data: []byte("normalized")},
 	})
-	if err := assets.loader.RegisterDecoder[loadTestAsset](Format("test"), func(_ context.Context, reader io.Reader) (loadTestAsset, error) {
+	if err := assets.loader.RegisterDecoder(Format("test"), func(_ context.Context, reader io.Reader) (loadTestAsset, error) {
 		data, err := io.ReadAll(reader)
 		if err != nil {
 			return loadTestAsset{}, err
@@ -135,7 +135,7 @@ func TestLoaderMissingDecoderReturnsAssetError(t *testing.T) {
 func TestLoaderDecoderErrorIsWrapped(t *testing.T) {
 	assets := newLoadTestAssets(t, "value")
 	sentinel := errors.New("decoder failed")
-	if err := assets.loader.RegisterDecoder[loadTestAsset](Format("test-error"), func(context.Context, io.Reader) (loadTestAsset, error) {
+	if err := assets.loader.RegisterDecoder(Format("test-error"), func(context.Context, io.Reader) (loadTestAsset, error) {
 		return loadTestAsset{}, sentinel
 	}, false); err != nil {
 		t.Fatalf("RegisterDecoder failed: %v", err)
@@ -152,7 +152,7 @@ func TestLoaderSingleflightDecodesOnce(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var calls atomic.Int32
-	if err := assets.loader.RegisterDecoder[loadTestAsset](Format("singleflight"), func(context.Context, io.Reader) (loadTestAsset, error) {
+	if err := assets.loader.RegisterDecoder(Format("singleflight"), func(context.Context, io.Reader) (loadTestAsset, error) {
 		calls.Add(1)
 		close(started)
 		<-release
