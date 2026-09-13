@@ -1,6 +1,7 @@
 package castrum
 
 import (
+	"context"
 	"image/color"
 	"io/fs"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
 	internalinput "github.com/leonard-atorough/castrum/internal/input"
+	internalrender "github.com/leonard-atorough/castrum/internal/render"
 	"github.com/leonard-atorough/castrum/internal/timingscheduler"
 	"github.com/leonard-atorough/castrum/physics"
 	"github.com/leonard-atorough/castrum/render"
@@ -22,6 +24,8 @@ import (
 
 type Game struct {
 	world        *ecs.World
+	assetsSaver  *assets.Saver
+	assetsLoader *assets.Loader
 	config       *Config
 	renderer     *render.Renderer
 	input        input.Reader
@@ -53,13 +57,16 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 
 	inputHandler := internalinput.New(config.Input.Bindings)
 
-	assets := assets.NewAssetLoader(filesystem)
-	renderer := render.New(assets.Textures)
+	assetSys := assets.NewAssets(filesystem)
+	assetsLoader := assetSys.AssetLoader()
+	assetsSaver := assetSys.AssetSaver()
+
+	textureProvider := internalrender.NewTextureProvider(assetsLoader)
+	renderer := render.New(textureProvider)
 
 	newWorld.SetResource[input.Reader](inputHandler)
 	newWorld.SetResource(animation.NewAnimationClipStore())
 	newWorld.SetResource(events.NewEventBus())
-	newWorld.SetResource(assets)
 
 	var err error
 	if err = newWorld.RegisterSystem("timer", -1, &timers.TimerSystem{Capacity: 60}); err != nil {
@@ -97,6 +104,8 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 
 	return &Game{
 		world:        newWorld,
+		assetsSaver:  assetsSaver,
+		assetsLoader: assetsLoader,
 		config:       config,
 		renderer:     renderer,
 		input:        inputHandler,
@@ -113,6 +122,16 @@ func (g *Game) CameraEntity() ecs.Entity {
 
 func (g *Game) World() *ecs.World {
 	return g.world
+}
+
+// AssetsLoader provides methods for loading assets from storage or cache.
+func (g *Game) AssetsLoader() *assets.Loader {
+	return g.assetsLoader
+}
+
+// AssetsSaver provides methods for saving assets to storage or cache.
+func (g *Game) AssetsSaver() *assets.Saver {
+	return g.assetsSaver
 }
 
 // Input returns the resolved action reader used by gameplay systems.
@@ -139,8 +158,9 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	ctx := context.Background()
 	g.renderer.Clear(screen, color.Black)
-	g.renderer.DrawScene(screen, g.world)
+	g.renderer.DrawScene(ctx, screen, g.world)
 	if g.config.Engine.EnableDebug {
 		g.renderer.DrawDebugInfo(screen, g.world)
 	}
