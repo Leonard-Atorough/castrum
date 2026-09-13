@@ -197,9 +197,7 @@ func orientedRectContact(a, b orientedRect) CollisionResult {
 	}
 }
 
-// transformedCollider applies scale, rotation, and translation to a local
-// collider. Rectangles retain an oriented representation for exact SAT tests;
-// both supported shapes also receive a conservative world-space AABB.
+// transformedCollider applies rotation and translation to a local collider, ignoring scale.
 func transformedCollider(shape any, transform components.Transform) (transformedShape, error) {
 	if shape == nil {
 		return transformedShape{}, fmt.Errorf("collider shape is nil")
@@ -215,10 +213,10 @@ func transformedCollider(shape any, transform components.Transform) (transformed
 		}
 		worldCorners := transformPoints(corners, transform)
 		center := transformPoint(local.Min.Add(local.Max).Mul(0.5), transform)
-		scale := effectiveScale(transform.Scale)
+		// Use exact local dimensions without scaling
 		halfExtents := geom.Vector2{
-			X: math.Abs(local.Width()*scale.X) / 2,
-			Y: math.Abs(local.Height()*scale.Y) / 2,
+			X: math.Abs(local.Width()) / 2,
+			Y: math.Abs(local.Height()) / 2,
 		}
 		oriented := orientedRect{
 			center:      center,
@@ -232,39 +230,26 @@ func transformedCollider(shape any, transform components.Transform) (transformed
 		return transformedShape{shape: oriented, bounds: oriented.bounds}, nil
 	case geom.Circle:
 		center := transformPoint(local.Center, transform)
-		scale := effectiveScale(transform.Scale)
-		radius := math.Abs(local.Radius) * math.Max(math.Abs(scale.X), math.Abs(scale.Y))
-		world := geom.Circle{Center: center, Radius: radius}
+		// Use exact local radius without scaling
+		world := geom.Circle{Center: center, Radius: math.Abs(local.Radius)}
 		return transformedShape{shape: world, bounds: world.BoundingBox()}, nil
 	default:
 		return transformedShape{}, fmt.Errorf("unsupported collider shape %T: physics supports geom.Circle and geom.Rect", shape)
 	}
 }
 
+// transformPoint applies only rotation and translation to a point, ignoring scale.
+func transformPoint(point geom.Vector2, transform components.Transform) geom.Vector2 {
+	return point.Rotate(transform.Rotation).Add(transform.Position)
+}
+
+// transformPoints applies only rotation and translation to points, ignoring scale.
 func transformPoints(points [4]geom.Vector2, transform components.Transform) [4]geom.Vector2 {
 	var transformed [4]geom.Vector2
 	for i, point := range points {
 		transformed[i] = transformPoint(point, transform)
 	}
 	return transformed
-}
-
-func transformPoint(point geom.Vector2, transform components.Transform) geom.Vector2 {
-	scale := effectiveScale(transform.Scale)
-	scaled := geom.Vector2{X: point.X * scale.X, Y: point.Y * scale.Y}
-	return scaled.Rotate(transform.Rotation).Add(transform.Position)
-}
-
-func effectiveScale(scale geom.Vector2) geom.Vector2 {
-	// Zero-value transforms are common in existing callers, so zero scale keeps
-	// its historical meaning of identity rather than collapsing the collider.
-	if scale.X == 0 {
-		scale.X = 1
-	}
-	if scale.Y == 0 {
-		scale.Y = 1
-	}
-	return scale
 }
 
 func boundsOf(points []geom.Vector2) geom.Rect {

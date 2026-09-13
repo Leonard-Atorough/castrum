@@ -81,7 +81,8 @@ func TestTransformedCollider_PreservesLocalOffsetThroughRotation(t *testing.T) {
 	}
 }
 
-func TestTransformedCollider_CircleUsesConservativeMaximumScale(t *testing.T) {
+func TestTransformedCollider_CircleIgnoresScale(t *testing.T) {
+	// Colliders should NOT be affected by Transform.Scale - only Position and Rotation matter
 	transformed, err := transformedCollider(geom.Circle{Radius: 2}, components.Transform{
 		Scale: geom.Vector2{X: 2, Y: 3},
 	})
@@ -93,8 +94,8 @@ func TestTransformedCollider_CircleUsesConservativeMaximumScale(t *testing.T) {
 	if !ok {
 		t.Fatalf("transformed shape type = %T, want geom.Circle", transformed.shape)
 	}
-	if circle.Radius != 6 {
-		t.Errorf("transformed circle radius = %v, want 6", circle.Radius)
+	if circle.Radius != 2 {
+		t.Errorf("transformed circle radius = %v, want 2 (scale should not affect collider)", circle.Radius)
 	}
 }
 

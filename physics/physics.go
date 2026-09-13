@@ -268,7 +268,6 @@ func (s *PhysicsSystem) syncIndex() ([]PairKey, error) {
 func collisionProxyChanged(previous, current collisionProxy) bool {
 	return previous.transform.Position != current.transform.Position ||
 		previous.transform.Rotation != current.transform.Rotation ||
-		previous.transform.Scale != current.transform.Scale ||
 		previous.layer != current.layer ||
 		previous.mask != current.mask ||
 		!reflect.DeepEqual(previous.shape, current.shape) ||

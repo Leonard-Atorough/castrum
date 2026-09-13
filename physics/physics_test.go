@@ -311,7 +311,8 @@ func TestPhysicsSystem_TransformOnlyChangesReevaluatePair(t *testing.T) {
 		}
 	})
 
-	t.Run("scale", func(t *testing.T) {
+	t.Run("scale does not affect physics", func(t *testing.T) {
+		// Scale changes should NOT affect colliders or trigger collision reevaluation
 		world := ecs.NewWorld()
 		bus := events.NewEventBus()
 		world.SetResource(bus)
@@ -319,12 +320,13 @@ func TestPhysicsSystem_TransformOnlyChangesReevaluatePair(t *testing.T) {
 		if err := system.Init(world); err != nil {
 			t.Fatal(err)
 		}
+		// Two circles far apart (distance 100), each with radius 1 - should NOT collide
 		first, _ := world.CreateWithComponents("",
 			components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 			components.NewCollider(geom.Circle{Radius: 1}, true, false, 0, 1),
 		)
 		_, _ = world.CreateWithComponents("",
-			components.Transform{Position: geom.Vector2{X: 5}, Scale: geom.Vector2{X: 1, Y: 1}},
+			components.Transform{Position: geom.Vector2{X: 100}, Scale: geom.Vector2{X: 1, Y: 1}},
 			components.NewCollider(geom.Circle{Radius: 1}, true, false, 1, 0),
 		)
 		var enters int
@@ -336,14 +338,16 @@ func TestPhysicsSystem_TransformOnlyChangesReevaluatePair(t *testing.T) {
 		if err := system.Update(world, 0); err != nil {
 			t.Fatal(err)
 		}
-		if err := world.SetComponent(first.ID, components.Transform{Scale: geom.Vector2{X: 5, Y: 5}}); err != nil {
+		// Scale the first entity massively - should NOT cause collision (radius stays 1)
+		if err := world.SetComponent(first.ID, components.Transform{Scale: geom.Vector2{X: 50, Y: 50}}); err != nil {
 			t.Fatal(err)
 		}
 		if err := system.Update(world, 0); err != nil {
 			t.Fatal(err)
 		}
-		if enters != 1 {
-			t.Fatalf("scale-only update enter count = %d, want 1", enters)
+		// Should still not collide since scale doesn't affect physics
+		if enters != 0 {
+			t.Fatalf("scale-only update should not trigger collision, but got enter count = %d", enters)
 		}
 	})
 }
