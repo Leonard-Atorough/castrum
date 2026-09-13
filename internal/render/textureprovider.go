@@ -68,6 +68,10 @@ func (p *TextureProvider) Load(
 func (p *TextureProvider) Invalidate(id assets.ID) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if id == "" {
+		p.images = make(map[assets.ID]*textureResource)
+		return
+	}
 	delete(p.images, id)
 }
 

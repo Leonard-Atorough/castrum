@@ -227,6 +227,15 @@ func (l *Loader) RegisterInvalidationListener(listener func(ID)) {
 	l.listenerMu.Unlock()
 }
 
+// ClearCache clears the entire asset cache and notifies all registered invalidation listeners.
 func (l *Loader) ClearCache() {
 	l.service.ClearCache()
+	l.listenerMu.RLock()
+	listeners := append([]func(ID){}, l.listeners...)
+	l.listenerMu.RUnlock()
+	for _, listener := range listeners {
+		// Notify listeners that all assets have been invalidated.
+		// Using an empty ID to indicate a full cache clear.
+		listener("")
+	}
 }
