@@ -12,7 +12,7 @@ import (
 // Test component types
 
 type mockComponent struct {
-	Name string
+	Name  string
 	Value int
 }
 
@@ -80,7 +80,7 @@ func TestComponentRegistryRegisterComponent(t *testing.T) {
 	})
 
 	t.Run("duplicate registration different type", func(t *testing.T) {
-		// RegisterComponent uses the return type of the factory (ecs.Component), 
+		// RegisterComponent uses the return type of the factory (ecs.Component),
 		// so different component structs with the same interface return type will conflict
 		// Use Register with explicit type instead
 		err := registry.Register("anotherMock", reflect.TypeFor[mockComponent](), func(props map[string]any) (ecs.Component, error) {
@@ -116,53 +116,53 @@ func TestComponentRegistryRegister(t *testing.T) {
 	registry := NewComponentRegistry()
 
 	tests := []struct {
-		name    string
+		name     string
 		compName string
-		typ     reflect.Type
-		factory ComponentFactory
-		wantErr bool
+		typ      reflect.Type
+		factory  ComponentFactory
+		wantErr  bool
 	}{
 		{
-			name:    "successful registration",
+			name:     "successful registration",
 			compName: "test",
-			typ:     reflect.TypeFor[mockComponent](),
-			factory: func(props map[string]any) (ecs.Component, error) { return &mockComponent{}, nil },
-			wantErr: false,
+			typ:      reflect.TypeFor[mockComponent](),
+			factory:  func(props map[string]any) (ecs.Component, error) { return &mockComponent{}, nil },
+			wantErr:  false,
 		},
 		{
-			name:    "empty name",
+			name:     "empty name",
 			compName: "   ",
-			typ:     reflect.TypeFor[mockComponent](),
-			factory: func(props map[string]any) (ecs.Component, error) { return &mockComponent{}, nil },
-			wantErr: true,
+			typ:      reflect.TypeFor[mockComponent](),
+			factory:  func(props map[string]any) (ecs.Component, error) { return &mockComponent{}, nil },
+			wantErr:  true,
 		},
 		{
-			name:    "nil type",
+			name:     "nil type",
 			compName: "test",
-			typ:     nil,
-			factory: func(props map[string]any) (ecs.Component, error) { return &mockComponent{}, nil },
-			wantErr: true,
+			typ:      nil,
+			factory:  func(props map[string]any) (ecs.Component, error) { return &mockComponent{}, nil },
+			wantErr:  true,
 		},
 		{
-			name:    "nil factory",
+			name:     "nil factory",
 			compName: "test",
-			typ:     reflect.TypeFor[mockComponent](),
-			factory: nil,
-			wantErr: true,
+			typ:      reflect.TypeFor[mockComponent](),
+			factory:  nil,
+			wantErr:  true,
 		},
 		{
-			name:    "duplicate name different type",
+			name:     "duplicate name different type",
 			compName: "test",
-			typ:     reflect.TypeFor[anotherComponent](),
-			factory: func(props map[string]any) (ecs.Component, error) { return &anotherComponent{}, nil },
-			wantErr: true,
+			typ:      reflect.TypeFor[anotherComponent](),
+			factory:  func(props map[string]any) (ecs.Component, error) { return &anotherComponent{}, nil },
+			wantErr:  true,
 		},
 		{
-			name:    "duplicate type different name",
+			name:     "duplicate type different name",
 			compName: "different",
-			typ:     reflect.TypeFor[mockComponent](),
-			factory: func(props map[string]any) (ecs.Component, error) { return &mockComponent{}, nil },
-			wantErr: true,
+			typ:      reflect.TypeFor[mockComponent](),
+			factory:  func(props map[string]any) (ecs.Component, error) { return &mockComponent{}, nil },
+			wantErr:  true,
 		},
 	}
 

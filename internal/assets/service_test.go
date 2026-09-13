@@ -65,11 +65,11 @@ func TestServiceRegisterDecoder(t *testing.T) {
 	typ := reflect.TypeFor[testAsset]()
 
 	tests := []struct {
-		name      string
-		format    string
-		decoder   func(context.Context, io.Reader) (any, error)
+		name     string
+		format   string
+		decoder  func(context.Context, io.Reader) (any, error)
 		override bool
-		wantErr   bool
+		wantErr  bool
 	}{
 		{
 			name:    "successful registration",
@@ -84,11 +84,11 @@ func TestServiceRegisterDecoder(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "duplicate registration with override succeeds",
-			format:  "json",
-			decoder: func(context.Context, io.Reader) (any, error) { return testAsset{}, nil },
+			name:     "duplicate registration with override succeeds",
+			format:   "json",
+			decoder:  func(context.Context, io.Reader) (any, error) { return testAsset{}, nil },
 			override: true,
-			wantErr:   false,
+			wantErr:  false,
 		},
 	}
 
@@ -107,11 +107,11 @@ func TestServiceRegisterEncoder(t *testing.T) {
 	typ := reflect.TypeFor[testAsset]()
 
 	tests := []struct {
-		name      string
-		format    string
-		encoder   func(context.Context, io.Writer, any) error
+		name     string
+		format   string
+		encoder  func(context.Context, io.Writer, any) error
 		override bool
-		wantErr   bool
+		wantErr  bool
 	}{
 		{
 			name:    "successful registration",
@@ -126,11 +126,11 @@ func TestServiceRegisterEncoder(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "duplicate registration with override succeeds",
-			format:  "json",
-			encoder: func(context.Context, io.Writer, any) error { return nil },
+			name:     "duplicate registration with override succeeds",
+			format:   "json",
+			encoder:  func(context.Context, io.Writer, any) error { return nil },
 			override: true,
-			wantErr:   false,
+			wantErr:  false,
 		},
 	}
 

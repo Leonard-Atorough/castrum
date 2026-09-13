@@ -91,15 +91,15 @@ func (s *Saver) SavePath[T any](ctx context.Context, path string, value T, optio
 				Source:  "SavePath",
 			}
 		}
-if err := s.saveToFile(ctx, writer, path, value, *opts); err != nil {
-	return err
-}
-if s.invalidate != nil {
-	s.invalidate(assetIDForSavePath(path))
-} else {
-	s.service.Invalidate(string(assetIDForSavePath(path)))
-}
-return nil
+		if err := s.saveToFile(ctx, writer, path, value, *opts); err != nil {
+			return err
+		}
+		if s.invalidate != nil {
+			s.invalidate(assetIDForSavePath(path))
+		} else {
+			s.service.Invalidate(string(assetIDForSavePath(path)))
+		}
+		return nil
 	}
 
 	dir := filepath.Dir(path)
@@ -148,7 +148,7 @@ func (s *Saver) Save[T any](ctx context.Context, writer io.Writer, value T, opti
 }
 
 func (s *Saver) RegisterEncoder[T any](format Format, encoder Encoder[T], override bool) error {
-if encoder == nil {
+	if encoder == nil {
 		return &AssetError{
 			Message: fmt.Sprintf("encoder for format %s must not be nil", format),
 			Source:  "RegisterEncoder",

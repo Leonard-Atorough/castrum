@@ -33,60 +33,60 @@ func TestDecoderRegistryRegister(t *testing.T) {
 	decoder := func(context.Context, io.Reader) (any, error) { return testValue{}, nil }
 
 	tests := []struct {
-		name      string
-		typ       reflect.Type
-		format    string
-		decoder   decoderFunc
+		name     string
+		typ      reflect.Type
+		format   string
+		decoder  decoderFunc
 		override bool
-		wantErr   bool
+		wantErr  bool
 	}{
 		{
-			name:      "successful registration",
-			typ:       typ,
-			format:    "json",
-			decoder:   decoder,
+			name:     "successful registration",
+			typ:      typ,
+			format:   "json",
+			decoder:  decoder,
 			override: false,
-			wantErr:   false,
+			wantErr:  false,
 		},
 		{
-			name:      "duplicate registration without override",
-			typ:       typ,
-			format:    "json",
-			decoder:   decoder,
+			name:     "duplicate registration without override",
+			typ:      typ,
+			format:   "json",
+			decoder:  decoder,
 			override: false,
-			wantErr:   true,
+			wantErr:  true,
 		},
 		{
-			name:      "duplicate registration with override",
-			typ:       typ,
-			format:    "json",
-			decoder:   decoder,
+			name:     "duplicate registration with override",
+			typ:      typ,
+			format:   "json",
+			decoder:  decoder,
 			override: true,
-			wantErr:   false,
+			wantErr:  false,
 		},
 		{
-			name:      "nil type",
-			typ:       nil,
-			format:    "json",
-			decoder:   decoder,
+			name:     "nil type",
+			typ:      nil,
+			format:   "json",
+			decoder:  decoder,
 			override: false,
-			wantErr:   true,
+			wantErr:  true,
 		},
 		{
-			name:      "empty format",
-			typ:       typ,
-			format:    "",
-			decoder:   decoder,
+			name:     "empty format",
+			typ:      typ,
+			format:   "",
+			decoder:  decoder,
 			override: false,
-			wantErr:   true,
+			wantErr:  true,
 		},
 		{
-			name:      "nil decoder",
-			typ:       typ,
-			format:    "json",
-			decoder:   nil,
+			name:     "nil decoder",
+			typ:      typ,
+			format:   "json",
+			decoder:  nil,
 			override: false,
-			wantErr:   true,
+			wantErr:  true,
 		},
 	}
 
@@ -140,60 +140,60 @@ func TestEncoderRegistryRegister(t *testing.T) {
 	encoder := func(context.Context, io.Writer, any) error { return nil }
 
 	tests := []struct {
-		name      string
-		typ       reflect.Type
-		format    string
-		encoder   encoderFunc
+		name     string
+		typ      reflect.Type
+		format   string
+		encoder  encoderFunc
 		override bool
-		wantErr   bool
+		wantErr  bool
 	}{
 		{
-			name:      "successful registration",
-			typ:       typ,
-			format:    "json",
-			encoder:   encoder,
+			name:     "successful registration",
+			typ:      typ,
+			format:   "json",
+			encoder:  encoder,
 			override: false,
-			wantErr:   false,
+			wantErr:  false,
 		},
 		{
-			name:      "duplicate registration without override",
-			typ:       typ,
-			format:    "json",
-			encoder:   encoder,
+			name:     "duplicate registration without override",
+			typ:      typ,
+			format:   "json",
+			encoder:  encoder,
 			override: false,
-			wantErr:   true,
+			wantErr:  true,
 		},
 		{
-			name:      "duplicate registration with override",
-			typ:       typ,
-			format:    "json",
-			encoder:   encoder,
+			name:     "duplicate registration with override",
+			typ:      typ,
+			format:   "json",
+			encoder:  encoder,
 			override: true,
-			wantErr:   false,
+			wantErr:  false,
 		},
 		{
-			name:      "nil type",
-			typ:       nil,
-			format:    "json",
-			encoder:   encoder,
+			name:     "nil type",
+			typ:      nil,
+			format:   "json",
+			encoder:  encoder,
 			override: false,
-			wantErr:   true,
+			wantErr:  true,
 		},
 		{
-			name:      "empty format",
-			typ:       typ,
-			format:    "",
-			encoder:   encoder,
+			name:     "empty format",
+			typ:      typ,
+			format:   "",
+			encoder:  encoder,
 			override: false,
-			wantErr:   true,
+			wantErr:  true,
 		},
 		{
-			name:      "nil encoder",
-			typ:       typ,
-			format:    "json",
-			encoder:   nil,
+			name:     "nil encoder",
+			typ:      typ,
+			format:   "json",
+			encoder:  nil,
 			override: false,
-			wantErr:   true,
+			wantErr:  true,
 		},
 	}
 
