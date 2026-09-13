@@ -12,8 +12,9 @@ import (
 type TextureProvider struct {
 	loader *assets.Loader
 
-	mu     sync.RWMutex
-	images map[assets.ID]*textureResource
+	mu        sync.RWMutex
+	images    map[assets.ID]*textureResource
+	subimages map[assets.ID]*subtextureResource
 }
 
 type textureResource struct {
@@ -22,10 +23,18 @@ type textureResource struct {
 	height int
 }
 
+type subtextureResource struct {
+	parent *textureResource
+	image  *ebiten.Image
+	width  int
+	height int
+}
+
 func NewTextureProvider(loader *assets.Loader) *TextureProvider {
 	provider := &TextureProvider{
-		loader: loader,
-		images: make(map[assets.ID]*textureResource),
+		loader:    loader,
+		images:    make(map[assets.ID]*textureResource),
+		subimages: make(map[assets.ID]*subtextureResource),
 	}
 	loader.RegisterInvalidationListener(provider.Invalidate)
 	return provider
@@ -70,13 +79,16 @@ func (p *TextureProvider) Invalidate(id assets.ID) {
 	defer p.mu.Unlock()
 	if id == "" {
 		p.images = make(map[assets.ID]*textureResource)
+		p.subimages = make(map[assets.ID]*subtextureResource)
 		return
 	}
 	delete(p.images, id)
+	delete(p.subimages, id)
 }
 
 func (p *TextureProvider) Clear() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.images = make(map[assets.ID]*textureResource)
+	p.subimages = make(map[assets.ID]*subtextureResource)
 }
