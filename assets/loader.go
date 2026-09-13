@@ -193,6 +193,12 @@ func (l *Loader) LoadReader[T any](ctx context.Context, reader io.Reader, option
 // The decoder will be used to decode assets of the given type from readers.
 // The override parameter determines whether an existing decoder for the same type and format should be replaced.
 func (l *Loader) RegisterDecoder[T any](format Format, decoder Decoder[T], override bool) error {
+if decoder == nil {
+		return &AssetError{
+			Message: fmt.Sprintf("decoder for format %s must not be nil", format),
+			Source:  "RegisterDecoder",
+		}
+	}
 	typ := reflect.TypeFor[T]()
 	err := l.service.RegisterDecoder(typ, string(format), func(ctx context.Context, r io.Reader) (any, error) {
 		return decoder(ctx, r)
