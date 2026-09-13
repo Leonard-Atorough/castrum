@@ -55,28 +55,48 @@ func (s *Service) Filesystem() fs.FS {
 	return s.filesystem
 }
 
-func (s *Service) RegisterDecoder(typ reflect.Type, format string, decoder func(context.Context, io.Reader) (any, error)) error {
-	return s.decoders.register(typ, format, decoder)
+func (s *Service) RegisterDecoder(typ reflect.Type, format string, decoder func(context.Context, io.Reader) (any, error), override bool) error {
+	return s.decoders.register(typ, format, decoder, override)
 }
 
-func (s *Service) RegisterEncoder(typ reflect.Type, format string, encoder func(context.Context, io.Writer, any) error) error {
-	return s.encoders.register(typ, format, encoder)
+func (s *Service) RegisterEncoder(typ reflect.Type, format string, encoder func(context.Context, io.Writer, any) error, override bool) error {
+	return s.encoders.register(typ, format, encoder, override)
 }
 
-func (s *Service) Decoder(typ reflect.Type, format string) (decoderFunc, error) {
+// Decode resolves and executes a decoder. Keeping codec execution here makes
+// the service the owner of lookup, invocation, and result validation.
+func (s *Service) Decode(ctx context.Context, typ reflect.Type, format string, reader io.Reader) (any, error) {
 	decoder, ok := s.decoders.lookup(typ, format)
 	if !ok {
-		return nil, fmt.Errorf("decoder not registered for %s/%s", typ, format)
+		return nil, fmt.Errorf("decoder not registered for %s/%s", typeName(typ), format)
 	}
-	return decoder, nil
+	value, err := decoder(ctx, reader)
+	if err != nil {
+		return nil, err
+	}
+	if value == nil && typ != nil && typ.Kind() != reflect.Pointer && typ.Kind() != reflect.Interface {
+		return nil, fmt.Errorf("decoder returned nil for %s/%s", typeName(typ), format)
+	}
+	if value != nil && !reflect.TypeOf(value).AssignableTo(typ) {
+		return nil, fmt.Errorf("decoder returned %s, want %s", reflect.TypeOf(value), typeName(typ))
+	}
+	return value, nil
 }
 
-func (s *Service) Encoder(typ reflect.Type, format string) (encoderFunc, error) {
+// Encode resolves and executes an encoder.
+func (s *Service) Encode(ctx context.Context, typ reflect.Type, format string, writer io.Writer, value any) error {
 	encoder, ok := s.encoders.lookup(typ, format)
 	if !ok {
-		return nil, fmt.Errorf("encoder not registered for %s/%s", typ, format)
+		return fmt.Errorf("encoder not registered for %s/%s", typeName(typ), format)
 	}
-	return encoder, nil
+	if value == nil {
+		return fmt.Errorf("cannot encode nil as %s", typeName(typ))
+	}
+	valueType := reflect.TypeOf(value)
+	if !valueType.AssignableTo(typ) {
+		return fmt.Errorf("cannot encode %s as %s", valueType, typeName(typ))
+	}
+	return encoder(ctx, writer, value)
 }
 
 func (s *Service) Cached(id string, typ reflect.Type, format string) (any, bool) {
@@ -85,6 +105,21 @@ func (s *Service) Cached(id string, typ reflect.Type, format string) (any, bool)
 
 func (s *Service) Cache(id string, typ reflect.Type, format string, value any) {
 	s.cache.put(cacheKey{id: id, typ: typ, format: format}, value)
+}
+
+func (s *Service) Invalidate(id string) {
+	s.cache.invalidate(id)
+}
+
+func (s *Service) ClearCache() {
+	s.cache.clear()
+}
+
+func typeName(typ reflect.Type) string {
+	if typ == nil {
+		return "<nil>"
+	}
+	return typ.String()
 }
 
 // TODO: add path normalization, in-flight load deduplication, and explicit

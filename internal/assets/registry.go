@@ -36,7 +36,7 @@ func newEncoderRegistry() encoderRegistry {
 	return encoderRegistry{encoders: make(map[codecKey]encoderFunc)}
 }
 
-func (r *decoderRegistry) register(typ reflect.Type, format string, decoder decoderFunc) error {
+func (r *decoderRegistry) register(typ reflect.Type, format string, decoder decoderFunc, override bool) error {
 	if typ == nil {
 		return fmt.Errorf("decoder type must not be nil")
 	}
@@ -50,7 +50,7 @@ func (r *decoderRegistry) register(typ reflect.Type, format string, decoder deco
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	key := codecKey{typ: typ, format: format}
-	if _, exists := r.decoders[key]; exists {
+	if _, exists := r.decoders[key]; exists && !override {
 		return fmt.Errorf("decoder for %s/%s is already registered", typ, format)
 	}
 	r.decoders[key] = decoder
@@ -64,7 +64,7 @@ func (r *decoderRegistry) lookup(typ reflect.Type, format string) (decoderFunc, 
 	return decoder, ok
 }
 
-func (r *encoderRegistry) register(typ reflect.Type, format string, encoder encoderFunc) error {
+func (r *encoderRegistry) register(typ reflect.Type, format string, encoder encoderFunc, override bool) error {
 	if typ == nil {
 		return fmt.Errorf("encoder type must not be nil")
 	}
@@ -78,7 +78,7 @@ func (r *encoderRegistry) register(typ reflect.Type, format string, encoder enco
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	key := codecKey{typ: typ, format: format}
-	if _, exists := r.encoders[key]; exists {
+	if _, exists := r.encoders[key]; exists && !override {
 		return fmt.Errorf("encoder for %s/%s is already registered", typ, format)
 	}
 	r.encoders[key] = encoder

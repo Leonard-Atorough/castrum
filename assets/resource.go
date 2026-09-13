@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	pathpkg "path"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -61,18 +63,20 @@ type LoadOptions struct {
 	CachePolicy CachePolicy
 }
 
+// WithFormat specifies the format to be used when loading an asset.
 func WithFormat(format Format) LoadOption {
 	return loadOptionFunc(func(opts *LoadOptions) {
 		opts.Format = format
 	})
 }
 
+// WithID specifies the ID to be used when loading an asset.
 func WithID(id ID) LoadOption {
 	return loadOptionFunc(func(opts *LoadOptions) {
 		opts.ID = id
 	})
 }
-
+// WithCache specifies the cache policy to be used when loading an asset.
 func WithCache(policy CachePolicy) LoadOption {
 	return loadOptionFunc(func(opts *LoadOptions) {
 		opts.CachePolicy = policy
@@ -94,8 +98,10 @@ const (
 	CachePolicyDefault
 )
 
+// Decoder is a function type that defines how to decode an asset from an io.Reader.
 type Decoder[T any] func(context.Context, io.Reader) (T, error)
 
+// Loader is responsible for loading assets from the filesystem.
 type Loader struct {
 	service *internalassets.Service
 }
@@ -265,14 +271,75 @@ func newSaver(service *internalassets.Service) *Saver {
 	return &Saver{service: service}
 }
 
-func (s *Saver) Save[T any](ctx context.Context, path string, value T, options ...SaveOption) error {
-	// Implementation for saving the asset goes here
+func (s *Saver) SavePath[T any](ctx context.Context, path string, value T, options ...SaveOption) error {
+	opts := &SaveOptions{CreateDir: true, AtomicWrite: true}
+	for _, option := range options {
+		option.applySave(opts)
+	}
+	if opts.Format == "" {
+		opts.Format = resolveFormat(path, opts.Format)
+	}
+
+	if opts.CreateDir {
+		dir := filepath.Dir(path)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return &ResourceError{
+				Message: fmt.Sprintf("failed to create directory %s", dir),
+				Err:     err,
+				Source:  "SavePath",
+			}
+		}
+	}
+
+	if !opts.AtomicWrite {
+		writer, err := os.Create(path)
+		if err != nil {
+			return &ResourceError{
+				Message: fmt.Sprintf("failed to create file %s", path),
+				Err:     err,
+				Source:  "SavePath",
+			}
+		}
+		return s.saveToFile(ctx, writer, path, value, *opts)
+	}
+
+	dir := filepath.Dir(path)
+	temporary, err := os.CreateTemp(dir, ".castrum-*"+filepath.Ext(path))
+	if err != nil {
+		return &ResourceError{
+			Message: fmt.Sprintf("failed to create temporary file for %s", path),
+			Err:     err,
+			Source:  "SavePath",
+		}
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+
+	if err := s.saveToFile(ctx, temporary, path, value, *opts); err != nil {
+		return err
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		return &ResourceError{
+			Message: fmt.Sprintf("failed to replace file %s", path),
+			Err:     err,
+			Source:  "SavePath",
+		}
+	}
 	return nil
 }
 
-func (s *Saver) SaveWriter[T any](ctx context.Context, writer io.Writer, value T, options ...SaveOption) error {
-	// Implementation for saving the asset to a writer goes here
-	return nil
+func (s *Saver) Save[T any](ctx context.Context, writer io.Writer, value T, options ...SaveOption) error {
+	opts := &SaveOptions{CreateDir: true, AtomicWrite: true}
+	for _, option := range options {
+		option.applySave(opts)
+	}
+	if opts.Format == "" {
+		return &ResourceError{
+			Message: "format is required when saving to a writer",
+			Source:  "Save",
+		}
+	}
+	return s.save(ctx, writer, value, *opts, "Save")
 }
 
 func (s *Saver) RegisterEncoder[T any](format Format, encoder Encoder[T], override bool) error {
@@ -289,7 +356,6 @@ func (s *Saver) RegisterEncoder[T any](format Format, encoder Encoder[T], overri
 	}
 	return nil
 }
-
 
 // ResourceError represents an error that occurred during the loading or saving of an asset.
 type ResourceError struct {
@@ -321,4 +387,31 @@ func resolveFormat(assetPath string, explicit Format) Format {
 	default:
 		return Format(strings.TrimPrefix(strings.ToLower(pathpkg.Ext(assetPath)), "."))
 	}
+}
+
+func (s *Saver) saveToFile[T any](ctx context.Context, writer *os.File, path string, value T, opts SaveOptions) error {
+	if err := s.save(ctx, writer, value, opts, "SavePath"); err != nil {
+		_ = writer.Close()
+		return err
+	}
+	if err := writer.Close(); err != nil {
+		return &ResourceError{
+			Message: fmt.Sprintf("failed to close file %s", path),
+			Err:     err,
+			Source:  "SavePath",
+		}
+	}
+	return nil
+}
+
+func (s *Saver) save[T any](ctx context.Context, writer io.Writer, value T, opts SaveOptions, source string) error {
+	typ := reflect.TypeFor[T]()
+	if err := s.service.Encode(ctx, typ, string(opts.Format), writer, value); err != nil {
+		return &ResourceError{
+			Message: fmt.Sprintf("failed to encode asset to format %s", opts.Format),
+			Err:     err,
+			Source:  source,
+		}
+	}
+	return nil
 }
