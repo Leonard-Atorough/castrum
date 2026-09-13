@@ -60,9 +60,10 @@ type Assets struct {
 
 func NewAssets(filesystem fs.FS) *Assets {
 	service := newAssetService(filesystem)
+	loader := newLoader(service)
 	return &Assets{
-		loader: newLoader(service),
-		saver:  newSaver(service),
+		loader: loader,
+		saver:  newSaver(service, loader.Invalidate),
 	}
 }
 
@@ -98,27 +99,29 @@ func newAssetService(filesystem fs.FS) *internalassets.Service {
 }
 
 func registerDefaultDecoder[T any](service *internalassets.Service, format Format, decoder Decoder[T]) {
-	// Built-in registrations are fixed and validated; a failure is an internal
-	// wiring error, while the public constructor intentionally has no error.
-	_ = service.RegisterDecoder(
+	if err := service.RegisterDecoder(
 		reflect.TypeFor[T](),
 		string(format),
 		func(ctx context.Context, reader io.Reader) (any, error) {
 			return decoder(ctx, reader)
 		},
 		false,
-	)
+	); err != nil {
+		panic(fmt.Sprintf("failed to register default decoder for format %s: %v", format, err))
+	}
 }
 
 func registerDefaultEncoder[T any](service *internalassets.Service, format Format, encoder Encoder[T]) {
-	_ = service.RegisterEncoder(
+	if err := service.RegisterEncoder(
 		reflect.TypeFor[T](),
 		string(format),
 		func(ctx context.Context, writer io.Writer, value any) error {
 			return encoder(ctx, writer, value.(T))
 		},
 		false,
-	)
+	); err != nil {
+		panic(fmt.Sprintf("failed to register default encoder for format %s: %v", format, err))
+	}
 }
 
 func decodeBlueprintYAML(_ context.Context, reader io.Reader) (Blueprint, error) {
@@ -155,100 +158,6 @@ func encodeTextureJPEG(_ context.Context, writer io.Writer, texture TextureData)
 	}
 	return jpeg.Encode(writer, texture.Image, &jpeg.Options{Quality: 90})
 }
-
-// // LoadAsync loads an asset asynchronously via the worker pool.
-// // Returns immediately with a channel that will receive the result.
-// // The channel is closed after the result is sent.
-// // Respects context cancellation; if the context is cancelled before the load
-// // completes, the result will contain the context error.
-// //
-// // Example:
-// //
-// //	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-// //	defer cancel()
-// //	result := <-assets.LoadAsync(ctx, "sprites/player.png")
-// //	if result.Err != nil {
-// //		log.Fatal(result.Err)
-// //	}
-// func (a *AssetLoader) LoadAsync(ctx context.Context, path string) <-chan LoadResult {
-// 	resultCh := make(chan LoadResult, 1)
-
-// 	// Check if context is already cancelled to avoid race in select.
-// 	// This ensures cancellation errors are handled immediately.
-// 	select {
-// 	case <-ctx.Done():
-// 		resultCh <- LoadResult{Err: ctx.Err()}
-// 		close(resultCh)
-// 		return resultCh
-// 	default:
-// 	}
-
-// 	go func() {
-// 		select {
-// 		case a.jobs <- loadRequest{path: path, resultCh: resultCh}:
-// 			// Job submitted to queue
-// 		case <-ctx.Done():
-// 			resultCh <- LoadResult{Err: ctx.Err()}
-// 			close(resultCh)
-// 		}
-// 	}()
-
-// 	return resultCh
-// }
-
-// // LoadBatch loads multiple assets concurrently with a single context.
-// // Blocks until all assets are loaded or the context is cancelled.
-// // Returns a slice of LoadResult corresponding to the requested paths.
-// // Errors for individual loads are contained within each LoadResult.
-// //
-// // Example:
-// //
-// //	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-// //	defer cancel()
-// //	results, err := assets.LoadBatch(ctx, []string{
-// //		"sprites/player.png",
-// //		"sprites/enemy.png",
-// //		"data/level.yaml",
-// //	})
-// //	if err != nil {
-// //		log.Fatal(err)
-// //	}
-// func (a *AssetLoader) LoadBatch(ctx context.Context, paths []string) ([]LoadResult, error) {
-// 	results := make([]LoadResult, len(paths))
-// 	channels := make([]<-chan LoadResult, len(paths))
-
-// 	// Submit all jobs
-// 	for i, path := range paths {
-// 		ch := make(chan LoadResult, 1)
-// 		channels[i] = ch
-// 		select {
-// 		case a.jobs <- loadRequest{path: path, resultCh: ch}:
-// 		case <-ctx.Done():
-// 			return nil, ctx.Err()
-// 		}
-// 	}
-
-// 	// Collect results
-// 	for i, ch := range channels {
-// 		select {
-// 		case result := <-ch:
-// 			results[i] = result
-// 		case <-ctx.Done():
-// 			return nil, ctx.Err()
-// 		}
-// 	}
-
-// 	return results, nil
-// }
-
-// // worker is run by each worker goroutine to process load jobs from the queue.
-// func (a *AssetLoader) worker() {
-// 	for job := range a.jobs {
-// 		res, err := a.LoadSync(job.path)
-// 		job.resultCh <- LoadResult{Value: res, Err: err}
-// 		close(job.resultCh)
-// 	}
-// }
 
 // CreateFromBlueprint constructs and creates an entity from blueprint data.
 func CreateFromBlueprint(world *ecs.World, registry *ComponentRegistry, bp *Blueprint) (*ecs.Entity, error) {
@@ -294,4 +203,18 @@ func resolveFormat(assetPath string, explicit Format) Format {
 	default:
 		return Format(strings.TrimPrefix(strings.ToLower(pathpkg.Ext(assetPath)), "."))
 	}
+}
+
+func resolveLoadOptions(path string, options ...LoadOption) *LoadOptions {
+	opts := &LoadOptions{CachePolicy: CachePolicyDefault}
+	for _, option := range options {
+		option.applyLoad(opts)
+	}
+	if opts.ID == "" {
+		opts.ID = ID(pathpkg.Clean(path))
+	}
+	if opts.Format == "" {
+		opts.Format = resolveFormat(path, "")
+	}
+	return opts
 }

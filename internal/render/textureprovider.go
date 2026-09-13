@@ -23,10 +23,12 @@ type textureResource struct {
 }
 
 func NewTextureProvider(loader *assets.Loader) *TextureProvider {
-	return &TextureProvider{
+	provider := &TextureProvider{
 		loader: loader,
 		images: make(map[assets.ID]*textureResource),
 	}
+	loader.RegisterInvalidationListener(provider.Invalidate)
+	return provider
 }
 
 func (p *TextureProvider) Load(

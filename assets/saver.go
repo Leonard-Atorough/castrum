@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"reflect"
 
@@ -49,15 +50,16 @@ type saveOptionFunc func(*SaveOptions)
 type Encoder[T any] func(context.Context, io.Writer, T) error
 
 type Saver struct {
-	service *internalassets.Service
+	service    *internalassets.Service
+	invalidate func(ID)
 }
 
 func NewSaver(filesystem fs.FS) *Saver {
 	return &Saver{service: newAssetService(filesystem)}
 }
 
-func newSaver(service *internalassets.Service) *Saver {
-	return &Saver{service: service}
+func newSaver(service *internalassets.Service, invalidate func(ID)) *Saver {
+	return &Saver{service: service, invalidate: invalidate}
 }
 
 func (s *Saver) SavePath[T any](ctx context.Context, path string, value T, options ...SaveOption) error {
@@ -113,6 +115,12 @@ func (s *Saver) SavePath[T any](ctx context.Context, path string, value T, optio
 			Err:     err,
 			Source:  "SavePath",
 		}
+	}
+
+	if s.invalidate != nil {
+		s.invalidate(ID(pathpkg.Clean(path)))
+	} else {
+		s.service.Invalidate(pathpkg.Clean(path))
 	}
 	return nil
 }
