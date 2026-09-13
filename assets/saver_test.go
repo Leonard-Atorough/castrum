@@ -17,7 +17,7 @@ type saveTestAsset struct {
 func newSaveTestAssets(t *testing.T) *Assets {
 	t.Helper()
 	assets := NewAssets(nil)
-	if err := assets.Saver.RegisterEncoder[saveTestAsset](FormatYAML, func(_ context.Context, writer io.Writer, value saveTestAsset) error {
+	if err := assets.saver.RegisterEncoder[saveTestAsset](FormatYAML, func(_ context.Context, writer io.Writer, value saveTestAsset) error {
 		_, err := fmt.Fprint(writer, value.Value)
 		return err
 	}, false); err != nil {
@@ -30,7 +30,7 @@ func TestSaverSaveWriter(t *testing.T) {
 	assets := newSaveTestAssets(t)
 	var output bytes.Buffer
 
-	err := assets.Saver.Save(context.Background(), &output, saveTestAsset{Value: "writer"}, WithSaveFormat(FormatYAML))
+	err := assets.saver.Save(context.Background(), &output, saveTestAsset{Value: "writer"}, WithSaveFormat(FormatYAML))
 	if err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestSaverSavePathInfersFormatAndCreatesDirectory(t *testing.T) {
 	directory := t.TempDir()
 	assetPath := filepath.Join(directory, "nested", "asset.yaml")
 
-	err := assets.Saver.SavePath(context.Background(), assetPath, saveTestAsset{Value: "first"})
+	err := assets.saver.SavePath(context.Background(), assetPath, saveTestAsset{Value: "first"})
 	if err != nil {
 		t.Fatalf("SavePath failed: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestSaverSavePathInfersFormatAndCreatesDirectory(t *testing.T) {
 		t.Fatalf("saved data = %q, want %q", string(data), "first")
 	}
 
-	err = assets.Saver.SavePath(context.Background(), assetPath, saveTestAsset{Value: "second"})
+	err = assets.saver.SavePath(context.Background(), assetPath, saveTestAsset{Value: "second"})
 	if err != nil {
 		t.Fatalf("replacement SavePath failed: %v", err)
 	}

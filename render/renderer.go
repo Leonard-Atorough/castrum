@@ -1,6 +1,7 @@
 package render
 
 import (
+	"context"
 	"fmt"
 	"image/color"
 	"slices"
@@ -21,25 +22,25 @@ type renderItem struct {
 	animation  *components.Animation
 }
 
-// TextureLoader is the interface for loading individual textures.
+// TextureProvider is the interface for loading individual textures.
 // Defined here (the consumer) rather than in the assets package, so Renderer
 // only couples to the behavior it needs.
-type TextureLoader interface {
-	Load(path string) (*assets.Texture, error)
+type TextureProvider interface {
+	Load(ctx context.Context, id assets.ID) (*ebiten.Image, int, int, error)
 }
 
 type Renderer struct {
-	textureLoader TextureLoader
-	clipStore     *animation.AnimationClipStore
-	Primitive     *PrimitiveRenderer
-	cameraQuery   *ecs.Query
-	renderItems   []renderItem // Reusable buffer for hot path
+	textureProvider TextureProvider
+	clipStore       *animation.AnimationClipStore
+	Primitive       *PrimitiveRenderer
+	cameraQuery     *ecs.Query
+	renderItems     []renderItem // Reusable buffer for hot path
 }
 
-func New(textureLoader TextureLoader) *Renderer {
+func New(textureLoader TextureProvider) *Renderer {
 	return &Renderer{
-		textureLoader: textureLoader,
-		Primitive:     NewPrimitiveRenderer(),
+		textureProvider: textureLoader,
+		Primitive:       NewPrimitiveRenderer(),
 	}
 }
 
@@ -51,7 +52,7 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 // with a TexturePath is drawn as a sprite; otherwise it's drawn as a
 // primitive shape - callers never need to say which.
 // The primary camera is queried from the world.
-func (r *Renderer) DrawScene(screen *ebiten.Image, world *ecs.World) {
+func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image, world *ecs.World) {
 	// Query for the primary camera
 	var primaryCamera components.Camera
 	var cameraFound bool
@@ -142,7 +143,7 @@ func (r *Renderer) DrawScene(screen *ebiten.Image, world *ecs.World) {
 				}
 				r.clipStore = clipStore
 			}
-			r.drawSprite(screen, primaryCamera, item.transform, item.renderable, item.animation)
+			r.drawSprite(ctx, screen, primaryCamera, item.transform, item.renderable, item.animation)
 		} else {
 			r.Primitive.Draw(screen, primaryCamera, item.transform, item.renderable)
 		}
@@ -178,7 +179,7 @@ func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *ecs.World) {
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), primaryCamera.Position))
 }
 
-func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite, anim *components.Animation) {
+func (r *Renderer) drawSprite(ctx context.Context, screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite, anim *components.Animation) {
 	var frameW, frameH int
 	var frameImage *ebiten.Image
 
@@ -187,7 +188,7 @@ func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, trans
 		clip := r.clipStore.Get(anim.ClipPath)
 		if clip == nil {
 			// Fall back to static texture if clip not found
-			r.drawStaticTexture(screen, cam, transform, renderable)
+			r.drawStaticTexture(ctx, screen, cam, transform, renderable)
 			return
 		}
 
@@ -210,14 +211,14 @@ func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, trans
 		frameH = subTex.Height
 	} else {
 		// No animation, load static texture
-		tx, err := r.textureLoader.Load(renderable.TexturePath)
+		tx, w, h, err := r.textureProvider.Load(ctx, assets.ID(renderable.TexturePath))
 		if err != nil {
 			return // silently skip entities with missing textures
 		}
 
-		frameImage = tx.Image
-		frameW = tx.Width
-		frameH = tx.Height
+		frameImage = tx
+		frameW = w
+		frameH = h
 	}
 
 	screenPos := cam.WorldToScreen(transform.Position)
@@ -239,13 +240,13 @@ func (r *Renderer) drawSprite(screen *ebiten.Image, cam components.Camera, trans
 	screen.DrawImage(frameImage, op)
 }
 
-func (r *Renderer) drawStaticTexture(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite) {
-	tx, err := r.textureLoader.Load(renderable.TexturePath)
+func (r *Renderer) drawStaticTexture(ctx context.Context, screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite) {
+	tx, w, h, err := r.textureProvider.Load(ctx, assets.ID(renderable.TexturePath))
 	if err != nil {
 		return // silently skip entities with missing textures
 	}
 
-	frameW, frameH := tx.Width, tx.Height
+	frameW, frameH := w, h
 	screenPos := cam.WorldToScreen(transform.Position)
 
 	op := &ebiten.DrawImageOptions{}
@@ -259,5 +260,5 @@ func (r *Renderer) drawStaticTexture(screen *ebiten.Image, cam components.Camera
 	cr, cg, cb, ca := colorOrDefault(transform.Color).RGBA()
 	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
 
-	screen.DrawImage(tx.Image, op)
+	screen.DrawImage(tx, op)
 }
