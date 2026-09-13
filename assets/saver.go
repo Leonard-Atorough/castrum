@@ -148,6 +148,12 @@ func (s *Saver) Save[T any](ctx context.Context, writer io.Writer, value T, opti
 }
 
 func (s *Saver) RegisterEncoder[T any](format Format, encoder Encoder[T], override bool) error {
+if encoder == nil {
+		return &AssetError{
+			Message: fmt.Sprintf("encoder for format %s must not be nil", format),
+			Source:  "RegisterEncoder",
+		}
+	}
 	typ := reflect.TypeFor[T]()
 	err := s.service.RegisterEncoder(typ, string(format), func(ctx context.Context, w io.Writer, v any) error {
 		return encoder(ctx, w, v.(T))
