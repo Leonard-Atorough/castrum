@@ -108,6 +108,7 @@ func newLoader(service *internalassets.Service) *Loader {
 func (l *Loader) Load[T any](ctx context.Context, path string, options ...LoadOption) (T, error) {
 	var zero T
 	typ := reflect.TypeFor[T]()
+	path = normalizeAssetPath(path)
 
 	opts := resolveLoadOptions(path, options...)
 	key := internalassets.NewLoadKey(string(opts.ID), typ, string(opts.Format))

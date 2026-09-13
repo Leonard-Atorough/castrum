@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	pathpkg "path"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -205,7 +206,22 @@ func resolveFormat(assetPath string, explicit Format) Format {
 	}
 }
 
+// normalizeAssetPath returns the canonical slash-separated path used by fs.FS.
+func normalizeAssetPath(assetPath string) string {
+	return pathpkg.Clean(assetPath)
+}
+
+// normalizeSavePath returns the canonical path used by the host filesystem.
+func normalizeSavePath(assetPath string) string {
+	return filepath.Clean(assetPath)
+}
+
+func assetIDForSavePath(assetPath string) ID {
+	return ID(pathpkg.Clean(filepath.ToSlash(assetPath)))
+}
+
 func resolveLoadOptions(path string, options ...LoadOption) *LoadOptions {
+	path = normalizeAssetPath(path)
 	opts := &LoadOptions{CachePolicy: CachePolicyDefault}
 	for _, option := range options {
 		option.applyLoad(opts)

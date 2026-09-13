@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/fstest"
 )
 
 type loadTestAsset struct {
@@ -51,6 +52,41 @@ func TestLoaderCachesDecodedAssets(t *testing.T) {
 	assets.loader.Invalidate(ID("asset.test"))
 	if _, ok := assets.loader.service.Cached("asset.test", reflect.TypeFor[loadTestAsset](), "test"); ok {
 		t.Fatal("Invalidate left the decoded value cached")
+	}
+}
+
+func TestLoaderNormalizesFSPathBeforeOpening(t *testing.T) {
+	assets := NewAssets(fstest.MapFS{
+		"asset.test": &fstest.MapFile{Data: []byte("normalized")},
+	})
+	if err := assets.loader.RegisterDecoder[loadTestAsset](Format("test"), func(_ context.Context, reader io.Reader) (loadTestAsset, error) {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return loadTestAsset{}, err
+		}
+		return loadTestAsset{Value: string(data)}, nil
+	}, false); err != nil {
+		t.Fatalf("RegisterDecoder failed: %v", err)
+	}
+
+	value, err := assets.loader.Load[loadTestAsset](context.Background(), "nested/../asset.test")
+	if err != nil {
+		t.Fatalf("Load with non-canonical path failed: %v", err)
+	}
+	if value.Value != "normalized" {
+		t.Fatalf("value = %q, want %q", value.Value, "normalized")
+	}
+}
+
+func TestSavePathUsesCanonicalInvalidationID(t *testing.T) {
+	directory := t.TempDir()
+	path := directory + string(os.PathSeparator) + "nested" + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "asset.test"
+	cleanPath := normalizeSavePath(path)
+	if cleanPath == path {
+		t.Fatal("test path was already canonical")
+	}
+	if got := assetIDForSavePath(path); got != ID(filepath.ToSlash(cleanPath)) {
+		t.Fatalf("save ID = %q, want %q", got, filepath.ToSlash(cleanPath))
 	}
 }
 
@@ -184,7 +220,7 @@ func TestSaverInvalidationNotifiesListeners(t *testing.T) {
 	if err := assets.saver.SavePath(context.Background(), path, loadTestAsset{Value: "new"}); err != nil {
 		t.Fatalf("SavePath failed: %v", err)
 	}
-	if notified != ID(filepath.Clean(path)) {
-		t.Fatalf("notified ID = %q, want %q", notified, filepath.Clean(path))
+	if notified != ID(filepath.ToSlash(filepath.Clean(path))) {
+		t.Fatalf("notified ID = %q, want %q", notified, filepath.ToSlash(filepath.Clean(path)))
 	}
 }

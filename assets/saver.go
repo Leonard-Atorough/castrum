@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	pathpkg "path"
 	"path/filepath"
 	"reflect"
 
@@ -63,6 +62,7 @@ func newSaver(service *internalassets.Service, invalidate func(ID)) *Saver {
 }
 
 func (s *Saver) SavePath[T any](ctx context.Context, path string, value T, options ...SaveOption) error {
+	path = normalizeSavePath(path)
 	opts := &SaveOptions{CreateDir: true, AtomicWrite: true}
 	for _, option := range options {
 		option.applySave(opts)
@@ -118,9 +118,9 @@ func (s *Saver) SavePath[T any](ctx context.Context, path string, value T, optio
 	}
 
 	if s.invalidate != nil {
-		s.invalidate(ID(pathpkg.Clean(path)))
+		s.invalidate(assetIDForSavePath(path))
 	} else {
-		s.service.Invalidate(pathpkg.Clean(path))
+		s.service.Invalidate(string(assetIDForSavePath(path)))
 	}
 	return nil
 }

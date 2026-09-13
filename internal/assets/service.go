@@ -114,5 +114,4 @@ func typeName(typ reflect.Type) string {
 	return typ.String()
 }
 
-// TODO: add path normalization and explicit worker shutdown if queued
-// execution is introduced.
+// TODO: add explicit worker shutdown if queued execution is introduced.
