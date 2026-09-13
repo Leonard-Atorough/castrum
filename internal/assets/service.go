@@ -7,33 +7,16 @@ import (
 	"io/fs"
 	"os"
 	"reflect"
+
+	"golang.org/x/sync/singleflight"
 )
-
-type request struct {
-	path   string
-	result chan result
-}
-
-type result struct {
-	value any
-	err   error
-}
-
-type workerGroup struct {
-	workers []worker
-}
-
-type worker struct {
-	id int
-}
 
 type Service struct {
 	filesystem fs.FS
 	decoders   decoderRegistry
 	encoders   encoderRegistry
 	cache      *cache
-	jobs       chan request
-	workers    workerGroup
+	loadGroup  *singleflight.Group
 }
 
 // NewService creates the backend owner for public loaders and savers.
@@ -48,11 +31,16 @@ func NewService(filesystem fs.FS) *Service {
 		decoders:   newDecoderRegistry(),
 		encoders:   newEncoderRegistry(),
 		cache:      newCache(),
+		loadGroup:  &singleflight.Group{},
 	}
 }
 
 func (s *Service) Filesystem() fs.FS {
 	return s.filesystem
+}
+
+func (s *Service) LoadGroup() *singleflight.Group {
+	return s.loadGroup
 }
 
 func (s *Service) RegisterDecoder(typ reflect.Type, format string, decoder func(context.Context, io.Reader) (any, error), override bool) error {
@@ -100,11 +88,11 @@ func (s *Service) Encode(ctx context.Context, typ reflect.Type, format string, w
 }
 
 func (s *Service) Cached(id string, typ reflect.Type, format string) (any, bool) {
-	return s.cache.get(cacheKey{id: id, typ: typ, format: format})
+	return s.cache.get(NewLoadKey(id, typ, format))
 }
 
 func (s *Service) Cache(id string, typ reflect.Type, format string, value any) {
-	s.cache.put(cacheKey{id: id, typ: typ, format: format}, value)
+	s.cache.put(NewLoadKey(id, typ, format), value)
 }
 
 func (s *Service) Invalidate(id string) {
@@ -115,6 +103,10 @@ func (s *Service) ClearCache() {
 	s.cache.clear()
 }
 
+func NewLoadKey(id string, typ reflect.Type, format string) loadKey {
+	return loadKey{id: id, typ: typ, format: format}
+}
+
 func typeName(typ reflect.Type) string {
 	if typ == nil {
 		return "<nil>"
@@ -122,5 +114,5 @@ func typeName(typ reflect.Type) string {
 	return typ.String()
 }
 
-// TODO: add path normalization, in-flight load deduplication, and explicit
-// worker shutdown once Loader and Saver delegate real I/O here.
+// TODO: add path normalization and explicit worker shutdown if queued
+// execution is introduced.

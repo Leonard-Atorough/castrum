@@ -1,37 +1,51 @@
 package assets
 
 import (
+	"fmt"
 	"reflect"
 	"sync"
 	"time"
 )
 
-type cacheKey struct {
+// loadKey identifies one decoded representation of an asset.
+// The requested Go type and format are part of the identity because one ID
+// may legitimately have multiple decoded representations.
+type loadKey struct {
 	id     string
 	typ    reflect.Type
 	format string
 }
 
+func (k loadKey) String() string {
+	typName := "<nil>"
+	if k.typ != nil {
+		typName = k.typ.PkgPath() + "." + k.typ.String()
+	}
+	return fmt.Sprintf(
+		"%d:%s%d:%s%d:%s",
+		len(k.id), k.id,
+		len(typName), typName,
+		len(k.format), k.format,
+	)
+}
+
 type cacheEntry struct {
-	value      any
-	version    uint64
-	loadedAt   time.Time
-	accessedAt time.Time
-	size       int64
+	value    any
+	loadedAt time.Time
 }
 
 // cache stores decoded values. Versioning and eviction policy can be added
 // without changing the public loader contract.
 type cache struct {
 	mu      sync.RWMutex
-	entries map[cacheKey]cacheEntry
+	entries map[loadKey]cacheEntry
 }
 
 func newCache() *cache {
-	return &cache{entries: make(map[cacheKey]cacheEntry)}
+	return &cache{entries: make(map[loadKey]cacheEntry)}
 }
 
-func (c *cache) get(key cacheKey) (any, bool) {
+func (c *cache) get(key loadKey) (any, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	entry, ok := c.entries[key]
@@ -41,10 +55,10 @@ func (c *cache) get(key cacheKey) (any, bool) {
 	return entry.value, ok
 }
 
-func (c *cache) put(key cacheKey, value any) {
+func (c *cache) put(key loadKey, value any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[key] = cacheEntry{value: value}
+	c.entries[key] = cacheEntry{value: value, loadedAt: time.Now()}
 }
 
 func (c *cache) invalidate(id string) {
@@ -60,5 +74,5 @@ func (c *cache) invalidate(id string) {
 func (c *cache) clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries = make(map[cacheKey]cacheEntry)
+	c.entries = make(map[loadKey]cacheEntry)
 }

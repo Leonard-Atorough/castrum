@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	pathpkg "path"
 	"reflect"
+	"sync"
 
 	internalassets "github.com/leonard-atorough/castrum/internal/assets"
 )
@@ -54,7 +54,8 @@ func WithFormat(format Format) LoadOption {
 	})
 }
 
-// WithID specifies the ID to be used when loading an asset.
+// WithID specifies a unique identifier to be used when loading an asset.
+// Be careful reusing the same ID for different assets, as it may lead to cache collisions and canonicalization issues.
 func WithID(id ID) LoadOption {
 	return loadOptionFunc(func(opts *LoadOptions) {
 		opts.ID = id
@@ -88,7 +89,9 @@ type Decoder[T any] func(context.Context, io.Reader) (T, error)
 
 // Loader is responsible for loading assets from the filesystem.
 type Loader struct {
-	service *internalassets.Service
+	service    *internalassets.Service
+	listenerMu sync.RWMutex
+	listeners  []func(ID)
 }
 
 func NewLoader(filesystem fs.FS) *Loader {
@@ -103,57 +106,60 @@ func newLoader(service *internalassets.Service) *Loader {
 // It first checks the cache based on the ID and cache policy.
 // If the asset is not cached, it reads the asset from the filesystem and decodes it using the appropriate decoder.
 func (l *Loader) Load[T any](ctx context.Context, path string, options ...LoadOption) (T, error) {
-	var result T
+	var zero T
 	typ := reflect.TypeFor[T]()
 
-	opts := &LoadOptions{CachePolicy: CachePolicyDefault}
-	for _, option := range options {
-		option.applyLoad(opts)
-	}
-
-	format := resolveFormat(path, opts.Format)
-	id := opts.ID
-	if id == "" {
-		id = ID(pathpkg.Clean(path))
-	}
+	opts := resolveLoadOptions(path, options...)
+	key := internalassets.NewLoadKey(string(opts.ID), typ, string(opts.Format))
 
 	if opts.CachePolicy != CachePolicyNone {
-		if cached, ok := l.service.Cached(string(id), typ, string(format)); ok {
+		if cached, ok := l.service.Cached(string(opts.ID), typ, string(opts.Format)); ok {
 			result, ok := cached.(T)
 			if ok {
 				return result, nil
 			}
-			return result, &AssetError{Message: fmt.Sprintf("cached asset has unexpected type for %s", id), Source: "Load"}
+			return result, &AssetError{Message: fmt.Sprintf("cached asset has unexpected type for %s", opts.ID), Source: "Load"}
 		}
 	}
 
-	fs := l.service.Filesystem()
-	sr, err := fs.Open(path)
-	if err != nil {
-		return result, &AssetError{
-			Message: fmt.Sprintf("failed to open file %s", path),
-			Err:     err,
-			Source:  "Load",
+	result, err, _ := l.service.LoadGroup().Do(key.String(), func() (any, error) {
+		if opts.CachePolicy != CachePolicyNone {
+			if cached, ok := l.service.Cached(string(opts.ID), typ, string(opts.Format)); ok {
+				result, ok := cached.(T)
+				if ok {
+					return result, nil
+				}
+				return result, &AssetError{Message: fmt.Sprintf("cached asset has unexpected type for %s", opts.ID), Source: "Load"}
+			}
 		}
-	}
-	defer sr.Close()
 
-	res, err := l.service.Decode(ctx, typ, string(format), sr)
-	if err != nil {
-		return result, &AssetError{
-			Message: fmt.Sprintf("failed to decode asset from file %s", path),
-			Err:     err,
-			Source:  "Load",
+		reader, err := l.service.Filesystem().Open(path)
+		if err != nil {
+			return nil, &AssetError{
+				Message: fmt.Sprintf("failed to open file %s", path),
+				Err:     err,
+				Source:  "Load",
+			}
 		}
+		defer reader.Close()
+
+		val, err := l.service.Decode(ctx, typ, string(opts.Format), reader)
+		if err != nil {
+			return nil, &AssetError{
+				Message: fmt.Sprintf("failed to decode asset from file %s", path),
+				Err:     err,
+				Source:  "Load",
+			}
+		}
+		if opts.CachePolicy != CachePolicyNone {
+			l.service.Cache(string(opts.ID), typ, string(opts.Format), val)
+		}
+		return val, nil
+	})
+	if err != nil {
+		return zero, err
 	}
-	result, ok := res.(T)
-	if !ok {
-		return result, &AssetError{Message: fmt.Sprintf("decoder returned an unexpected type for %s", id), Source: "Load"}
-	}
-	if opts.CachePolicy != CachePolicyNone {
-		l.service.Cache(string(id), typ, string(format), result)
-	}
-	return result, nil
+	return result.(T), nil
 }
 
 // LoadReader loads an asset from the provided reader using the specified options.
@@ -162,10 +168,7 @@ func (l *Loader) Load[T any](ctx context.Context, path string, options ...LoadOp
 func (l *Loader) LoadReader[T any](ctx context.Context, reader io.Reader, options ...LoadOption) (T, error) {
 	var result T
 	typ := reflect.TypeFor[T]()
-	opts := &LoadOptions{}
-	for _, option := range options {
-		option.applyLoad(opts)
-	}
+	opts := resolveLoadOptions("", options...)
 
 	res, err := l.service.Decode(ctx, typ, string(opts.Format), reader)
 	if err != nil {
@@ -202,6 +205,25 @@ func (l *Loader) RegisterDecoder[T any](format Format, decoder Decoder[T], overr
 
 func (l *Loader) Invalidate(id ID) {
 	l.service.Invalidate(string(id))
+
+	l.listenerMu.RLock()
+	listeners := append([]func(ID){}, l.listeners...)
+	l.listenerMu.RUnlock()
+	for _, listener := range listeners {
+		listener(id)
+	}
+}
+
+// RegisterInvalidationListener registers a callback notified after an asset
+// ID is removed from the decoded asset cache. The callback should be quick;
+// listeners are invoked synchronously by Invalidate.
+func (l *Loader) RegisterInvalidationListener(listener func(ID)) {
+	if listener == nil {
+		return
+	}
+	l.listenerMu.Lock()
+	l.listeners = append(l.listeners, listener)
+	l.listenerMu.Unlock()
 }
 
 func (l *Loader) ClearCache() {
