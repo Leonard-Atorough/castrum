@@ -5,55 +5,33 @@ import (
 	"reflect"
 
 	"github.com/leonard-atorough/castrum/components"
+	internalecs "github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 type ResultEntry struct {
-	Archetype  *Archetype
-	EntityID   EntityID
-	Entity     *Entity
-	_archetype *Archetype // Private: for lazy component access
-	_idx       int        // Private: entity index in archetype
+	EntityID EntityID
+	Entity   *Entity
+	world    *World
+	location internalecs.EntityLocation
 }
 
 // Get retrieves a component from the result entry with error handling.
 // Use this instead of world.GetComponent when you already have a query result,
 // as the component data is accessed directly from the archetype cache.
 func (r ResultEntry) Get[T any]() (T, error) {
-	t := reflect.TypeFor[T]()
-
-	// Access directly from archetype
-	if r._archetype != nil {
-		if raw, ok := r._archetype.componentData[t]; ok {
-			// Fast path: try direct type assertion to []T
-			if typedSlice, ok := raw.([]T); ok {
-				if r._idx >= 0 && r._idx < len(typedSlice) {
-					return typedSlice[r._idx], nil
-				}
-				return *new(T), &EntityError{
-					EntityID: r.EntityID,
-					Op:       "ResultEntry.Get",
-					Err:      ErrEntityNotFound,
-				}
-			}
-			// Fallback: use reflection for generic access
-			sliceVal := reflect.ValueOf(raw)
-			if sliceVal.Kind() == reflect.Slice && r._idx >= 0 && r._idx < sliceVal.Len() {
-				compVal := sliceVal.Index(r._idx)
-				if compVal.IsValid() {
-					if typed, ok := compVal.Interface().(T); ok {
-						return typed, nil
-					}
-				}
-			}
-		}
-	}
-
 	var zero T
-	return zero, &EntityError{
-		EntityID: r.EntityID,
-		Op:       "ResultEntry.Get",
-		Err:      ErrComponentNotFound,
+	if r.world == nil {
+		return zero, &EntityError{EntityID: r.EntityID, Op: "ResultEntry.Get", Err: ErrEntityNotFound}
 	}
+	value, ok := r.world.storage.Get(r.location, reflect.TypeFor[T]())
+	if !ok {
+		return zero, &EntityError{EntityID: r.EntityID, Op: "ResultEntry.Get", Err: ErrComponentNotFound}
+	}
+	component, ok := value.(T)
+	if !ok {
+		return zero, &EntityError{EntityID: r.EntityID, Op: "ResultEntry.Get", Err: ErrComponentNotFound}
+	}
+	return component, nil
 }
 
 type Query struct {
@@ -110,25 +88,18 @@ func (q *Query) Execute() iter.Seq[ResultEntry] {
 		requiredTypes := types(q.required...)
 		excludedTypes := types(q.excluded...)
 
-		for _, archetype := range q.world.archetypeManager.archetypes {
-			if len(q.required) > 0 && !archetype.componentTypes.ContainsAll(NewArchetypeKey(requiredTypes...)) {
-				continue
-			}
-			if len(q.excluded) > 0 && archetype.componentTypes.ContainsAny(NewArchetypeKey(excludedTypes...)) {
-				continue
-			}
-
-			for i, entityID := range archetype.entities {
+		for _, archetype := range q.world.storage.MatchingByTypes(requiredTypes, excludedTypes) {
+			for i, rawEntityID := range archetype.EntityIDs() {
+				entityID := EntityID(rawEntityID)
 				entity, ok := q.world.GetEntity(entityID)
-				if !ok {
+				if !ok || !entity.IsAlive() {
 					continue
 				}
 				resultEntry := ResultEntry{
-					Archetype:  archetype,
-					EntityID:   entityID,
-					Entity:     entity,
-					_archetype: archetype,
-					_idx:       i,
+					EntityID: entityID,
+					Entity:   entity,
+					world:    q.world,
+					location: internalecs.EntityLocation{ArchetypeID: archetype.ID(), Index: i},
 				}
 				if q.filter != nil && !q.filter(resultEntry) {
 					continue

@@ -159,7 +159,6 @@
 // # What NOT to Use
 //
 // The following are internal implementation details and should not be used:
-//   - ComponentRegistry (internal component type tracking)
 //   - Archetype, ArchetypeKey (internal entity storage)
 //   - Hierarchy (internal parent-child tracking)
 //   - Error wrapper types (WorldError, EntityError, etc.)—use sentinel errors instead

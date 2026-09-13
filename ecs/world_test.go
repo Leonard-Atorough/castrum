@@ -2,8 +2,11 @@ package ecs
 
 import (
 	"errors"
+	"reflect"
 	"slices"
 	"testing"
+
+	internalecs "github.com/leonard-atorough/castrum/internal/ecs"
 )
 
 func TestNewWorld(t *testing.T) {
@@ -208,6 +211,40 @@ func TestWorld_Components(t *testing.T) {
 		}
 	})
 
+	t.Run("AddComponent preserves existing values during migration", func(t *testing.T) {
+		w := NewWorld()
+		e, err := w.CreateWithComponents("Generic", TestPosition{X: 1, Y: 2})
+		if err != nil {
+			t.Fatalf("CreateWithComponents failed: %v", err)
+		}
+
+		if err := w.AddComponent(e.ID, TestVelocity{X: 3, Y: 4}); err != nil {
+			t.Fatalf("AddComponent failed: %v", err)
+		}
+		position, err := w.GetComponent[TestPosition](e.ID)
+		if err != nil || position != (TestPosition{X: 1, Y: 2}) {
+			t.Fatalf("existing position was not preserved: %#v, %v", position, err)
+		}
+		velocity, err := w.GetComponent[TestVelocity](e.ID)
+		if err != nil || velocity != (TestVelocity{X: 3, Y: 4}) {
+			t.Fatalf("new velocity was not stored: %#v, %v", velocity, err)
+		}
+	})
+
+	t.Run("AddComponent updates a displaced entity location", func(t *testing.T) {
+		w := NewWorld()
+		first, _ := w.CreateWithComponents("Generic", TestPosition{X: 1})
+		second, _ := w.CreateWithComponents("Generic", TestPosition{X: 2})
+
+		if err := w.AddComponent(first.ID, TestVelocity{X: 3}); err != nil {
+			t.Fatalf("AddComponent failed: %v", err)
+		}
+		position, err := w.GetComponent[TestPosition](second.ID)
+		if err != nil || position.X != 2 {
+			t.Fatalf("displaced entity location was not updated: %#v, %v", position, err)
+		}
+	})
+
 	t.Run("AddComponent on an existing type updates the value in place", func(t *testing.T) {
 		w := NewWorld()
 		e := w.Create("Generic")
@@ -260,6 +297,20 @@ func TestWorld_Components(t *testing.T) {
 
 		if err := w.RemoveComponent[TestPosition](e.ID); err != nil {
 			t.Errorf("expected no error, got %v", err)
+		}
+	})
+
+	t.Run("RemoveComponent updates a displaced entity location", func(t *testing.T) {
+		w := NewWorld()
+		first, _ := w.CreateWithComponents("Generic", TestPosition{X: 1}, TestVelocity{X: 10})
+		second, _ := w.CreateWithComponents("Generic", TestPosition{X: 2}, TestVelocity{X: 20})
+
+		if err := w.RemoveComponent[TestVelocity](first.ID); err != nil {
+			t.Fatalf("RemoveComponent failed: %v", err)
+		}
+		position, err := w.GetComponent[TestPosition](second.ID)
+		if err != nil || position.X != 2 {
+			t.Fatalf("displaced entity location was not updated: %#v, %v", position, err)
 		}
 	})
 
@@ -473,6 +524,73 @@ func TestWorld_ComponentEdgeCases(t *testing.T) {
 		err := world.AddComponent(entity.ID, TestPosition{X: 1, Y: 2})
 		if err == nil {
 			t.Error("Expected error when adding component to destroyed entity")
+		}
+	})
+}
+
+func TestWorld_LifecycleInvariants(t *testing.T) {
+	t.Run("cascade cleanup removes descendant storage", func(t *testing.T) {
+		world := NewWorld()
+		parent := world.Create("Parent")
+		child, err := world.CreateWithComponents("Child", TestPosition{X: 7})
+		if err != nil {
+			t.Fatalf("CreateWithComponents failed: %v", err)
+		}
+		world.SetParent(child.ID, parent.ID)
+
+		if err := world.DestroyEntity(parent.ID, true); err != nil {
+			t.Fatalf("DestroyEntity failed: %v", err)
+		}
+		world.Cleanup()
+
+		location := internalecs.EntityLocation{
+			ArchetypeID: internalecs.ArchetypeID(child.archetypeID),
+			Index:       child.archetypeIdx,
+		}
+		if _, ok := world.storage.Get(location, reflect.TypeFor[TestPosition]()); ok {
+			t.Fatal("cascade cleanup left the descendant component row in storage")
+		}
+	})
+
+	t.Run("pending destruction makes component access and queries inactive", func(t *testing.T) {
+		world := NewWorld()
+		entity, err := world.CreateWithComponents("Unit", TestPosition{X: 1})
+		if err != nil {
+			t.Fatalf("CreateWithComponents failed: %v", err)
+		}
+		if err := world.DestroyEntity(entity.ID, false); err != nil {
+			t.Fatalf("DestroyEntity failed: %v", err)
+		}
+
+		if _, err := world.GetComponent[TestPosition](entity.ID); !errors.Is(err, ErrEntityNotFound) {
+			t.Fatalf("GetComponent error = %v, want ErrEntityNotFound", err)
+		}
+		if err := world.AddComponent(entity.ID, TestVelocity{}); !errors.Is(err, ErrEntityNotFound) {
+			t.Fatalf("AddComponent error = %v, want ErrEntityNotFound", err)
+		}
+		if got := world.NewQuery().WithRequiredComponents(TestPosition{}).EntityIDs(); len(got) != 0 {
+			t.Fatalf("pending entity appeared in query: %v", got)
+		}
+	})
+
+	t.Run("invalid creation does not consume an entity ID", func(t *testing.T) {
+		world := NewWorld()
+		if _, err := world.CreateWithComponents("Invalid", nil); err == nil {
+			t.Fatal("expected nil component creation to fail")
+		}
+		entity := world.Create("Valid")
+		if entity.ID != 1 {
+			t.Fatalf("first valid entity ID = %d, want 1", entity.ID)
+		}
+	})
+
+	t.Run("CreateMany handles non-positive counts", func(t *testing.T) {
+		world := NewWorld()
+		if got := world.CreateMany("Unit", 0); len(got) != 0 {
+			t.Fatalf("CreateMany(0) returned %d entities", len(got))
+		}
+		if got := world.CreateMany("Unit", -1); len(got) != 0 {
+			t.Fatalf("CreateMany(-1) returned %d entities", len(got))
 		}
 	})
 }

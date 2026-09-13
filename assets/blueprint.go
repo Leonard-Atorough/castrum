@@ -71,11 +71,11 @@ func (s *blueprintStore) Load(path string) (*Blueprint, error) {
 	return &blueprint, nil
 }
 
-// CreateFromBlueprint creates a new entity from a blueprint's component data.
-func CreateFromBlueprint(world *ecs.World, bp *Blueprint) (*ecs.Entity, error) {
+// CreateFromBlueprint constructs and creates an entity from blueprint data.
+func CreateFromBlueprint(world *ecs.World, registry *ComponentRegistry, bp *Blueprint) (*ecs.Entity, error) {
 	components := make([]ecs.Component, len(bp.Components))
 	for i, comp := range bp.Components {
-		instance, err := ecs.Resolve(comp.Type, comp.Properties)
+		instance, err := registry.Resolve(comp.Type, comp.Properties)
 		if err != nil {
 			return nil, err
 		}
