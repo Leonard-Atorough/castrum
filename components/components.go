@@ -41,6 +41,8 @@ type SceneTag struct {
 
 type Sprite struct {
 	TexturePath string
+	AtlasID     string
+	RegionName  string
 	Primitive   PrimitiveType
 	RenderLayer uint8 // which of 32 layers to render on (0-31)
 	SortOrder   int8  // [-128..127], higher values render on top within the layer
@@ -49,7 +51,7 @@ type Sprite struct {
 }
 
 // NewSprite creates a new Renderable component with the specified properties.
-func NewSprite(texturePath string, primitive PrimitiveType, renderLayer uint8, sortOrder int8, visible bool, data any) Sprite {
+func NewSprite(texturePath string, atlasID string, regionName string, primitive PrimitiveType, renderLayer uint8, sortOrder int8, visible bool, data any) Sprite {
 	if data == nil {
 		data = struct{}{}
 	}
@@ -61,6 +63,8 @@ func NewSprite(texturePath string, primitive PrimitiveType, renderLayer uint8, s
 	}
 	return Sprite{
 		TexturePath: texturePath,
+		AtlasID:     atlasID,
+		RegionName:  regionName,
 		Primitive:   primitive,
 		RenderLayer: renderLayer,
 		SortOrder:   sortOrder,
