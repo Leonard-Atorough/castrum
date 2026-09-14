@@ -10,6 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/assets"
+	pubatlas "github.com/leonard-atorough/castrum/atlas"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
@@ -27,6 +28,7 @@ type renderItem struct {
 // only couples to the behavior it needs.
 type TextureProvider interface {
 	Load(ctx context.Context, id assets.ID) (*ebiten.Image, int, int, error)
+	SubImage(ctx context.Context, assetId assets.ID, atlasID pubatlas.ID, regionName string) (*ebiten.Image, int, int, error)
 }
 
 type Renderer struct {
@@ -201,14 +203,15 @@ func (r *Renderer) drawSprite(ctx context.Context, screen *ebiten.Image, cam com
 		regionName := clip.Frames[anim.FrameIndex]
 
 		// Get the subimage from the atlas
-		subTex, ok := clip.Atlas.Regions[regionName]
-		if !ok {
-			return // region not found in atlas
+		subTex, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(renderable.TexturePath), clip.Atlas.ID(), regionName)
+		if err != nil {
+			return // silently skip if subimage not found
 		}
 
-		frameImage = subTex.Image
-		frameW = subTex.Width
-		frameH = subTex.Height
+		frameImage = subTex
+		frameW = w
+		frameH = h
+
 	} else {
 		// No animation, load static texture
 		tx, w, h, err := r.textureProvider.Load(ctx, assets.ID(renderable.TexturePath))

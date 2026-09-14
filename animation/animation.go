@@ -30,7 +30,7 @@ type AnimationEvent struct {
 
 // AnimationClip represents a sequence of frames from a texture atlas that can be played back as an animation.
 type AnimationClip struct {
-	Atlas      *atlas.TextureAtlas // Reference to the texture atlas containing the frames
+	Atlas      *atlas.Atlas // Reference to the texture atlas containing the frames
 	Frames     []string            // Region names in the atlas (in order)
 	FrameSpeed float64             // Time (in seconds) each frame is displayed
 	Loop       bool                // Whether the animation repeats
@@ -43,7 +43,7 @@ type clipStorer interface {
 // AnimationClipBuilder provides a fluent interface for constructing AnimationClip instances.
 type AnimationClipBuilder struct {
 	id         string
-	atlas      *atlas.TextureAtlas
+	atlas      *atlas.Atlas
 	frames     []string // Region names in the atlas
 	frameSpeed float64
 	loop       bool
@@ -52,7 +52,7 @@ type AnimationClipBuilder struct {
 
 // NewAnimationClipBuilder initializes a new builder for an animation clip.
 // The clip will be registered with the provided store upon calling Build().
-func NewAnimationClipBuilder(id string, atlas *atlas.TextureAtlas, store clipStorer) *AnimationClipBuilder {
+func NewAnimationClipBuilder(id string, atlas *atlas.Atlas, store clipStorer) *AnimationClipBuilder {
 	if store == nil {
 		panic("animation clip builder requires a non-nil store")
 	}
@@ -102,7 +102,7 @@ func (c *AnimationClipBuilder) Build() (*AnimationClip, error) {
 
 	// Validate frame names exist in atlas
 	for _, regionName := range c.frames {
-		if _, ok := c.atlas.Regions[regionName]; !ok {
+		if _, ok := c.atlas.Regions()[regionName]; !ok {
 			return nil, fmt.Errorf("animation clip %q: region %q not found in atlas", c.id, regionName)
 		}
 	}
@@ -134,7 +134,7 @@ func NewAnimationClipStore() *AnimationClipStore {
 
 // NewBuilder creates a new animation clip builder with the given ID and atlas.
 // Use method chaining to configure the builder, then call Build() to register the clip.
-func (m *AnimationClipStore) NewBuilder(id string, atlas *atlas.TextureAtlas) *AnimationClipBuilder {
+func (m *AnimationClipStore) NewBuilder(id string, atlas *atlas.Atlas) *AnimationClipBuilder {
 	return &AnimationClipBuilder{
 		id:     id,
 		atlas:  atlas,

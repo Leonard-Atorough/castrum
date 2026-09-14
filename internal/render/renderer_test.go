@@ -8,6 +8,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/assets"
+	pubatlas "github.com/leonard-atorough/castrum/atlas"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
@@ -25,6 +26,11 @@ type mockTextureProvider struct {
 		Width  int
 		Height int
 	}
+	regionSubImages map[subImageKey]struct {
+		Image  *ebiten.Image
+		Width  int
+		Height int
+	}
 }
 
 func (m *mockTextureProvider) Load(c context.Context, id assets.ID) (*ebiten.Image, int, int, error) {
@@ -33,6 +39,15 @@ func (m *mockTextureProvider) Load(c context.Context, id assets.ID) (*ebiten.Ima
 		return nil, 0, 0, fmt.Errorf("texture not found: %s", id)
 	}
 	return tex.Image, tex.Width, tex.Height, nil
+}
+
+func (m *mockTextureProvider) SubImage(c context.Context, assetId assets.ID, atlasID pubatlas.ID, regionName string) (*ebiten.Image, int, int, error) {
+	key := newSubImageKey(assetId, atlasID, regionName)
+	subImg, ok := m.regionSubImages[key]
+	if !ok {
+		return nil, 0, 0, fmt.Errorf("subimage not found: %s", regionName)
+	}
+	return subImg.Image, subImg.Width, subImg.Height, nil
 }
 
 func newTestRenderer() *Renderer {

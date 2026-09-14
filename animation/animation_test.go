@@ -72,7 +72,7 @@ func TestAnimationClipBuilder(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		atlas       *atlas.TextureAtlas
+		atlas       *atlas.Atlas
 		frames      []string
 		frameSpeed  float64
 		wantErr     bool
@@ -183,22 +183,23 @@ func TestAnimationClipStore(t *testing.T) {
 	})
 }
 
-func createTextureAtlasForTest(t *testing.T, regionNames ...string) *atlas.TextureAtlas {
+func createTextureAtlasForTest(t *testing.T, regionNames ...string) *atlas.Atlas {
 	t.Helper()
-	regions := make(map[string]*atlas.SubTexture, len(regionNames))
+	regions := make(map[string]atlas.AtlasRegion, len(regionNames))
 	for _, name := range regionNames {
-		regions[name] = &atlas.SubTexture{
-			Name:   name,
-			Width:  32,
-			Height: 32,
+		regions[name] = atlas.AtlasRegion{
+			Name: name,
+			W:    32,
+			H:    32,
 		}
 	}
-	return &atlas.TextureAtlas{
-		ID:      "test_atlas",
-		TexW:    256,
-		TexH:    256,
-		Regions: regions,
-	}
+	return atlas.NewTextureAtlas(
+		"test_atlas",
+		"test_asset",
+		256,
+		256,
+		regions,
+	)
 }
 
 func setupTestWorld() *ecs.World {
@@ -207,16 +208,19 @@ func setupTestWorld() *ecs.World {
 	return world
 }
 
-func createTestAtlas() *atlas.TextureAtlas {
+func createTestAtlas() *atlas.Atlas {
 	// Create a minimal test atlas with a fake ebiten.Image
-	return &atlas.TextureAtlas{
-		ID: "test",
-		Regions: map[string]*atlas.SubTexture{
-			"frame_0": {Name: "frame_0", Width: 32, Height: 32},
-			"frame_1": {Name: "frame_1", Width: 32, Height: 32},
-			"frame_2": {Name: "frame_2", Width: 32, Height: 32},
+	return atlas.NewTextureAtlas(
+		"test",
+		"test_asset",
+		256,
+		256,
+		map[string]atlas.AtlasRegion{
+			"frame_0": {Name: "frame_0", W: 32, H: 32},
+			"frame_1": {Name: "frame_1", W: 32, H: 32},
+			"frame_2": {Name: "frame_2", W: 32, H: 32},
 		},
-	}
+	)
 }
 
 func createAnimatingEntity(world *ecs.World, clipID string) ecs.EntityID {

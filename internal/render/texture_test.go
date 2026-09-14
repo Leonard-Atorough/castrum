@@ -9,7 +9,8 @@ import (
 
 func TestTextureProviderInvalidationListenerRemovesImage(t *testing.T) {
 	loader := assets.NewLoader(nil)
-	provider := NewTextureProvider(loader)
+
+	provider := NewTextureProvider(loader, nil)
 	id := assets.ID("texture.png")
 	provider.images[id] = &textureResource{image: ebiten.NewImage(1, 1), width: 1, height: 1}
 
