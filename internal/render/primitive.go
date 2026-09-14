@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 
@@ -19,7 +20,7 @@ func NewPrimitiveRenderer() *PrimitiveRenderer {
 	return &PrimitiveRenderer{}
 }
 
-func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite) {
+func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite) error {
 	pos := cam.WorldToScreen(transform.Position)
 	x, y := float32(pos.X), float32(pos.Y)
 	zoom := float32(cam.Zoom)
@@ -36,20 +37,19 @@ func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, t
 		vector.StrokeLine(screen, x-dx*half, y-dy*half, x+dx*half, y+dy*half, strokeWidth, clr, true)
 	case components.PrimitiveKindPolygon:
 		// using vector.Path to draw the polygon
-		ctrl := drawPolygonPath(renderable, cam, clr, screen)
-		switch ctrl {
-		case 1:
-			break
+		if err := drawPolygonPath(renderable, cam, clr, screen); err != nil {
+			return err
 		}
 	default: // PrimitiveKindRectangle
 		drawRotatedRect(screen, x, y, float32(transform.Scale.X)*zoom, float32(transform.Scale.Y)*zoom, transform.Rotation, clr)
 	}
+	return nil
 }
 
-func drawPolygonPath(renderable components.Sprite, cam components.Camera, clr color.Color, screen *ebiten.Image) int {
+func drawPolygonPath(renderable components.Sprite, cam components.Camera, clr color.Color, screen *ebiten.Image) error {
 	if polygon, ok := renderable.Data.(geom.Polygon); ok {
 		if err := polygon.Validate(); err != nil {
-			return 1
+			return fmt.Errorf("invalid polygon")
 		}
 		points := polygon.Points()
 		var path vector.Path
@@ -70,7 +70,7 @@ func drawPolygonPath(renderable components.Sprite, cam components.Camera, clr co
 			ColorScale: colorScale,
 		})
 	}
-	return 0
+	return nil
 }
 
 // drawRotatedRect fills a width x height rectangle centered at (cx, cy) and

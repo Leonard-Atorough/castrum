@@ -2,6 +2,7 @@ package assets
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -30,6 +31,15 @@ type TextureData struct {
 	Height int
 }
 
+type AtlasMeta struct {
+	Regions []AtlasRegionMeta `yaml:"regions"`
+}
+
+type AtlasRegionMeta struct {
+	Name       string `yaml:"name"`
+	X, Y, W, H int    `yaml:"x,y,w,h"`
+}
+
 // Blueprint represents a reusable template for creating entities with predefined components.
 type Blueprint struct {
 	Name       string          `yaml:"name"`
@@ -42,17 +52,6 @@ type ComponentData struct {
 	Type       string         `yaml:"type"`
 	Properties map[string]any `yaml:"properties"`
 }
-
-// // loadRequest wraps an asset path with its result channel.
-// type loadRequest struct {
-// 	path     string
-// 	resultCh chan<- LoadResult
-// }
-
-// const (
-// 	defaultWorkerCount  = 2
-// 	defaultJobQueueSize = 64
-// )
 
 type Assets struct {
 	loader *Loader
@@ -76,9 +75,24 @@ func (a *Assets) AssetSaver() *Saver {
 	return a.saver
 }
 
+// CreateFromBlueprint constructs and creates an entity from blueprint data.
+func CreateFromBlueprint(world *ecs.World, registry *ComponentRegistry, bp *Blueprint) (*ecs.Entity, error) {
+	components := make([]ecs.Component, len(bp.Components))
+	for i, comp := range bp.Components {
+		instance, err := registry.Resolve(comp.Type, comp.Properties)
+		if err != nil {
+			return nil, err
+		}
+		components[i] = instance
+	}
+
+	return world.CreateWithComponents(bp.Name, components...)
+}
+
 func registerDefaultDecoders(s *internalassets.Service) {
 	registerDefaultDecoder(s, FormatYAML, decodeBlueprintYAML)
 	registerDefaultDecoder(s, FormatYML, decodeBlueprintYAML)
+	registerDefaultDecoder(s, FormatJSON, decodeAtlasMetaJSON)
 	registerDefaultDecoder(s, FormatPNG, decodeTexture)
 	registerDefaultDecoder(s, FormatJPG, decodeTexture)
 	registerDefaultDecoder(s, FormatJPEG, decodeTexture)
@@ -160,18 +174,12 @@ func encodeTextureJPEG(_ context.Context, writer io.Writer, texture TextureData)
 	return jpeg.Encode(writer, texture.Image, &jpeg.Options{Quality: 90})
 }
 
-// CreateFromBlueprint constructs and creates an entity from blueprint data.
-func CreateFromBlueprint(world *ecs.World, registry *ComponentRegistry, bp *Blueprint) (*ecs.Entity, error) {
-	components := make([]ecs.Component, len(bp.Components))
-	for i, comp := range bp.Components {
-		instance, err := registry.Resolve(comp.Type, comp.Properties)
-		if err != nil {
-			return nil, err
-		}
-		components[i] = instance
+func decodeAtlasMetaJSON(_ context.Context, reader io.Reader) (AtlasMeta, error) {
+	var meta AtlasMeta
+	if err := json.NewDecoder(reader).Decode(&meta); err != nil {
+		return AtlasMeta{}, err
 	}
-
-	return world.CreateWithComponents(bp.Name, components...)
+	return meta, nil
 }
 
 // AssetError represents an error that occurred during the loading or saving of an asset.

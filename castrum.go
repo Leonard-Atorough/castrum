@@ -9,16 +9,17 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/assets"
+	"github.com/leonard-atorough/castrum/atlas"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
+	internalatlas "github.com/leonard-atorough/castrum/internal/atlas"
 	internalinput "github.com/leonard-atorough/castrum/internal/input"
-	internalrender "github.com/leonard-atorough/castrum/internal/render"
+	"github.com/leonard-atorough/castrum/internal/render"
 	"github.com/leonard-atorough/castrum/internal/timingscheduler"
 	"github.com/leonard-atorough/castrum/physics"
-	"github.com/leonard-atorough/castrum/render"
 	"github.com/leonard-atorough/castrum/timers"
 )
 
@@ -26,6 +27,7 @@ type Game struct {
 	world        *ecs.World
 	assetsSaver  *assets.Saver
 	assetsLoader *assets.Loader
+	atlasSvc     *internalatlas.Service
 	config       *Config
 	renderer     *render.Renderer
 	input        input.Reader
@@ -61,8 +63,10 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	assetsLoader := assetSys.AssetLoader()
 	assetsSaver := assetSys.AssetSaver()
 
-	textureProvider := internalrender.NewTextureProvider(assetsLoader)
-	renderer := render.New(textureProvider)
+	atlasStore := internalatlas.NewStore()
+	atlasService := internalatlas.NewService(atlasStore)
+	textureProvider := render.NewTextureProvider(assetsLoader, atlasService)
+	renderer := render.New(textureProvider, newWorld, render.RenderConfig{DrawDebugInfo: config.Engine.EnableDebug})
 
 	newWorld.SetResource[input.Reader](inputHandler)
 	newWorld.SetResource(animation.NewAnimationClipStore())
@@ -106,6 +110,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		world:        newWorld,
 		assetsSaver:  assetsSaver,
 		assetsLoader: assetsLoader,
+		atlasSvc:     atlasService,
 		config:       config,
 		renderer:     renderer,
 		input:        inputHandler,
@@ -134,6 +139,10 @@ func (g *Game) AssetsSaver() *assets.Saver {
 	return g.assetsSaver
 }
 
+func (g *Game) AtlasBuilder(id string, assetPath string, width, height int) (*atlas.Builder, error) {
+	return atlas.NewBuilder(id, assetPath, width, height, g.atlasSvc)
+}
+
 // Input returns the resolved action reader used by gameplay systems.
 func (g *Game) Input() input.Reader {
 	return g.input
@@ -160,10 +169,7 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	ctx := context.Background()
 	g.renderer.Clear(screen, color.Black)
-	g.renderer.DrawScene(ctx, screen, g.world)
-	if g.config.Engine.EnableDebug {
-		g.renderer.DrawDebugInfo(screen, g.world)
-	}
+	g.renderer.DrawScene(ctx, screen)
 }
 
 type WindowSize geom.Vector2I

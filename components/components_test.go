@@ -57,15 +57,21 @@ func TestTransformComponent(t *testing.T) {
 
 func TestSpriteComponent(t *testing.T) {
 	t.Run("Create New Sprite Component with all fields", func(t *testing.T) {
-		sprite := NewSprite("texture.png", PrimitiveKindRectangle, 0, 0, true, nil)
+		sprite, _ := NewSprite("texture.png", "Atlas-1", "sprite-1", PrimitiveKindRectangle, 0, 0, true, nil)
 		if sprite.TexturePath != "texture.png" {
 			t.Errorf("Expected texture path to be 'texture.png', got %v", sprite.TexturePath)
+		}
+		if sprite.AtlasID != "Atlas-1" {
+			t.Errorf("Expected atlas ID to be 'Atlas-1', got %v", sprite.AtlasID)
+		}
+		if sprite.RegionName != "sprite-1" {
+			t.Errorf("Expected region name to be 'sprite-1', got %v", sprite.RegionName)
 		}
 		if sprite.Primitive != PrimitiveKindRectangle {
 			t.Errorf("Expected primitive to be Rectangle, got %v", sprite.Primitive)
 		}
-		if sprite.Layer != 0 {
-			t.Errorf("Expected layer to be 0, got %v", sprite.Layer)
+		if sprite.RenderLayer != 0 {
+			t.Errorf("Expected layer to be 0, got %v", sprite.RenderLayer)
 		}
 		if sprite.SortOrder != 0 {
 			t.Errorf("Expected sort order to be 0, got %v", sprite.SortOrder)
@@ -80,16 +86,30 @@ func TestSpriteComponent(t *testing.T) {
 	})
 
 	t.Run("Create New Sprite with layer greater than 31", func(t *testing.T) {
-		sprite := NewSprite("texture.png", PrimitiveKindRectangle, 35, 0, true, nil)
-		if sprite.Layer != 31 {
-			t.Errorf("Expected layer to be capped at 31, got %v", sprite.Layer)
+		sprite, _ := NewSprite("texture.png", "", "", PrimitiveKindRectangle, 35, 0, true, nil)
+		if sprite.RenderLayer != 31 {
+			t.Errorf("Expected layer to be capped at 31, got %v", sprite.RenderLayer)
 		}
 	})
 
 	t.Run("Create New Sprite with invalid primitive type", func(t *testing.T) {
-		sprite := NewSprite("texture.png", 99, 0, 0, true, nil)
+		sprite, _ := NewSprite("texture.png", "", "", 99, 0, 0, true, nil)
 		if sprite.Primitive != PrimitiveKindRectangle {
 			t.Errorf("Expected primitive to default to Rectangle, got %v", sprite.Primitive)
+		}
+	})
+
+	t.Run("Create New Sprite with atlasID but no regionName", func(t *testing.T) {
+		_, err := NewSprite("texture.png", "Atlas-1", "", PrimitiveKindRectangle, 0, 0, true, nil)
+		if err == nil {
+			t.Errorf("Expected error when atlasID is specified without regionName")
+		}
+	})
+
+	t.Run("Create New Sprite with regionName but no atlasID", func(t *testing.T) {
+		_, err := NewSprite("texture.png", "", "sprite-1", PrimitiveKindRectangle, 0, 0, true, nil)
+		if err == nil {
+			t.Errorf("Expected error when regionName is specified without atlasID")
 		}
 	})
 }

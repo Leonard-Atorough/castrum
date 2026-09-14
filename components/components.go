@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 
@@ -41,32 +42,53 @@ type SceneTag struct {
 
 type Sprite struct {
 	TexturePath string
+	AtlasID     string
+	RegionName  string
 	Primitive   PrimitiveType
-	Layer       uint8 // which of 32 layers to render on (0-31)
+	RenderLayer uint8 // which of 32 layers to render on (0-31)
 	SortOrder   int8  // [-128..127], higher values render on top within the layer
 	Visible     bool
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
 // NewSprite creates a new Renderable component with the specified properties.
-func NewSprite(texturePath string, Primitive PrimitiveType, Layer uint8, SortOrder int8, Visible bool, Data any) Sprite {
-	if Data == nil {
-		Data = struct{}{}
+func NewSprite(texturePath string, atlasID string, regionName string, primitive PrimitiveType, renderLayer uint8, sortOrder int8, visible bool, data any) (Sprite, error) {
+	if data == nil {
+		data = struct{}{}
 	}
-	if Layer > 31 {
-		Layer = 31
+	if renderLayer > 31 {
+		renderLayer = 31
 	}
-	if Primitive < PrimitiveKindRectangle || Primitive > PrimitiveKindPolygon {
-		Primitive = PrimitiveKindRectangle
+	if primitive < PrimitiveKindRectangle || primitive > PrimitiveKindPolygon {
+		primitive = PrimitiveKindRectangle
 	}
+	if atlasID != "" && regionName == "" || atlasID == "" && regionName != "" {
+		return Sprite{}, fmt.Errorf("atlasID and regionName must be specified together")
+	}
+
 	return Sprite{
 		TexturePath: texturePath,
-		Primitive:   Primitive,
-		Layer:       Layer,
-		SortOrder:   SortOrder,
-		Visible:     Visible,
-		Data:        Data,
+		AtlasID:     atlasID,
+		RegionName:  regionName,
+		Primitive:   primitive,
+		RenderLayer: renderLayer,
+		SortOrder:   sortOrder,
+		Visible:     visible,
+		Data:        data,
+	}, nil
+}
+
+func (s *Sprite) Validate() error {
+	if s.AtlasID != "" && s.RegionName == "" || s.AtlasID == "" && s.RegionName != "" {
+		return fmt.Errorf("atlasID and regionName must be specified together")
 	}
+	if s.RenderLayer > 31 {
+		return fmt.Errorf("renderLayer must be between 0 and 31")
+	}
+	if s.Primitive < PrimitiveKindRectangle || s.Primitive > PrimitiveKindPolygon {
+		return fmt.Errorf("invalid primitive type")
+	}
+	return nil
 }
 
 // PrimitiveType represents the type of a procedural shape for rendering.
@@ -96,6 +118,22 @@ func NewAnimation(clipID string, autoplay bool) Animation {
 		PlaybackSpeed: 1.0,
 		Playing:       autoplay,
 	}
+}
+
+func (a *Animation) Validate() error {
+	if a.ClipPath == "" {
+		return fmt.Errorf("clipPath must be specified")
+	}
+	if a.FrameIndex < 0 {
+		return fmt.Errorf("frameIndex cannot be negative")
+	}
+	if a.FrameTime < 0 {
+		return fmt.Errorf("frameTime cannot be negative")
+	}
+	if a.PlaybackSpeed <= 0 {
+		return fmt.Errorf("playbackSpeed must be positive")
+	}
+	return nil
 }
 
 // ColliderShapeContext defines the local-space bounds required by a collider.

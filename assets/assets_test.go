@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -443,7 +444,6 @@ func TestNormalizePaths(t *testing.T) {
 			want string
 		}{
 			{"/path/to/asset", "/path/to/asset"},
-			{"path\\to\\asset", "path/to/asset"},
 			{"/path/../asset", "/asset"},
 		}
 		for _, tt := range tests {
@@ -453,6 +453,13 @@ func TestNormalizePaths(t *testing.T) {
 					t.Errorf("assetIDForSavePath(%q) = %q, want %q", tt.path, string(got), tt.want)
 				}
 			})
+		}
+		// Backslash-to-slash conversion is only meaningful on Windows.
+		if runtime.GOOS == "windows" {
+			got := assetIDForSavePath("path\\to\\asset")
+			if string(got) != "path/to/asset" {
+				t.Errorf("assetIDForSavePath(%q) = %q, want %q", "path\\to\\asset", string(got), "path/to/asset")
+			}
 		}
 	})
 }
