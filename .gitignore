@@ -1,3 +1,5 @@
 cover.out
 bin/
 
+# Ignore executable files in the examples directory
+/examples/*.exe
