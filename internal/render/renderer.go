@@ -17,10 +17,10 @@ import (
 )
 
 type renderItem struct {
-	entityID   ecs.EntityID
-	renderable components.Sprite
-	transform  components.Transform
-	animation  *components.Animation
+	entityID  ecs.EntityID
+	sprite    components.Sprite
+	transform components.Transform
+	animation *components.Animation
 }
 
 // TextureProvider is the interface for loading individual textures.
@@ -34,15 +34,20 @@ type TextureProvider interface {
 type Renderer struct {
 	textureProvider TextureProvider
 	clipStore       *animation.AnimationClipStore
+	world           *ecs.World
 	Primitive       *PrimitiveRenderer
 	cameraQuery     *ecs.Query
-	renderItems     []renderItem // Reusable buffer for hot path
+	renderItems     []renderItem
+	renderErrors    []RenderError
 }
 
-func New(textureLoader TextureProvider) *Renderer {
+func New(textureProvider TextureProvider, world *ecs.World) *Renderer {
 	return &Renderer{
-		textureProvider: textureLoader,
+		textureProvider: textureProvider,
+		world:           world,
 		Primitive:       NewPrimitiveRenderer(),
+		renderItems:     make([]renderItem, 0, 16),  // pre-allocate buffer for hot path
+		renderErrors:    make([]RenderError, 0, 16), // pre-allocate buffer for capturing rendering errors
 	}
 }
 
@@ -50,12 +55,9 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 	screen.Fill(c)
 }
 
-// DrawScene renders every entity with a Renderable+Transform. A Renderable
-// with a TexturePath is drawn as a sprite; otherwise it's drawn as a
-// primitive shape - callers never need to say which.
-// The primary camera is queried from the world.
+// DrawScene renders the scene from the perspective of the primary camera.
+// Entities with Sprite and Transform components are considered renderable.
 func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image, world *ecs.World) {
-	// Query for the primary camera
 	var primaryCamera components.Camera
 	var cameraFound bool
 
@@ -75,14 +77,13 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image, world *e
 			break
 		}
 	}
-
 	if !cameraFound {
 		return // No primary camera, nothing to render
 	}
 
-	// Reuse buffer to avoid allocations in hot path
 	r.renderItems = r.renderItems[:0]
-	// Get the camera's visible world-space bounds for frustum culling
+	r.renderErrors = r.renderErrors[:0]
+
 	viewportBounds := primaryCamera.ViewportBounds()
 
 	for entry := range world.NewQuery().WithRequiredComponents(components.Sprite{}, components.Transform{}).Execute() {
@@ -91,7 +92,6 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image, world *e
 		}
 		renderable, _ := entry.Get[components.Sprite]()
 		transform, _ := entry.Get[components.Transform]()
-
 		entityBounds := geom.Rect{
 			Min: geom.Vector2{X: transform.Position.X - transform.Scale.X, Y: transform.Position.Y - transform.Scale.Y},
 			Max: geom.Vector2{X: transform.Position.X + transform.Scale.X, Y: transform.Position.Y + transform.Scale.Y},
@@ -99,31 +99,26 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image, world *e
 		if !viewportBounds.Intersects(entityBounds) {
 			continue
 		}
-
-		// Optionally fetch Animation component if it exists
 		var anim *components.Animation
 		if animation, err := entry.Get[components.Animation](); err == nil {
 			anim = &animation
 		}
 
 		r.renderItems = append(r.renderItems, renderItem{
-			entityID:   entry.EntityID,
-			renderable: renderable,
-			transform:  transform,
-			animation:  anim,
+			entityID:  entry.EntityID,
+			sprite:    renderable,
+			transform: transform,
+			animation: anim,
 		})
 	}
 
-	// Sort by layer > render depth > Y position (entityId too unstable)
 	slices.SortStableFunc(r.renderItems, func(a, b renderItem) int {
-		if a.renderable.RenderLayer != b.renderable.RenderLayer {
-			return int(a.renderable.RenderLayer) - int(b.renderable.RenderLayer)
+		if a.sprite.RenderLayer != b.sprite.RenderLayer {
+			return int(a.sprite.RenderLayer) - int(b.sprite.RenderLayer)
 		}
-		// render depth comparison
-		if a.renderable.SortOrder != b.renderable.SortOrder {
-			return int(a.renderable.SortOrder) - int(b.renderable.SortOrder)
+		if a.sprite.SortOrder != b.sprite.SortOrder {
+			return int(a.sprite.SortOrder) - int(b.sprite.SortOrder)
 		}
-		// can't use direct subtraction for float comparison, so we use conditional checks
 		if a.transform.Position.Y != b.transform.Position.Y {
 			if a.transform.Position.Y < b.transform.Position.Y {
 				return -1
@@ -133,23 +128,118 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image, world *e
 		return 0
 	})
 
-	// Render
 	for _, item := range r.renderItems {
-		if item.renderable.TexturePath != "" {
-			if r.clipStore == nil {
-				// first time, initialize the clip store from world resources
-				clipStore, ok := world.GetResource[*animation.AnimationClipStore]()
-				if !ok {
-					// failed to get the clip store, skip rendering this sprite
-					continue
-				}
-				r.clipStore = clipStore
-			}
-			r.drawSprite(ctx, screen, primaryCamera, item.transform, item.renderable, item.animation)
-		} else {
-			r.Primitive.Draw(screen, primaryCamera, item.transform, item.renderable)
+		if err := r.renderItem(ctx, screen, primaryCamera, item); err != nil {
+			r.renderErrors = append(r.renderErrors, RenderError{
+				EntityID: item.entityID,
+				Err:      err,
+				Step:     "render",
+				Message:  "failed to render item",
+			})
 		}
 	}
+}
+
+func (r *Renderer) renderItem(ctx context.Context, screen *ebiten.Image, cam components.Camera, item renderItem) error {
+	if err := r.validateRenderItem(item); err != nil {
+		return err
+	}
+
+	if item.sprite.TexturePath != "" {
+		if item.animation != nil {
+			return r.renderAnimation(ctx, screen, cam, item)
+		}
+		return r.renderSprite(ctx, screen, cam, item)
+	} else {
+		// TODO: Fix sprite not containing color
+		r.Primitive.Draw(screen, cam, item.transform, item.sprite)
+	}
+	return nil
+}
+
+func (r *Renderer) renderAnimation(ctx context.Context, screen *ebiten.Image, cam components.Camera, item renderItem) error {
+	if r.clipStore == nil {
+		clipStore, ok := r.world.GetResource[*animation.AnimationClipStore]()
+		if !ok {
+			return fmt.Errorf("failed to get animation clip store")
+		}
+		r.clipStore = clipStore
+	}
+
+	clip := r.clipStore.Get(item.animation.ClipPath)
+	if clip == nil {
+		//fallback to static texture
+		return r.renderSprite(ctx, screen, cam, item)
+	}
+
+	if item.animation.FrameIndex >= len(clip.Frames) {
+		return fmt.Errorf("animation frame index out of range: %d, total frames: %d", item.animation.FrameIndex, len(clip.Frames))
+	}
+
+	regionName := clip.Frames[item.animation.FrameIndex]
+	if clip.Atlas == nil {
+		return fmt.Errorf("animation clip atlas is nil")
+	}
+	subTex, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(item.sprite.TexturePath), clip.Atlas.ID(), regionName)
+	if err != nil || subTex == nil {
+		return fmt.Errorf("failed to get subimage for region: %s", regionName)
+	}
+
+	r.drawImage(ctx, screen, cam, item.transform, subTex, w, h)
+	return nil
+}
+
+func (r *Renderer) renderSprite(ctx context.Context, screen *ebiten.Image, cam components.Camera, item renderItem) error {
+	var subTex *ebiten.Image
+	var w, h int
+	if item.sprite.AtlasID != "" && item.sprite.RegionName != "" {
+		var err error
+		subTex, w, h, err = r.textureProvider.SubImage(ctx, assets.ID(item.sprite.TexturePath), pubatlas.ID(item.sprite.AtlasID), item.sprite.RegionName)
+		if err != nil || subTex == nil {
+			return fmt.Errorf("failed to get subimage for region: %s", item.sprite.RegionName)
+		}
+	}
+
+	if subTex == nil {
+		tex, tW, tH, err := r.textureProvider.Load(ctx, assets.ID(item.sprite.TexturePath))
+		if err != nil || tex == nil {
+			return fmt.Errorf("failed to load texture: %s", item.sprite.TexturePath)
+		}
+		subTex = tex
+		w = tW
+		h = tH
+	}
+	r.drawImage(ctx, screen, cam, item.transform, subTex, w, h)
+	return nil
+}
+
+func (r *Renderer) drawImage(_ context.Context, screen *ebiten.Image, cam components.Camera, transform components.Transform, img *ebiten.Image, w, h int) {
+	screenPos := cam.WorldToScreen(transform.Position)
+
+	op := &ebiten.DrawImageOptions{}
+	// first we set the position of the sprite on the screen by updating the DrawImageOptions
+	op.GeoM.Translate(-float64(w)/2, -float64(h)/2)
+	// Apply scaling (including camera zoom), rotation, and other transforms from Transform
+	scaleX := transform.Scale.X * cam.Zoom
+	scaleY := transform.Scale.Y * cam.Zoom
+	op.GeoM.Scale(scaleX, scaleY)
+	op.GeoM.Rotate(transform.Rotation)
+	op.GeoM.Translate(screenPos.X, screenPos.Y)
+
+	cr, cg, cb, ca := colorOrDefault(transform.Color).RGBA()
+	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
+
+	screen.DrawImage(img, op)
+}
+
+func (r *Renderer) validateRenderItem(item renderItem) error {
+	if item.sprite.Validate() != nil {
+		return item.sprite.Validate()
+	}
+	if item.animation != nil && item.animation.Validate() != nil {
+		return item.animation.Validate()
+	}
+	return nil
 }
 
 func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *ecs.World) {
@@ -181,91 +271,17 @@ func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *ecs.World) {
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), primaryCamera.Position))
 }
 
-func (r *Renderer) drawSprite(ctx context.Context, screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite, anim *components.Animation) {
-	var frameW, frameH int
-	var frameImage *ebiten.Image
-
-	if anim != nil && anim.ClipPath != "" {
-		clip := r.clipStore.Get(anim.ClipPath)
-		if clip == nil {
-			// Fall back to static texture if clip not found
-			r.drawStaticTexture(ctx, screen, cam, transform, renderable)
-			return
-		}
-		if anim.FrameIndex >= len(clip.Frames) {
-			return
-		}
-		regionName := clip.Frames[anim.FrameIndex]
-
-		subTex, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(renderable.TexturePath), clip.Atlas.ID(), regionName)
-		if err != nil {
-			return // silently skip if subimage not found
-		}
-
-		frameImage = subTex
-		frameW = w
-		frameH = h
-
-	} else {
-		//check if atlas-based sprite
-		if renderable.AtlasID != "" && renderable.RegionName != "" {
-			subTex, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(renderable.TexturePath), pubatlas.ID(renderable.AtlasID), renderable.RegionName)
-			if err == nil {
-				frameImage = subTex
-				frameW = w
-				frameH = h
-			}
-		} else {
-			// Fallback to static texture if no atlas information is provided
-			tx, w, h, err := r.textureProvider.Load(ctx, assets.ID(renderable.TexturePath))
-			if err != nil {
-				return // silently skip entities with missing textures
-			}
-
-			frameImage = tx
-			frameW = w
-			frameH = h
-		}
-	}
-
-	screenPos := cam.WorldToScreen(transform.Position)
-
-	op := &ebiten.DrawImageOptions{}
-	// first we set the position of the sprite on the screen by updating the DrawImageOptions
-	op.GeoM.Translate(-float64(frameW)/2, -float64(frameH)/2)
-	// Apply scaling (including camera zoom), rotation, and other transforms from Transform
-	scaleX := transform.Scale.X * cam.Zoom
-	scaleY := transform.Scale.Y * cam.Zoom
-	op.GeoM.Scale(scaleX, scaleY)
-	op.GeoM.Rotate(transform.Rotation)
-	op.GeoM.Translate(screenPos.X, screenPos.Y)
-
-	cr, cg, cb, ca := colorOrDefault(transform.Color).RGBA()
-	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
-
-	// Finally, draw the sprite's texture onto the screen using the options
-	screen.DrawImage(frameImage, op)
+type RenderError struct {
+	EntityID ecs.EntityID
+	Step     string
+	Message  string
+	Err      error
 }
 
-func (r *Renderer) drawStaticTexture(ctx context.Context, screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite) {
-	tx, w, h, err := r.textureProvider.Load(ctx, assets.ID(renderable.TexturePath))
-	if err != nil {
-		return // silently skip entities with missing textures
-	}
+func (e *RenderError) Error() string {
+	return fmt.Sprintf("RendererError: EntityID=%v, Step=%s, Message=%s, Err=%v", e.EntityID, e.Step, e.Message, e.Err)
+}
 
-	frameW, frameH := w, h
-	screenPos := cam.WorldToScreen(transform.Position)
-
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(-float64(frameW)/2, -float64(frameH)/2)
-	scaleX := transform.Scale.X * cam.Zoom
-	scaleY := transform.Scale.Y * cam.Zoom
-	op.GeoM.Scale(scaleX, scaleY)
-	op.GeoM.Rotate(transform.Rotation)
-	op.GeoM.Translate(screenPos.X, screenPos.Y)
-
-	cr, cg, cb, ca := colorOrDefault(transform.Color).RGBA()
-	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
-
-	screen.DrawImage(tx, op)
+func (e *RenderError) Unwrap() error {
+	return e.Err
 }

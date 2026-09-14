@@ -31,9 +31,9 @@ type AnimationEvent struct {
 // AnimationClip represents a sequence of frames from a texture atlas that can be played back as an animation.
 type AnimationClip struct {
 	Atlas      *atlas.Atlas // Reference to the texture atlas containing the frames
-	Frames     []string            // Region names in the atlas (in order)
-	FrameSpeed float64             // Time (in seconds) each frame is displayed
-	Loop       bool                // Whether the animation repeats
+	Frames     []string     // Region names in the atlas (in order)
+	FrameSpeed float64      // Time (in seconds) each frame is displayed
+	Loop       bool         // Whether the animation repeats
 }
 
 type clipStorer interface {

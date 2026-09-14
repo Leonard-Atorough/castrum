@@ -9,12 +9,12 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/assets"
+	"github.com/leonard-atorough/castrum/atlas"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
-	"github.com/leonard-atorough/castrum/atlas"
 	internalatlas "github.com/leonard-atorough/castrum/internal/atlas"
 	internalinput "github.com/leonard-atorough/castrum/internal/input"
 	"github.com/leonard-atorough/castrum/internal/render"
@@ -27,7 +27,7 @@ type Game struct {
 	world        *ecs.World
 	assetsSaver  *assets.Saver
 	assetsLoader *assets.Loader
-	atlasSvc   *internalatlas.Service
+	atlasSvc     *internalatlas.Service
 	config       *Config
 	renderer     *render.Renderer
 	input        input.Reader
@@ -66,7 +66,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	atlasStore := internalatlas.NewStore()
 	atlasService := internalatlas.NewService(atlasStore)
 	textureProvider := render.NewTextureProvider(assetsLoader, atlasService)
-	renderer := render.New(textureProvider)
+	renderer := render.New(textureProvider, newWorld)
 
 	newWorld.SetResource[input.Reader](inputHandler)
 	newWorld.SetResource(animation.NewAnimationClipStore())

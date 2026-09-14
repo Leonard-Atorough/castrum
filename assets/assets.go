@@ -75,7 +75,6 @@ func (a *Assets) AssetSaver() *Saver {
 	return a.saver
 }
 
-
 // CreateFromBlueprint constructs and creates an entity from blueprint data.
 func CreateFromBlueprint(world *ecs.World, registry *ComponentRegistry, bp *Blueprint) (*ecs.Entity, error) {
 	components := make([]ecs.Component, len(bp.Components))

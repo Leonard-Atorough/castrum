@@ -62,7 +62,8 @@ func newTestRenderer() *Renderer {
 	}{
 		"square": {Image: testImage, Width: 1, Height: 1},
 	}}
-	return New(testTextureProvider)
+	world := ecs.NewWorld()
+	return New(testTextureProvider, world)
 }
 
 // setupTestWorldWithCamera creates a world with a primary camera entity.

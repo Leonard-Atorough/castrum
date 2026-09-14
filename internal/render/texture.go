@@ -105,12 +105,20 @@ func (p *Texture) SubImage(ctx context.Context, assetID assets.ID, atlasID pubat
 		return nil, 0, 0, fmt.Errorf("atlas not found for id=%s, regionName=%s", atlasID, regionName)
 	}
 
-	texture, _, _, err := p.Load(ctx, assetID)
+	texture, texW, texH, err := p.Load(ctx, assetID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
 	atlasData := res.(pubatlas.Atlas)
+
+	atlasTexW, atlasTexH := atlasData.Dimensions()
+	if atlasTexW != texW || atlasTexH != texH {
+		return nil, 0, 0, fmt.Errorf(
+			"atlas %s dimensions (%d,%d) don't match texture %s (%d,%d)",
+			atlasID, atlasTexW, atlasTexH, assetID, texW, texH)
+	}
+
 	atlasRegion, ok := atlasData.Regions()[regionName]
 	if !ok {
 		return nil, 0, 0, fmt.Errorf("region %s not found in atlas for id=%s", regionName, atlasID)
