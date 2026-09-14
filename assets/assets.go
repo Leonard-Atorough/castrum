@@ -53,17 +53,6 @@ type ComponentData struct {
 	Properties map[string]any `yaml:"properties"`
 }
 
-// // loadRequest wraps an asset path with its result channel.
-// type loadRequest struct {
-// 	path     string
-// 	resultCh chan<- LoadResult
-// }
-
-// const (
-// 	defaultWorkerCount  = 2
-// 	defaultJobQueueSize = 64
-// )
-
 type Assets struct {
 	loader *Loader
 	saver  *Saver
