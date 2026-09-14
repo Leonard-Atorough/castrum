@@ -66,7 +66,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	atlasStore := internalatlas.NewStore()
 	atlasService := internalatlas.NewService(atlasStore)
 	textureProvider := render.NewTextureProvider(assetsLoader, atlasService)
-	renderer := render.New(textureProvider, newWorld)
+	renderer := render.New(textureProvider, newWorld, render.RenderConfig{DrawDebugInfo: config.Engine.EnableDebug})
 
 	newWorld.SetResource[input.Reader](inputHandler)
 	newWorld.SetResource(animation.NewAnimationClipStore())
@@ -168,10 +168,7 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	ctx := context.Background()
 	g.renderer.Clear(screen, color.Black)
-	g.renderer.DrawScene(ctx, screen, g.world)
-	if g.config.Engine.EnableDebug {
-		g.renderer.DrawDebugInfo(screen, g.world)
-	}
+	g.renderer.DrawScene(ctx, screen)
 }
 
 type WindowSize geom.Vector2I

@@ -10,7 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/assets"
-	pubatlas "github.com/leonard-atorough/castrum/atlas"
+	"github.com/leonard-atorough/castrum/atlas"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
@@ -23,12 +23,16 @@ type renderItem struct {
 	animation *components.Animation
 }
 
+type RenderConfig struct {
+	DrawDebugInfo bool
+}
+
 // TextureProvider is the interface for loading individual textures.
 // Defined here (the consumer) rather than in the assets package, so Renderer
 // only couples to the behavior it needs.
 type TextureProvider interface {
 	Load(ctx context.Context, id assets.ID) (*ebiten.Image, int, int, error)
-	SubImage(ctx context.Context, assetId assets.ID, atlasID pubatlas.ID, regionName string) (*ebiten.Image, int, int, error)
+	SubImage(ctx context.Context, assetId assets.ID, atlasID atlas.ID, regionName string) (*ebiten.Image, int, int, error)
 }
 
 type Renderer struct {
@@ -39,9 +43,10 @@ type Renderer struct {
 	cameraQuery     *ecs.Query
 	renderItems     []renderItem
 	renderErrors    []RenderError
+	config          RenderConfig
 }
 
-func New(textureProvider TextureProvider, world *ecs.World) *Renderer {
+func New(textureProvider TextureProvider, world *ecs.World, config RenderConfig) *Renderer {
 	return &Renderer{
 		textureProvider: textureProvider,
 		world:           world,
@@ -57,16 +62,16 @@ func (r *Renderer) Clear(screen *ebiten.Image, c color.Color) {
 
 // DrawScene renders the scene from the perspective of the primary camera.
 // Entities with Sprite and Transform components are considered renderable.
-func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image, world *ecs.World) {
+func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image) {
 	var primaryCamera components.Camera
 	var cameraFound bool
 
 	if r.cameraQuery == nil {
-		r.cameraQuery = world.NewQuery().WithRequiredComponents(components.Camera{})
+		r.cameraQuery = r.world.NewQuery().WithRequiredComponents(components.Camera{})
 	}
 	for result := range r.cameraQuery.Execute() {
 		cameraID := result.EntityID
-		cam, err := world.GetComponent[components.Camera](cameraID)
+		cam, err := r.world.GetComponent[components.Camera](cameraID)
 		if err != nil {
 			continue
 		}
@@ -86,7 +91,7 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image, world *e
 
 	viewportBounds := primaryCamera.ViewportBounds()
 
-	for entry := range world.NewQuery().WithRequiredComponents(components.Sprite{}, components.Transform{}).Execute() {
+	for entry := range r.world.NewQuery().WithRequiredComponents(components.Sprite{}, components.Transform{}).Execute() {
 		if !entry.Entity.IsAlive() {
 			continue
 		}
@@ -137,6 +142,10 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image, world *e
 				Message:  "failed to render item",
 			})
 		}
+	}
+
+	if r.config.DrawDebugInfo {
+		r.drawDebugInfo(screen)
 	}
 }
 
@@ -194,7 +203,7 @@ func (r *Renderer) renderSprite(ctx context.Context, screen *ebiten.Image, cam c
 	var w, h int
 	if item.sprite.AtlasID != "" && item.sprite.RegionName != "" {
 		var err error
-		subTex, w, h, err = r.textureProvider.SubImage(ctx, assets.ID(item.sprite.TexturePath), pubatlas.ID(item.sprite.AtlasID), item.sprite.RegionName)
+		subTex, w, h, err = r.textureProvider.SubImage(ctx, assets.ID(item.sprite.TexturePath), atlas.ID(item.sprite.AtlasID), item.sprite.RegionName)
 		if err != nil || subTex == nil {
 			return fmt.Errorf("failed to get subimage for region: %s", item.sprite.RegionName)
 		}
@@ -242,17 +251,17 @@ func (r *Renderer) validateRenderItem(item renderItem) error {
 	return nil
 }
 
-func (r *Renderer) DrawDebugInfo(screen *ebiten.Image, world *ecs.World) {
+func (r *Renderer) drawDebugInfo(screen *ebiten.Image) {
 	// Query for the primary camera
 	var primaryCamera components.Camera
 	var cameraFound bool
 
 	if r.cameraQuery == nil {
-		r.cameraQuery = world.NewQuery().WithRequiredComponents(components.Camera{})
+		r.cameraQuery = r.world.NewQuery().WithRequiredComponents(components.Camera{})
 	}
 	for result := range r.cameraQuery.Execute() {
 		cameraID := result.EntityID
-		cam, err := world.GetComponent[components.Camera](cameraID)
+		cam, err := r.world.GetComponent[components.Camera](cameraID)
 		if err != nil {
 			continue
 		}

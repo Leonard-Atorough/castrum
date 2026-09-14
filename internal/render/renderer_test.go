@@ -63,7 +63,7 @@ func newTestRenderer() *Renderer {
 		"square": {Image: testImage, Width: 1, Height: 1},
 	}}
 	world := ecs.NewWorld()
-	return New(testTextureProvider, world)
+	return New(testTextureProvider, world, RenderConfig{DrawDebugInfo: true})
 }
 
 // setupTestWorldWithCamera creates a world with a primary camera entity.
@@ -88,7 +88,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
 			t.Errorf("setupTestWorldWithCamera failed: %v", err)
 		}
-		renderer.DrawScene(context.Background(), screen, world)
+		renderer.DrawScene(context.Background(), screen)
 	})
 
 	t.Run("primitive entities of every kind draw without panicking", func(t *testing.T) {
@@ -110,7 +110,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 				t.Errorf("CreateWithComponents failed: %v", err)
 			}
 		}
-		renderer.DrawScene(context.Background(), screen, world)
+		renderer.DrawScene(context.Background(), screen)
 	})
 
 	t.Run("a Transform with a nil Color does not panic (regression)", func(t *testing.T) {
@@ -125,7 +125,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		if err != nil {
 			t.Errorf("CreateWithComponents failed: %v", err)
 		}
-		renderer.DrawScene(context.Background(), screen, world)
+		renderer.DrawScene(context.Background(), screen)
 	})
 
 	t.Run("sprite entities with a registered texture draw without panicking", func(t *testing.T) {
@@ -140,7 +140,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		if err != nil {
 			t.Errorf("CreateWithComponents failed: %v", err)
 		}
-		renderer.DrawScene(context.Background(), screen, world)
+		renderer.DrawScene(context.Background(), screen)
 	})
 
 	t.Run("sprite entities with a missing texture are silently skipped", func(t *testing.T) {
@@ -155,7 +155,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		if err != nil {
 			t.Errorf("CreateWithComponents failed: %v", err)
 		}
-		renderer.DrawScene(context.Background(), screen, world)
+		renderer.DrawScene(context.Background(), screen)
 	})
 
 	t.Run("invisible entities are skipped", func(t *testing.T) {
@@ -170,7 +170,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		if err != nil {
 			t.Errorf("CreateWithComponents failed: %v", err)
 		}
-		renderer.DrawScene(context.Background(), screen, world)
+		renderer.DrawScene(context.Background(), screen)
 		_ = id
 	})
 
@@ -188,7 +188,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 				t.Errorf("CreateWithComponents failed: %v", err)
 			}
 		}
-		renderer.DrawScene(context.Background(), screen, world)
+		renderer.DrawScene(context.Background(), screen)
 	})
 
 	t.Run("depth sorting within same layer and Y position", func(t *testing.T) {
@@ -209,7 +209,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 				t.Errorf("CreateWithComponents failed: %v", err)
 			}
 		}
-		renderer.DrawScene(context.Background(), screen, world)
+		renderer.DrawScene(context.Background(), screen)
 	})
 
 	t.Run("depth takes priority over Y position within same layer", func(t *testing.T) {
@@ -235,7 +235,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		if err != nil {
 			t.Errorf("CreateWithComponents failed: %v", err)
 		}
-		renderer.DrawScene(context.Background(), screen, world)
+		renderer.DrawScene(context.Background(), screen)
 	})
 
 	t.Run("Y position is fallback when layer and depth are equal", func(t *testing.T) {
@@ -259,7 +259,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		if err != nil {
 			t.Errorf("CreateWithComponents failed: %v", err)
 		}
-		renderer.DrawScene(context.Background(), screen, world)
+		renderer.DrawScene(context.Background(), screen)
 	})
 }
 
@@ -271,7 +271,7 @@ func TestRenderer_DrawDebugInfo(t *testing.T) {
 		t.Errorf("setupTestWorldWithCamera failed: %v", err)
 	}
 
-	renderer.DrawDebugInfo(screen, world)
+	renderer.drawDebugInfo(screen)
 }
 
 func TestRenderer_Clear(t *testing.T) {
