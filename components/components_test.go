@@ -57,9 +57,15 @@ func TestTransformComponent(t *testing.T) {
 
 func TestSpriteComponent(t *testing.T) {
 	t.Run("Create New Sprite Component with all fields", func(t *testing.T) {
-		sprite := NewSprite("texture.png", "", "", PrimitiveKindRectangle, 0, 0, true, nil)
+		sprite := NewSprite("texture.png", "Atlas-1", "sprite-1", PrimitiveKindRectangle, 0, 0, true, nil)
 		if sprite.TexturePath != "texture.png" {
 			t.Errorf("Expected texture path to be 'texture.png', got %v", sprite.TexturePath)
+		}
+		if sprite.AtlasID != "Atlas-1" {
+			t.Errorf("Expected atlas ID to be 'Atlas-1', got %v", sprite.AtlasID)
+		}
+		if sprite.RegionName != "sprite-1" {
+			t.Errorf("Expected region name to be 'sprite-1', got %v", sprite.RegionName)
 		}
 		if sprite.Primitive != PrimitiveKindRectangle {
 			t.Errorf("Expected primitive to be Rectangle, got %v", sprite.Primitive)
