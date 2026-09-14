@@ -20,14 +20,14 @@ func TestStoreGetSet(t *testing.T) {
 	store := NewStore()
 
 	// Test set and get
-	atlas := &struct{ ID string }{ID: "test"}
+	atlas := &Atlas{id: "test"}
 	store.set("atlas1", "texture1.png", atlas)
 
 	got, ok := store.get("atlas1", "texture1.png")
 	if !ok {
 		t.Fatal("get() returned !ok, want ok")
 	}
-	if got.(*struct{ ID string }).ID != "test" {
+	if got.id != "test" {
 		t.Errorf("get() returned wrong atlas")
 	}
 
@@ -41,8 +41,8 @@ func TestStoreGetSet(t *testing.T) {
 func TestStoreOverwrite(t *testing.T) {
 	store := NewStore()
 
-	atlas1 := &struct{ ID string }{ID: "first"}
-	atlas2 := &struct{ ID string }{ID: "second"}
+	atlas1 := &Atlas{id: "first"}
+	atlas2 := &Atlas{id: "second"}
 
 	store.set("atlas1", "texture.png", atlas1)
 	store.set("atlas1", "texture.png", atlas2)
@@ -51,7 +51,7 @@ func TestStoreOverwrite(t *testing.T) {
 	if !ok {
 		t.Fatal("get() returned !ok after overwrite")
 	}
-	if got.(*struct{ ID string }).ID != "second" {
+	if got.id != "second" {
 		t.Error("overwrite did not replace value")
 	}
 }
@@ -72,14 +72,14 @@ func TestServiceSetGet(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	atlas := &struct{ ID string }{ID: "test"}
+	atlas := &Atlas{id: "test"}
 	svc.Set("atlas1", "texture1.png", atlas)
 
 	got, err := svc.Get("atlas1", "texture1.png")
 	if err != nil {
 		t.Fatalf("Get() error = %v, want nil", err)
 	}
-	if got.(*struct{ ID string }).ID != "test" {
+	if got.id != "test" {
 		t.Error("Get() returned wrong atlas")
 	}
 }
@@ -98,7 +98,7 @@ func TestServiceHas(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	atlas := &struct{ ID string }{ID: "test"}
+	atlas := &Atlas{id: "test"}
 	svc.Set("atlas1", "texture1.png", atlas)
 
 	if !svc.Has("atlas1", "texture1.png") {
@@ -113,7 +113,7 @@ func TestServiceDelete(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	atlas := &struct{ ID string }{ID: "test"}
+	atlas := &Atlas{id: "test"}
 	svc.Set("atlas1", "texture1.png", atlas)
 
 	// Verify exists
@@ -134,8 +134,8 @@ func TestServiceClear(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	atlas1 := &struct{ ID string }{ID: "test1"}
-	atlas2 := &struct{ ID string }{ID: "test2"}
+	atlas1 := &Atlas{id: "test1"}
+	atlas2 := &Atlas{id: "test2"}
 	svc.Set("atlas1", "texture1.png", atlas1)
 	svc.Set("atlas2", "texture2.png", atlas2)
 
@@ -157,9 +157,9 @@ func TestServiceDeleteByAssetID(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	atlas1 := &struct{ ID string }{ID: "test1"}
-	atlas2 := &struct{ ID string }{ID: "test2"}
-	atlas3 := &struct{ ID string }{ID: "test3"}
+	atlas1 := &Atlas{id: "test1"}
+	atlas2 := &Atlas{id: "test2"}
+	atlas3 := &Atlas{id: "test3"}
 
 	// atlas1 and atlas2 use texture1.png, atlas3 uses texture2.png
 	svc.Set("atlas1", "texture1.png", atlas1)
@@ -187,7 +187,7 @@ func TestServiceGetSingleflight(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	atlas := &struct{ ID string }{ID: "test"}
+	atlas := &Atlas{id: "test"}
 	svc.Set("atlas1", "texture1.png", atlas)
 
 	// Create a channel to coordinate concurrent access
@@ -241,7 +241,7 @@ func TestServiceConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			atlas := &struct{ ID string }{ID: fmt.Sprintf("atlas_%d", i)}
+			atlas := &Atlas{id: ID(fmt.Sprintf("atlas_%d", i))}
 			svc.Set(fmt.Sprintf("atlas_%d", i), "texture.png", atlas)
 		}(i)
 	}
@@ -270,7 +270,7 @@ func TestStoreConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			atlas := &struct{ ID string }{ID: fmt.Sprintf("atlas_%d", i)}
+			atlas := &Atlas{id: ID(fmt.Sprintf("atlas_%d", i))}
 			store.set(fmt.Sprintf("atlas_%d", i), "texture.png", atlas)
 		}(i)
 	}
@@ -320,8 +320,8 @@ func TestServiceOverwrite(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	atlas1 := &struct{ ID string }{ID: "first"}
-	atlas2 := &struct{ ID string }{ID: "second"}
+	atlas1 := &Atlas{id: "first"}
+	atlas2 := &Atlas{id: "second"}
 
 	svc.Set("atlas", "texture.png", atlas1)
 	svc.Set("atlas", "texture.png", atlas2)
@@ -330,7 +330,7 @@ func TestServiceOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
-	if got.(*struct{ ID string }).ID != "second" {
+	if got.id != "second" {
 		t.Error("Set() did not overwrite existing atlas")
 	}
 }

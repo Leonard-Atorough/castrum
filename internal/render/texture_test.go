@@ -422,13 +422,13 @@ func TestSubImageKey(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestBuilderToSubImageIntegration exercises the full production path:
-// atlas.NewBuilder stores *Atlas into the internal atlas Service via Build(),
-// then Texture.SubImage retrieves and type-asserts *Atlas to extract a region.
-// This is the integration point where the pointer-vs-value type assertion lives.
+// Service.NewBuilder creates a Builder wired to the atlas Service, Build()
+// stores *Atlas into the Service, then Texture.SubImage retrieves and
+// type-asserts *Atlas to extract a region.
 func TestBuilderToSubImageIntegration(t *testing.T) {
 	f := newTextureFixture(t)
 
-	builder, err := pubatlas.NewBuilder("player", "sprite.png", 64, 64, f.atlasSvc)
+	builder, err := f.atlasSvc.NewBuilder("player", "sprite.png", 64, 64)
 	if err != nil {
 		t.Fatalf("NewBuilder() error = %v", err)
 	}
