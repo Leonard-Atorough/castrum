@@ -20,16 +20,16 @@ func NewPrimitiveRenderer() *PrimitiveRenderer {
 	return &PrimitiveRenderer{}
 }
 
-func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite) error {
+func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, transform components.Transform, sprite components.Sprite) error {
 	pos := cam.WorldToScreen(transform.Position)
 	x, y := float32(pos.X), float32(pos.Y)
 	zoom := float32(cam.Zoom)
-	clr := colorOrDefault(transform.Color)
+	clr := colorOrDefault(sprite.Color)
 
-	w := float32(renderable.Size.X) * float32(transform.Scale.X) * zoom
-	h := float32(renderable.Size.Y) * float32(transform.Scale.Y) * zoom
+	w := float32(sprite.Size.X) * float32(transform.Scale.X) * zoom
+	h := float32(sprite.Size.Y) * float32(transform.Scale.Y) * zoom
 
-	switch renderable.Primitive {
+	switch sprite.Primitive {
 	case components.PrimitiveKindCircle:
 		radius := w / 2
 		vector.FillCircle(screen, x, y, radius, clr, true)
@@ -38,7 +38,7 @@ func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, t
 		dx, dy := float32(math.Cos(transform.Rotation)), float32(math.Sin(transform.Rotation))
 		vector.StrokeLine(screen, x-dx*half, y-dy*half, x+dx*half, y+dy*half, h, clr, true)
 	case components.PrimitiveKindPolygon:
-		if err := drawPolygonPath(renderable, cam, clr, screen); err != nil {
+		if err := drawPolygonPath(sprite, cam, clr, screen); err != nil {
 			return err
 		}
 	default: // PrimitiveKindRectangle
@@ -47,8 +47,8 @@ func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, t
 	return nil
 }
 
-func drawPolygonPath(renderable components.Sprite, cam components.Camera, clr color.Color, screen *ebiten.Image) error {
-	if polygon, ok := renderable.Data.(geom.Polygon); ok {
+func drawPolygonPath(sprite components.Sprite, cam components.Camera, clr color.Color, screen *ebiten.Image) error {
+	if polygon, ok := sprite.Data.(geom.Polygon); ok {
 		if err := polygon.Validate(); err != nil {
 			return fmt.Errorf("invalid polygon")
 		}

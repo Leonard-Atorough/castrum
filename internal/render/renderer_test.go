@@ -198,8 +198,8 @@ func TestDrawScene_PrimitivesDoNotPanic(t *testing.T) {
 func TestDrawScene_NilColorDoesNotPanic(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	tr.addEntity(t,
-		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 10, Y: 10}, Visible: true},
-		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}, Color: nil},
+		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Color: nil},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
 	tr.DrawScene(context.Background(), tr.screen)

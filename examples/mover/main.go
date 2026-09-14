@@ -52,12 +52,12 @@ func main() {
 			geom.Vector2{X: 0, Y: 0},
 			0,
 			geom.Vector2{X: 1, Y: 1},
-			color.RGBA{R: 60, G: 220, B: 60, A: 255},
 		),
 		components.Sprite{
 			Primitive: components.PrimitiveKindRectangle,
 			Size:      geom.Vector2{X: playerSize, Y: playerSize},
 			Visible:   true,
+			Color:     color.RGBA{R: 60, G: 220, B: 60, A: 255},
 		},
 	)
 	if err != nil {
@@ -86,7 +86,7 @@ type moveSystem struct {
 	input  input.Reader
 }
 
-func (s *moveSystem) Init(_ *ecs.World) error    { return nil }
+func (s *moveSystem) Init(_ *ecs.World) error     { return nil }
 func (s *moveSystem) Shutdown(_ *ecs.World) error { return nil }
 
 func (s *moveSystem) Update(world *ecs.World, dt float64) error {

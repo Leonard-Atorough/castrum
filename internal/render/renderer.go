@@ -225,7 +225,7 @@ func (r *Renderer) renderAnimation(ctx context.Context, screen *ebiten.Image, ca
 		return fmt.Errorf("failed to get subimage for region: %s", regionName)
 	}
 
-	r.drawImage(ctx, screen, cam, item.transform, subTex, w, h)
+	r.drawImage(ctx, screen, cam, item.transform, item.sprite, subTex, w, h)
 	return nil
 }
 
@@ -249,11 +249,11 @@ func (r *Renderer) renderSprite(ctx context.Context, screen *ebiten.Image, cam c
 		w = tW
 		h = tH
 	}
-	r.drawImage(ctx, screen, cam, item.transform, subTex, w, h)
+	r.drawImage(ctx, screen, cam, item.transform, item.sprite, subTex, w, h)
 	return nil
 }
 
-func (r *Renderer) drawImage(_ context.Context, screen *ebiten.Image, cam components.Camera, transform components.Transform, img *ebiten.Image, w, h int) {
+func (r *Renderer) drawImage(_ context.Context, screen *ebiten.Image, cam components.Camera, transform components.Transform, sprite components.Sprite, img *ebiten.Image, w, h int) {
 	screenPos := cam.WorldToScreen(transform.Position)
 
 	op := &ebiten.DrawImageOptions{}
@@ -266,7 +266,7 @@ func (r *Renderer) drawImage(_ context.Context, screen *ebiten.Image, cam compon
 	op.GeoM.Rotate(transform.Rotation)
 	op.GeoM.Translate(screenPos.X, screenPos.Y)
 
-	cr, cg, cb, ca := colorOrDefault(transform.Color).RGBA()
+	cr, cg, cb, ca := colorOrDefault(sprite.Color).RGBA()
 	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
 
 	screen.DrawImage(img, op)

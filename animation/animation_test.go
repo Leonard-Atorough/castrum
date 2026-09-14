@@ -228,7 +228,6 @@ func createAnimatingEntity(world *ecs.World, clipID string) ecs.EntityID {
 		components.Transform{
 			Position: geom.Vector2{X: 0, Y: 0},
 			Scale:    geom.Vector2{X: 1, Y: 1},
-			Color:    color.White,
 		},
 		components.Animation{
 			ClipPath:      clipID,
@@ -239,6 +238,7 @@ func createAnimatingEntity(world *ecs.World, clipID string) ecs.EntityID {
 		},
 		components.Sprite{
 			Visible: true,
+			Color:   color.White,
 		},
 	)
 	return entity.ID

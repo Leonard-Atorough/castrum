@@ -17,25 +17,20 @@ type Transform struct {
 	Position geom.Vector2
 	Rotation float64
 	Scale    geom.Vector2
-	Color    color.Color
 }
 
 // NewTransform creates a Transform component with the specified position, rotation, and scale.
 // The color is set to transparent if not provided.
-func NewTransform(position geom.Vector2, rotation float64, scale geom.Vector2, c color.Color) Transform {
-	if c == nil {
-		c = color.Transparent
-	}
+func NewTransform(position geom.Vector2, rotation float64, scale geom.Vector2) Transform {
 	return Transform{
 		Position: position,
 		Rotation: rotation,
 		Scale:    scale,
-		Color:    c,
 	}
 }
 
 func NewTransformWithDefault() Transform {
-	return NewTransform(geom.Vector2{X: 0, Y: 0}, 0, geom.Vector2{X: 1, Y: 1}, color.Transparent)
+	return NewTransform(geom.Vector2{X: 0, Y: 0}, 0, geom.Vector2{X: 1, Y: 1})
 }
 
 // SceneTag marks which scene an entity belongs to, for query-time scene filtering.
@@ -58,6 +53,7 @@ type Sprite struct {
 	AtlasID     string
 	RegionName  string
 	Primitive   PrimitiveType
+	Color       color.Color
 	Size        geom.Vector2 // base dimensions in pixels for primitives; ignored by textured sprites
 	RenderLayer uint8        // which of 32 layers to render on (0-31)
 	SortOrder   int8         // [-128..127], higher values render on top within the layer
@@ -66,7 +62,7 @@ type Sprite struct {
 }
 
 // NewSprite creates a new Sprite component with the specified properties.
-func NewSprite(texturePath string, atlasID string, regionName string, primitive PrimitiveType, size geom.Vector2, renderLayer uint8, sortOrder int8, visible bool, data any) (Sprite, error) {
+func NewSprite(texturePath string, atlasID string, regionName string, primitive PrimitiveType, color color.Color, size geom.Vector2, renderLayer uint8, sortOrder int8, visible bool, data any) (Sprite, error) {
 	if data == nil {
 		data = struct{}{}
 	}
@@ -79,12 +75,12 @@ func NewSprite(texturePath string, atlasID string, regionName string, primitive 
 	if atlasID != "" && regionName == "" || atlasID == "" && regionName != "" {
 		return Sprite{}, fmt.Errorf("atlasID and regionName must be specified together")
 	}
-
 	return Sprite{
 		TexturePath: texturePath,
 		AtlasID:     atlasID,
 		RegionName:  regionName,
 		Primitive:   primitive,
+		Color:       color,
 		Size:        size,
 		RenderLayer: renderLayer,
 		SortOrder:   sortOrder,
