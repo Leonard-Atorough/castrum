@@ -299,10 +299,10 @@ func TestBuilderBuild(t *testing.T) {
 func TestNewBuilderRejectsInvalidDimensions(t *testing.T) {
 	store := &mockAtlasStorer{}
 	tests := []struct {
-		name     string
-		texW     int
-		texH     int
-		wantErr  bool
+		name    string
+		texW    int
+		texH    int
+		wantErr bool
 	}{
 		{"zero width", 0, 64, true},
 		{"zero height", 64, 0, true},
@@ -326,12 +326,12 @@ func TestNewBuilderRejectsInvalidDimensions(t *testing.T) {
 func TestBuilderGridSliceRejectsNonDivisibleDimensions(t *testing.T) {
 	store := &mockAtlasStorer{}
 	tests := []struct {
-		name   string
-		texW   int
-		texH   int
-		tileW  int
-		tileH  int
-		errs   bool
+		name  string
+		texW  int
+		texH  int
+		tileW int
+		tileH int
+		errs  bool
 	}{
 		{"evenly divisible", 64, 64, 16, 16, false},
 		{"width not divisible", 64, 64, 24, 16, true},
