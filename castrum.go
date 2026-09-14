@@ -14,8 +14,10 @@ import (
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
+	"github.com/leonard-atorough/castrum/atlas"
+	internalatlas "github.com/leonard-atorough/castrum/internal/atlas"
 	internalinput "github.com/leonard-atorough/castrum/internal/input"
-"github.com/leonard-atorough/castrum/internal/render"
+	"github.com/leonard-atorough/castrum/internal/render"
 	"github.com/leonard-atorough/castrum/internal/timingscheduler"
 	"github.com/leonard-atorough/castrum/physics"
 	"github.com/leonard-atorough/castrum/timers"
@@ -25,6 +27,7 @@ type Game struct {
 	world        *ecs.World
 	assetsSaver  *assets.Saver
 	assetsLoader *assets.Loader
+	atlasSvc   *internalatlas.Service
 	config       *Config
 	renderer     *render.Renderer
 	input        input.Reader
@@ -60,7 +63,9 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	assetsLoader := assetSys.AssetLoader()
 	assetsSaver := assetSys.AssetSaver()
 
-	textureProvider := render.NewTextureProvider(assetsLoader)
+	atlasStore := internalatlas.NewStore()
+	atlasService := internalatlas.NewService(atlasStore)
+	textureProvider := render.NewTextureProvider(assetsLoader, atlasService)
 	renderer := render.New(textureProvider)
 
 	newWorld.SetResource[input.Reader](inputHandler)
@@ -131,6 +136,10 @@ func (g *Game) AssetsLoader() *assets.Loader {
 // AssetsSaver provides methods for saving assets to storage or cache.
 func (g *Game) AssetsSaver() *assets.Saver {
 	return g.assetsSaver
+}
+
+func (g *Game) AtlasBuilder(id string, assetPath string, width, height int) *atlas.Builder {
+	return atlas.NewBuilder(id, assetPath, width, height, g.atlasSvc)
 }
 
 // Input returns the resolved action reader used by gameplay systems.
