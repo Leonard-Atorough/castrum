@@ -19,16 +19,16 @@ func newAtlasKey(atlasID, assetID string) atlasKey {
 
 type Store struct {
 	mu      sync.RWMutex
-	atlases map[atlasKey]any
+	atlases map[atlasKey]*Atlas
 }
 
 func NewStore() *Store {
 	return &Store{
-		atlases: make(map[atlasKey]any),
+		atlases: make(map[atlasKey]*Atlas),
 	}
 }
 
-func (s *Store) get(atlasID, assetID string) (any, bool) {
+func (s *Store) get(atlasID, assetID string) (*Atlas, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	entry, ok := s.atlases[newAtlasKey(atlasID, assetID)]
@@ -38,7 +38,7 @@ func (s *Store) get(atlasID, assetID string) (any, bool) {
 	return entry, ok
 }
 
-func (s *Store) set(atlasID, assetID string, atlas any) {
+func (s *Store) set(atlasID, assetID string, atlas *Atlas) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.atlases[newAtlasKey(atlasID, assetID)] = atlas
@@ -54,7 +54,7 @@ func NewService(store *Store) *Service {
 	}
 }
 
-func (s *Service) Get(atlasID, assetID string) (any, error) {
+func (s *Service) Get(atlasID, assetID string) (*Atlas, error) {
 	atlas, ok := s.store.get(atlasID, assetID)
 	if !ok {
 		return nil, fmt.Errorf("atlas not found for atlasID=%s, assetID=%s", atlasID, assetID)
@@ -62,7 +62,7 @@ func (s *Service) Get(atlasID, assetID string) (any, error) {
 	return atlas, nil
 }
 
-func (s *Service) Set(atlasID, assetID string, atlas any) error {
+func (s *Service) Set(atlasID, assetID string, atlas *Atlas) error {
 	if atlas == nil {
 		return fmt.Errorf("cannot set nil atlas for atlasID=%s, assetID=%s", atlasID, assetID)
 	}
@@ -94,5 +94,5 @@ func (s *Service) DeleteByAssetID(assetID string) {
 func (s *Service) Clear() {
 	s.store.mu.Lock()
 	defer s.store.mu.Unlock()
-	s.store.atlases = make(map[atlasKey]any)
+	s.store.atlases = make(map[atlasKey]*Atlas)
 }
