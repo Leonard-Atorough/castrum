@@ -36,14 +36,15 @@ type TextureProvider interface {
 }
 
 type Renderer struct {
-	textureProvider TextureProvider
-	clipStore       *animation.AnimationClipStore
-	world           *ecs.World
-	Primitive       *PrimitiveRenderer
-	cameraQuery     *ecs.Query
-	renderItems     []renderItem
-	renderErrors    []RenderError
-	config          RenderConfig
+	textureProvider      TextureProvider
+	clipStore            *animation.AnimationClipStore
+	world                *ecs.World
+	Primitive            *PrimitiveRenderer
+	cameraQuery          *ecs.Query
+	spriteTransformQuery *ecs.Query
+	renderItems          []renderItem
+	renderErrors         []RenderError
+	config               RenderConfig
 }
 
 func New(textureProvider TextureProvider, world *ecs.World, config RenderConfig) *Renderer {
@@ -92,11 +93,17 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image) {
 
 	viewportBounds := primaryCamera.ViewportBounds()
 
-	for entry := range r.world.NewQuery().WithRequiredComponents(components.Sprite{}, components.Transform{}).Execute() {
+	if r.spriteTransformQuery == nil {
+		r.spriteTransformQuery = r.world.NewQuery().WithRequiredComponents(components.Sprite{}, components.Transform{})
+	}
+	for entry := range r.spriteTransformQuery.Execute() {
 		if !entry.Entity.IsAlive() {
 			continue
 		}
 		renderable, _ := entry.Get[components.Sprite]()
+		if !renderable.Visible {
+			continue
+		}
 		transform, _ := entry.Get[components.Transform]()
 		entityBounds := geom.Rect{
 			Min: geom.Vector2{X: transform.Position.X - transform.Scale.X, Y: transform.Position.Y - transform.Scale.Y},
@@ -146,17 +153,13 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image) {
 	}
 
 	if r.config.DrawDebugInfo {
-		r.drawDebugInfo(screen)
+		r.drawDebugInfo(screen, primaryCamera)
 	}
 }
 
 func (r *Renderer) renderItem(ctx context.Context, screen *ebiten.Image, cam components.Camera, item renderItem) error {
 	if err := r.validateRenderItem(item); err != nil {
 		return err
-	}
-
-	if !item.sprite.Visible {
-		return nil
 	}
 
 	if item.sprite.TexturePath != "" {
@@ -247,42 +250,19 @@ func (r *Renderer) drawImage(_ context.Context, screen *ebiten.Image, cam compon
 }
 
 func (r *Renderer) validateRenderItem(item renderItem) error {
-	if item.sprite.Validate() != nil {
-		return item.sprite.Validate()
+	if err := item.sprite.Validate(); err != nil {
+		return err
 	}
-	if item.animation != nil && item.animation.Validate() != nil {
-		return item.animation.Validate()
+	if item.animation != nil {
+		if err := item.animation.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (r *Renderer) drawDebugInfo(screen *ebiten.Image) {
-	// Query for the primary camera
-	var primaryCamera components.Camera
-	var cameraFound bool
-
-	if r.cameraQuery == nil {
-		r.cameraQuery = r.world.NewQuery().WithRequiredComponents(components.Camera{})
-	}
-	for result := range r.cameraQuery.Execute() {
-		cameraID := result.EntityID
-		cam, err := r.world.GetComponent[components.Camera](cameraID)
-		if err != nil {
-			continue
-		}
-
-		if cam.Primary {
-			primaryCamera = cam
-			cameraFound = true
-			break
-		}
-	}
-
-	if !cameraFound {
-		return
-	}
-
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), primaryCamera.Position))
+func (r *Renderer) drawDebugInfo(screen *ebiten.Image, cam components.Camera) {
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.1f\nTPS: %0.1f\nCamera Position: %v\n", ebiten.ActualFPS(), ebiten.ActualTPS(), cam.Position))
 }
 
 type RenderError struct {

@@ -83,6 +83,10 @@ func (p *Texture) Load(ctx context.Context, id assets.ID) (*ebiten.Image, int, i
 	}
 
 	p.mu.Lock()
+	if existing, ok := p.images[id]; ok {
+		p.mu.Unlock()
+		return existing.image, existing.width, existing.height, nil
+	}
 	p.images[id] = resource
 	p.mu.Unlock()
 
@@ -141,8 +145,13 @@ func (p *Texture) SubImage(ctx context.Context, assetID assets.ID, atlasID pubat
 		height: rect.Dy(),
 	}
 
+	key := newSubImageKey(assetID, atlasID, regionName)
 	p.mu.Lock()
-	p.subimages[newSubImageKey(assetID, atlasID, regionName)] = resource
+	if existing, ok := p.subimages[key]; ok {
+		p.mu.Unlock()
+		return existing.image, existing.width, existing.height, nil
+	}
+	p.subimages[key] = resource
 	p.mu.Unlock()
 
 	return resource.image, resource.width, resource.height, nil

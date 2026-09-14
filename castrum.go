@@ -140,11 +140,7 @@ func (g *Game) AssetsSaver() *assets.Saver {
 }
 
 func (g *Game) AtlasBuilder(id string, assetPath string, width, height int) (*atlas.Builder, error) {
-	builder, err := atlas.NewBuilder(id, assetPath, width, height, g.atlasSvc)
-	if err != nil {
-		return nil, err
-	}
-	return builder, nil
+	return atlas.NewBuilder(id, assetPath, width, height, g.atlasSvc)
 }
 
 // Input returns the resolved action reader used by gameplay systems.
