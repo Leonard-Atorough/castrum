@@ -185,7 +185,6 @@ func (r *Renderer) drawSprite(ctx context.Context, screen *ebiten.Image, cam com
 	var frameW, frameH int
 	var frameImage *ebiten.Image
 
-	// If animation is present, resolve the frame texture from the clip
 	if anim != nil && anim.ClipPath != "" {
 		clip := r.clipStore.Get(anim.ClipPath)
 		if clip == nil {
@@ -193,16 +192,11 @@ func (r *Renderer) drawSprite(ctx context.Context, screen *ebiten.Image, cam com
 			r.drawStaticTexture(ctx, screen, cam, transform, renderable)
 			return
 		}
-
-		// Ensure frame index is in bounds
 		if anim.FrameIndex >= len(clip.Frames) {
-			return // frame index out of bounds, skip
+			return
 		}
-
-		// Get the region name from the clip's frame list
 		regionName := clip.Frames[anim.FrameIndex]
 
-		// Get the subimage from the atlas
 		subTex, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(renderable.TexturePath), clip.Atlas.ID(), regionName)
 		if err != nil {
 			return // silently skip if subimage not found
@@ -213,15 +207,25 @@ func (r *Renderer) drawSprite(ctx context.Context, screen *ebiten.Image, cam com
 		frameH = h
 
 	} else {
-		// No animation, load static texture
-		tx, w, h, err := r.textureProvider.Load(ctx, assets.ID(renderable.TexturePath))
-		if err != nil {
-			return // silently skip entities with missing textures
-		}
+		//check if atlas-based sprite
+		if renderable.AtlasID != "" && renderable.RegionName != "" {
+			subTex, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(renderable.TexturePath), pubatlas.ID(renderable.AtlasID), renderable.RegionName)
+			if err == nil {
+				frameImage = subTex
+				frameW = w
+				frameH = h
+			}
+		} else {
+			// Fallback to static texture if no atlas information is provided
+			tx, w, h, err := r.textureProvider.Load(ctx, assets.ID(renderable.TexturePath))
+			if err != nil {
+				return // silently skip entities with missing textures
+			}
 
-		frameImage = tx
-		frameW = w
-		frameH = h
+			frameImage = tx
+			frameW = w
+			frameH = h
+		}
 	}
 
 	screenPos := cam.WorldToScreen(transform.Position)
