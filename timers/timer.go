@@ -58,7 +58,7 @@ func (ts *TimerSystem) Update(world *ecs.World, deltaTime float64) error {
 			continue
 		}
 
-		if timer.Running == false {
+		if !timer.Running {
 			continue
 		}
 		timer.ElapsedTime += deltaTime

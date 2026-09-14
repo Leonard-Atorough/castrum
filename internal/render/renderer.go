@@ -155,7 +155,7 @@ func (r *Renderer) renderItem(ctx context.Context, screen *ebiten.Image, cam com
 		return err
 	}
 
-	if item.sprite.Visible == false {
+	if !item.sprite.Visible {
 		return nil
 	}
 

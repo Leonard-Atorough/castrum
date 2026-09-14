@@ -11,40 +11,74 @@ import (
 	"github.com/leonard-atorough/castrum/internal/atlas"
 )
 
-func TestNewTextureProvider(t *testing.T) {
+// textureFixture provides a Texture provider wired to a real atlas service and
+// loader, so tests can exercise caching and invalidation without filesystem
+// access.
+type textureFixture struct {
+	provider *Texture
+	atlasSvc *atlas.Service
+	loader   *assets.Loader
+}
+
+func newTextureFixture(t *testing.T) textureFixture {
+	t.Helper()
 	loader := assets.NewLoader(nil)
 	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
-
-	if provider == nil {
-		t.Fatal("NewTextureProvider returned nil")
-	}
-	if provider.loader != loader {
-		t.Error("NewTextureProvider did not set loader")
-	}
-	if provider.atlasSvc != atlasSvc {
-		t.Error("NewTextureProvider did not set atlasSvc")
-	}
-	if provider.images == nil {
-		t.Error("NewTextureProvider did not initialize images map")
-	}
-	if provider.subimages == nil {
-		t.Error("NewTextureProvider did not initialize subimages map")
+	return textureFixture{
+		provider: NewTextureProvider(loader, atlasSvc),
+		atlasSvc: atlasSvc,
+		loader:   loader,
 	}
 }
 
-func TestTextureProviderLoadCaches(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
+// seedAtlas pre-caches a texture image and registers an atlas with the service,
+// matching the production Builder.Build() path (stores *Atlas).
+func (f textureFixture) seedAtlas(t *testing.T, atlasID, assetID string, w, h int, regions map[string]pubatlas.AtlasRegion) {
+	t.Helper()
+	f.provider.images[assets.ID(assetID)] = &textureResource{
+		image:  ebiten.NewImage(w, h),
+		width:  w,
+		height: h,
+	}
+	f.atlasSvc.Set(atlasID, assetID, pubatlas.NewTextureAtlas(atlasID, assetID, w, h, regions))
+}
 
-	ctx := context.Background()
+// ---------------------------------------------------------------------------
+// Construction
+// ---------------------------------------------------------------------------
+
+func TestNewTextureProvider(t *testing.T) {
+	f := newTextureFixture(t)
+
+	if f.provider == nil {
+		t.Fatal("NewTextureProvider returned nil")
+	}
+	if f.provider.loader != f.loader {
+		t.Error("loader not wired")
+	}
+	if f.provider.atlasSvc != f.atlasSvc {
+		t.Error("atlasSvc not wired")
+	}
+	if f.provider.images == nil {
+		t.Error("images map not initialized")
+	}
+	if f.provider.subimages == nil {
+		t.Error("subimages map not initialized")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+
+func TestTextureProviderLoadCaches(t *testing.T) {
+	f := newTextureFixture(t)
 	id := assets.ID("test.png")
 
 	img := ebiten.NewImage(32, 32)
-	provider.images[id] = &textureResource{image: img, width: 32, height: 32}
+	f.provider.images[id] = &textureResource{image: img, width: 32, height: 32}
 
-	got, w, h, err := provider.Load(ctx, id)
+	got, w, h, err := f.provider.Load(context.Background(), id)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -57,35 +91,25 @@ func TestTextureProviderLoadCaches(t *testing.T) {
 }
 
 func TestTextureProviderLoadNotFound(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
+	f := newTextureFixture(t)
 
-	ctx := context.Background()
-	_, _, _, err := provider.Load(ctx, assets.ID("nonexistent.png"))
+	_, _, _, err := f.provider.Load(context.Background(), assets.ID("nonexistent.png"))
 	if err == nil {
 		t.Error("Load() for nonexistent file error = nil, want error")
 	}
 }
 
+// ---------------------------------------------------------------------------
+// SubImage
+// ---------------------------------------------------------------------------
+
 func TestTextureProviderSubImage(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
-
-	ctx := context.Background()
-	textureID := assets.ID("sprite.png")
-	atlasID := pubatlas.ID("test_atlas")
-
-	fullImg := ebiten.NewImage(64, 64)
-	provider.images[textureID] = &textureResource{image: fullImg, width: 64, height: 64}
-
-	atlasData := pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
+	f := newTextureFixture(t)
+	f.seedAtlas(t, "test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
-	atlasSvc.Set("test_atlas", "sprite.png", atlasData)
 
-	img, w, h, err := provider.SubImage(ctx, textureID, atlasID, "head")
+	img, w, h, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("test_atlas"), "head")
 	if err != nil {
 		t.Fatalf("SubImage() error = %v", err)
 	}
@@ -98,212 +122,210 @@ func TestTextureProviderSubImage(t *testing.T) {
 }
 
 func TestTextureProviderSubImageCaches(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
-
-	ctx := context.Background()
-	textureID := assets.ID("sprite.png")
-	atlasID := pubatlas.ID("test_atlas")
-
-	fullImg := ebiten.NewImage(64, 64)
-	provider.images[textureID] = &textureResource{image: fullImg, width: 64, height: 64}
-
-	atlasData := pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
+	f := newTextureFixture(t)
+	f.seedAtlas(t, "test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
-	atlasSvc.Set("test_atlas", "sprite.png", atlasData)
 
-	img1, _, _, err := provider.SubImage(ctx, textureID, atlasID, "head")
+	img1, _, _, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("test_atlas"), "head")
 	if err != nil {
 		t.Fatalf("first SubImage() error = %v", err)
 	}
-
-	img2, _, _, err := provider.SubImage(ctx, textureID, atlasID, "head")
+	img2, _, _, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("test_atlas"), "head")
 	if err != nil {
 		t.Fatalf("second SubImage() error = %v", err)
 	}
-
 	if img1 != img2 {
 		t.Error("SubImage() returned different instances for cached subimage")
 	}
 }
 
 func TestTextureProviderSubImageAtlasNotFound(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
+	f := newTextureFixture(t)
 
-	ctx := context.Background()
-	_, _, _, err := provider.SubImage(ctx, assets.ID("sprite.png"), pubatlas.ID("nonexistent"), "head")
+	_, _, _, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("nonexistent"), "head")
 	if err == nil {
 		t.Error("SubImage() for nonexistent atlas error = nil, want error")
 	}
 }
 
 func TestTextureProviderSubImageRegionNotFound(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
-
-	ctx := context.Background()
-	textureID := assets.ID("sprite.png")
-
-	fullImg := ebiten.NewImage(64, 64)
-	provider.images[textureID] = &textureResource{image: fullImg, width: 64, height: 64}
-
-	atlasData := pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
+	f := newTextureFixture(t)
+	f.seedAtlas(t, "test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
-	atlasSvc.Set("test_atlas", "sprite.png", atlasData)
 
-	_, _, _, err := provider.SubImage(ctx, textureID, pubatlas.ID("test_atlas"), "nonexistent")
+	_, _, _, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("test_atlas"), "nonexistent")
 	if err == nil {
 		t.Error("SubImage() for nonexistent region error = nil, want error")
 	}
 }
 
-func TestTextureProviderInvalidate(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
-
-	id := assets.ID("test.png")
-
-	img := ebiten.NewImage(32, 32)
-	provider.images[id] = &textureResource{image: img, width: 32, height: 32}
-
-	provider.mu.RLock()
-	_, ok := provider.images[id]
-	provider.mu.RUnlock()
-	if !ok {
-		t.Fatal("texture not cached before invalidation")
+func TestTextureProviderSubImageDimensionMismatch(t *testing.T) {
+	f := newTextureFixture(t)
+	// Texture is 64x64 but atlas claims 32x32.
+	f.provider.images[assets.ID("sprite.png")] = &textureResource{
+		image:  ebiten.NewImage(64, 64),
+		width:  64,
+		height: 64,
 	}
+	f.atlasSvc.Set("test_atlas", "sprite.png", pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 32, 32, map[string]pubatlas.AtlasRegion{
+		"head": {Name: "head", X: 0, Y: 0, W: 16, H: 16},
+	}))
 
-	provider.Invalidate(id)
+	_, _, _, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("test_atlas"), "head")
+	if err == nil {
+		t.Error("SubImage() with dimension mismatch error = nil, want error")
+	}
+}
 
-	provider.mu.RLock()
-	_, ok = provider.images[id]
-	provider.mu.RUnlock()
-	if ok {
+// ---------------------------------------------------------------------------
+// Invalidate
+// ---------------------------------------------------------------------------
+
+func TestTextureProviderInvalidateRemovesTexture(t *testing.T) {
+	f := newTextureFixture(t)
+	id := assets.ID("test.png")
+	f.provider.images[id] = &textureResource{image: ebiten.NewImage(32, 32), width: 32, height: 32}
+
+	f.provider.Invalidate(id)
+
+	if _, ok := f.provider.images[id]; ok {
 		t.Error("texture still cached after invalidation")
 	}
 }
 
-func TestTextureProviderInvalidationListenerRemovesImage(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
-
-	id := assets.ID("texture.png")
-	provider.images[id] = &textureResource{image: ebiten.NewImage(1, 1), width: 1, height: 1}
-
-	loader.Invalidate(id)
-
-	provider.mu.RLock()
-	_, ok := provider.images[id]
-	provider.mu.RUnlock()
-	if ok {
-		t.Fatal("texture provider image survived loader invalidation")
-	}
-}
-
 func TestTextureProviderInvalidateRemovesSubImages(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
-
-	ctx := context.Background()
-	textureID := assets.ID("sprite.png")
-	atlasID := pubatlas.ID("test_atlas")
-
-	fullImg := ebiten.NewImage(64, 64)
-	provider.images[textureID] = &textureResource{image: fullImg, width: 64, height: 64}
-
-	atlasData := pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
+	f := newTextureFixture(t)
+	f.seedAtlas(t, "test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 		"body": {Name: "body", X: 0, Y: 32, W: 32, H: 32},
 	})
-	atlasSvc.Set("test_atlas", "sprite.png", atlasData)
 
-	_, _, _, _ = provider.SubImage(ctx, textureID, atlasID, "head")
-	_, _, _, _ = provider.SubImage(ctx, textureID, atlasID, "body")
+	textureID := assets.ID("sprite.png")
+	atlasID := pubatlas.ID("test_atlas")
+	_, _, _, _ = f.provider.SubImage(context.Background(), textureID, atlasID, "head")
+	_, _, _, _ = f.provider.SubImage(context.Background(), textureID, atlasID, "body")
 
-	provider.mu.RLock()
-	if len(provider.subimages) != 2 {
-		t.Fatalf("expected 2 subimages cached, got %d", len(provider.subimages))
+	if len(f.provider.subimages) != 2 {
+		t.Fatalf("expected 2 subimages cached, got %d", len(f.provider.subimages))
 	}
-	provider.mu.RUnlock()
 
-	provider.Invalidate(textureID)
+	f.provider.Invalidate(textureID)
 
-	provider.mu.RLock()
-	for key := range provider.subimages {
+	for key := range f.provider.subimages {
 		if key.assetID == textureID {
 			t.Errorf("subimage for invalidated texture still cached: %+v", key)
 		}
 	}
-	provider.mu.RUnlock()
 }
+
+func TestTextureProviderInvalidateClearsAtlasServiceEntries(t *testing.T) {
+	f := newTextureFixture(t)
+	f.seedAtlas(t, "atlas_a", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
+		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
+	})
+	f.seedAtlas(t, "atlas_b", "other.png", 32, 32, map[string]pubatlas.AtlasRegion{
+		"head": {Name: "head", X: 0, Y: 0, W: 16, H: 16},
+	})
+
+	// Invalidate sprite.png — only atlas_a should be removed from the service.
+	f.provider.Invalidate(assets.ID("sprite.png"))
+
+	if f.atlasSvc.Has("atlas_a", "sprite.png") {
+		t.Error("atlas_a still exists after invalidating sprite.png")
+	}
+	if !f.atlasSvc.Has("atlas_b", "other.png") {
+		t.Error("atlas_b was removed but uses a different texture")
+	}
+}
+
+func TestTextureProviderInvalidateEmptyIDIsNoOp(t *testing.T) {
+	f := newTextureFixture(t)
+	id := assets.ID("test.png")
+	f.provider.images[id] = &textureResource{image: ebiten.NewImage(1, 1), width: 1, height: 1}
+
+	f.provider.Invalidate("")
+
+	if _, ok := f.provider.images[id]; !ok {
+		t.Error("texture was removed by Invalidate(\"\") — empty ID should be a no-op")
+	}
+}
+
+func TestTextureProviderInvalidationListenerRemovesImage(t *testing.T) {
+	f := newTextureFixture(t)
+	id := assets.ID("texture.png")
+	f.provider.images[id] = &textureResource{image: ebiten.NewImage(1, 1), width: 1, height: 1}
+
+	f.loader.Invalidate(id)
+
+	if _, ok := f.provider.images[id]; ok {
+		t.Fatal("texture provider image survived loader invalidation")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// InvalidateAll
+// ---------------------------------------------------------------------------
 
 func TestTextureProviderInvalidateAll(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
+	f := newTextureFixture(t)
+	// Seed two textures.
+	f.provider.images[assets.ID("a.png")] = &textureResource{image: ebiten.NewImage(32, 32), width: 32, height: 32}
+	f.provider.images[assets.ID("b.png")] = &textureResource{image: ebiten.NewImage(64, 64), width: 64, height: 64}
+	// Seed a subimage and an atlas entry.
+	f.seedAtlas(t, "atlas", "a.png", 32, 32, map[string]pubatlas.AtlasRegion{
+		"head": {Name: "head", X: 0, Y: 0, W: 16, H: 16},
+	})
+	_, _, _, _ = f.provider.SubImage(context.Background(), assets.ID("a.png"), pubatlas.ID("atlas"), "head")
 
-	img1 := ebiten.NewImage(32, 32)
-	img2 := ebiten.NewImage(64, 64)
-	provider.images[assets.ID("test1.png")] = &textureResource{image: img1, width: 32, height: 32}
-	provider.images[assets.ID("test2.png")] = &textureResource{image: img2, width: 64, height: 64}
-
-	provider.mu.RLock()
-	if len(provider.images) != 2 {
-		t.Fatalf("expected 2 textures cached, got %d", len(provider.images))
+	if len(f.provider.images) != 2 {
+		t.Fatalf("expected 2 textures cached, got %d", len(f.provider.images))
 	}
-	provider.mu.RUnlock()
-
-	provider.InvalidateAll()
-
-	provider.mu.RLock()
-	if len(provider.images) != 0 {
-		t.Errorf("expected 0 textures after Invalidate(\"\"), got %d", len(provider.images))
+	if len(f.provider.subimages) != 1 {
+		t.Fatalf("expected 1 subimage cached, got %d", len(f.provider.subimages))
 	}
-	if len(provider.subimages) != 0 {
-		t.Errorf("expected 0 subimages after Invalidate(\"\"), got %d", len(provider.subimages))
+
+	f.provider.InvalidateAll()
+
+	if len(f.provider.images) != 0 {
+		t.Errorf("expected 0 textures after InvalidateAll(), got %d", len(f.provider.images))
 	}
-	provider.mu.RUnlock()
+	if len(f.provider.subimages) != 0 {
+		t.Errorf("expected 0 subimages after InvalidateAll(), got %d", len(f.provider.subimages))
+	}
+	if f.atlasSvc.Has("atlas", "a.png") {
+		t.Error("atlas service entry survived InvalidateAll()")
+	}
 }
+
+// ---------------------------------------------------------------------------
+// Clear
+// ---------------------------------------------------------------------------
 
 func TestTextureProviderClear(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
+	f := newTextureFixture(t)
+	f.provider.images[assets.ID("test.png")] = &textureResource{image: ebiten.NewImage(32, 32), width: 32, height: 32}
 
-	img := ebiten.NewImage(32, 32)
-	provider.images[assets.ID("test.png")] = &textureResource{image: img, width: 32, height: 32}
+	f.provider.Clear()
 
-	provider.Clear()
-
-	provider.mu.RLock()
-	if len(provider.images) != 0 {
+	if len(f.provider.images) != 0 {
 		t.Error("images not empty after Clear()")
 	}
-	if len(provider.subimages) != 0 {
+	if len(f.provider.subimages) != 0 {
 		t.Error("subimages not empty after Clear()")
 	}
-	provider.mu.RUnlock()
 }
 
+// ---------------------------------------------------------------------------
+// Concurrency
+// ---------------------------------------------------------------------------
+
 func TestTextureProviderConcurrentLoad(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
-
-	ctx := context.Background()
+	f := newTextureFixture(t)
 	id := assets.ID("test.png")
-
 	img := ebiten.NewImage(32, 32)
-	provider.images[id] = &textureResource{image: img, width: 32, height: 32}
+	f.provider.images[id] = &textureResource{image: img, width: 32, height: 32}
 
 	const numGoroutines = 10
 	var wg sync.WaitGroup
@@ -313,7 +335,7 @@ func TestTextureProviderConcurrentLoad(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			loaded, _, _, _ := provider.Load(ctx, id)
+			loaded, _, _, _ := f.provider.Load(context.Background(), id)
 			results <- loaded
 		}()
 	}
@@ -333,21 +355,13 @@ func TestTextureProviderConcurrentLoad(t *testing.T) {
 }
 
 func TestTextureProviderConcurrentSubImage(t *testing.T) {
-	loader := assets.NewLoader(nil)
-	atlasSvc := atlas.NewService(atlas.NewStore())
-	provider := NewTextureProvider(loader, atlasSvc)
-
-	ctx := context.Background()
-	textureID := assets.ID("sprite.png")
-	atlasID := pubatlas.ID("test_atlas")
-
-	fullImg := ebiten.NewImage(64, 64)
-	provider.images[textureID] = &textureResource{image: fullImg, width: 64, height: 64}
-
-	atlasData := pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
+	f := newTextureFixture(t)
+	f.seedAtlas(t, "test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
-	atlasSvc.Set("test_atlas", "sprite.png", atlasData)
+
+	textureID := assets.ID("sprite.png")
+	atlasID := pubatlas.ID("test_atlas")
 
 	const numGoroutines = 10
 	var wg sync.WaitGroup
@@ -357,7 +371,7 @@ func TestTextureProviderConcurrentSubImage(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			img, _, _, _ := provider.SubImage(ctx, textureID, atlasID, "head")
+			img, _, _, _ := f.provider.SubImage(context.Background(), textureID, atlasID, "head")
 			results <- img
 		}()
 	}
@@ -375,6 +389,10 @@ func TestTextureProviderConcurrentSubImage(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// subImageKey
+// ---------------------------------------------------------------------------
 
 func TestSubImageKey(t *testing.T) {
 	key := newSubImageKey(assets.ID("tex.png"), pubatlas.ID("atlas"), "region")

@@ -14,268 +14,378 @@ import (
 	"github.com/leonard-atorough/castrum/geom"
 )
 
-// These are smoke tests: ebiten images can't be read back outside a running
-// ebiten.RunGame loop, so we can only assert DrawScene doesn't panic - which
-// is still a real regression guard (e.g. against the nil-Color type-assertion
-// panic this package used to have).
+// stubTextureProvider implements TextureProvider without filesystem or GPU
+// access. It records every Load and SubImage call so tests can assert which
+// textures were requested and in what order.
+type stubTextureProvider struct {
+	textures      map[assets.ID]*ebiten.Image
+	loadCalls     []assets.ID
+	subImageCalls []stubSubImageCall
+}
 
-// mockTextureProvider implements TextureLoader without any filesystem access.
-type mockTextureProvider struct {
-	textures map[string]struct {
-		Image  *ebiten.Image
-		Width  int
-		Height int
-	}
-	regionSubImages map[subImageKey]struct {
-		Image  *ebiten.Image
-		Width  int
-		Height int
+type stubSubImageCall struct {
+	assetID    assets.ID
+	atlasID    pubatlas.ID
+	regionName string
+}
+
+func newStubTextureProvider() *stubTextureProvider {
+	img := ebiten.NewImage(1, 1)
+	img.Fill(color.White)
+	return &stubTextureProvider{
+		textures: map[assets.ID]*ebiten.Image{
+			"square": img,
+		},
 	}
 }
 
-func (m *mockTextureProvider) Load(c context.Context, id assets.ID) (*ebiten.Image, int, int, error) {
-	tex, ok := m.textures[string(id)]
+func (s *stubTextureProvider) Load(_ context.Context, id assets.ID) (*ebiten.Image, int, int, error) {
+	s.loadCalls = append(s.loadCalls, id)
+	tex, ok := s.textures[id]
 	if !ok {
 		return nil, 0, 0, fmt.Errorf("texture not found: %s", id)
 	}
-	return tex.Image, tex.Width, tex.Height, nil
+	return tex, 1, 1, nil
 }
 
-func (m *mockTextureProvider) SubImage(c context.Context, assetId assets.ID, atlasID pubatlas.ID, regionName string) (*ebiten.Image, int, int, error) {
-	key := newSubImageKey(assetId, atlasID, regionName)
-	subImg, ok := m.regionSubImages[key]
-	if !ok {
-		return nil, 0, 0, fmt.Errorf("subimage not found: %s", regionName)
-	}
-	return subImg.Image, subImg.Width, subImg.Height, nil
+func (s *stubTextureProvider) SubImage(_ context.Context, assetID assets.ID, atlasID pubatlas.ID, regionName string) (*ebiten.Image, int, int, error) {
+	s.subImageCalls = append(s.subImageCalls, stubSubImageCall{
+		assetID:    assetID,
+		atlasID:    atlasID,
+		regionName: regionName,
+	})
+	return ebiten.NewImage(1, 1), 1, 1, nil
 }
 
-func newTestRenderer() *Renderer {
-	// Create a 1x1 ebiten.Image as a minimal sprite (we're not testing texture
-	// loading, just that rendering doesn't panic).
-	testImage := ebiten.NewImage(1, 1)
-	testImage.Fill(color.White)
-	testTextureProvider := &mockTextureProvider{textures: map[string]struct {
-		Image  *ebiten.Image
-		Width  int
-		Height int
-	}{
-		"square": {Image: testImage, Width: 1, Height: 1},
-	}}
+// testRenderer bundles a Renderer with its world, screen, and stub provider so
+// each test gets isolated state. The embedded *Renderer lets tests call
+// DrawScene and inspect renderItems/renderErrors directly.
+type testRenderer struct {
+	*Renderer
+	world    *ecs.World
+	screen   *ebiten.Image
+	provider *stubTextureProvider
+}
+
+func newTestRenderer(t *testing.T) testRenderer {
+	t.Helper()
+	provider := newStubTextureProvider()
 	world := ecs.NewWorld()
-	return New(testTextureProvider, world, RenderConfig{DrawDebugInfo: true})
+	return testRenderer{
+		Renderer: New(provider, world, RenderConfig{}),
+		world:    world,
+		screen:   ebiten.NewImage(200, 200),
+		provider: provider,
+	}
 }
 
-// setupTestWorldWithCamera creates a world with a primary camera entity.
-func setupTestWorldWithCamera(world *ecs.World, width, height int) error {
+func (tr testRenderer) withCamera(t *testing.T) testRenderer {
+	t.Helper()
+	_, err := tr.world.CreateWithComponents("camera",
+		components.Camera{
+			Zoom:       1.0,
+			Primary:    true,
+			Bounds:     components.UnboundedRect(),
+			ScreenSize: geom.Vector2I{X: 200, Y: 200},
+		},
+	)
+	if err != nil {
+		t.Fatalf("failed to create camera: %v", err)
+	}
+	return tr
+}
+
+// addEntity creates a sprite entity and returns its ID.
+func (tr testRenderer) addEntity(t *testing.T, sprite components.Sprite, transform components.Transform) ecs.EntityID {
+	t.Helper()
+	entity, err := tr.world.CreateWithComponents("test", sprite, transform)
+	if err != nil {
+		t.Fatalf("failed to create entity: %v", err)
+	}
+	return entity.ID
+}
+
+func assertRenderOrder(t *testing.T, items []renderItem, want []ecs.EntityID) {
+	t.Helper()
+	if len(items) != len(want) {
+		t.Fatalf("expected %d render items, got %d", len(want), len(items))
+	}
+	for i, item := range items {
+		if item.entityID != want[i] {
+			t.Errorf("render item %d: entityID = %d, want %d", i, item.entityID, want[i])
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// DrawScene: camera handling
+// ---------------------------------------------------------------------------
+
+func TestDrawScene_NoCameraReturnsEarly(t *testing.T) {
+	tr := newTestRenderer(t)
+	tr.addEntity(t,
+		components.Sprite{TexturePath: "square", Visible: true},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	if len(tr.renderItems) != 0 {
+		t.Errorf("expected 0 render items without camera, got %d", len(tr.renderItems))
+	}
+	if len(tr.provider.loadCalls) != 0 {
+		t.Errorf("expected 0 Load calls without camera, got %d", len(tr.provider.loadCalls))
+	}
+}
+
+func TestDrawScene_EmptyWorldRendersNothing(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	if len(tr.renderItems) != 0 {
+		t.Errorf("expected 0 render items in empty world, got %d", len(tr.renderItems))
+	}
+	if len(tr.renderErrors) != 0 {
+		t.Errorf("expected 0 render errors in empty world, got %d", len(tr.renderErrors))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// DrawScene: rendering paths (smoke tests — ebiten images can't be read back
+// outside a running game loop, so we assert "no panic" plus side effects)
+// ---------------------------------------------------------------------------
+
+func TestDrawScene_PrimitivesDoNotPanic(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	for _, kind := range []components.PrimitiveType{
+		components.PrimitiveKindRectangle,
+		components.PrimitiveKindCircle,
+		components.PrimitiveKindLine,
+	} {
+		tr.addEntity(t,
+			components.Sprite{Primitive: kind, Visible: true},
+			components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+		)
+	}
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	if len(tr.renderErrors) != 0 {
+		t.Errorf("expected 0 render errors for primitives, got %d", len(tr.renderErrors))
+	}
+}
+
+func TestDrawScene_NilColorDoesNotPanic(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	tr.addEntity(t,
+		components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true},
+		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}, Color: nil},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	if len(tr.renderErrors) != 0 {
+		t.Errorf("expected 0 render errors for nil color, got %d", len(tr.renderErrors))
+	}
+}
+
+func TestDrawScene_TextureSpriteLoadsTexture(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	tr.addEntity(t,
+		components.Sprite{TexturePath: "square", Visible: true},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	if len(tr.provider.loadCalls) != 1 {
+		t.Fatalf("expected 1 Load call, got %d", len(tr.provider.loadCalls))
+	}
+	if tr.provider.loadCalls[0] != "square" {
+		t.Errorf("Load called with %q, want %q", tr.provider.loadCalls[0], "square")
+	}
+	if len(tr.renderErrors) != 0 {
+		t.Errorf("expected 0 render errors, got %d: %v", len(tr.renderErrors), tr.renderErrors)
+	}
+}
+
+func TestDrawScene_MissingTextureCapturesError(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	id := tr.addEntity(t,
+		components.Sprite{TexturePath: "missing", Visible: true},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	if len(tr.renderErrors) != 1 {
+		t.Fatalf("expected 1 render error, got %d", len(tr.renderErrors))
+	}
+	if tr.renderErrors[0].EntityID != id {
+		t.Errorf("error entity ID = %d, want %d", tr.renderErrors[0].EntityID, id)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// DrawScene: visibility
+// ---------------------------------------------------------------------------
+
+func TestDrawScene_InvisibleSpriteSkipsTextureLoad(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	tr.addEntity(t,
+		components.Sprite{TexturePath: "square", Visible: false},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	if len(tr.provider.loadCalls) != 0 {
+		t.Errorf("expected 0 Load calls for invisible sprite, got %d", len(tr.provider.loadCalls))
+	}
+	if len(tr.renderErrors) != 0 {
+		t.Errorf("expected 0 render errors for invisible sprite, got %d", len(tr.renderErrors))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// DrawScene: viewport culling
+// ---------------------------------------------------------------------------
+
+func TestDrawScene_CullsEntitiesOutsideViewport(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	// Camera at (0,0), screen 200x200, zoom 1: viewport is (-100,-100)..(100,100)
+	inside := tr.addEntity(t,
+		components.Sprite{TexturePath: "square", Visible: true},
+		components.Transform{
+			Position: geom.Vector2{X: 50, Y: 50},
+			Scale:    geom.Vector2{X: 10, Y: 10},
+		},
+	)
+	tr.addEntity(t,
+		components.Sprite{TexturePath: "square", Visible: true},
+		components.Transform{
+			Position: geom.Vector2{X: 500, Y: 500},
+			Scale:    geom.Vector2{X: 10, Y: 10},
+		},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	if len(tr.renderItems) != 1 {
+		t.Fatalf("expected 1 render item (outside entity culled), got %d", len(tr.renderItems))
+	}
+	if tr.renderItems[0].entityID != inside {
+		t.Errorf("expected inside entity %d, got %d", inside, tr.renderItems[0].entityID)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// DrawScene: sort order (layer -> sort order -> Y position)
+// ---------------------------------------------------------------------------
+
+func TestDrawScene_SortByLayer(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	// Create in non-sorted order.
+	third := tr.addEntity(t,
+		components.Sprite{Visible: true, RenderLayer: 20},
+		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+	)
+	first := tr.addEntity(t,
+		components.Sprite{Visible: true, RenderLayer: 0},
+		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+	)
+	second := tr.addEntity(t,
+		components.Sprite{Visible: true, RenderLayer: 10},
+		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	assertRenderOrder(t, tr.renderItems, []ecs.EntityID{first, second, third})
+}
+
+func TestDrawScene_SortBySortOrderWithinLayer(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	third := tr.addEntity(t,
+		components.Sprite{Visible: true, RenderLayer: 0, SortOrder: 100},
+		components.Transform{Position: geom.Vector2{X: 0, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
+	)
+	first := tr.addEntity(t,
+		components.Sprite{Visible: true, RenderLayer: 0, SortOrder: 10},
+		components.Transform{Position: geom.Vector2{X: 20, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
+	)
+	second := tr.addEntity(t,
+		components.Sprite{Visible: true, RenderLayer: 0, SortOrder: 50},
+		components.Transform{Position: geom.Vector2{X: 40, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	assertRenderOrder(t, tr.renderItems, []ecs.EntityID{first, second, third})
+}
+
+func TestDrawScene_LayerTakesPriorityOverSortOrder(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	// Lower layer with higher sort order still renders first.
+	first := tr.addEntity(t,
+		components.Sprite{Visible: true, RenderLayer: 5, SortOrder: 100},
+		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+	)
+	second := tr.addEntity(t,
+		components.Sprite{Visible: true, RenderLayer: 10, SortOrder: 1},
+		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	assertRenderOrder(t, tr.renderItems, []ecs.EntityID{first, second})
+}
+
+func TestDrawScene_YPositionFallbackWhenLayerAndSortOrderEqual(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	second := tr.addEntity(t,
+		components.Sprite{Visible: true, RenderLayer: 0, SortOrder: 50},
+		components.Transform{Position: geom.Vector2{X: 0, Y: 70}, Scale: geom.Vector2{X: 10, Y: 10}},
+	)
+	first := tr.addEntity(t,
+		components.Sprite{Visible: true, RenderLayer: 0, SortOrder: 50},
+		components.Transform{Position: geom.Vector2{X: 0, Y: 30}, Scale: geom.Vector2{X: 10, Y: 10}},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	assertRenderOrder(t, tr.renderItems, []ecs.EntityID{first, second})
+}
+
+// ---------------------------------------------------------------------------
+// DrawScene: debug info
+// ---------------------------------------------------------------------------
+
+func TestDrawScene_DebugInfoDoesNotPanic(t *testing.T) {
+	provider := newStubTextureProvider()
+	world := ecs.NewWorld()
 	_, err := world.CreateWithComponents("camera",
 		components.Camera{
 			Zoom:       1.0,
 			Primary:    true,
 			Bounds:     components.UnboundedRect(),
-			ScreenSize: geom.Vector2I{X: width, Y: height},
+			ScreenSize: geom.Vector2I{X: 200, Y: 200},
 		},
 	)
-	return err
-}
-
-func TestRenderer_DrawScene(t *testing.T) {
-	renderer := newTestRenderer()
-	screen := ebiten.NewImage(200, 200)
-
-	t.Run("empty world draws nothing and does not panic", func(t *testing.T) {
-		world := ecs.NewWorld()
-		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Errorf("setupTestWorldWithCamera failed: %v", err)
-		}
-		renderer.DrawScene(context.Background(), screen)
-	})
-
-	t.Run("primitive entities of every kind draw without panicking", func(t *testing.T) {
-		world := ecs.NewWorld()
-		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Errorf("setupTestWorldWithCamera failed: %v", err)
-		}
-		kinds := []components.PrimitiveType{
-			components.PrimitiveKindRectangle,
-			components.PrimitiveKindCircle,
-			components.PrimitiveKindLine,
-		}
-		for _, kind := range kinds {
-			_, err := world.CreateWithComponents("shape",
-				components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
-				components.Sprite{Primitive: kind, Visible: true},
-			)
-			if err != nil {
-				t.Errorf("CreateWithComponents failed: %v", err)
-			}
-		}
-		renderer.DrawScene(context.Background(), screen)
-	})
-
-	t.Run("a Transform with a nil Color does not panic (regression)", func(t *testing.T) {
-		world := ecs.NewWorld()
-		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Errorf("setupTestWorldWithCamera failed: %v", err)
-		}
-		_, err := world.CreateWithComponents("shape",
-			components.Transform{Scale: geom.Vector2{X: 10, Y: 10}, Color: nil},
-			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true},
-		)
-		if err != nil {
-			t.Errorf("CreateWithComponents failed: %v", err)
-		}
-		renderer.DrawScene(context.Background(), screen)
-	})
-
-	t.Run("sprite entities with a registered texture draw without panicking", func(t *testing.T) {
-		world := ecs.NewWorld()
-		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Errorf("setupTestWorldWithCamera failed: %v", err)
-		}
-		_, err := world.CreateWithComponents("sprite",
-			components.Transform{Scale: geom.Vector2{X: 1, Y: 1}, Color: color.White},
-			components.Sprite{TexturePath: "square", Visible: true},
-		)
-		if err != nil {
-			t.Errorf("CreateWithComponents failed: %v", err)
-		}
-		renderer.DrawScene(context.Background(), screen)
-	})
-
-	t.Run("sprite entities with a missing texture are silently skipped", func(t *testing.T) {
-		world := ecs.NewWorld()
-		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Errorf("setupTestWorldWithCamera failed: %v", err)
-		}
-		_, err := world.CreateWithComponents("sprite",
-			components.Transform{},
-			components.Sprite{TexturePath: "does-not-exist", Visible: true},
-		)
-		if err != nil {
-			t.Errorf("CreateWithComponents failed: %v", err)
-		}
-		renderer.DrawScene(context.Background(), screen)
-	})
-
-	t.Run("invisible entities are skipped", func(t *testing.T) {
-		world := ecs.NewWorld()
-		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Errorf("setupTestWorldWithCamera failed: %v", err)
-		}
-		id, err := world.CreateWithComponents("shape",
-			components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
-			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: false},
-		)
-		if err != nil {
-			t.Errorf("CreateWithComponents failed: %v", err)
-		}
-		renderer.DrawScene(context.Background(), screen)
-		_ = id
-	})
-
-	t.Run("draws entities in ascending layer order without panicking", func(t *testing.T) {
-		world := ecs.NewWorld()
-		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Errorf("setupTestWorldWithCamera failed: %v", err)
-		}
-		for _, layer := range []uint8{31, 0, 10} {
-			_, err := world.CreateWithComponents("shape",
-				components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
-				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: layer},
-			)
-			if err != nil {
-				t.Errorf("CreateWithComponents failed: %v", err)
-			}
-		}
-		renderer.DrawScene(context.Background(), screen)
-	})
-
-	t.Run("depth sorting within same layer and Y position", func(t *testing.T) {
-		world := ecs.NewWorld()
-		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Errorf("setupTestWorldWithCamera failed: %v", err)
-		}
-		// Create three entities at same layer, same Y, different depths.
-		// Expected render order (first to last): depth 10, 50, 100
-		// Higher depth renders on top (drawn last).
-		depths := []int8{100, 10, 50}
-		for i, depth := range depths {
-			_, err := world.CreateWithComponents("shape",
-				components.Transform{Position: geom.Vector2{X: float64(i*20) - 20, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
-				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0, SortOrder: depth},
-			)
-			if err != nil {
-				t.Errorf("CreateWithComponents failed: %v", err)
-			}
-		}
-		renderer.DrawScene(context.Background(), screen)
-	})
-
-	t.Run("depth takes priority over Y position within same layer", func(t *testing.T) {
-		world := ecs.NewWorld()
-		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Errorf("setupTestWorldWithCamera failed: %v", err)
-		}
-		// Create two entities at same layer but different Y positions and depths.
-		// Higher depth should render on top regardless of Y.
-		// Entity 1: Y=100, Depth=50 (should render first)
-		// Entity 2: Y=50, Depth=100 (should render second, on top)
-		_, err := world.CreateWithComponents("back",
-			components.Transform{Position: geom.Vector2{X: 0, Y: 100}, Scale: geom.Vector2{X: 10, Y: 10}},
-			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0, SortOrder: 50},
-		)
-		if err != nil {
-			t.Errorf("CreateWithComponents failed: %v", err)
-		}
-		_, err = world.CreateWithComponents("front",
-			components.Transform{Position: geom.Vector2{X: 0, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
-			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0, SortOrder: 100},
-		)
-		if err != nil {
-			t.Errorf("CreateWithComponents failed: %v", err)
-		}
-		renderer.DrawScene(context.Background(), screen)
-	})
-
-	t.Run("Y position is fallback when layer and depth are equal", func(t *testing.T) {
-		world := ecs.NewWorld()
-		if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-			t.Errorf("setupTestWorldWithCamera failed: %v", err)
-		}
-		// Create two entities at same layer, same depth, different Y.
-		// Should sort by Y (smaller Y renders first).
-		_, err := world.CreateWithComponents("lower",
-			components.Transform{Position: geom.Vector2{X: 0, Y: 30}, Scale: geom.Vector2{X: 10, Y: 10}},
-			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0, SortOrder: 50},
-		)
-		if err != nil {
-			t.Errorf("CreateWithComponents failed: %v", err)
-		}
-		_, err = world.CreateWithComponents("higher",
-			components.Transform{Position: geom.Vector2{X: 0, Y: 70}, Scale: geom.Vector2{X: 10, Y: 10}},
-			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0, SortOrder: 50},
-		)
-		if err != nil {
-			t.Errorf("CreateWithComponents failed: %v", err)
-		}
-		renderer.DrawScene(context.Background(), screen)
-	})
-}
-
-func TestRenderer_DrawDebugInfo(t *testing.T) {
-	renderer := newTestRenderer()
-	screen := ebiten.NewImage(200, 200)
-	world := ecs.NewWorld()
-	if err := setupTestWorldWithCamera(world, 200, 200); err != nil {
-		t.Errorf("setupTestWorldWithCamera failed: %v", err)
+	if err != nil {
+		t.Fatalf("failed to create camera: %v", err)
 	}
+	renderer := New(provider, world, RenderConfig{DrawDebugInfo: true})
 
-	renderer.drawDebugInfo(screen)
+	renderer.DrawScene(context.Background(), ebiten.NewImage(200, 200))
 }
+
+// ---------------------------------------------------------------------------
+// Clear
+// ---------------------------------------------------------------------------
 
 func TestRenderer_Clear(t *testing.T) {
-	renderer := newTestRenderer()
-	screen := ebiten.NewImage(10, 10)
-	renderer.Clear(screen, color.Black)
+	tr := newTestRenderer(t)
+	tr.Clear(tr.screen, color.Black)
 }
