@@ -145,6 +145,7 @@ func (p *Texture) Invalidate(id assets.ID) {
 	defer p.mu.Unlock()
 	if id == "" {
 		p.Clear()
+		p.atlasSvc.Clear()
 		return
 	}
 	delete(p.images, id)
@@ -155,6 +156,7 @@ func (p *Texture) Invalidate(id assets.ID) {
 			delete(p.subimages, key)
 		}
 	}
+	p.atlasSvc.DeleteByAssetID(string(id))
 }
 
 func (p *Texture) Clear() {

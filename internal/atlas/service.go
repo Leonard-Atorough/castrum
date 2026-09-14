@@ -75,3 +75,30 @@ func (s *Service) Get(atlasID, assetID string) (any, error) {
 func (s *Service) Set(atlasID, assetID string, atlas any) {
 	s.store.set(atlasID, assetID, atlas)
 }
+
+func (s *Service) Has(atlasID, assetID string) bool {
+	_, ok := s.store.get(atlasID, assetID)
+	return ok
+}
+
+func (s *Service) Delete(atlasID, assetID string) {
+	s.store.mu.Lock()
+	defer s.store.mu.Unlock()
+	delete(s.store.atlases, newAtlasKey(atlasID, assetID))
+}
+
+func (s *Service) DeleteByAssetID(assetID string) {
+	s.store.mu.Lock()
+	defer s.store.mu.Unlock()
+	for key := range s.store.atlases {
+		if key.assetID == assetID {
+			delete(s.store.atlases, key)
+		}
+	}
+}
+
+func (s *Service) Clear() {
+	s.store.mu.Lock()
+	defer s.store.mu.Unlock()
+	s.store.atlases = make(map[atlasKey]*any)
+}
