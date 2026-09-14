@@ -1,6 +1,7 @@
 package atlas
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 
@@ -73,7 +74,10 @@ type Builder struct {
 	store            AtlasStorer
 }
 
-func NewBuilder(id string, assetID string, texW, texH int, store AtlasStorer) *Builder {
+func NewBuilder(id string, assetID string, texW, texH int, store AtlasStorer) (*Builder, error) {
+	if texW <= 0 || texH <= 0 {
+		return nil, &AtlasError{Message: "invalid texture dimensions"}
+	}
 	return &Builder{
 		regions: make(map[string]AtlasRegion),
 		texW:    texW,
@@ -81,7 +85,7 @@ func NewBuilder(id string, assetID string, texW, texH int, store AtlasStorer) *B
 		atlasID: id,
 		assetID: assetID,
 		store:   store,
-	}
+	}, nil
 }
 
 func (b *Builder) SliceRegion(name string, x, y, w, h int) (*Builder, error) {
@@ -115,6 +119,14 @@ func (b *Builder) SliceRegion(name string, x, y, w, h int) (*Builder, error) {
 
 func (b *Builder) GridSlice(w, h int, nameFunc func(idx int) string) (*Builder, []error) {
 	var errs AtlasErrorList
+	if w <= 0 || h <= 0 {
+		return b, []error{&AtlasError{Message: "tile dimensions must be positive"}}
+	}
+	if b.texW%w != 0 || b.texH%h != 0 {
+		return b, []error{&AtlasError{Message: fmt.Sprintf(
+			"texture dimensions (%d,%d) not evenly divisible by tile dimensions (%d,%d)",
+			b.texW, b.texH, w, h)}}
+	}
 	rows := b.texH / h
 	cols := b.texW / w
 	idx := 0
@@ -142,12 +154,14 @@ func (b *Builder) FromMeta(meta assets.AtlasMeta) (*Builder, error) {
 }
 
 func (b *Builder) Build() (*Atlas, error) {
+	atlasRegions := make(map[string]AtlasRegion)
+	maps.Copy(atlasRegions, b.regions)
 	atlas := NewTextureAtlas(
 		b.atlasID,
 		b.assetID,
 		b.texW,
 		b.texH,
-		b.regions,
+		atlasRegions,
 	)
 	if err := b.store.Set(b.atlasID, b.assetID, atlas); err != nil {
 		return nil, &AtlasError{Message: err.Error()}

@@ -110,6 +110,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		world:        newWorld,
 		assetsSaver:  assetsSaver,
 		assetsLoader: assetsLoader,
+		atlasSvc:     atlasService,
 		config:       config,
 		renderer:     renderer,
 		input:        inputHandler,
@@ -138,8 +139,12 @@ func (g *Game) AssetsSaver() *assets.Saver {
 	return g.assetsSaver
 }
 
-func (g *Game) AtlasBuilder(id string, assetPath string, width, height int) *atlas.Builder {
-	return atlas.NewBuilder(id, assetPath, width, height, g.atlasSvc)
+func (g *Game) AtlasBuilder(id string, assetPath string, width, height int) (*atlas.Builder, error) {
+	builder, err := atlas.NewBuilder(id, assetPath, width, height, g.atlasSvc)
+	if err != nil {
+		return nil, err
+	}
+	return builder, nil
 }
 
 // Input returns the resolved action reader used by gameplay systems.

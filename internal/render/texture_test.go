@@ -240,15 +240,24 @@ func TestTextureProviderInvalidateClearsAtlasServiceEntries(t *testing.T) {
 	}
 }
 
-func TestTextureProviderInvalidateEmptyIDIsNoOp(t *testing.T) {
+func TestTextureProviderInvalidateEmptyIDClearsAll(t *testing.T) {
 	f := newTextureFixture(t)
 	id := assets.ID("test.png")
 	f.provider.images[id] = &textureResource{image: ebiten.NewImage(1, 1), width: 1, height: 1}
+	f.seedAtlas(t, "test_atlas", "test.png", 1, 1, map[string]pubatlas.AtlasRegion{
+		"head": {Name: "head", X: 0, Y: 0, W: 1, H: 1},
+	})
 
 	f.provider.Invalidate("")
 
-	if _, ok := f.provider.images[id]; !ok {
-		t.Error("texture was removed by Invalidate(\"\") — empty ID should be a no-op")
+	if len(f.provider.images) != 0 {
+		t.Errorf("expected 0 images after Invalidate(\"\"), got %d", len(f.provider.images))
+	}
+	if len(f.provider.subimages) != 0 {
+		t.Errorf("expected 0 subimages after Invalidate(\"\"), got %d", len(f.provider.subimages))
+	}
+	if f.atlasSvc.Has("test_atlas", "test.png") {
+		t.Error("atlas service entry survived Invalidate(\"\")")
 	}
 }
 
@@ -265,7 +274,7 @@ func TestTextureProviderInvalidationListenerRemovesImage(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// InvalidateAll
+// Invalidate("") — full cache clear
 // ---------------------------------------------------------------------------
 
 func TestTextureProviderInvalidateAll(t *testing.T) {
@@ -286,16 +295,16 @@ func TestTextureProviderInvalidateAll(t *testing.T) {
 		t.Fatalf("expected 1 subimage cached, got %d", len(f.provider.subimages))
 	}
 
-	f.provider.InvalidateAll()
+	f.provider.Invalidate("")
 
 	if len(f.provider.images) != 0 {
-		t.Errorf("expected 0 textures after InvalidateAll(), got %d", len(f.provider.images))
+		t.Errorf("expected 0 textures after Invalidate(\"\"), got %d", len(f.provider.images))
 	}
 	if len(f.provider.subimages) != 0 {
-		t.Errorf("expected 0 subimages after InvalidateAll(), got %d", len(f.provider.subimages))
+		t.Errorf("expected 0 subimages after Invalidate(\"\"), got %d", len(f.provider.subimages))
 	}
 	if f.atlasSvc.Has("atlas", "a.png") {
-		t.Error("atlas service entry survived InvalidateAll()")
+		t.Error("atlas service entry survived Invalidate(\"\")")
 	}
 }
 
@@ -307,7 +316,7 @@ func TestTextureProviderClear(t *testing.T) {
 	f := newTextureFixture(t)
 	f.provider.images[assets.ID("test.png")] = &textureResource{image: ebiten.NewImage(32, 32), width: 32, height: 32}
 
-	f.provider.Clear()
+	f.provider.ClearImageCache()
 
 	if len(f.provider.images) != 0 {
 		t.Error("images not empty after Clear()")
@@ -405,5 +414,62 @@ func TestSubImageKey(t *testing.T) {
 	}
 	if key.regionName != "region" {
 		t.Errorf("regionName = %v, want %v", key.regionName, "region")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Integration: Builder -> Service -> SubImage
+// ---------------------------------------------------------------------------
+
+// TestBuilderToSubImageIntegration exercises the full production path:
+// atlas.NewBuilder stores *Atlas into the internal atlas Service via Build(),
+// then Texture.SubImage retrieves and type-asserts *Atlas to extract a region.
+// This is the integration point where the pointer-vs-value type assertion lives.
+func TestBuilderToSubImageIntegration(t *testing.T) {
+	f := newTextureFixture(t)
+
+	builder, err := pubatlas.NewBuilder("player", "sprite.png", 64, 64, f.atlasSvc)
+	if err != nil {
+		t.Fatalf("NewBuilder() error = %v", err)
+	}
+
+	_, err = builder.SliceRegion("idle", 0, 0, 32, 32)
+	if err != nil {
+		t.Fatalf("SliceRegion() error = %v", err)
+	}
+	_, err = builder.SliceRegion("walk", 32, 0, 32, 32)
+	if err != nil {
+		t.Fatalf("SliceRegion() error = %v", err)
+	}
+
+	builtAtlas, err := builder.Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if builtAtlas == nil {
+		t.Fatal("Build() returned nil atlas")
+	}
+
+	// Pre-seed the texture image that SubImage will load.
+	f.provider.images[assets.ID("sprite.png")] = &textureResource{
+		image:  ebiten.NewImage(64, 64),
+		width:  64,
+		height: 64,
+	}
+
+	img, w, h, err := f.provider.SubImage(
+		context.Background(),
+		assets.ID("sprite.png"),
+		pubatlas.ID("player"),
+		"idle",
+	)
+	if err != nil {
+		t.Fatalf("SubImage() error = %v", err)
+	}
+	if img == nil {
+		t.Fatal("SubImage() returned nil image")
+	}
+	if w != 32 || h != 32 {
+		t.Errorf("SubImage() dimensions = (%d, %d), want (32, 32)", w, h)
 	}
 }

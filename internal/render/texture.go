@@ -119,7 +119,7 @@ func (p *Texture) SubImage(ctx context.Context, assetID assets.ID, atlasID pubat
 			atlasID, atlasTexW, atlasTexH, assetID, texW, texH)
 	}
 
-	atlasRegion, ok := atlasData.Regions()[regionName]
+	atlasRegion, ok := atlasData.Region(regionName)
 	if !ok {
 		return nil, 0, 0, fmt.Errorf("region %s not found in atlas for id=%s", regionName, atlasID)
 	}
@@ -148,11 +148,15 @@ func (p *Texture) SubImage(ctx context.Context, assetID assets.ID, atlasID pubat
 	return resource.image, resource.width, resource.height, nil
 }
 
+// Invalidate removes the texture and its associated subimages and atlas entries from the cache.
+// When called with an empty ID, all textures, subimages, and atlas entries are removed from the cache.
 func (p *Texture) Invalidate(id assets.ID) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	// assume that an empty ID is invalid and should not be cached
 	if id == "" {
+		p.images = make(map[assets.ID]*textureResource)
+		p.subimages = make(map[subImageKey]*subimageResource)
+		p.atlasSvc.Clear()
 		return
 	}
 	delete(p.images, id)
@@ -166,15 +170,7 @@ func (p *Texture) Invalidate(id assets.ID) {
 	p.atlasSvc.DeleteByAssetID(string(id))
 }
 
-func (p *Texture) InvalidateAll() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.images = make(map[assets.ID]*textureResource)
-	p.subimages = make(map[subImageKey]*subimageResource)
-	p.atlasSvc.Clear()
-}
-
-func (p *Texture) Clear() {
+func (p *Texture) ClearImageCache() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.images = make(map[assets.ID]*textureResource)

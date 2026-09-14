@@ -115,7 +115,10 @@ func TestAtlasRegionAccess(t *testing.T) {
 
 func TestBuilderSliceRegion(t *testing.T) {
 	store := &mockAtlasStorer{}
-	builder := NewBuilder("test", "texture.png", 256, 128, store)
+	builder, err := NewBuilder("test", "texture.png", 256, 128, store)
+	if err != nil {
+		t.Fatalf("NewBuilder() error = %v", err)
+	}
 
 	// Test successful slice
 	b, err := builder.SliceRegion("idle", 0, 0, 32, 32)
@@ -165,7 +168,10 @@ func TestBuilderSliceRegion(t *testing.T) {
 
 func TestBuilderGridSlice(t *testing.T) {
 	store := &mockAtlasStorer{}
-	builder := NewBuilder("grid", "grid.png", 64, 64, store)
+	builder, err := NewBuilder("grid", "grid.png", 64, 64, store)
+	if err != nil {
+		t.Fatalf("NewBuilder() error = %v", err)
+	}
 
 	// 4x4 grid of 16x16 frames
 	b, errs := builder.GridSlice(16, 16, func(idx int) string {
@@ -208,7 +214,10 @@ func TestBuilderGridSlice(t *testing.T) {
 
 func TestBuilderFromMeta(t *testing.T) {
 	store := &mockAtlasStorer{}
-	builder := NewBuilder("meta", "meta.png", 256, 256, store)
+	builder, err := NewBuilder("meta", "meta.png", 256, 256, store)
+	if err != nil {
+		t.Fatalf("NewBuilder() error = %v", err)
+	}
 
 	meta := assets.AtlasMeta{
 		Regions: []assets.AtlasRegionMeta{
@@ -243,7 +252,10 @@ func TestBuilderFromMeta(t *testing.T) {
 
 func TestBuilderBuild(t *testing.T) {
 	store := &mockAtlasStorer{}
-	builder := NewBuilder("build_test", "build.png", 1024, 512, store)
+	builder, err := NewBuilder("build_test", "build.png", 1024, 512, store)
+	if err != nil {
+		t.Fatalf("NewBuilder() error = %v", err)
+	}
 
 	// Empty builder currently succeeds (no validation in Build)
 	atlas, err := builder.Build()
@@ -255,7 +267,10 @@ func TestBuilderBuild(t *testing.T) {
 	}
 
 	// Add a region and build
-	builder2 := NewBuilder("build_test2", "build.png", 1024, 512, store)
+	builder2, err := NewBuilder("build_test2", "build.png", 1024, 512, store)
+	if err != nil {
+		t.Fatalf("NewBuilder() error = %v", err)
+	}
 	b, _ := builder2.SliceRegion("valid", 0, 0, 100, 100)
 	atlas, err = b.Build()
 	if err != nil {
@@ -278,6 +293,69 @@ func TestBuilderBuild(t *testing.T) {
 	}
 	if store.lastAtlas == nil {
 		t.Error("store.Set() was not called with atlas")
+	}
+}
+
+func TestNewBuilderRejectsInvalidDimensions(t *testing.T) {
+	store := &mockAtlasStorer{}
+	tests := []struct {
+		name     string
+		texW     int
+		texH     int
+		wantErr  bool
+	}{
+		{"zero width", 0, 64, true},
+		{"zero height", 64, 0, true},
+		{"negative width", -1, 64, true},
+		{"negative height", 64, -1, true},
+		{"valid dimensions", 64, 64, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewBuilder("test", "tex.png", tt.texW, tt.texH, store)
+			if tt.wantErr && err == nil {
+				t.Error("NewBuilder() error = nil, want error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("NewBuilder() error = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestBuilderGridSliceRejectsNonDivisibleDimensions(t *testing.T) {
+	store := &mockAtlasStorer{}
+	tests := []struct {
+		name   string
+		texW   int
+		texH   int
+		tileW  int
+		tileH  int
+		errs   bool
+	}{
+		{"evenly divisible", 64, 64, 16, 16, false},
+		{"width not divisible", 64, 64, 24, 16, true},
+		{"height not divisible", 64, 64, 16, 24, true},
+		{"both not divisible", 64, 64, 24, 24, true},
+		{"zero tile width", 64, 64, 0, 16, true},
+		{"negative tile height", 64, 64, 16, -1, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, err := NewBuilder("grid", "grid.png", tt.texW, tt.texH, store)
+			if err != nil {
+				t.Fatalf("NewBuilder() error = %v", err)
+			}
+			_, errs := builder.GridSlice(tt.tileW, tt.tileH, func(idx int) string {
+				return fmt.Sprintf("frame_%d", idx)
+			})
+			if tt.errs && len(errs) == 0 {
+				t.Error("GridSlice() errors = nil, want errors")
+			}
+			if !tt.errs && len(errs) > 0 {
+				t.Errorf("GridSlice() errors = %v, want nil", errs)
+			}
+		})
 	}
 }
 
