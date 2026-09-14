@@ -108,11 +108,11 @@ func main() {
 				"Square",
 				components.Transform{
 					Position: geom.Vector2{X: float64(i) * spacing, Y: float64(j) * spacing},
-					Scale:    geom.Vector2{X: 32, Y: 32},
+					Scale:    geom.Vector2{X: 1, Y: 1},
 					Color:    color.RGBA{R: 60, G: 220, B: 60, A: 255},
 				},
-				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0},
-				gamecomponents.Pulse{StartScale: geom.Vector2{X: 32, Y: 32}, Amplitude: 0.5, Frequency: 1, TimeOffset: float64(i+j) * 0.1},
+				components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 32, Y: 32}, Visible: true, RenderLayer: 0},
+				gamecomponents.Pulse{StartScale: geom.Vector2{X: 1, Y: 1}, Amplitude: 0.5, Frequency: 1, TimeOffset: float64(i+j) * 0.1},
 			)
 			if err != nil {
 				log.Fatalf("failed to spawn grid square: %v", err)
@@ -135,7 +135,7 @@ func main() {
 			"circle_obstacle",
 			components.Transform{
 				Position: pos,
-				Scale:    geom.Vector2{X: 30, Y: 30},
+				Scale:    geom.Vector2{X: 1, Y: 1},
 				Color:    color.RGBA{R: 255, G: 100, B: 100, A: 255},
 			},
 			components.Sprite{Primitive: components.PrimitiveKindCircle, Visible: true, RenderLayer: 1},

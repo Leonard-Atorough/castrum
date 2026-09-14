@@ -8,8 +8,11 @@ import (
 	"github.com/leonard-atorough/castrum/geom"
 )
 
-// Transform represents the position, rotation, scale, and color of an entity.
-// It is used to control the visual representation and transformation of an entity in the scene.
+// Transform represents the spatial state of an entity: position, rotation,
+// scale, and tint color. Scale is always a multiplier, not a pixel size —
+// {1,1} means no scaling. For primitives, the base size comes from
+// Sprite.Size; for textured sprites, it comes from the image or atlas
+// region dimensions.
 type Transform struct {
 	Position geom.Vector2
 	Rotation float64
@@ -40,19 +43,30 @@ type SceneTag struct {
 	SceneID string
 }
 
+// Sprite is the renderable component. It carries either a texture reference
+// (TexturePath, optionally with AtlasID/RegionName) or a primitive shape
+// (Primitive).
+//
+// For textured sprites, the rendered size is derived from the image or atlas
+// region dimensions multiplied by Transform.Scale.
+//
+// For primitive sprites, Size is the base dimension in pixels and
+// Transform.Scale is a multiplier on top of it. A 32x32 rectangle with
+// Scale{1,1} renders at 32x32; with Scale{2,2} it renders at 64x64.
 type Sprite struct {
 	TexturePath string
 	AtlasID     string
 	RegionName  string
 	Primitive   PrimitiveType
-	RenderLayer uint8 // which of 32 layers to render on (0-31)
-	SortOrder   int8  // [-128..127], higher values render on top within the layer
+	Size        geom.Vector2 // base dimensions in pixels for primitives; ignored by textured sprites
+	RenderLayer uint8        // which of 32 layers to render on (0-31)
+	SortOrder   int8         // [-128..127], higher values render on top within the layer
 	Visible     bool
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
-// NewSprite creates a new Renderable component with the specified properties.
-func NewSprite(texturePath string, atlasID string, regionName string, primitive PrimitiveType, renderLayer uint8, sortOrder int8, visible bool, data any) (Sprite, error) {
+// NewSprite creates a new Sprite component with the specified properties.
+func NewSprite(texturePath string, atlasID string, regionName string, primitive PrimitiveType, size geom.Vector2, renderLayer uint8, sortOrder int8, visible bool, data any) (Sprite, error) {
 	if data == nil {
 		data = struct{}{}
 	}
@@ -71,6 +85,7 @@ func NewSprite(texturePath string, atlasID string, regionName string, primitive 
 		AtlasID:     atlasID,
 		RegionName:  regionName,
 		Primitive:   primitive,
+		Size:        size,
 		RenderLayer: renderLayer,
 		SortOrder:   sortOrder,
 		Visible:     visible,

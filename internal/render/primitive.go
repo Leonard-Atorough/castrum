@@ -26,22 +26,23 @@ func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, t
 	zoom := float32(cam.Zoom)
 	clr := colorOrDefault(transform.Color)
 
+	w := float32(renderable.Size.X) * float32(transform.Scale.X) * zoom
+	h := float32(renderable.Size.Y) * float32(transform.Scale.Y) * zoom
+
 	switch renderable.Primitive {
 	case components.PrimitiveKindCircle:
-		radius := float32(transform.Scale.X) * zoom / 2
+		radius := w / 2
 		vector.FillCircle(screen, x, y, radius, clr, true)
 	case components.PrimitiveKindLine:
-		half := float32(transform.Scale.X) * zoom / 2
+		half := w / 2
 		dx, dy := float32(math.Cos(transform.Rotation)), float32(math.Sin(transform.Rotation))
-		strokeWidth := float32(transform.Scale.Y) * zoom
-		vector.StrokeLine(screen, x-dx*half, y-dy*half, x+dx*half, y+dy*half, strokeWidth, clr, true)
+		vector.StrokeLine(screen, x-dx*half, y-dy*half, x+dx*half, y+dy*half, h, clr, true)
 	case components.PrimitiveKindPolygon:
-		// using vector.Path to draw the polygon
 		if err := drawPolygonPath(renderable, cam, clr, screen); err != nil {
 			return err
 		}
 	default: // PrimitiveKindRectangle
-		drawRotatedRect(screen, x, y, float32(transform.Scale.X)*zoom, float32(transform.Scale.Y)*zoom, transform.Rotation, clr)
+		drawRotatedRect(screen, x, y, w, h, transform.Rotation, clr)
 	}
 	return nil
 }
