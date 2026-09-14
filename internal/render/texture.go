@@ -144,7 +144,8 @@ func (p *Texture) Invalidate(id assets.ID) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if id == "" {
-		p.Clear()
+		p.images = make(map[assets.ID]*textureResource)
+		p.subimages = make(map[subImageKey]*subimageResource)
 		p.atlasSvc.Clear()
 		return
 	}
