@@ -83,7 +83,7 @@ func TestTextureProviderSubImage(t *testing.T) {
 	atlasData := pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
-	atlasSvc.Set("test_atlas", "sprite.png", *atlasData)
+	atlasSvc.Set("test_atlas", "sprite.png", atlasData)
 
 	img, w, h, err := provider.SubImage(ctx, textureID, atlasID, "head")
 	if err != nil {
@@ -112,7 +112,7 @@ func TestTextureProviderSubImageCaches(t *testing.T) {
 	atlasData := pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
-	atlasSvc.Set("test_atlas", "sprite.png", *atlasData)
+	atlasSvc.Set("test_atlas", "sprite.png", atlasData)
 
 	img1, _, _, err := provider.SubImage(ctx, textureID, atlasID, "head")
 	if err != nil {
@@ -155,7 +155,7 @@ func TestTextureProviderSubImageRegionNotFound(t *testing.T) {
 	atlasData := pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
-	atlasSvc.Set("test_atlas", "sprite.png", *atlasData)
+	atlasSvc.Set("test_atlas", "sprite.png", atlasData)
 
 	_, _, _, err := provider.SubImage(ctx, textureID, pubatlas.ID("test_atlas"), "nonexistent")
 	if err == nil {
@@ -224,7 +224,7 @@ func TestTextureProviderInvalidateRemovesSubImages(t *testing.T) {
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 		"body": {Name: "body", X: 0, Y: 32, W: 32, H: 32},
 	})
-	atlasSvc.Set("test_atlas", "sprite.png", *atlasData)
+	atlasSvc.Set("test_atlas", "sprite.png", atlasData)
 
 	_, _, _, _ = provider.SubImage(ctx, textureID, atlasID, "head")
 	_, _, _, _ = provider.SubImage(ctx, textureID, atlasID, "body")
@@ -262,7 +262,7 @@ func TestTextureProviderInvalidateAll(t *testing.T) {
 	}
 	provider.mu.RUnlock()
 
-	provider.Invalidate("")
+	provider.InvalidateAll()
 
 	provider.mu.RLock()
 	if len(provider.images) != 0 {
@@ -347,7 +347,7 @@ func TestTextureProviderConcurrentSubImage(t *testing.T) {
 	atlasData := pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 64, 64, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
-	atlasSvc.Set("test_atlas", "sprite.png", *atlasData)
+	atlasSvc.Set("test_atlas", "sprite.png", atlasData)
 
 	const numGoroutines = 10
 	var wg sync.WaitGroup

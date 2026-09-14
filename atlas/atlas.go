@@ -63,7 +63,7 @@ func (a *Atlas) Regions() map[string]AtlasRegion {
 }
 
 type AtlasStorer interface {
-	Set(string, string, any)
+	Set(string, string, any) error
 }
 
 type Builder struct {
@@ -149,7 +149,9 @@ func (b *Builder) Build() (*Atlas, error) {
 		b.texH,
 		b.regions,
 	)
-	b.store.Set(b.atlasID, b.assetID, atlas)
+	if err := b.store.Set(b.atlasID, b.assetID, atlas); err != nil {
+		return nil, &AtlasError{Message: err.Error()}
+	}
 
 	return atlas, nil
 }

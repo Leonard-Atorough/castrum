@@ -53,6 +53,7 @@ func New(textureProvider TextureProvider, world *ecs.World, config RenderConfig)
 		Primitive:       NewPrimitiveRenderer(),
 		renderItems:     make([]renderItem, 0, 16),  // pre-allocate buffer for hot path
 		renderErrors:    make([]RenderError, 0, 16), // pre-allocate buffer for capturing rendering errors
+		config:          config,
 	}
 }
 
@@ -154,16 +155,20 @@ func (r *Renderer) renderItem(ctx context.Context, screen *ebiten.Image, cam com
 		return err
 	}
 
+	if item.sprite.Visible == false {
+		return nil
+	}
+
 	if item.sprite.TexturePath != "" {
 		if item.animation != nil {
 			return r.renderAnimation(ctx, screen, cam, item)
 		}
 		return r.renderSprite(ctx, screen, cam, item)
-	} else {
-		// TODO: Fix sprite not containing color
-		r.Primitive.Draw(screen, cam, item.transform, item.sprite)
 	}
-	return nil
+	// TODO: Fix sprite not containing color
+	// if all else fails, use the primitive renderer
+	return r.Primitive.Draw(screen, cam, item.transform, item.sprite)
+
 }
 
 func (r *Renderer) renderAnimation(ctx context.Context, screen *ebiten.Image, cam components.Camera, item renderItem) error {

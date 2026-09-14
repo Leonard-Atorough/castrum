@@ -3,8 +3,6 @@ package atlas
 import (
 	"fmt"
 	"sync"
-
-	"golang.org/x/sync/singleflight"
 )
 
 type atlasKey struct {
@@ -21,12 +19,12 @@ func newAtlasKey(atlasID, assetID string) atlasKey {
 
 type Store struct {
 	mu      sync.RWMutex
-	atlases map[atlasKey]*any
+	atlases map[atlasKey]any
 }
 
 func NewStore() *Store {
 	return &Store{
-		atlases: make(map[atlasKey]*any),
+		atlases: make(map[atlasKey]any),
 	}
 }
 
@@ -37,43 +35,39 @@ func (s *Store) get(atlasID, assetID string) (any, bool) {
 	if !ok {
 		return nil, false
 	}
-	return *entry, ok
+	return entry, ok
 }
 
 func (s *Store) set(atlasID, assetID string, atlas any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.atlases[newAtlasKey(atlasID, assetID)] = &atlas
+	s.atlases[newAtlasKey(atlasID, assetID)] = atlas
 }
 
 type Service struct {
-	store     *Store
-	loadGroup *singleflight.Group
+	store *Store
 }
 
 func NewService(store *Store) *Service {
 	return &Service{
-		store:     store,
-		loadGroup: &singleflight.Group{},
+		store: store,
 	}
 }
 
 func (s *Service) Get(atlasID, assetID string) (any, error) {
-	atlas, err, _ := s.loadGroup.Do(atlasID+assetID, func() (any, error) {
-		atlas, ok := s.store.get(atlasID, assetID)
-		if !ok {
-			return nil, nil
-		}
-		return atlas, nil
-	})
-	if err != nil || atlas == nil {
+	atlas, ok := s.store.get(atlasID, assetID)
+	if !ok {
 		return nil, fmt.Errorf("atlas not found for atlasID=%s, assetID=%s", atlasID, assetID)
 	}
 	return atlas, nil
 }
 
-func (s *Service) Set(atlasID, assetID string, atlas any) {
+func (s *Service) Set(atlasID, assetID string, atlas any) error {
+	if atlas == nil {
+		return fmt.Errorf("cannot set nil atlas for atlasID=%s, assetID=%s", atlasID, assetID)
+	}
 	s.store.set(atlasID, assetID, atlas)
+	return nil
 }
 
 func (s *Service) Has(atlasID, assetID string) bool {
@@ -100,5 +94,5 @@ func (s *Service) DeleteByAssetID(assetID string) {
 func (s *Service) Clear() {
 	s.store.mu.Lock()
 	defer s.store.mu.Unlock()
-	s.store.atlases = make(map[atlasKey]*any)
+	s.store.atlases = make(map[atlasKey]any)
 }

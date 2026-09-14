@@ -66,9 +66,6 @@ func TestNewService(t *testing.T) {
 	if svc.store != store {
 		t.Error("NewService() did not set store correctly")
 	}
-	if svc.loadGroup == nil {
-		t.Error("NewService() returned service with nil loadGroup")
-	}
 }
 
 func TestServiceSetGet(t *testing.T) {
@@ -342,11 +339,8 @@ func TestServiceGetReturnsErrorForNilAtlas(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	// Set a nil atlas (edge case, but possible)
-	svc.Set("atlas", "texture.png", nil)
-
-	_, err := svc.Get("atlas", "texture.png")
+	err := svc.Set("atlas", "texture.png", nil)
 	if err == nil {
-		t.Error("Get() for nil atlas error = nil, want error")
+		t.Error("Set() with nil atlas error = nil, want error")
 	}
 }

@@ -110,7 +110,7 @@ func (p *Texture) SubImage(ctx context.Context, assetID assets.ID, atlasID pubat
 		return nil, 0, 0, err
 	}
 
-	atlasData := res.(pubatlas.Atlas)
+	atlasData := res.(*pubatlas.Atlas)
 
 	atlasTexW, atlasTexH := atlasData.Dimensions()
 	if atlasTexW != texW || atlasTexH != texH {
@@ -151,10 +151,8 @@ func (p *Texture) SubImage(ctx context.Context, assetID assets.ID, atlasID pubat
 func (p *Texture) Invalidate(id assets.ID) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	// assume that an empty ID is invalid and should not be cached
 	if id == "" {
-		p.images = make(map[assets.ID]*textureResource)
-		p.subimages = make(map[subImageKey]*subimageResource)
-		p.atlasSvc.Clear()
 		return
 	}
 	delete(p.images, id)
@@ -166,6 +164,14 @@ func (p *Texture) Invalidate(id assets.ID) {
 		}
 	}
 	p.atlasSvc.DeleteByAssetID(string(id))
+}
+
+func (p *Texture) InvalidateAll() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.images = make(map[assets.ID]*textureResource)
+	p.subimages = make(map[subImageKey]*subimageResource)
+	p.atlasSvc.Clear()
 }
 
 func (p *Texture) Clear() {

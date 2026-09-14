@@ -321,8 +321,9 @@ type mockAtlasStorer struct {
 	lastAtlas   any
 }
 
-func (m *mockAtlasStorer) Set(atlasID, assetID string, atlas any) {
+func (m *mockAtlasStorer) Set(atlasID, assetID string, atlas any) error {
 	m.lastAtlasID = atlasID
 	m.lastAssetID = assetID
 	m.lastAtlas = atlas
+	return nil
 }
