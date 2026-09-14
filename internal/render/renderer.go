@@ -114,8 +114,8 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image, world *e
 
 	// Sort by layer > render depth > Y position (entityId too unstable)
 	slices.SortStableFunc(r.renderItems, func(a, b renderItem) int {
-		if a.renderable.Layer != b.renderable.Layer {
-			return int(a.renderable.Layer) - int(b.renderable.Layer)
+		if a.renderable.RenderLayer != b.renderable.RenderLayer {
+			return int(a.renderable.RenderLayer) - int(b.renderable.RenderLayer)
 		}
 		// render depth comparison
 		if a.renderable.SortOrder != b.renderable.SortOrder {

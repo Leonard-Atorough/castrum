@@ -64,8 +64,8 @@ func TestSpriteComponent(t *testing.T) {
 		if sprite.Primitive != PrimitiveKindRectangle {
 			t.Errorf("Expected primitive to be Rectangle, got %v", sprite.Primitive)
 		}
-		if sprite.Layer != 0 {
-			t.Errorf("Expected layer to be 0, got %v", sprite.Layer)
+		if sprite.RenderLayer != 0 {
+			t.Errorf("Expected layer to be 0, got %v", sprite.RenderLayer)
 		}
 		if sprite.SortOrder != 0 {
 			t.Errorf("Expected sort order to be 0, got %v", sprite.SortOrder)
@@ -81,8 +81,8 @@ func TestSpriteComponent(t *testing.T) {
 
 	t.Run("Create New Sprite with layer greater than 31", func(t *testing.T) {
 		sprite := NewSprite("texture.png", PrimitiveKindRectangle, 35, 0, true, nil)
-		if sprite.Layer != 31 {
-			t.Errorf("Expected layer to be capped at 31, got %v", sprite.Layer)
+		if sprite.RenderLayer != 31 {
+			t.Errorf("Expected layer to be capped at 31, got %v", sprite.RenderLayer)
 		}
 	})
 

@@ -166,7 +166,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		for _, layer := range []uint8{31, 0, 10} {
 			_, err := world.CreateWithComponents("shape",
 				components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
-				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: layer},
+				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: layer},
 			)
 			if err != nil {
 				t.Errorf("CreateWithComponents failed: %v", err)
@@ -187,7 +187,7 @@ func TestRenderer_DrawScene(t *testing.T) {
 		for i, depth := range depths {
 			_, err := world.CreateWithComponents("shape",
 				components.Transform{Position: geom.Vector2{X: float64(i*20) - 20, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
-				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0, SortOrder: depth},
+				components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0, SortOrder: depth},
 			)
 			if err != nil {
 				t.Errorf("CreateWithComponents failed: %v", err)
@@ -207,14 +207,14 @@ func TestRenderer_DrawScene(t *testing.T) {
 		// Entity 2: Y=50, Depth=100 (should render second, on top)
 		_, err := world.CreateWithComponents("back",
 			components.Transform{Position: geom.Vector2{X: 0, Y: 100}, Scale: geom.Vector2{X: 10, Y: 10}},
-			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0, SortOrder: 50},
+			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0, SortOrder: 50},
 		)
 		if err != nil {
 			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 		_, err = world.CreateWithComponents("front",
 			components.Transform{Position: geom.Vector2{X: 0, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
-			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0, SortOrder: 100},
+			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0, SortOrder: 100},
 		)
 		if err != nil {
 			t.Errorf("CreateWithComponents failed: %v", err)
@@ -231,14 +231,14 @@ func TestRenderer_DrawScene(t *testing.T) {
 		// Should sort by Y (smaller Y renders first).
 		_, err := world.CreateWithComponents("lower",
 			components.Transform{Position: geom.Vector2{X: 0, Y: 30}, Scale: geom.Vector2{X: 10, Y: 10}},
-			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0, SortOrder: 50},
+			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0, SortOrder: 50},
 		)
 		if err != nil {
 			t.Errorf("CreateWithComponents failed: %v", err)
 		}
 		_, err = world.CreateWithComponents("higher",
 			components.Transform{Position: geom.Vector2{X: 0, Y: 70}, Scale: geom.Vector2{X: 10, Y: 10}},
-			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, Layer: 0, SortOrder: 50},
+			components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true, RenderLayer: 0, SortOrder: 50},
 		)
 		if err != nil {
 			t.Errorf("CreateWithComponents failed: %v", err)

@@ -42,30 +42,30 @@ type SceneTag struct {
 type Sprite struct {
 	TexturePath string
 	Primitive   PrimitiveType
-	Layer       uint8 // which of 32 layers to render on (0-31)
+	RenderLayer uint8 // which of 32 layers to render on (0-31)
 	SortOrder   int8  // [-128..127], higher values render on top within the layer
 	Visible     bool
 	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
 }
 
 // NewSprite creates a new Renderable component with the specified properties.
-func NewSprite(texturePath string, Primitive PrimitiveType, Layer uint8, SortOrder int8, Visible bool, Data any) Sprite {
-	if Data == nil {
-		Data = struct{}{}
+func NewSprite(texturePath string, primitive PrimitiveType, renderLayer uint8, sortOrder int8, visible bool, data any) Sprite {
+	if data == nil {
+		data = struct{}{}
 	}
-	if Layer > 31 {
-		Layer = 31
+	if renderLayer > 31 {
+		renderLayer = 31
 	}
-	if Primitive < PrimitiveKindRectangle || Primitive > PrimitiveKindPolygon {
-		Primitive = PrimitiveKindRectangle
+	if primitive < PrimitiveKindRectangle || primitive > PrimitiveKindPolygon {
+		primitive = PrimitiveKindRectangle
 	}
 	return Sprite{
 		TexturePath: texturePath,
-		Primitive:   Primitive,
-		Layer:       Layer,
-		SortOrder:   SortOrder,
-		Visible:     Visible,
-		Data:        Data,
+		Primitive:   primitive,
+		RenderLayer: renderLayer,
+		SortOrder:   sortOrder,
+		Visible:     visible,
+		Data:        data,
 	}
 }
 

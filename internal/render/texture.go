@@ -14,17 +14,10 @@ type Texture struct {
 
 	mu        sync.RWMutex
 	images    map[assets.ID]*textureResource
-	subimages map[assets.ID]*subtextureResource
+	subimages map[assets.ID]*ebiten.Image
 }
 
 type textureResource struct {
-	image  *ebiten.Image
-	width  int
-	height int
-}
-
-type subtextureResource struct {
-	parent *textureResource
 	image  *ebiten.Image
 	width  int
 	height int
@@ -34,7 +27,7 @@ func NewTextureProvider(loader *assets.Loader) *Texture {
 	provider := &Texture{
 		loader:    loader,
 		images:    make(map[assets.ID]*textureResource),
-		subimages: make(map[assets.ID]*subtextureResource),
+		subimages: make(map[assets.ID]*ebiten.Image),
 	}
 	loader.RegisterInvalidationListener(provider.Invalidate)
 	return provider
@@ -79,7 +72,7 @@ func (p *Texture) Invalidate(id assets.ID) {
 	defer p.mu.Unlock()
 	if id == "" {
 		p.images = make(map[assets.ID]*textureResource)
-		p.subimages = make(map[assets.ID]*subtextureResource)
+		p.subimages = make(map[assets.ID]*ebiten.Image)
 		return
 	}
 	delete(p.images, id)
@@ -90,5 +83,5 @@ func (p *Texture) Clear() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.images = make(map[assets.ID]*textureResource)
-	p.subimages = make(map[assets.ID]*subtextureResource)
+	p.subimages = make(map[assets.ID]*ebiten.Image)
 }
