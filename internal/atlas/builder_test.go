@@ -1,7 +1,6 @@
 package atlas
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/assets"
@@ -64,9 +63,7 @@ func TestBuilderGridSlice(t *testing.T) {
 		t.Fatalf("NewBuilder() error = %v", err)
 	}
 
-	b, errs := builder.GridSlice(16, 16, func(idx int) string {
-		return fmt.Sprintf("frame_%d", idx)
-	})
+	b, errs := builder.GridSlice(16, 16, "frame")
 
 	if len(errs) > 0 {
 		t.Errorf("GridSlice() errors = %v, want nil", errs)
@@ -228,9 +225,7 @@ func TestBuilderGridSliceRejectsNonDivisibleDimensions(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewBuilder() error = %v", err)
 			}
-			_, errs := builder.GridSlice(tt.tileW, tt.tileH, func(idx int) string {
-				return fmt.Sprintf("frame_%d", idx)
-			})
+			_, errs := builder.GridSlice(tt.tileW, tt.tileH, "tile")
 			if tt.errs && len(errs) == 0 {
 				t.Error("GridSlice() errors = nil, want errors")
 			}

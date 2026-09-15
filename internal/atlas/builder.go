@@ -70,7 +70,7 @@ func (b *Builder) SliceRegion(name string, x, y, w, h int) (*Builder, error) {
 // nameFunc receives the zero-based tile index (left-to-right, top-to-bottom)
 // and returns the region name. Returns all errors collected during the
 // slice; the Builder is still returned to allow further chaining.
-func (b *Builder) GridSlice(w, h int, nameFunc func(idx int) string) (*Builder, []error) {
+func (b *Builder) GridSlice(w, h int, prefix string) (*Builder, []error) {
 	var errs AtlasErrorList
 	if w <= 0 || h <= 0 {
 		return b, []error{&AtlasError{Message: "tile dimensions must be positive"}}
@@ -85,7 +85,7 @@ func (b *Builder) GridSlice(w, h int, nameFunc func(idx int) string) (*Builder, 
 	idx := 0
 	for y := range rows {
 		for x := range cols {
-			name := nameFunc(idx)
+			name := fmt.Sprintf("%s_%d", prefix, idx)
 			if _, err := b.SliceRegion(name, x*w, y*h, w, h); err != nil {
 				errs.Errors = append(errs.Errors, err)
 			}
