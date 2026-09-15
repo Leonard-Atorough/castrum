@@ -35,7 +35,7 @@ func TestAnimationClipBuilder(t *testing.T) {
 
 	t.Run("Builds animation when provided valid frames and properties", func(t *testing.T) {
 		builder := NewAnimationClipBuilder("test_id", createTextureAtlasForTest(t, "frame1", "frame2"), &mockManager{})
-		builder.AddFrame("frame1").AddFrame("frame2").SetFrameSpeed(0.5).SetLoop(true)
+		builder.AddFrame("frame1").AddFrame("frame2").SetFPS(2).SetLoop(true)
 		clip, err := builder.Build()
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
@@ -47,7 +47,7 @@ func TestAnimationClipBuilder(t *testing.T) {
 
 	t.Run("Accepts a list of frames at once", func(t *testing.T) {
 		builder := NewAnimationClipBuilder("test_id", createTextureAtlasForTest(t, "frame1", "frame2", "frame3"), &mockManager{})
-		builder.AddFrames("frame1", "frame2", "frame3").SetFrameSpeed(0.5).SetLoop(true)
+		builder.AddFrames("frame1", "frame2", "frame3").SetFPS(2).SetLoop(true)
 		clip, err := builder.Build()
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
@@ -60,7 +60,7 @@ func TestAnimationClipBuilder(t *testing.T) {
 	t.Run("Build calls store with correct ID and clip", func(t *testing.T) {
 		mockMgr := &mockManager{}
 		builder := NewAnimationClipBuilder("test_id", createTextureAtlasForTest(t, "frame1"), mockMgr)
-		builder.AddFrame("frame1").SetFrameSpeed(0.5)
+		builder.AddFrame("frame1").SetFPS(2)
 		clip, _ := builder.Build()
 		if mockMgr.storedID != "test_id" {
 			t.Errorf("expected stored ID to be 'test_id', got %q", mockMgr.storedID)
@@ -74,21 +74,21 @@ func TestAnimationClipBuilder(t *testing.T) {
 		name        string
 		atlas       *atlas.Atlas
 		frames      []string
-		frameSpeed  float64
+		fps         float64
 		wantErr     bool
 		errContains string
 	}{
-		{"nil atlas", nil, []string{"frame1"}, 0.5, true, "atlas is required"},
-		{"no frames", createTextureAtlasForTest(t), []string{}, 0.5, true, "at least one frame"},
-		{"zero speed", createTextureAtlasForTest(t, "frame1"), []string{"frame1"}, 0, true, "frame speed must be positive"},
-		{"negative speed", createTextureAtlasForTest(t, "frame1"), []string{"frame1"}, -0.5, true, "frame speed must be positive"},
-		{"invalid frame", createTextureAtlasForTest(t, "frame1"), []string{"frame2"}, 0.5, true, "region"},
+		{"nil atlas", nil, []string{"frame1"}, 2, true, "atlas is required"},
+		{"no frames", createTextureAtlasForTest(t), []string{}, 2, true, "at least one frame"},
+		{"zero fps", createTextureAtlasForTest(t, "frame1"), []string{"frame1"}, 0, true, "FPS must be positive"},
+		{"negative fps", createTextureAtlasForTest(t, "frame1"), []string{"frame1"}, -2, true, "FPS must be positive"},
+		{"invalid frame", createTextureAtlasForTest(t, "frame1"), []string{"frame2"}, 2, true, "region"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			builder := NewAnimationClipBuilder("test", tt.atlas, &mockManager{})
 			builder.frames = tt.frames
-			builder.frameSpeed = tt.frameSpeed
+			builder.fps = tt.fps
 			_, err := builder.Build()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("wantErr=%v, got err=%v", tt.wantErr, err)
@@ -135,7 +135,7 @@ func TestAnimationClipStore(t *testing.T) {
 		if len(clipBuilder.frames) != 0 {
 			t.Errorf("expected clip builder frames to be empty initially")
 		}
-		if clipBuilder.frameSpeed != 0 {
+		if clipBuilder.fps != 0 {
 			t.Errorf("expected clip builder frame speed to be 0 initially")
 		}
 		if clipBuilder.loop != false {
@@ -205,6 +205,7 @@ func createTextureAtlasForTest(t *testing.T, regionNames ...string) *atlas.Atlas
 func setupTestWorld() *ecs.World {
 	world := ecs.NewWorld()
 	world.SetResource(events.NewEventBus())
+	world.SetResource(NewAnimationClipStore())
 	return world
 }
 
@@ -263,7 +264,7 @@ func TestSystem_Update_AdvancesFrameTime(t *testing.T) {
 	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
-		SetFrameSpeed(0.1).
+		SetFPS(10).
 		SetLoop(false).
 		Build()
 	if err != nil {
@@ -295,7 +296,7 @@ func TestSystem_Update_AdvancesFrame(t *testing.T) {
 	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
-		SetFrameSpeed(0.1).
+		SetFPS(10).
 		SetLoop(false).
 		Build()
 	if err != nil {
@@ -333,7 +334,7 @@ func TestSystem_Update_EmitsLoopEvent(t *testing.T) {
 	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
-		SetFrameSpeed(0.1).
+		SetFPS(10).
 		SetLoop(true).
 		Build()
 	if err != nil {
@@ -364,7 +365,7 @@ func TestSystem_Update_IgnoresNonPlayingAnimations(t *testing.T) {
 	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
-		SetFrameSpeed(0.1).
+		SetFPS(10).
 		SetLoop(false).
 		Build()
 	if err != nil {
@@ -393,7 +394,7 @@ func TestSystem_Update_LoopsAnimation(t *testing.T) {
 	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
-		SetFrameSpeed(0.1).
+		SetFPS(10).
 		SetLoop(true).
 		Build()
 	if err != nil {
@@ -434,7 +435,7 @@ func TestSystem_Update_StopsNonLoopingAnimation(t *testing.T) {
 	_, err := sys.manager.NewBuilder("test_clip", atlas).
 		AddFrame("frame_0").
 		AddFrame("frame_1").
-		SetFrameSpeed(0.1).
+		SetFPS(10).
 		SetLoop(false).
 		Build()
 	if err != nil {
@@ -471,7 +472,7 @@ func TestSystem_Update_RespectPlaybackSpeed(t *testing.T) {
 		AddFrame("frame_0").
 		AddFrame("frame_1").
 		AddFrame("frame_2").
-		SetFrameSpeed(0.1).
+		SetFPS(10).
 		SetLoop(false).
 		Build()
 	if err != nil {

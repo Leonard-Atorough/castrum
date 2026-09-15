@@ -40,7 +40,7 @@ func (f textureFixture) seedAtlas(t *testing.T, atlasID, assetID string, w, h in
 		width:  w,
 		height: h,
 	}
-	f.atlasSvc.Set(atlasID, assetID, pubatlas.NewTextureAtlas(atlasID, assetID, w, h, regions))
+	f.atlasSvc.Set(atlasID, pubatlas.NewTextureAtlas(atlasID, assetID, w, h, regions))
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +109,7 @@ func TestTextureProviderSubImage(t *testing.T) {
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
 
-	img, w, h, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("test_atlas"), "head")
+	img, w, h, err := f.provider.SubImage(context.Background(), pubatlas.ID("test_atlas"), "head")
 	if err != nil {
 		t.Fatalf("SubImage() error = %v", err)
 	}
@@ -127,11 +127,11 @@ func TestTextureProviderSubImageCaches(t *testing.T) {
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
 
-	img1, _, _, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("test_atlas"), "head")
+	img1, _, _, err := f.provider.SubImage(context.Background(), pubatlas.ID("test_atlas"), "head")
 	if err != nil {
 		t.Fatalf("first SubImage() error = %v", err)
 	}
-	img2, _, _, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("test_atlas"), "head")
+	img2, _, _, err := f.provider.SubImage(context.Background(), pubatlas.ID("test_atlas"), "head")
 	if err != nil {
 		t.Fatalf("second SubImage() error = %v", err)
 	}
@@ -143,7 +143,7 @@ func TestTextureProviderSubImageCaches(t *testing.T) {
 func TestTextureProviderSubImageAtlasNotFound(t *testing.T) {
 	f := newTextureFixture(t)
 
-	_, _, _, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("nonexistent"), "head")
+	_, _, _, err := f.provider.SubImage(context.Background(), pubatlas.ID("nonexistent"), "head")
 	if err == nil {
 		t.Error("SubImage() for nonexistent atlas error = nil, want error")
 	}
@@ -155,7 +155,7 @@ func TestTextureProviderSubImageRegionNotFound(t *testing.T) {
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
 
-	_, _, _, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("test_atlas"), "nonexistent")
+	_, _, _, err := f.provider.SubImage(context.Background(), pubatlas.ID("test_atlas"), "nonexistent")
 	if err == nil {
 		t.Error("SubImage() for nonexistent region error = nil, want error")
 	}
@@ -169,11 +169,11 @@ func TestTextureProviderSubImageDimensionMismatch(t *testing.T) {
 		width:  64,
 		height: 64,
 	}
-	f.atlasSvc.Set("test_atlas", "sprite.png", pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 32, 32, map[string]pubatlas.AtlasRegion{
+	f.atlasSvc.Set("test_atlas", pubatlas.NewTextureAtlas("test_atlas", "sprite.png", 32, 32, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 16, H: 16},
 	}))
 
-	_, _, _, err := f.provider.SubImage(context.Background(), assets.ID("sprite.png"), pubatlas.ID("test_atlas"), "head")
+	_, _, _, err := f.provider.SubImage(context.Background(), pubatlas.ID("test_atlas"), "head")
 	if err == nil {
 		t.Error("SubImage() with dimension mismatch error = nil, want error")
 	}
@@ -204,8 +204,8 @@ func TestTextureProviderInvalidateRemovesSubImages(t *testing.T) {
 
 	textureID := assets.ID("sprite.png")
 	atlasID := pubatlas.ID("test_atlas")
-	_, _, _, _ = f.provider.SubImage(context.Background(), textureID, atlasID, "head")
-	_, _, _, _ = f.provider.SubImage(context.Background(), textureID, atlasID, "body")
+	_, _, _, _ = f.provider.SubImage(context.Background(), atlasID, "head")
+	_, _, _, _ = f.provider.SubImage(context.Background(), atlasID, "body")
 
 	if len(f.provider.subimages) != 2 {
 		t.Fatalf("expected 2 subimages cached, got %d", len(f.provider.subimages))
@@ -213,10 +213,8 @@ func TestTextureProviderInvalidateRemovesSubImages(t *testing.T) {
 
 	f.provider.Invalidate(textureID)
 
-	for key := range f.provider.subimages {
-		if key.assetID == textureID {
-			t.Errorf("subimage for invalidated texture still cached: %+v", key)
-		}
+	if len(f.provider.subimages) != 0 {
+		t.Errorf("expected 0 subimages after invalidation, got %d", len(f.provider.subimages))
 	}
 }
 
@@ -232,10 +230,10 @@ func TestTextureProviderInvalidateClearsAtlasServiceEntries(t *testing.T) {
 	// Invalidate sprite.png — only atlas_a should be removed from the service.
 	f.provider.Invalidate(assets.ID("sprite.png"))
 
-	if f.atlasSvc.Has("atlas_a", "sprite.png") {
+	if f.atlasSvc.Has("atlas_a") {
 		t.Error("atlas_a still exists after invalidating sprite.png")
 	}
-	if !f.atlasSvc.Has("atlas_b", "other.png") {
+	if !f.atlasSvc.Has("atlas_b") {
 		t.Error("atlas_b was removed but uses a different texture")
 	}
 }
@@ -256,7 +254,7 @@ func TestTextureProviderInvalidateEmptyIDClearsAll(t *testing.T) {
 	if len(f.provider.subimages) != 0 {
 		t.Errorf("expected 0 subimages after Invalidate(\"\"), got %d", len(f.provider.subimages))
 	}
-	if f.atlasSvc.Has("test_atlas", "test.png") {
+	if f.atlasSvc.Has("test_atlas") {
 		t.Error("atlas service entry survived Invalidate(\"\")")
 	}
 }
@@ -286,7 +284,7 @@ func TestTextureProviderInvalidateAll(t *testing.T) {
 	f.seedAtlas(t, "atlas", "a.png", 32, 32, map[string]pubatlas.AtlasRegion{
 		"head": {Name: "head", X: 0, Y: 0, W: 16, H: 16},
 	})
-	_, _, _, _ = f.provider.SubImage(context.Background(), assets.ID("a.png"), pubatlas.ID("atlas"), "head")
+	_, _, _, _ = f.provider.SubImage(context.Background(), pubatlas.ID("atlas"), "head")
 
 	if len(f.provider.images) != 2 {
 		t.Fatalf("expected 2 textures cached, got %d", len(f.provider.images))
@@ -303,7 +301,7 @@ func TestTextureProviderInvalidateAll(t *testing.T) {
 	if len(f.provider.subimages) != 0 {
 		t.Errorf("expected 0 subimages after Invalidate(\"\"), got %d", len(f.provider.subimages))
 	}
-	if f.atlasSvc.Has("atlas", "a.png") {
+	if f.atlasSvc.Has("atlas") {
 		t.Error("atlas service entry survived Invalidate(\"\")")
 	}
 }
@@ -369,7 +367,6 @@ func TestTextureProviderConcurrentSubImage(t *testing.T) {
 		"head": {Name: "head", X: 0, Y: 0, W: 32, H: 32},
 	})
 
-	textureID := assets.ID("sprite.png")
 	atlasID := pubatlas.ID("test_atlas")
 
 	const numGoroutines = 10
@@ -380,7 +377,7 @@ func TestTextureProviderConcurrentSubImage(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			img, _, _, _ := f.provider.SubImage(context.Background(), textureID, atlasID, "head")
+			img, _, _, _ := f.provider.SubImage(context.Background(), atlasID, "head")
 			results <- img
 		}()
 	}
@@ -404,11 +401,8 @@ func TestTextureProviderConcurrentSubImage(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSubImageKey(t *testing.T) {
-	key := newSubImageKey(assets.ID("tex.png"), pubatlas.ID("atlas"), "region")
+	key := newSubImageKey(pubatlas.ID("atlas"), "region")
 
-	if key.assetID != assets.ID("tex.png") {
-		t.Errorf("assetID = %v, want %v", key.assetID, assets.ID("tex.png"))
-	}
 	if key.atlasID != pubatlas.ID("atlas") {
 		t.Errorf("atlasID = %v, want %v", key.atlasID, pubatlas.ID("atlas"))
 	}
@@ -459,7 +453,6 @@ func TestBuilderToSubImageIntegration(t *testing.T) {
 
 	img, w, h, err := f.provider.SubImage(
 		context.Background(),
-		assets.ID("sprite.png"),
 		pubatlas.ID("player"),
 		"idle",
 	)

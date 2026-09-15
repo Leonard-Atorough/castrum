@@ -28,14 +28,12 @@ type textureResource struct {
 }
 
 type subImageKey struct {
-	assetID    assets.ID
 	atlasID    pubatlas.ID
 	regionName string
 }
 
-func newSubImageKey(assetID assets.ID, atlasID pubatlas.ID, regionName string) subImageKey {
+func newSubImageKey(atlasID pubatlas.ID, regionName string) subImageKey {
 	return subImageKey{
-		assetID:    assetID,
 		atlasID:    atlasID,
 		regionName: regionName,
 	}
@@ -93,34 +91,33 @@ func (p *Texture) Load(ctx context.Context, id assets.ID) (*ebiten.Image, int, i
 	return resource.image, resource.width, resource.height, nil
 }
 
-func (p *Texture) SubImage(ctx context.Context, assetID assets.ID, atlasID pubatlas.ID, regionName string) (*ebiten.Image, int, int, error) {
+func (p *Texture) SubImage(ctx context.Context, atlasID pubatlas.ID, regionName string) (*ebiten.Image, int, int, error) {
 	p.mu.RLock()
-	cached, ok := p.subimages[newSubImageKey(assetID, atlasID, regionName)]
+	cached, ok := p.subimages[newSubImageKey(atlasID, regionName)]
 	p.mu.RUnlock()
 	if ok {
 		return cached.image, cached.width, cached.height, nil
 	}
 
-	res, err := p.atlasSvc.Get(string(atlasID), string(assetID))
+	res, err := p.atlasSvc.Get(string(atlasID))
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
+	assetID := assets.ID(res.AssetID())
 	texture, texW, texH, err := p.Load(ctx, assetID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	atlasData := res
-
-	atlasTexW, atlasTexH := atlasData.Dimensions()
+	atlasTexW, atlasTexH := res.Dimensions()
 	if atlasTexW != texW || atlasTexH != texH {
 		return nil, 0, 0, fmt.Errorf(
 			"atlas %s dimensions (%d,%d) don't match texture %s (%d,%d)",
 			atlasID, atlasTexW, atlasTexH, assetID, texW, texH)
 	}
 
-	atlasRegion, ok := atlasData.Region(regionName)
+	atlasRegion, ok := res.Region(regionName)
 	if !ok {
 		return nil, 0, 0, fmt.Errorf("region %s not found in atlas for id=%s", regionName, atlasID)
 	}
@@ -142,7 +139,7 @@ func (p *Texture) SubImage(ctx context.Context, assetID assets.ID, atlasID pubat
 		height: rect.Dy(),
 	}
 
-	key := newSubImageKey(assetID, atlasID, regionName)
+	key := newSubImageKey(atlasID, regionName)
 	p.mu.Lock()
 	if existing, ok := p.subimages[key]; ok {
 		p.mu.Unlock()
@@ -167,9 +164,12 @@ func (p *Texture) Invalidate(id assets.ID) {
 	}
 	delete(p.images, id)
 
-	// loop through subimages and delete any that reference this texture ID
+	// Remove subimages whose atlas references this asset. The atlas service
+	// knows which atlases use the asset; we remove those atlas entries and
+	// their subimages together.
 	for key := range p.subimages {
-		if key.assetID == id {
+		atlas, err := p.atlasSvc.Get(string(key.atlasID))
+		if err == nil && atlas.AssetID() == string(id) {
 			delete(p.subimages, key)
 		}
 	}

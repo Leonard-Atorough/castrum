@@ -9,18 +9,17 @@ import (
 )
 
 // Transform represents the spatial state of an entity: position, rotation,
-// scale, and tint color. Scale is always a multiplier, not a pixel size —
-// {1,1} means no scaling. For primitives, the base size comes from
-// Sprite.Size; for textured sprites, it comes from the image or atlas
-// region dimensions.
+// and scale. Scale is always a multiplier, not a pixel size — {1,1} means
+// no scaling. For primitives, the base size comes from Sprite.Size; for
+// textured sprites, it comes from the image or atlas region dimensions.
 type Transform struct {
 	Position geom.Vector2
 	Rotation float64
 	Scale    geom.Vector2
 }
 
-// NewTransform creates a Transform component with the specified position, rotation, and scale.
-// The color is set to transparent if not provided.
+// NewTransform creates a Transform component with the specified position,
+// rotation, and scale.
 func NewTransform(position geom.Vector2, rotation float64, scale geom.Vector2) Transform {
 	return Transform{
 		Position: position,
@@ -39,11 +38,16 @@ type SceneTag struct {
 }
 
 // Sprite is the renderable component. It carries either a texture reference
-// (TexturePath, optionally with AtlasID/RegionName) or a primitive shape
-// (Primitive).
+// or a primitive shape (Primitive).
 //
-// For textured sprites, the rendered size is derived from the image or atlas
-// region dimensions multiplied by Transform.Scale.
+// For textured sprites, set TexturePath for a standalone texture, or set
+// AtlasID and RegionName for an atlas region. TexturePath is optional when
+// AtlasID is set — the renderer resolves the texture path from the atlas.
+//
+// RegionName is the initial/fallback region used for static sprites. When
+// the entity also has an [Animation] component, the animation system
+// advances the frame index each tick and the renderer uses the animation's
+// current frame instead of RegionName.
 //
 // For primitive sprites, Size is the base dimension in pixels and
 // Transform.Scale is a multiplier on top of it. A 32x32 rectangle with
