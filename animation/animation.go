@@ -30,10 +30,10 @@ type AnimationEvent struct {
 
 // AnimationClip represents a sequence of frames from a texture atlas that can be played back as an animation.
 type AnimationClip struct {
-	Atlas      *atlas.Atlas // Reference to the texture atlas containing the frames
-	Frames     []string     // Region names in the atlas (in order)
-	FrameSpeed float64      // Time (in seconds) each frame is displayed
-	Loop       bool         // Whether the animation repeats
+	Atlas  *atlas.Atlas // Reference to the texture atlas containing the frames
+	Frames []string     // Region names in the atlas (in order)
+	FPS    float64      // Frames per second
+	Loop   bool         // Whether the animation repeats
 }
 
 type clipStorer interface {
@@ -42,12 +42,12 @@ type clipStorer interface {
 
 // AnimationClipBuilder provides a fluent interface for constructing AnimationClip instances.
 type AnimationClipBuilder struct {
-	id         string
-	atlas      *atlas.Atlas
-	frames     []string // Region names in the atlas
-	frameSpeed float64
-	loop       bool
-	store      clipStorer
+	id     string
+	atlas  *atlas.Atlas
+	frames []string // Region names in the atlas
+	fps    float64
+	loop   bool
+	store  clipStorer
 }
 
 // NewAnimationClipBuilder initializes a new builder for an animation clip.
@@ -76,9 +76,9 @@ func (c *AnimationClipBuilder) AddFrames(regionNames ...string) *AnimationClipBu
 	return c
 }
 
-// SetFrameSpeed sets the time (in seconds) each frame is displayed.
-func (c *AnimationClipBuilder) SetFrameSpeed(speed float64) *AnimationClipBuilder {
-	c.frameSpeed = speed
+// SetFPS sets the playback rate in frames per second.
+func (c *AnimationClipBuilder) SetFPS(fps float64) *AnimationClipBuilder {
+	c.fps = fps
 	return c
 }
 
@@ -96,8 +96,8 @@ func (c *AnimationClipBuilder) Build() (*AnimationClip, error) {
 	if len(c.frames) == 0 {
 		return nil, fmt.Errorf("animation clip %q: at least one frame is required", c.id)
 	}
-	if c.frameSpeed <= 0 {
-		return nil, fmt.Errorf("animation clip %q: frame speed must be positive", c.id)
+	if c.fps <= 0 {
+		return nil, fmt.Errorf("animation clip %q: FPS must be positive", c.id)
 	}
 
 	// Validate frame names exist in atlas
@@ -108,10 +108,10 @@ func (c *AnimationClipBuilder) Build() (*AnimationClip, error) {
 	}
 
 	clip := &AnimationClip{
-		Atlas:      c.atlas,
-		Frames:     c.frames,
-		FrameSpeed: c.frameSpeed,
-		Loop:       c.loop,
+		Atlas:  c.atlas,
+		Frames: c.frames,
+		FPS:    c.fps,
+		Loop:   c.loop,
 	}
 
 	c.store.store(c.id, clip)
@@ -157,19 +157,19 @@ func (m *AnimationClipStore) store(id string, clip *AnimationClip) {
 	m.clips[id] = clip
 }
 
-// AnimationSystem processes animation playback for entities with Animation components.
-// It delegates to the Manager for clip resolution and orchestrates frame advancement
-// and event emission. Does not handle clip creation or configuration.
+// AnimationSystem processes animation playback for entities with Animation
+// components. It reads clips from the [*AnimationClipStore] registered as a
+// world resource by [NewGame], so it shares the same store as the renderer.
 type AnimationSystem struct {
 	query   *ecs.Query
 	manager *AnimationClipStore
 }
 
-// NewSystem creates a new animation system with the given manager.
+// NewSystem creates a new animation system. The clip store is resolved from
+// the world resource during [AnimationSystem.Init]; if no store is
+// registered, the system does nothing.
 func NewSystem() *AnimationSystem {
-	return &AnimationSystem{
-		manager: NewAnimationClipStore(),
-	}
+	return &AnimationSystem{}
 }
 
 func (as *AnimationSystem) Init(world *ecs.World) error {
@@ -178,11 +178,19 @@ func (as *AnimationSystem) Init(world *ecs.World) error {
 		components.Sprite{},
 	)
 
+	if store, ok := world.GetResource[*AnimationClipStore](); ok {
+		as.manager = store
+	}
+
 	return nil
 }
 
 // Update processes all Animation components, advancing frame time and emitting events.
 func (as *AnimationSystem) Update(world *ecs.World, delta float64) error {
+	if as.manager == nil {
+		return nil
+	}
+
 	bus, ok := world.GetResource[*events.EventBus]()
 	if !ok {
 		return nil
@@ -203,8 +211,9 @@ func (as *AnimationSystem) Update(world *ecs.World, delta float64) error {
 
 		anim.FrameTime += delta * anim.PlaybackSpeed
 
-		if anim.FrameTime >= clip.FrameSpeed {
-			anim.FrameTime -= clip.FrameSpeed
+		frameDuration := 1.0 / clip.FPS
+		if anim.FrameTime >= frameDuration {
+			anim.FrameTime -= frameDuration
 			anim.FrameIndex++
 
 			if anim.FrameIndex >= len(clip.Frames) {
