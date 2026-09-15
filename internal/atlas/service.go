@@ -17,6 +17,8 @@ func newAtlasKey(atlasID, assetID string) atlasKey {
 	}
 }
 
+// Store is the concurrent in-memory atlas registry. It maps
+// (atlasID, assetID) pairs to [Atlas] instances.
 type Store struct {
 	mu      sync.RWMutex
 	atlases map[atlasKey]*Atlas
@@ -44,6 +46,8 @@ func (s *Store) set(atlasID, assetID string, atlas *Atlas) {
 	s.atlases[newAtlasKey(atlasID, assetID)] = atlas
 }
 
+// Service provides read/write access to the atlas [Store]. It is the
+// production backing store for [Builder] and the texture provider.
 type Service struct {
 	store *Store
 }

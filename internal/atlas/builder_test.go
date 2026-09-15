@@ -113,9 +113,9 @@ func TestBuilderFromMeta(t *testing.T) {
 		},
 	}
 
-	b, err := builder.FromMeta(meta)
-	if err != nil {
-		t.Fatalf("FromMeta() error = %v", err)
+	b, errs := builder.FromMeta(meta)
+	if len(errs) > 0 {
+		t.Fatalf("FromMeta() errors = %v", errs)
 	}
 
 	atlas, err := b.Build()
