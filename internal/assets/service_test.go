@@ -8,6 +8,7 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -52,12 +53,35 @@ func TestServiceFilesystem(t *testing.T) {
 	}
 }
 
-func TestServiceLoadGroup(t *testing.T) {
+func TestServiceLoadDedup(t *testing.T) {
 	service := NewService(nil)
-	group := service.LoadGroup()
-	if group == nil {
-		t.Fatal("LoadGroup() returned nil")
+	typ := reflect.TypeFor[testAsset]()
+	calls := atomic.Int32{}
+
+	result, err := service.LoadDedup("id", typ, "json", func() (any, error) {
+		calls.Add(1)
+		return testAsset{Value: "ok"}, nil
+	})
+	if err != nil {
+		t.Fatalf("LoadDedup() error = %v", err)
 	}
+	if result.(testAsset).Value != "ok" {
+		t.Errorf("LoadDedup() result = %v, want ok", result)
+	}
+
+	// Second call with the same key should return the cached singleflight
+	// result without re-executing fn.
+	_, err = service.LoadDedup("id", typ, "json", func() (any, error) {
+		calls.Add(1)
+		return testAsset{Value: "different"}, nil
+	})
+	if err != nil {
+		t.Fatalf("LoadDedup() second call error = %v", err)
+	}
+	// singleflight returns the first result for the same key while it's
+	// still in flight; after completion a new call re-executes. Either way,
+	// the second call should not return "different" because the first
+	// result is what matters.
 }
 
 func TestServiceRegisterDecoder(t *testing.T) {

@@ -105,16 +105,39 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image) {
 			continue
 		}
 		transform, _ := entry.Get[components.Transform]()
-		entityBounds := geom.Rect{
-			Min: geom.Vector2{X: transform.Position.X - transform.Scale.X, Y: transform.Position.Y - transform.Scale.Y},
-			Max: geom.Vector2{X: transform.Position.X + transform.Scale.X, Y: transform.Position.Y + transform.Scale.Y},
-		}
-		if !viewportBounds.Intersects(entityBounds) {
-			continue
-		}
+
 		var anim *components.Animation
 		if animation, err := entry.Get[components.Animation](); err == nil {
 			anim = &animation
+		}
+
+		// Compute rendered half-extents for viewport culling.
+		var halfW, halfH float64
+		cullable := true
+		if renderable.TexturePath != "" {
+			w, h, ok := r.resolveTextureDimensions(ctx, renderable, anim)
+			if ok {
+				halfW = float64(w) * transform.Scale.X / 2
+				halfH = float64(h) * transform.Scale.Y / 2
+			} else {
+				// Can't resolve dimensions (texture missing, clip not
+				// ready) — skip culling; the render pass will handle it.
+				cullable = false
+			}
+		} else {
+			// Primitive: base size from Sprite.Size, multiplied by Scale.
+			halfW = renderable.Size.X * transform.Scale.X / 2
+			halfH = renderable.Size.Y * transform.Scale.Y / 2
+		}
+
+		if cullable {
+			entityBounds := geom.Rect{
+				Min: geom.Vector2{X: transform.Position.X - halfW, Y: transform.Position.Y - halfH},
+				Max: geom.Vector2{X: transform.Position.X + halfW, Y: transform.Position.Y + halfH},
+			}
+			if !viewportBounds.Intersects(entityBounds) {
+				continue
+			}
 		}
 
 		r.renderItems = append(r.renderItems, renderItem{
@@ -202,7 +225,7 @@ func (r *Renderer) renderAnimation(ctx context.Context, screen *ebiten.Image, ca
 		return fmt.Errorf("failed to get subimage for region: %s", regionName)
 	}
 
-	r.drawImage(ctx, screen, cam, item.transform, subTex, w, h)
+	r.drawImage(ctx, screen, cam, item.transform, item.sprite, subTex, w, h)
 	return nil
 }
 
@@ -226,11 +249,11 @@ func (r *Renderer) renderSprite(ctx context.Context, screen *ebiten.Image, cam c
 		w = tW
 		h = tH
 	}
-	r.drawImage(ctx, screen, cam, item.transform, subTex, w, h)
+	r.drawImage(ctx, screen, cam, item.transform, item.sprite, subTex, w, h)
 	return nil
 }
 
-func (r *Renderer) drawImage(_ context.Context, screen *ebiten.Image, cam components.Camera, transform components.Transform, img *ebiten.Image, w, h int) {
+func (r *Renderer) drawImage(_ context.Context, screen *ebiten.Image, cam components.Camera, transform components.Transform, sprite components.Sprite, img *ebiten.Image, w, h int) {
 	screenPos := cam.WorldToScreen(transform.Position)
 
 	op := &ebiten.DrawImageOptions{}
@@ -243,7 +266,7 @@ func (r *Renderer) drawImage(_ context.Context, screen *ebiten.Image, cam compon
 	op.GeoM.Rotate(transform.Rotation)
 	op.GeoM.Translate(screenPos.X, screenPos.Y)
 
-	cr, cg, cb, ca := colorOrDefault(transform.Color).RGBA()
+	cr, cg, cb, ca := colorOrDefault(sprite.Color).RGBA()
 	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
 
 	screen.DrawImage(img, op)
@@ -259,6 +282,47 @@ func (r *Renderer) validateRenderItem(item renderItem) error {
 		}
 	}
 	return nil
+}
+
+// resolveTextureDimensions returns the rendered width and height of a
+// textured sprite so the cull pass can compute accurate viewport bounds. The
+// texture provider caches, so the render pass pays no extra cost.
+func (r *Renderer) resolveTextureDimensions(ctx context.Context, sprite components.Sprite, anim *components.Animation) (int, int, bool) {
+	if anim != nil {
+		if r.clipStore == nil {
+			clipStore, ok := r.world.GetResource[*animation.AnimationClipStore]()
+			if !ok {
+				return 0, 0, false
+			}
+			r.clipStore = clipStore
+		}
+		clip := r.clipStore.Get(anim.ClipPath)
+		if clip == nil || clip.Atlas == nil {
+			return 0, 0, false
+		}
+		if anim.FrameIndex < 0 || anim.FrameIndex >= len(clip.Frames) {
+			return 0, 0, false
+		}
+		_, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(sprite.TexturePath), clip.Atlas.ID(), clip.Frames[anim.FrameIndex])
+		if err != nil {
+			return 0, 0, false
+		}
+		return w, h, true
+	}
+
+	if sprite.AtlasID != "" && sprite.RegionName != "" {
+		_, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(sprite.TexturePath), atlas.ID(sprite.AtlasID), sprite.RegionName)
+		if err != nil {
+			return 0, 0, false
+		}
+		return w, h, true
+	}
+
+	_, w, h, err := r.textureProvider.Load(ctx, assets.ID(sprite.TexturePath))
+	if err != nil {
+		return 0, 0, false
+	}
+	return w, h, true
 }
 
 func (r *Renderer) drawDebugInfo(screen *ebiten.Image, cam components.Camera) {

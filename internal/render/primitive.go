@@ -20,34 +20,35 @@ func NewPrimitiveRenderer() *PrimitiveRenderer {
 	return &PrimitiveRenderer{}
 }
 
-func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, transform components.Transform, renderable components.Sprite) error {
+func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, transform components.Transform, sprite components.Sprite) error {
 	pos := cam.WorldToScreen(transform.Position)
 	x, y := float32(pos.X), float32(pos.Y)
 	zoom := float32(cam.Zoom)
-	clr := colorOrDefault(transform.Color)
+	clr := colorOrDefault(sprite.Color)
 
-	switch renderable.Primitive {
+	w := float32(sprite.Size.X) * float32(transform.Scale.X) * zoom
+	h := float32(sprite.Size.Y) * float32(transform.Scale.Y) * zoom
+
+	switch sprite.Primitive {
 	case components.PrimitiveKindCircle:
-		radius := float32(transform.Scale.X) * zoom / 2
+		radius := w / 2
 		vector.FillCircle(screen, x, y, radius, clr, true)
 	case components.PrimitiveKindLine:
-		half := float32(transform.Scale.X) * zoom / 2
+		half := w / 2
 		dx, dy := float32(math.Cos(transform.Rotation)), float32(math.Sin(transform.Rotation))
-		strokeWidth := float32(transform.Scale.Y) * zoom
-		vector.StrokeLine(screen, x-dx*half, y-dy*half, x+dx*half, y+dy*half, strokeWidth, clr, true)
+		vector.StrokeLine(screen, x-dx*half, y-dy*half, x+dx*half, y+dy*half, h, clr, true)
 	case components.PrimitiveKindPolygon:
-		// using vector.Path to draw the polygon
-		if err := drawPolygonPath(renderable, cam, clr, screen); err != nil {
+		if err := drawPolygonPath(sprite, cam, clr, screen); err != nil {
 			return err
 		}
 	default: // PrimitiveKindRectangle
-		drawRotatedRect(screen, x, y, float32(transform.Scale.X)*zoom, float32(transform.Scale.Y)*zoom, transform.Rotation, clr)
+		drawRotatedRect(screen, x, y, w, h, transform.Rotation, clr)
 	}
 	return nil
 }
 
-func drawPolygonPath(renderable components.Sprite, cam components.Camera, clr color.Color, screen *ebiten.Image) error {
-	if polygon, ok := renderable.Data.(geom.Polygon); ok {
+func drawPolygonPath(sprite components.Sprite, cam components.Camera, clr color.Color, screen *ebiten.Image) error {
+	if polygon, ok := sprite.Data.(geom.Polygon); ok {
 		if err := polygon.Validate(); err != nil {
 			return fmt.Errorf("invalid polygon")
 		}

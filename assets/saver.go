@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,28 +11,38 @@ import (
 	internalassets "github.com/leonard-atorough/castrum/internal/assets"
 )
 
+// SaveOption configures the behavior of [Saver.Save] and [Saver.SavePath].
 type SaveOption interface {
 	applySave(*SaveOptions)
 }
 
+// SaveOptions controls how an asset is encoded and written. The zero value
+// is not used directly; Save and SavePath apply their own defaults before
+// applying options.
 type SaveOptions struct {
 	Format      Format
 	AtomicWrite bool
 	CreateDir   bool
 }
 
+// WithSaveFormat sets the encoding format for the save operation.
 func WithSaveFormat(format Format) SaveOption {
 	return saveOptionFunc(func(opts *SaveOptions) {
 		opts.Format = format
 	})
 }
 
+// WithSaveAtomicWrite controls whether SavePath writes atomically (write to a
+// temp file, then rename). Has no effect on [Saver.Save], which writes to a
+// caller-provided writer.
 func WithSaveAtomicWrite(atomicWrite bool) SaveOption {
 	return saveOptionFunc(func(opts *SaveOptions) {
 		opts.AtomicWrite = atomicWrite
 	})
 }
 
+// WithSaveCreateDir controls whether SavePath creates missing parent
+// directories. Has no effect on [Saver.Save] which writes to a caller-provided writer.
 func WithSaveCreateDir(createDir bool) SaveOption {
 	return saveOptionFunc(func(opts *SaveOptions) {
 		opts.CreateDir = createDir
@@ -46,21 +55,27 @@ func (f saveOptionFunc) applySave(opts *SaveOptions) {
 
 type saveOptionFunc func(*SaveOptions)
 
+// Encoder is a function type that encodes a value of type T to a writer
+// in a specific format.
 type Encoder[T any] func(context.Context, io.Writer, T) error
 
+// Saver encodes assets to the host filesystem or an [io.Writer] using
+// format-specific encoders. A Saver created by [NewAssets] shares an internal
+// service with the [Loader], so saving an asset invalidates the loader's
+// cached copy.
 type Saver struct {
 	service    *internalassets.Service
 	invalidate func(ID)
-}
-
-func NewSaver(filesystem fs.FS) *Saver {
-	return &Saver{service: newAssetService(filesystem)}
 }
 
 func newSaver(service *internalassets.Service, invalidate func(ID)) *Saver {
 	return &Saver{service: service, invalidate: invalidate}
 }
 
+// SavePath encodes value and writes it to path on the host filesystem.
+// The format is inferred from the file extension unless [WithSaveFormat]
+// is provided. By default, missing directories are created and the write
+// is atomic (write to temp, then rename).
 func (s *Saver) SavePath[T any](ctx context.Context, path string, value T, options ...SaveOption) error {
 	path = normalizeSavePath(path)
 	opts := &SaveOptions{CreateDir: true, AtomicWrite: true}
@@ -133,8 +148,12 @@ func (s *Saver) SavePath[T any](ctx context.Context, path string, value T, optio
 	return nil
 }
 
+// Save encodes value and writes it to writer. The format must be specified
+// via [WithSaveFormat] since there is no file extension to infer from.
+// [WithSaveAtomicWrite] and [WithSaveCreateDir] are rejected as errors
+// since they have no meaning when writing to a writer.
 func (s *Saver) Save[T any](ctx context.Context, writer io.Writer, value T, options ...SaveOption) error {
-	opts := &SaveOptions{CreateDir: true, AtomicWrite: true}
+	opts := &SaveOptions{}
 	for _, option := range options {
 		option.applySave(opts)
 	}
@@ -144,9 +163,18 @@ func (s *Saver) Save[T any](ctx context.Context, writer io.Writer, value T, opti
 			Source:  "Save",
 		}
 	}
+	if opts.AtomicWrite || opts.CreateDir {
+		return &AssetError{
+			Message: "AtomicWrite and CreateDir options are ignored when saving to a writer",
+			Source:  "Save",
+		}
+	}
 	return s.save(ctx, writer, value, *opts, "Save")
 }
 
+// RegisterEncoder registers an encoder for the given format and type T.
+// If override is true, an existing encoder for the same type and format
+// is replaced; otherwise an error is returned if one is already registered.
 func (s *Saver) RegisterEncoder[T any](format Format, encoder Encoder[T], override bool) error {
 	if encoder == nil {
 		return &AssetError{

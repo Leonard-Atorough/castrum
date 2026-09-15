@@ -1,7 +1,6 @@
 package physics
 
 import (
-	"image/color"
 	"math"
 	"testing"
 
@@ -10,23 +9,6 @@ import (
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
 )
-
-func TestCollisionProxyChangedIgnoresVisualColor(t *testing.T) {
-	previous := collisionProxy{
-		transform: components.Transform{Color: color.RGBA{R: 255, A: 255}},
-	}
-	current := previous
-	current.transform.Color = color.RGBA{B: 255, A: 255}
-
-	if collisionProxyChanged(previous, current) {
-		t.Fatal("color-only transform change marked collision proxy dirty")
-	}
-
-	current.transform.Position.X = 1
-	if !collisionProxyChanged(previous, current) {
-		t.Fatal("position change did not mark collision proxy dirty")
-	}
-}
 
 func TestTransformedCollider_RectRotationBuildsConservativeBounds(t *testing.T) {
 	shape := geom.Rect{Min: geom.Vector2{X: -2, Y: -1}, Max: geom.Vector2{X: 2, Y: 1}}

@@ -22,7 +22,7 @@ type textureFixture struct {
 
 func newTextureFixture(t *testing.T) textureFixture {
 	t.Helper()
-	loader := assets.NewLoader(nil)
+	loader := assets.NewAssets(nil).AssetLoader()
 	atlasSvc := atlas.NewService(atlas.NewStore())
 	return textureFixture{
 		provider: NewTextureProvider(loader, atlasSvc),

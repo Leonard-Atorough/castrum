@@ -19,22 +19,20 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// LoadResult holds the result of an async load operation.
-type LoadResult struct {
-	Value any
-	Err   error
-}
-
+// TextureData holds a decoded image and its pixel dimensions.
 type TextureData struct {
 	Image  image.Image
 	Width  int
 	Height int
 }
 
+// AtlasMeta is the JSON metadata for a texture atlas: a list of named regions
+// within a single texture image.
 type AtlasMeta struct {
 	Regions []AtlasRegionMeta `yaml:"regions"`
 }
 
+// AtlasRegionMeta describes one region of a texture atlas in pixel coordinates.
 type AtlasRegionMeta struct {
 	Name       string `yaml:"name"`
 	X, Y, W, H int    `yaml:"x,y,w,h"`
@@ -53,11 +51,16 @@ type ComponentData struct {
 	Properties map[string]any `yaml:"properties"`
 }
 
+// Assets is the top-level facade for the asset subsystem. It owns a [Loader]
+// and [Saver] backed by a shared internal service, so saving an asset
+// invalidates the corresponding cache entry in the loader.
 type Assets struct {
 	loader *Loader
 	saver  *Saver
 }
 
+// NewAssets creates an Assets wired to the given filesystem. The filesystem
+// is used for both loading and saving.
 func NewAssets(filesystem fs.FS) *Assets {
 	service := newAssetService(filesystem)
 	loader := newLoader(service)
@@ -67,10 +70,12 @@ func NewAssets(filesystem fs.FS) *Assets {
 	}
 }
 
+// AssetLoader returns the [Loader] for reading and caching assets.
 func (a *Assets) AssetLoader() *Loader {
 	return a.loader
 }
 
+// AssetSaver returns the [Saver] for writing assets to storage.
 func (a *Assets) AssetSaver() *Saver {
 	return a.saver
 }
@@ -182,13 +187,17 @@ func decodeAtlasMetaJSON(_ context.Context, reader io.Reader) (AtlasMeta, error)
 	return meta, nil
 }
 
-// AssetError represents an error that occurred during the loading or saving of an asset.
+// AssetError wraps an error that occurred while loading or saving an asset.
+// The Source field identifies the operation that failed (e.g. "Load",
+// "SavePath").
 type AssetError struct {
 	Message string
 	Err     error
 	Source  string
 }
 
+// Error returns a human-readable description of the failure, including the
+// source operation and any wrapped error.
 func (e *AssetError) Error() string {
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %v (source: %s)", e.Message, e.Err, e.Source)
@@ -196,6 +205,7 @@ func (e *AssetError) Error() string {
 	return fmt.Sprintf("%s (source: %s)", e.Message, e.Source)
 }
 
+// Unwrap returns the underlying error, if any.
 func (e *AssetError) Unwrap() error {
 	return e.Err
 }

@@ -10,7 +10,7 @@ import (
 
 func TestTransformComponent(t *testing.T) {
 	t.Run("Create New Transform Component with no color", func(t *testing.T) {
-		transform := NewTransform(geom.Vector2{X: 0, Y: 0}, 0, geom.Vector2{X: 1, Y: 1}, nil)
+		transform := NewTransform(geom.Vector2{X: 0, Y: 0}, 0, geom.Vector2{X: 1, Y: 1})
 		if transform.Position.X != 0 || transform.Position.Y != 0 {
 			t.Errorf("Expected position to be (0,0), got (%v,%v)", transform.Position.X, transform.Position.Y)
 		}
@@ -23,7 +23,7 @@ func TestTransformComponent(t *testing.T) {
 	})
 
 	t.Run("Create New Transform Component with color", func(t *testing.T) {
-		transform := NewTransform(geom.Vector2{X: 0, Y: 0}, 0, geom.Vector2{X: 1, Y: 1}, color.RGBA{R: 255, G: 0, B: 0, A: 255})
+		transform := NewTransform(geom.Vector2{X: 0, Y: 0}, 0, geom.Vector2{X: 1, Y: 1})
 		if transform.Position.X != 0 || transform.Position.Y != 0 {
 			t.Errorf("Expected position to be (0,0), got (%v,%v)", transform.Position.X, transform.Position.Y)
 		}
@@ -32,9 +32,6 @@ func TestTransformComponent(t *testing.T) {
 		}
 		if transform.Scale.X != 1 || transform.Scale.Y != 1 {
 			t.Errorf("Expected scale to be (1,1), got (%v,%v)", transform.Scale.X, transform.Scale.Y)
-		}
-		if transform.Color != (color.RGBA{R: 255, G: 0, B: 0, A: 255}) {
-			t.Errorf("Expected color to be red, got %v", transform.Color)
 		}
 	})
 
@@ -49,15 +46,12 @@ func TestTransformComponent(t *testing.T) {
 		if transform.Scale.X != 1 || transform.Scale.Y != 1 {
 			t.Errorf("Expected scale to be (1,1), got (%v,%v)", transform.Scale.X, transform.Scale.Y)
 		}
-		if transform.Color != color.Transparent {
-			t.Errorf("Expected color to be transparent, got %v", transform.Color)
-		}
 	})
 }
 
 func TestSpriteComponent(t *testing.T) {
 	t.Run("Create New Sprite Component with all fields", func(t *testing.T) {
-		sprite, _ := NewSprite("texture.png", "Atlas-1", "sprite-1", PrimitiveKindRectangle, 0, 0, true, nil)
+		sprite, _ := NewSprite("texture.png", "Atlas-1", "sprite-1", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, nil)
 		if sprite.TexturePath != "texture.png" {
 			t.Errorf("Expected texture path to be 'texture.png', got %v", sprite.TexturePath)
 		}
@@ -86,28 +80,28 @@ func TestSpriteComponent(t *testing.T) {
 	})
 
 	t.Run("Create New Sprite with layer greater than 31", func(t *testing.T) {
-		sprite, _ := NewSprite("texture.png", "", "", PrimitiveKindRectangle, 35, 0, true, nil)
+		sprite, _ := NewSprite("texture.png", "", "", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 35, 0, true, nil)
 		if sprite.RenderLayer != 31 {
 			t.Errorf("Expected layer to be capped at 31, got %v", sprite.RenderLayer)
 		}
 	})
 
 	t.Run("Create New Sprite with invalid primitive type", func(t *testing.T) {
-		sprite, _ := NewSprite("texture.png", "", "", 99, 0, 0, true, nil)
+		sprite, _ := NewSprite("texture.png", "", "", 99, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, nil)
 		if sprite.Primitive != PrimitiveKindRectangle {
 			t.Errorf("Expected primitive to default to Rectangle, got %v", sprite.Primitive)
 		}
 	})
 
 	t.Run("Create New Sprite with atlasID but no regionName", func(t *testing.T) {
-		_, err := NewSprite("texture.png", "Atlas-1", "", PrimitiveKindRectangle, 0, 0, true, nil)
+		_, err := NewSprite("texture.png", "Atlas-1", "", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, nil)
 		if err == nil {
 			t.Errorf("Expected error when atlasID is specified without regionName")
 		}
 	})
 
 	t.Run("Create New Sprite with regionName but no atlasID", func(t *testing.T) {
-		_, err := NewSprite("texture.png", "", "sprite-1", PrimitiveKindRectangle, 0, 0, true, nil)
+		_, err := NewSprite("texture.png", "", "sprite-1", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, nil)
 		if err == nil {
 			t.Errorf("Expected error when regionName is specified without atlasID")
 		}

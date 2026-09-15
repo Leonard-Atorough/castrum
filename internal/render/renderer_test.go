@@ -16,11 +16,15 @@ import (
 
 // stubTextureProvider implements TextureProvider without filesystem or GPU
 // access. It records every Load and SubImage call so tests can assert which
-// textures were requested and in what order.
+// textures were requested and in what order. Successful loads are cached so
+// repeated calls (e.g. cull pass + render pass) don't inflate call counts,
+// matching the real TextureProvider's behaviour.
 type stubTextureProvider struct {
 	textures      map[assets.ID]*ebiten.Image
+	dimensions    map[assets.ID][2]int // optional: override returned (w,h) per texture
 	loadCalls     []assets.ID
 	subImageCalls []stubSubImageCall
+	cache         map[assets.ID]*ebiten.Image
 }
 
 type stubSubImageCall struct {
@@ -36,16 +40,31 @@ func newStubTextureProvider() *stubTextureProvider {
 		textures: map[assets.ID]*ebiten.Image{
 			"square": img,
 		},
+		dimensions: make(map[assets.ID][2]int),
+		cache:      make(map[assets.ID]*ebiten.Image),
 	}
 }
 
 func (s *stubTextureProvider) Load(_ context.Context, id assets.ID) (*ebiten.Image, int, int, error) {
+	if cached, ok := s.cache[id]; ok {
+		w, h := s.textureDims(id)
+		return cached, w, h, nil
+	}
 	s.loadCalls = append(s.loadCalls, id)
 	tex, ok := s.textures[id]
 	if !ok {
 		return nil, 0, 0, fmt.Errorf("texture not found: %s", id)
 	}
-	return tex, 1, 1, nil
+	s.cache[id] = tex
+	w, h := s.textureDims(id)
+	return tex, w, h, nil
+}
+
+func (s *stubTextureProvider) textureDims(id assets.ID) (int, int) {
+	if dims, ok := s.dimensions[id]; ok {
+		return dims[0], dims[1]
+	}
+	return 1, 1
 }
 
 func (s *stubTextureProvider) SubImage(_ context.Context, assetID assets.ID, atlasID pubatlas.ID, regionName string) (*ebiten.Image, int, int, error) {
@@ -164,8 +183,8 @@ func TestDrawScene_PrimitivesDoNotPanic(t *testing.T) {
 		components.PrimitiveKindLine,
 	} {
 		tr.addEntity(t,
-			components.Sprite{Primitive: kind, Visible: true},
-			components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+			components.Sprite{Primitive: kind, Size: geom.Vector2{X: 10, Y: 10}, Visible: true},
+			components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 		)
 	}
 
@@ -179,8 +198,8 @@ func TestDrawScene_PrimitivesDoNotPanic(t *testing.T) {
 func TestDrawScene_NilColorDoesNotPanic(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	tr.addEntity(t,
-		components.Sprite{Primitive: components.PrimitiveKindRectangle, Visible: true},
-		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}, Color: nil},
+		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Color: nil},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
 	tr.DrawScene(context.Background(), tr.screen)
@@ -280,6 +299,61 @@ func TestDrawScene_CullsEntitiesOutsideViewport(t *testing.T) {
 	}
 }
 
+// TestDrawScene_CullsPrimitivesBySpriteSize verifies that primitive culling
+// uses Sprite.Size * Scale as the rendered dimensions, not Scale alone.
+func TestDrawScene_CullsPrimitivesBySpriteSize(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	// Camera at (0,0), screen 200x200: viewport is (-100,-100)..(100,100)
+	// A 20x20 primitive at (90,0) with Scale{1,1}: half-extents = 10, bounds
+	// (80,-10)-(100,10) — just inside the viewport.
+	inside := tr.addEntity(t,
+		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 20, Y: 20}, Visible: true},
+		components.Transform{Position: geom.Vector2{X: 90, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}},
+	)
+	// Same size at (200,0): bounds (190,-10)-(210,10) — outside.
+	tr.addEntity(t,
+		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 20, Y: 20}, Visible: true},
+		components.Transform{Position: geom.Vector2{X: 200, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	if len(tr.renderItems) != 1 {
+		t.Fatalf("expected 1 render item (outside primitive culled), got %d", len(tr.renderItems))
+	}
+	if tr.renderItems[0].entityID != inside {
+		t.Errorf("expected inside entity %d, got %d", inside, tr.renderItems[0].entityID)
+	}
+}
+
+// TestDrawScene_CullsTexturedSpriteByImageDimensions verifies that textured
+// sprite culling uses image dimensions * Scale, not Scale alone. Under the
+// old code, a 256x256 texture at (200,0) with Scale{1,1} was culled (bounds
+// used Scale=1 as half-extents), even though the rendered sprite's half-width
+// is 128 and it overlaps the viewport.
+func TestDrawScene_CullsTexturedSpriteByImageDimensions(t *testing.T) {
+	tr := newTestRenderer(t).withCamera(t)
+	// Camera at (0,0), screen 200x200: viewport is (-100,-100)..(100,100)
+	// Stub returns 256x256 for "big" texture. At (200,0) with Scale{1,1}:
+	// half-extents = 128, bounds (72,-128)-(328,128) — overlaps viewport.
+	tr.provider.textures["big"] = ebiten.NewImage(256, 256)
+	tr.provider.dimensions["big"] = [2]int{256, 256}
+
+	visible := tr.addEntity(t,
+		components.Sprite{TexturePath: "big", Visible: true},
+		components.Transform{Position: geom.Vector2{X: 200, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}},
+	)
+
+	tr.DrawScene(context.Background(), tr.screen)
+
+	if len(tr.renderItems) != 1 {
+		t.Fatalf("expected 1 render item (large texture overlaps viewport), got %d", len(tr.renderItems))
+	}
+	if tr.renderItems[0].entityID != visible {
+		t.Errorf("expected entity %d, got %d", visible, tr.renderItems[0].entityID)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // DrawScene: sort order (layer -> sort order -> Y position)
 // ---------------------------------------------------------------------------
@@ -288,16 +362,16 @@ func TestDrawScene_SortByLayer(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	// Create in non-sorted order.
 	third := tr.addEntity(t,
-		components.Sprite{Visible: true, RenderLayer: 20},
-		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 20},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	first := tr.addEntity(t,
-		components.Sprite{Visible: true, RenderLayer: 0},
-		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	second := tr.addEntity(t,
-		components.Sprite{Visible: true, RenderLayer: 10},
-		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 10},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
 	tr.DrawScene(context.Background(), tr.screen)
@@ -308,16 +382,16 @@ func TestDrawScene_SortByLayer(t *testing.T) {
 func TestDrawScene_SortBySortOrderWithinLayer(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	third := tr.addEntity(t,
-		components.Sprite{Visible: true, RenderLayer: 0, SortOrder: 100},
-		components.Transform{Position: geom.Vector2{X: 0, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0, SortOrder: 100},
+		components.Transform{Position: geom.Vector2{X: 0, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	first := tr.addEntity(t,
-		components.Sprite{Visible: true, RenderLayer: 0, SortOrder: 10},
-		components.Transform{Position: geom.Vector2{X: 20, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0, SortOrder: 10},
+		components.Transform{Position: geom.Vector2{X: 20, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	second := tr.addEntity(t,
-		components.Sprite{Visible: true, RenderLayer: 0, SortOrder: 50},
-		components.Transform{Position: geom.Vector2{X: 40, Y: 50}, Scale: geom.Vector2{X: 10, Y: 10}},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0, SortOrder: 50},
+		components.Transform{Position: geom.Vector2{X: 40, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
 	tr.DrawScene(context.Background(), tr.screen)
@@ -329,12 +403,12 @@ func TestDrawScene_LayerTakesPriorityOverSortOrder(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	// Lower layer with higher sort order still renders first.
 	first := tr.addEntity(t,
-		components.Sprite{Visible: true, RenderLayer: 5, SortOrder: 100},
-		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 5, SortOrder: 100},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	second := tr.addEntity(t,
-		components.Sprite{Visible: true, RenderLayer: 10, SortOrder: 1},
-		components.Transform{Scale: geom.Vector2{X: 10, Y: 10}},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 10, SortOrder: 1},
+		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
 	tr.DrawScene(context.Background(), tr.screen)
@@ -345,12 +419,12 @@ func TestDrawScene_LayerTakesPriorityOverSortOrder(t *testing.T) {
 func TestDrawScene_YPositionFallbackWhenLayerAndSortOrderEqual(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	second := tr.addEntity(t,
-		components.Sprite{Visible: true, RenderLayer: 0, SortOrder: 50},
-		components.Transform{Position: geom.Vector2{X: 0, Y: 70}, Scale: geom.Vector2{X: 10, Y: 10}},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0, SortOrder: 50},
+		components.Transform{Position: geom.Vector2{X: 0, Y: 70}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	first := tr.addEntity(t,
-		components.Sprite{Visible: true, RenderLayer: 0, SortOrder: 50},
-		components.Transform{Position: geom.Vector2{X: 0, Y: 30}, Scale: geom.Vector2{X: 10, Y: 10}},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0, SortOrder: 50},
+		components.Transform{Position: geom.Vector2{X: 0, Y: 30}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
 	tr.DrawScene(context.Background(), tr.screen)
