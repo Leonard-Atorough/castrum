@@ -119,7 +119,7 @@ func (b *Builder) Build() (*Atlas, error) {
 		b.texH,
 		atlasRegions,
 	)
-	if err := b.store.Set(b.atlasID, b.assetID, atlas); err != nil {
+	if err := b.store.Set(b.atlasID, atlas); err != nil {
 		return nil, fmt.Errorf("atlas build: %w", err)
 	}
 

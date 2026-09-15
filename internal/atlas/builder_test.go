@@ -166,7 +166,7 @@ func TestBuilderBuild(t *testing.T) {
 	}
 
 	// Verify the atlas was registered with the service
-	got, err := svc.Get("build_test2", "build.png")
+	got, err := svc.Get("build_test2")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
