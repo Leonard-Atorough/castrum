@@ -120,8 +120,8 @@ func TestAnimationComponent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			animation := NewAnimation(tt.clipID, tt.autoplay)
-			if animation.ClipPath != tt.clipID {
-				t.Errorf("Expected clip path to be '%v', got %v", tt.clipID, animation.ClipPath)
+			if animation.ClipID != tt.clipID {
+				t.Errorf("Expected clip path to be '%v', got %v", tt.clipID, animation.ClipID)
 			}
 			if animation.Playing != tt.autoplay {
 				t.Errorf("Expected playing to be %v, got %v", tt.autoplay, animation.Playing)
