@@ -534,20 +534,6 @@ func TestTextureData(t *testing.T) {
 	}
 }
 
-func TestLoadResult(t *testing.T) {
-	result := LoadResult{
-		Value: "test",
-		Err:   nil,
-	}
-
-	if result.Value != "test" {
-		t.Errorf("Value = %v, want %q", result.Value, "test")
-	}
-	if result.Err != nil {
-		t.Errorf("Err = %v, want nil", result.Err)
-	}
-}
-
 func TestFormatConstants(t *testing.T) {
 	if FormatJSON != "json" {
 		t.Errorf("FormatJSON = %q, want %q", FormatJSON, "json")

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
 	"reflect"
 	"sync"
 
@@ -19,6 +18,9 @@ type ID string
 // It is used to determine the appropriate decoder for the asset.
 type Format string
 
+// Format constants identify the encoding of an asset. They determine which
+// decoder or encoder is selected. New formats can be introduced by passing a
+// Format value to [Loader.RegisterDecoder] or [Saver.RegisterEncoder].
 const (
 	FormatJSON Format = "json"
 	FormatXML  Format = "xml"
@@ -79,8 +81,12 @@ func (f loadOptionFunc) applyLoad(opts *LoadOptions) {
 // It determines whether the asset should be cached and how it should be retrieved from the cache.
 type CachePolicy int
 
+// CachePolicy controls whether a loaded asset is cached by the [Loader].
 const (
+	// CachePolicyNone disables caching; the asset is decoded on every Load.
 	CachePolicyNone CachePolicy = iota
+	// CachePolicyDefault caches the asset by ID and type after the first
+	// decode. This is the default when no cache policy is specified.
 	CachePolicyDefault
 )
 
@@ -94,10 +100,6 @@ type Loader struct {
 	listeners  []func(ID)
 }
 
-func NewLoader(filesystem fs.FS) *Loader {
-	return &Loader{service: newAssetService(filesystem)}
-}
-
 func newLoader(service *internalassets.Service) *Loader {
 	return &Loader{service: service}
 }
@@ -105,13 +107,14 @@ func newLoader(service *internalassets.Service) *Loader {
 // Load loads an asset from the specified path using the provided options.
 // It first checks the cache based on the ID and cache policy.
 // If the asset is not cached, it reads the asset from the filesystem and decodes it using the appropriate decoder.
+// Concurrent calls for the same asset are deduplicated so the decode and
+// filesystem read happen at most once while the first call is in flight.
 func (l *Loader) Load[T any](ctx context.Context, path string, options ...LoadOption) (T, error) {
 	var zero T
 	typ := reflect.TypeFor[T]()
 	path = normalizeAssetPath(path)
 
 	opts := resolveLoadOptions(path, options...)
-	key := internalassets.NewLoadKey(string(opts.ID), typ, string(opts.Format))
 
 	if opts.CachePolicy != CachePolicyNone {
 		if cached, ok := l.service.Cached(string(opts.ID), typ, string(opts.Format)); ok {
@@ -123,7 +126,7 @@ func (l *Loader) Load[T any](ctx context.Context, path string, options ...LoadOp
 		}
 	}
 
-	result, err, _ := l.service.LoadGroup().Do(key.String(), func() (any, error) {
+	result, err := l.service.LoadDedup(string(opts.ID), typ, string(opts.Format), func() (any, error) {
 		if opts.CachePolicy != CachePolicyNone {
 			if cached, ok := l.service.Cached(string(opts.ID), typ, string(opts.Format)); ok {
 				result, ok := cached.(T)
@@ -213,6 +216,9 @@ func (l *Loader) RegisterDecoder[T any](format Format, decoder Decoder[T], overr
 	return nil
 }
 
+// Invalidate removes the asset with the given ID from the cache and notifies
+// all registered invalidation listeners. A zero ID is a no-op for individual
+// invalidation but is used by [Loader.ClearCache] to signal a full flush.
 func (l *Loader) Invalidate(id ID) {
 	l.service.Invalidate(string(id))
 

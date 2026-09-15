@@ -39,8 +39,15 @@ func (s *Service) Filesystem() fs.FS {
 	return s.filesystem
 }
 
-func (s *Service) LoadGroup() *singleflight.Group {
-	return s.loadGroup
+// LoadDedup runs fn once for concurrent callers with the same (id, typ, format)
+// key, using a singleflight group. The first caller executes fn; subsequent
+// callers receive the same result. This deduplicates concurrent loads of the
+// same asset so the decode and filesystem read happen at most once per key
+// while the first call is in flight.
+func (s *Service) LoadDedup(id string, typ reflect.Type, format string, fn func() (any, error)) (any, error) {
+	key := NewLoadKey(id, typ, format).String()
+	result, err, _ := s.loadGroup.Do(key, fn)
+	return result, err
 }
 
 func (s *Service) RegisterDecoder(typ reflect.Type, format string, decoder func(context.Context, io.Reader) (any, error), override bool) error {
@@ -71,7 +78,8 @@ func (s *Service) Decode(ctx context.Context, typ reflect.Type, format string, r
 	return value, nil
 }
 
-// Encode resolves and executes an encoder.
+// Encode resolves and executes an encoder for the given type and format.
+// Returns an error if no suitable encoder is registered or if the value cannot be encoded.
 func (s *Service) Encode(ctx context.Context, typ reflect.Type, format string, writer io.Writer, value any) error {
 	encoder, ok := s.encoders.lookup(typ, format)
 	if !ok {
@@ -103,6 +111,7 @@ func (s *Service) ClearCache() {
 	s.cache.clear()
 }
 
+// NewLoadKey creates a new loadKey for caching purposes based on the asset ID, type, and format.
 func NewLoadKey(id string, typ reflect.Type, format string) loadKey {
 	return loadKey{id: id, typ: typ, format: format}
 }
@@ -113,5 +122,3 @@ func typeName(typ reflect.Type) string {
 	}
 	return typ.String()
 }
-
-// TODO: add explicit worker shutdown if queued execution is introduced.

@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/fstest"
+
+	internalassets "github.com/leonard-atorough/castrum/internal/assets"
 )
 
 type loadTestAsset struct {
@@ -120,7 +122,8 @@ func TestLoaderMissingDecoderReturnsAssetError(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(directory, "asset.unknown"), []byte("value"), 0o644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
-	loader := NewLoader(os.DirFS(directory))
+	svc := internalassets.NewService(os.DirFS(directory))
+	loader := newLoader(svc)
 
 	_, err := loader.Load[loadTestAsset](context.Background(), "asset.unknown")
 	if err == nil {
@@ -190,7 +193,7 @@ func TestLoaderSingleflightDecodesOnce(t *testing.T) {
 }
 
 func TestLoaderReaderWithoutDecoderReturnsAssetError(t *testing.T) {
-	loader := NewLoader(nil)
+	loader := newLoader(internalassets.NewService(nil))
 
 	_, err := loader.LoadReader[loadTestAsset](context.Background(), strings.NewReader("value"), WithFormat(Format("missing")))
 	if err == nil {
