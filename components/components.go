@@ -119,7 +119,7 @@ const (
 // Animation holds playback state for an animating entity.
 // The animation definition (frames, frame speed, loop) is managed by the AnimationManager.
 type Animation struct {
-	ClipPath      string  // ID to look up the AnimationClip in the manager
+	ClipID        string  // ID to look up the AnimationClip in the manager
 	FrameIndex    int     // current frame index
 	FrameTime     float64 // accumulated time for current frame (seconds)
 	Playing       bool    // is the animation running
@@ -129,15 +129,15 @@ type Animation struct {
 // NewAnimation creates an Animation for a given clip ID.
 func NewAnimation(clipID string, autoplay bool) Animation {
 	return Animation{
-		ClipPath:      clipID,
+		ClipID:        clipID,
 		PlaybackSpeed: 1.0,
 		Playing:       autoplay,
 	}
 }
 
 func (a *Animation) Validate() error {
-	if a.ClipPath == "" {
-		return fmt.Errorf("clipPath must be specified")
+	if a.ClipID == "" {
+		return fmt.Errorf("clipID must be specified")
 	}
 	if a.FrameIndex < 0 {
 		return fmt.Errorf("frameIndex cannot be negative")

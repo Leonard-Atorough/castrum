@@ -8,12 +8,12 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/assets"
 	"github.com/leonard-atorough/castrum/atlas"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/geom"
+	internalanimation "github.com/leonard-atorough/castrum/internal/animation"
 )
 
 type renderItem struct {
@@ -37,7 +37,7 @@ type TextureProvider interface {
 
 type Renderer struct {
 	textureProvider      TextureProvider
-	clipStore            *animation.AnimationClipStore
+	clipStore            *internalanimation.ClipStore
 	world                *ecs.World
 	Primitive            *PrimitiveRenderer
 	cameraQuery          *ecs.Query
@@ -199,28 +199,25 @@ func (r *Renderer) renderItem(ctx context.Context, screen *ebiten.Image, cam com
 
 func (r *Renderer) renderAnimation(ctx context.Context, screen *ebiten.Image, cam components.Camera, item renderItem) error {
 	if r.clipStore == nil {
-		clipStore, ok := r.world.GetResource[*animation.AnimationClipStore]()
+		clipStore, ok := r.world.GetResource[*internalanimation.ClipStore]()
 		if !ok {
 			return fmt.Errorf("failed to get animation clip store")
 		}
 		r.clipStore = clipStore
 	}
 
-	clip := r.clipStore.Get(item.animation.ClipPath)
-	if clip == nil {
-		//fallback to static texture
+	clip, ok := r.clipStore.Get(item.animation.ClipID)
+	if !ok {
+		// Clip not registered — fall back to static texture rendering.
 		return r.renderSprite(ctx, screen, cam, item)
 	}
 
-	if item.animation.FrameIndex >= len(clip.Frames) {
+	if item.animation.FrameIndex < 0 || item.animation.FrameIndex >= len(clip.Frames) {
 		return fmt.Errorf("animation frame index out of range: %d, total frames: %d", item.animation.FrameIndex, len(clip.Frames))
 	}
 
 	regionName := clip.Frames[item.animation.FrameIndex]
-	if clip.Atlas == nil {
-		return fmt.Errorf("animation clip atlas is nil")
-	}
-	subTex, w, h, err := r.textureProvider.SubImage(ctx, clip.Atlas.ID(), regionName)
+	subTex, w, h, err := r.textureProvider.SubImage(ctx, clip.AtlasID, regionName)
 	if err != nil || subTex == nil {
 		return fmt.Errorf("failed to get subimage for region: %s", regionName)
 	}
@@ -290,20 +287,20 @@ func (r *Renderer) validateRenderItem(item renderItem) error {
 func (r *Renderer) resolveTextureDimensions(ctx context.Context, sprite components.Sprite, anim *components.Animation) (int, int, bool) {
 	if anim != nil {
 		if r.clipStore == nil {
-			clipStore, ok := r.world.GetResource[*animation.AnimationClipStore]()
+			clipStore, ok := r.world.GetResource[*internalanimation.ClipStore]()
 			if !ok {
 				return 0, 0, false
 			}
 			r.clipStore = clipStore
 		}
-		clip := r.clipStore.Get(anim.ClipPath)
-		if clip == nil || clip.Atlas == nil {
+		clip, ok := r.clipStore.Get(anim.ClipID)
+		if !ok {
 			return 0, 0, false
 		}
 		if anim.FrameIndex < 0 || anim.FrameIndex >= len(clip.Frames) {
 			return 0, 0, false
 		}
-		_, w, h, err := r.textureProvider.SubImage(ctx, clip.Atlas.ID(), clip.Frames[anim.FrameIndex])
+		_, w, h, err := r.textureProvider.SubImage(ctx, clip.AtlasID, clip.Frames[anim.FrameIndex])
 		if err != nil {
 			return 0, 0, false
 		}

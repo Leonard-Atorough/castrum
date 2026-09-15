@@ -15,6 +15,7 @@ import (
 	"github.com/leonard-atorough/castrum/events"
 	"github.com/leonard-atorough/castrum/geom"
 	"github.com/leonard-atorough/castrum/input"
+	internalanimation "github.com/leonard-atorough/castrum/internal/animation"
 	internalatlas "github.com/leonard-atorough/castrum/internal/atlas"
 	internalinput "github.com/leonard-atorough/castrum/internal/input"
 	"github.com/leonard-atorough/castrum/internal/render"
@@ -28,6 +29,7 @@ type Game struct {
 	assetsSaver  *assets.Saver
 	assetsLoader *assets.Loader
 	atlasSvc     *internalatlas.Service
+	clipStore    *internalanimation.ClipStore
 	config       *Config
 	renderer     *render.Renderer
 	input        input.Reader
@@ -63,13 +65,15 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	assetsLoader := assetSys.AssetLoader()
 	assetsSaver := assetSys.AssetSaver()
 
+	clipStore := internalanimation.NewClipStore()
+
 	atlasStore := internalatlas.NewStore()
 	atlasService := internalatlas.NewService(atlasStore)
 	textureProvider := render.NewTextureProvider(assetsLoader, atlasService)
 	renderer := render.New(textureProvider, newWorld, render.RenderConfig{DrawDebugInfo: config.Engine.EnableDebug})
 
 	newWorld.SetResource[input.Reader](inputHandler)
-	newWorld.SetResource(animation.NewAnimationClipStore())
+	newWorld.SetResource(clipStore)
 	newWorld.SetResource(events.NewEventBus())
 
 	var err error
@@ -77,7 +81,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		return nil, err
 	}
 
-	if err = newWorld.RegisterSystem("animation", -1, animation.NewSystem()); err != nil {
+	if err = newWorld.RegisterSystem("animation", -1, internalanimation.NewSystem()); err != nil {
 		return nil, err
 	}
 
@@ -111,6 +115,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		assetsSaver:  assetsSaver,
 		assetsLoader: assetsLoader,
 		atlasSvc:     atlasService,
+		clipStore:    clipStore,
 		config:       config,
 		renderer:     renderer,
 		input:        inputHandler,
@@ -139,8 +144,18 @@ func (g *Game) AssetsSaver() *assets.Saver {
 	return g.assetsSaver
 }
 
-func (g *Game) AtlasBuilder(id string, assetPath string, width, height int) (*atlas.Builder, error) {
+// NewAtlas returns a [atlas.Builder] for creating a new texture atlas with
+// the specified ID, asset path, and tile dimensions. The atlas is registered
+// with the engine when [atlas.Builder.Build] is called.
+func (g *Game) NewAtlas(id string, assetPath string, width, height int) (*atlas.Builder, error) {
 	return g.atlasSvc.NewBuilder(id, assetPath, width, height)
+}
+
+// NewClip returns a [animation.ClipBuilder] for defining an animation clip
+// with the given ID and atlas. The clip is registered with the engine's
+// internal clip store when [animation.ClipBuilder.Build] is called.
+func (g *Game) NewClip(id string, atlas *atlas.Atlas) *animation.ClipBuilder {
+	return g.clipStore.NewBuilder(id, atlas)
 }
 
 // Input returns the resolved action reader used by gameplay systems.
