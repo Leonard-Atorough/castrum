@@ -32,7 +32,7 @@ type RenderConfig struct {
 // only couples to the behavior it needs.
 type TextureProvider interface {
 	Load(ctx context.Context, id assets.ID) (*ebiten.Image, int, int, error)
-	SubImage(ctx context.Context, assetId assets.ID, atlasID atlas.ID, regionName string) (*ebiten.Image, int, int, error)
+	SubImage(ctx context.Context, atlasID atlas.ID, regionName string) (*ebiten.Image, int, int, error)
 }
 
 type Renderer struct {
@@ -114,7 +114,7 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image) {
 		// Compute rendered half-extents for viewport culling.
 		var halfW, halfH float64
 		cullable := true
-		if renderable.TexturePath != "" {
+		if renderable.TexturePath != "" || renderable.AtlasID != "" {
 			w, h, ok := r.resolveTextureDimensions(ctx, renderable, anim)
 			if ok {
 				halfW = float64(w) * transform.Scale.X / 2
@@ -185,7 +185,7 @@ func (r *Renderer) renderItem(ctx context.Context, screen *ebiten.Image, cam com
 		return err
 	}
 
-	if item.sprite.TexturePath != "" {
+	if item.sprite.TexturePath != "" || item.sprite.AtlasID != "" {
 		if item.animation != nil {
 			return r.renderAnimation(ctx, screen, cam, item)
 		}
@@ -220,7 +220,7 @@ func (r *Renderer) renderAnimation(ctx context.Context, screen *ebiten.Image, ca
 	if clip.Atlas == nil {
 		return fmt.Errorf("animation clip atlas is nil")
 	}
-	subTex, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(item.sprite.TexturePath), clip.Atlas.ID(), regionName)
+	subTex, w, h, err := r.textureProvider.SubImage(ctx, clip.Atlas.ID(), regionName)
 	if err != nil || subTex == nil {
 		return fmt.Errorf("failed to get subimage for region: %s", regionName)
 	}
@@ -234,7 +234,7 @@ func (r *Renderer) renderSprite(ctx context.Context, screen *ebiten.Image, cam c
 	var w, h int
 	if item.sprite.AtlasID != "" && item.sprite.RegionName != "" {
 		var err error
-		subTex, w, h, err = r.textureProvider.SubImage(ctx, assets.ID(item.sprite.TexturePath), atlas.ID(item.sprite.AtlasID), item.sprite.RegionName)
+		subTex, w, h, err = r.textureProvider.SubImage(ctx, atlas.ID(item.sprite.AtlasID), item.sprite.RegionName)
 		if err != nil || subTex == nil {
 			return fmt.Errorf("failed to get subimage for region: %s", item.sprite.RegionName)
 		}
@@ -303,7 +303,7 @@ func (r *Renderer) resolveTextureDimensions(ctx context.Context, sprite componen
 		if anim.FrameIndex < 0 || anim.FrameIndex >= len(clip.Frames) {
 			return 0, 0, false
 		}
-		_, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(sprite.TexturePath), clip.Atlas.ID(), clip.Frames[anim.FrameIndex])
+		_, w, h, err := r.textureProvider.SubImage(ctx, clip.Atlas.ID(), clip.Frames[anim.FrameIndex])
 		if err != nil {
 			return 0, 0, false
 		}
@@ -311,7 +311,7 @@ func (r *Renderer) resolveTextureDimensions(ctx context.Context, sprite componen
 	}
 
 	if sprite.AtlasID != "" && sprite.RegionName != "" {
-		_, w, h, err := r.textureProvider.SubImage(ctx, assets.ID(sprite.TexturePath), atlas.ID(sprite.AtlasID), sprite.RegionName)
+		_, w, h, err := r.textureProvider.SubImage(ctx, atlas.ID(sprite.AtlasID), sprite.RegionName)
 		if err != nil {
 			return 0, 0, false
 		}

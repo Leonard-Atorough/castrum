@@ -28,7 +28,6 @@ type stubTextureProvider struct {
 }
 
 type stubSubImageCall struct {
-	assetID    assets.ID
 	atlasID    pubatlas.ID
 	regionName string
 }
@@ -67,9 +66,8 @@ func (s *stubTextureProvider) textureDims(id assets.ID) (int, int) {
 	return 1, 1
 }
 
-func (s *stubTextureProvider) SubImage(_ context.Context, assetID assets.ID, atlasID pubatlas.ID, regionName string) (*ebiten.Image, int, int, error) {
+func (s *stubTextureProvider) SubImage(_ context.Context, atlasID pubatlas.ID, regionName string) (*ebiten.Image, int, int, error) {
 	s.subImageCalls = append(s.subImageCalls, stubSubImageCall{
-		assetID:    assetID,
 		atlasID:    atlasID,
 		regionName: regionName,
 	})

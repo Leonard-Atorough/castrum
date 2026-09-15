@@ -21,9 +21,9 @@ func TestStoreGetSet(t *testing.T) {
 
 	// Test set and get
 	atlas := &Atlas{id: "test"}
-	store.set("atlas1", "texture1.png", atlas)
+	store.set("atlas1", atlas)
 
-	got, ok := store.get("atlas1", "texture1.png")
+	got, ok := store.get("atlas1")
 	if !ok {
 		t.Fatal("get() returned !ok, want ok")
 	}
@@ -32,7 +32,7 @@ func TestStoreGetSet(t *testing.T) {
 	}
 
 	// Test get non-existent
-	_, ok = store.get("nonexistent", "texture.png")
+	_, ok = store.get("nonexistent")
 	if ok {
 		t.Error("get() for non-existent returned ok, want !ok")
 	}
@@ -44,10 +44,10 @@ func TestStoreOverwrite(t *testing.T) {
 	atlas1 := &Atlas{id: "first"}
 	atlas2 := &Atlas{id: "second"}
 
-	store.set("atlas1", "texture.png", atlas1)
-	store.set("atlas1", "texture.png", atlas2)
+	store.set("atlas1", atlas1)
+	store.set("atlas1", atlas2)
 
-	got, ok := store.get("atlas1", "texture.png")
+	got, ok := store.get("atlas1")
 	if !ok {
 		t.Fatal("get() returned !ok after overwrite")
 	}
@@ -73,9 +73,9 @@ func TestServiceSetGet(t *testing.T) {
 	svc := NewService(store)
 
 	atlas := &Atlas{id: "test"}
-	svc.Set("atlas1", "texture1.png", atlas)
+	svc.Set("atlas1", atlas)
 
-	got, err := svc.Get("atlas1", "texture1.png")
+	got, err := svc.Get("atlas1")
 	if err != nil {
 		t.Fatalf("Get() error = %v, want nil", err)
 	}
@@ -88,7 +88,7 @@ func TestServiceGetNotFound(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	_, err := svc.Get("nonexistent", "texture.png")
+	_, err := svc.Get("nonexistent")
 	if err == nil {
 		t.Error("Get() for non-existent error = nil, want error")
 	}
@@ -99,12 +99,12 @@ func TestServiceHas(t *testing.T) {
 	svc := NewService(store)
 
 	atlas := &Atlas{id: "test"}
-	svc.Set("atlas1", "texture1.png", atlas)
+	svc.Set("atlas1", atlas)
 
-	if !svc.Has("atlas1", "texture1.png") {
+	if !svc.Has("atlas1") {
 		t.Error("Has() returned false for existing atlas")
 	}
-	if svc.Has("nonexistent", "texture.png") {
+	if svc.Has("nonexistent") {
 		t.Error("Has() returned true for non-existent atlas")
 	}
 }
@@ -114,18 +114,18 @@ func TestServiceDelete(t *testing.T) {
 	svc := NewService(store)
 
 	atlas := &Atlas{id: "test"}
-	svc.Set("atlas1", "texture1.png", atlas)
+	svc.Set("atlas1", atlas)
 
 	// Verify exists
-	if !svc.Has("atlas1", "texture1.png") {
+	if !svc.Has("atlas1") {
 		t.Fatal("atlas does not exist before delete")
 	}
 
 	// Delete
-	svc.Delete("atlas1", "texture1.png")
+	svc.Delete("atlas1")
 
 	// Verify deleted
-	if svc.Has("atlas1", "texture1.png") {
+	if svc.Has("atlas1") {
 		t.Error("atlas still exists after delete")
 	}
 }
@@ -136,11 +136,11 @@ func TestServiceClear(t *testing.T) {
 
 	atlas1 := &Atlas{id: "test1"}
 	atlas2 := &Atlas{id: "test2"}
-	svc.Set("atlas1", "texture1.png", atlas1)
-	svc.Set("atlas2", "texture2.png", atlas2)
+	svc.Set("atlas1", atlas1)
+	svc.Set("atlas2", atlas2)
 
 	// Verify both exist
-	if !svc.Has("atlas1", "texture1.png") || !svc.Has("atlas2", "texture2.png") {
+	if !svc.Has("atlas1") || !svc.Has("atlas2") {
 		t.Fatal("atlases do not exist before clear")
 	}
 
@@ -148,7 +148,7 @@ func TestServiceClear(t *testing.T) {
 	svc.Clear()
 
 	// Verify both deleted
-	if svc.Has("atlas1", "texture1.png") || svc.Has("atlas2", "texture2.png") {
+	if svc.Has("atlas1") || svc.Has("atlas2") {
 		t.Error("atlases still exist after clear")
 	}
 }
@@ -157,28 +157,28 @@ func TestServiceDeleteByAssetID(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	atlas1 := &Atlas{id: "test1"}
-	atlas2 := &Atlas{id: "test2"}
-	atlas3 := &Atlas{id: "test3"}
+	atlas1 := &Atlas{id: "test1", assetID: "texture1.png"}
+	atlas2 := &Atlas{id: "test2", assetID: "texture1.png"}
+	atlas3 := &Atlas{id: "test3", assetID: "texture2.png"}
 
 	// atlas1 and atlas2 use texture1.png, atlas3 uses texture2.png
-	svc.Set("atlas1", "texture1.png", atlas1)
-	svc.Set("atlas2", "texture1.png", atlas2)
-	svc.Set("atlas3", "texture2.png", atlas3)
+	svc.Set("atlas1", atlas1)
+	svc.Set("atlas2", atlas2)
+	svc.Set("atlas3", atlas3)
 
 	// Delete all atlases using texture1.png
 	svc.DeleteByAssetID("texture1.png")
 
 	// atlas1 and atlas2 should be gone
-	if svc.Has("atlas1", "texture1.png") {
+	if svc.Has("atlas1") {
 		t.Error("atlas1 still exists after DeleteByAssetID")
 	}
-	if svc.Has("atlas2", "texture1.png") {
+	if svc.Has("atlas2") {
 		t.Error("atlas2 still exists after DeleteByAssetID")
 	}
 
 	// atlas3 should still exist
-	if !svc.Has("atlas3", "texture2.png") {
+	if !svc.Has("atlas3") {
 		t.Error("atlas3 was deleted, but uses different texture")
 	}
 }
@@ -188,7 +188,7 @@ func TestServiceGetSingleflight(t *testing.T) {
 	svc := NewService(store)
 
 	atlas := &Atlas{id: "test"}
-	svc.Set("atlas1", "texture1.png", atlas)
+	svc.Set("atlas1", atlas)
 
 	// Create a channel to coordinate concurrent access
 	const numGoroutines = 10
@@ -199,7 +199,7 @@ func TestServiceGetSingleflight(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			got, err := svc.Get("atlas1", "texture1.png")
+			got, err := svc.Get("atlas1")
 			if err != nil {
 				t.Error(err)
 				return
@@ -242,7 +242,7 @@ func TestServiceConcurrentAccess(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			atlas := &Atlas{id: ID(fmt.Sprintf("atlas_%d", i))}
-			svc.Set(fmt.Sprintf("atlas_%d", i), "texture.png", atlas)
+			svc.Set(fmt.Sprintf("atlas_%d", i), atlas)
 		}(i)
 	}
 
@@ -251,7 +251,7 @@ func TestServiceConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, _ = svc.Get(fmt.Sprintf("atlas_%d", i), "texture.png")
+			_, _ = svc.Get(fmt.Sprintf("atlas_%d", i))
 		}(i)
 	}
 
@@ -271,7 +271,7 @@ func TestStoreConcurrentAccess(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			atlas := &Atlas{id: ID(fmt.Sprintf("atlas_%d", i))}
-			store.set(fmt.Sprintf("atlas_%d", i), "texture.png", atlas)
+			store.set(fmt.Sprintf("atlas_%d", i), atlas)
 		}(i)
 	}
 
@@ -280,7 +280,7 @@ func TestStoreConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, _ = store.get(fmt.Sprintf("atlas_%d", i), "texture.png")
+			_, _ = store.get(fmt.Sprintf("atlas_%d", i))
 		}(i)
 	}
 
@@ -291,19 +291,9 @@ func TestServiceGetEmptyAtlasID(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	_, err := svc.Get("", "texture.png")
+	_, err := svc.Get("")
 	if err == nil {
 		t.Error("Get() with empty atlasID error = nil, want error")
-	}
-}
-
-func TestServiceGetEmptyAssetID(t *testing.T) {
-	store := NewStore()
-	svc := NewService(store)
-
-	_, err := svc.Get("atlas", "")
-	if err == nil {
-		t.Error("Get() with empty assetID error = nil, want error")
 	}
 }
 
@@ -312,7 +302,7 @@ func TestServiceDeleteNonExistent(t *testing.T) {
 	svc := NewService(store)
 
 	// Should not panic
-	svc.Delete("nonexistent", "texture.png")
+	svc.Delete("nonexistent")
 	svc.DeleteByAssetID("nonexistent.png")
 }
 
@@ -323,10 +313,10 @@ func TestServiceOverwrite(t *testing.T) {
 	atlas1 := &Atlas{id: "first"}
 	atlas2 := &Atlas{id: "second"}
 
-	svc.Set("atlas", "texture.png", atlas1)
-	svc.Set("atlas", "texture.png", atlas2)
+	svc.Set("atlas", atlas1)
+	svc.Set("atlas", atlas2)
 
-	got, err := svc.Get("atlas", "texture.png")
+	got, err := svc.Get("atlas")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
@@ -339,7 +329,7 @@ func TestServiceGetReturnsErrorForNilAtlas(t *testing.T) {
 	store := NewStore()
 	svc := NewService(store)
 
-	err := svc.Set("atlas", "texture.png", nil)
+	err := svc.Set("atlas", nil)
 	if err == nil {
 		t.Error("Set() with nil atlas error = nil, want error")
 	}
