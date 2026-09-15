@@ -8,13 +8,13 @@ import (
 	"sync"
 )
 
-// decoderFunc represents a type-erased decoder function. 
-// It takes a context and an io.Reader and returns a decoded value of 
+// decoderFunc represents a type-erased decoder function.
+// It takes a context and an io.Reader and returns a decoded value of
 // any type or an error.
 type decoderFunc func(context.Context, io.Reader) (any, error)
 
-// encoderFunc represents a type-erased encoder function. 
-// It takes a context, an io.Writer, and a value of any type, and 
+// encoderFunc represents a type-erased encoder function.
+// It takes a context, an io.Writer, and a value of any type, and
 // returns an error if encoding fails.
 type encoderFunc func(context.Context, io.Writer, any) error
 
