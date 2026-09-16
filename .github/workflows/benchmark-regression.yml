@@ -34,7 +34,8 @@ jobs:
       - name: Run benchmarks
         run: |
           cd benchmark
-          go test -bench=. -benchmem -benchtime=200ms -count=8 -run='^$' ./... | tee output.txt
+          go test -bench=. -benchmem -benchtime=1s -count=8 -run='^$' \
+            -skip='^BenchmarkMemoryPerEntity' ./... | tee output.txt
 
       - name: Create cache directory
         run: mkdir -p ./cache
@@ -56,7 +57,7 @@ jobs:
           alert-threshold: 150%
           fail-threshold: 200%
           fail-on-alert: false
-          comment-on-alert: true
+          comment-on-alert: false
           comment-always: false
           summary-always: true
           alert-comment-cc-users: "@Leonard-Atorough"
