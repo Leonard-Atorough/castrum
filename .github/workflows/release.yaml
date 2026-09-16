@@ -79,7 +79,7 @@ jobs:
       - name: Compute next version
         id: next
         run: |
-          NEXT="$(bash scripts/bump.sh '${{ inputs.bump }}')"
+          NEXT="$(bash ./.github/scripts/bump.sh '${{ inputs.bump }}')"
           echo "Next version: ${NEXT}"
           if git rev-parse "${NEXT}" >/dev/null 2>&1; then
             echo "::error::Tag ${NEXT} already exists"

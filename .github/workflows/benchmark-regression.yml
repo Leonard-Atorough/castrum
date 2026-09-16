@@ -74,7 +74,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-          python3 ./.github/scripts/benchstat_gate.py benchmark/benchstat.txt
+          bash ./.github/scripts/benchstat_gate.sh benchmark/benchstat.txt
 
       # On main, refresh the baseline so PRs compare against the latest main.
       # The cache save uses a unique key (run_id) so it always writes a fresh
