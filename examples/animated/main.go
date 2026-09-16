@@ -76,6 +76,7 @@ func main() {
 			AtlasID:    torchAtlasID,
 			RegionName: "torch_0",
 			Visible:    true,
+			Opacity:    1,
 		},
 		components.NewAnimation(torchClipID, true),
 	)

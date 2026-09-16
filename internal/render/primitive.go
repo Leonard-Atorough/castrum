@@ -9,7 +9,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"github.com/leonard-atorough/castrum/components"
-	"github.com/leonard-atorough/castrum/geom"
 )
 
 // PrimitiveRenderer draws untextured shapes (rectangles, circles, lines)
@@ -69,29 +68,30 @@ func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, t
 }
 
 func drawPolygonPath(sprite components.Sprite, cam components.Camera, clr color.Color, screen *ebiten.Image) error {
-	if polygon, ok := sprite.Data.(geom.Polygon); ok {
-		if err := polygon.Validate(); err != nil {
-			return fmt.Errorf("invalid polygon")
-		}
-		points := polygon.Points()
-		var path vector.Path
-		first := cam.WorldToScreen(points[0])
-		path.MoveTo(float32(first.X), float32(first.Y))
-		for _, point := range points[1:] {
-			p := cam.WorldToScreen(point)
-			path.LineTo(float32(p.X), float32(p.Y))
-		}
-		path.Close()
-
-		var colorScale ebiten.ColorScale
-		cr, cg, cb, ca := clr.RGBA()
-		colorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
-
-		vector.FillPath(screen, &path, &vector.FillOptions{}, &vector.DrawPathOptions{
-			AntiAlias:  true,
-			ColorScale: colorScale,
-		})
+	if sprite.Polygon.Len() == 0 {
+		return nil
 	}
+	if err := sprite.Polygon.Validate(); err != nil {
+		return fmt.Errorf("invalid polygon")
+	}
+	points := sprite.Polygon.Points()
+	var path vector.Path
+	first := cam.WorldToScreen(points[0])
+	path.MoveTo(float32(first.X), float32(first.Y))
+	for _, point := range points[1:] {
+		p := cam.WorldToScreen(point)
+		path.LineTo(float32(p.X), float32(p.Y))
+	}
+	path.Close()
+
+	var colorScale ebiten.ColorScale
+	cr, cg, cb, ca := clr.RGBA()
+	colorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
+
+	vector.FillPath(screen, &path, &vector.FillOptions{}, &vector.DrawPathOptions{
+		AntiAlias:  true,
+		ColorScale: colorScale,
+	})
 	return nil
 }
 

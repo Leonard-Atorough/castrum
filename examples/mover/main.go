@@ -59,6 +59,7 @@ func main() {
 			Size:      geom.Vector2{X: playerSize, Y: playerSize},
 			Visible:   true,
 			Color:     color.RGBA{R: 60, G: 220, B: 60, A: 255},
+			Opacity:   1,
 		},
 	)
 	if err != nil {

@@ -263,15 +263,22 @@ func (r *Renderer) drawImage(_ context.Context, screen *ebiten.Image, cam compon
 	// pivot point (center + Origin) lands on the screen position. Rotation
 	// happens around this pivot, matching the cull bounds below.
 	op.GeoM.Translate(-float64(w)/2-transform.Origin.X, -float64(h)/2-transform.Origin.Y)
-	// Apply scaling (including camera zoom), rotation, and other transforms from Transform
+	// Apply scaling (including camera zoom) and flip. FlipH/FlipV negate the
+	// scale so the image is mirrored along that axis.
 	scaleX := transform.Scale.X * cam.Zoom
 	scaleY := transform.Scale.Y * cam.Zoom
+	if sprite.FlipH {
+		scaleX = -scaleX
+	}
+	if sprite.FlipV {
+		scaleY = -scaleY
+	}
 	op.GeoM.Scale(scaleX, scaleY)
 	op.GeoM.Rotate(transform.Rotation)
 	op.GeoM.Translate(screenPos.X, screenPos.Y)
 
 	cr, cg, cb, ca := colorOrDefault(sprite.Color).RGBA()
-	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff)
+	op.ColorScale.Scale(float32(cr)/0xffff, float32(cg)/0xffff, float32(cb)/0xffff, float32(ca)/0xffff*sprite.Opacity)
 
 	screen.DrawImage(img, op)
 }

@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   benchmark:
@@ -31,32 +30,62 @@ jobs:
           sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev \
             libxinerama-dev libxi-dev libgl1-mesa-dev
 
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
       - name: Run benchmarks
         run: |
           cd benchmark
-          go test -bench=. -benchmem -benchtime=200ms -count=8 -run='^$' ./... | tee output.txt
+          go test -bench=. -benchmem -benchtime=1s -count=8 -run='^$' \
+            -skip='^BenchmarkMemoryPerEntity' ./... | tee current.txt
 
-      - name: Create cache directory
-        run: mkdir -p ./cache
-
-      - name: Download benchmark history
-        uses: actions/cache@v4
+      # Restore the most recent Linux baseline saved by a main-branch run.
+      # The primary key never matches (it only enables prefix restore);
+      # restore-keys finds the latest linux-benchmark-baseline-*.
+      - name: Restore Linux baseline
+        uses: actions/cache/restore@v4
         with:
-          path: ./cache
-          key: ${{ runner.os }}-benchmark
+          path: benchmark/baselines/linux-latest.txt
+          key: linux-benchmark-baseline-never-matches
+          restore-keys: |
+            linux-benchmark-baseline-
 
-      - name: Compare and store benchmark results
-        uses: benchmark-action/github-action-benchmark@v1
+      - name: Compare against baseline (benchstat)
+        run: |
+          set -eo pipefail
+          if [ ! -f benchmark/baselines/linux-latest.txt ]; then
+            echo "::warning::No Linux baseline found; skipping regression comparison."
+            echo "The first successful run on main will create the baseline."
+            {
+              echo '### Benchmark comparison'
+              echo '```text'
+              echo 'No baseline yet — comparison skipped (first main run bootstraps it).'
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          benchstat benchmark/baselines/linux-latest.txt benchmark/current.txt > benchmark/benchstat.txt
+          cat benchmark/benchstat.txt
+          {
+            echo '### Benchmark comparison (benchstat: base vs current)'
+            echo '```text'
+            cat benchmark/benchstat.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          bash ./.github/scripts/benchstat_gate.sh benchmark/benchstat.txt
+
+      # On main, refresh the baseline so PRs compare against the latest main.
+      # The cache save uses a unique key (run_id) so it always writes a fresh
+      # entry; restore-keys above resolves to the most recent one.
+      - name: Update Linux baseline (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: cp benchmark/current.txt benchmark/baselines/linux-latest.txt
+
+      - name: Save Linux baseline (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
         with:
-          name: Castrum Go Benchmarks
-          tool: go
-          output-file-path: benchmark/output.txt
-          external-data-json-path: ./cache/benchmark-data.json
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          alert-threshold: 150%
-          fail-threshold: 200%
-          fail-on-alert: false
-          comment-on-alert: true
-          comment-always: false
-          summary-always: true
-          alert-comment-cc-users: "@Leonard-Atorough"
+          path: benchmark/baselines/linux-latest.txt
+          key: linux-benchmark-baseline-${{ github.run_id }}

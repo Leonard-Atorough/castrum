@@ -19,18 +19,18 @@ type testSimpleComponent struct {
 	Value int
 }
 
-func (s *testSimpleComponent) Serialize() map[string]any {
-	return map[string]any{"Name": s.Name, "Value": s.Value}
+func (s testSimpleComponent) Serialize() (map[string]any, error) {
+	return map[string]any{"Name": s.Name, "Value": s.Value}, nil
 }
 
-func (s *testSimpleComponent) Deserialize(props map[string]any) error {
+func (s testSimpleComponent) Deserialize(props map[string]any) (testSimpleComponent, error) {
 	if name, ok := props["Name"].(string); ok {
 		s.Name = name
 	}
 	if value, ok := props["Value"].(float64); ok {
 		s.Value = int(value)
 	}
-	return nil
+	return s, nil
 }
 
 type testAnotherComponent struct {

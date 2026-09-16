@@ -83,6 +83,7 @@ func main() {
 				AtlasID:    torchAtlasID,
 				RegionName: fmt.Sprintf("torch_%d", i),
 				Visible:    true,
+				Opacity:    1,
 			},
 		)
 		if err != nil {
