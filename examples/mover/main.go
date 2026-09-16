@@ -52,6 +52,7 @@ func main() {
 			geom.Vector2{X: 0, Y: 0},
 			0,
 			geom.Vector2{X: 1, Y: 1},
+			geom.Vector2{X: 0, Y: 0},
 		),
 		components.Sprite{
 			Primitive: components.PrimitiveKindRectangle,

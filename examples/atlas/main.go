@@ -77,6 +77,7 @@ func main() {
 				geom.Vector2{X: x, Y: y},
 				rotation,
 				geom.Vector2{X: scale, Y: scale},
+				geom.Vector2{X: 0, Y: 0},
 			),
 			components.Sprite{
 				AtlasID:    torchAtlasID,
