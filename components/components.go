@@ -8,8 +8,6 @@ import (
 	"github.com/leonard-atorough/castrum/geom"
 )
 
-
-
 // SceneTag marks which scene an entity belongs to, for query-time scene filtering.
 type SceneTag struct {
 	SceneID string
