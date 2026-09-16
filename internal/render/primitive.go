@@ -22,27 +22,48 @@ func NewPrimitiveRenderer() *PrimitiveRenderer {
 
 func (pr *PrimitiveRenderer) Draw(screen *ebiten.Image, cam components.Camera, transform components.Transform, sprite components.Sprite) error {
 	pos := cam.WorldToScreen(transform.Position)
-	x, y := float32(pos.X), float32(pos.Y)
 	zoom := float32(cam.Zoom)
+	px, py := float32(pos.X), float32(pos.Y)
+	// Origin shifts the sprite away from the entity position, matching the
+	// GeoM pipeline in drawImage: the pivot (entity screen position) is the
+	// rotation center, and shape geometry is offset by Origin in screen
+	// space before being rotated around the pivot.
+	originX := float32(transform.Origin.X) * float32(transform.Scale.X) * zoom
+	originY := float32(transform.Origin.Y) * float32(transform.Scale.Y) * zoom
 	clr := colorOrDefault(sprite.Color)
 
 	w := float32(sprite.Size.X) * float32(transform.Scale.X) * zoom
 	h := float32(sprite.Size.Y) * float32(transform.Scale.Y) * zoom
 
+	sin, cos := float32(math.Sin(transform.Rotation)), float32(math.Cos(transform.Rotation))
+
+	// rotatePoint maps a local-space offset to screen space by rotating
+	// around the pivot (px, py).
+	rotatePoint := func(lx, ly float32) (float32, float32) {
+		return px + lx*cos - ly*sin, py + lx*sin + ly*cos
+	}
+
 	switch sprite.Primitive {
 	case components.PrimitiveKindCircle:
+		cx, cy := rotatePoint(-originX, -originY)
 		radius := w / 2
-		vector.FillCircle(screen, x, y, radius, clr, true)
+		vector.FillCircle(screen, cx, cy, radius, clr, true)
 	case components.PrimitiveKindLine:
 		half := w / 2
-		dx, dy := float32(math.Cos(transform.Rotation)), float32(math.Sin(transform.Rotation))
-		vector.StrokeLine(screen, x-dx*half, y-dy*half, x+dx*half, y+dy*half, h, clr, true)
+		x0, y0 := rotatePoint(-half-originX, -originY)
+		x1, y1 := rotatePoint(half-originX, -originY)
+		vector.StrokeLine(screen, x0, y0, x1, y1, h, clr, true)
 	case components.PrimitiveKindPolygon:
 		if err := drawPolygonPath(sprite, cam, clr, screen); err != nil {
 			return err
 		}
 	default: // PrimitiveKindRectangle
-		drawRotatedRect(screen, x, y, w, h, transform.Rotation, clr)
+		halfW, halfH := w/2, h/2
+		x0, y0 := rotatePoint(-halfW-originX, -halfH-originY)
+		x1, y1 := rotatePoint(halfW-originX, -halfH-originY)
+		x2, y2 := rotatePoint(halfW-originX, halfH-originY)
+		x3, y3 := rotatePoint(-halfW-originX, halfH-originY)
+		fillQuad(screen, x0, y0, x1, y1, x2, y2, x3, y3, clr)
 	}
 	return nil
 }
@@ -74,22 +95,10 @@ func drawPolygonPath(sprite components.Sprite, cam components.Camera, clr color.
 	return nil
 }
 
-// drawRotatedRect fills a width x height rectangle centered at (cx, cy) and
-// rotated by angle radians. vector.DrawFilledRect has no rotation parameter,
-// so the four corners are rotated by hand into a vector.Path instead.
-func drawRotatedRect(screen *ebiten.Image, cx, cy, width, height float32, angle float64, clr color.Color) {
-	halfW, halfH := width/2, height/2
-	sin, cos := float32(math.Sin(angle)), float32(math.Cos(angle))
-
-	corner := func(x, y float32) (float32, float32) {
-		return cx + x*cos - y*sin, cy + x*sin + y*cos
-	}
-
-	x0, y0 := corner(-halfW, -halfH)
-	x1, y1 := corner(halfW, -halfH)
-	x2, y2 := corner(halfW, halfH)
-	x3, y3 := corner(-halfW, halfH)
-
+// fillQuad fills a quadrilateral defined by four screen-space corner points.
+// Corners are pre-rotated by the caller; this function only builds and fills
+// the path.
+func fillQuad(screen *ebiten.Image, x0, y0, x1, y1, x2, y2, x3, y3 float32, clr color.Color) {
 	var path vector.Path
 	path.MoveTo(x0, y0)
 	path.LineTo(x1, y1)

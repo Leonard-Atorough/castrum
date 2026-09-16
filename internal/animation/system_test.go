@@ -34,7 +34,7 @@ func buildTestClip(t *testing.T, store *ClipStore, id string, frames []string, f
 func spawnAnimatingEntity(t *testing.T, world *ecs.World, clipID string) ecs.EntityID {
 	t.Helper()
 	e, err := world.CreateWithComponents("test",
-		components.NewTransform(geom.Vector2{X: 0, Y: 0}, 0, geom.Vector2{X: 1, Y: 1}),
+		components.NewTransform(geom.Vector2{X: 0, Y: 0}, 0, geom.Vector2{X: 1, Y: 1}, geom.Vector2{X: 0, Y: 0}),
 		components.Sprite{Visible: true},
 		components.NewAnimation(clipID, true),
 	)
@@ -276,7 +276,7 @@ func TestUpdateIgnoresNonPlayingAnimation(t *testing.T) {
 	world, store, _ := setupTestWorld(t)
 	buildTestClip(t, store, "walk", []string{"frame_0", "frame_1"}, 10, LoopNone)
 	entity, _ := world.CreateWithComponents("test",
-		components.NewTransform(geom.Vector2{}, 0, geom.Vector2{X: 1, Y: 1}),
+		components.NewTransform(geom.Vector2{}, 0, geom.Vector2{X: 1, Y: 1}, geom.Vector2{X: 0, Y: 0}),
 		components.Sprite{Visible: true},
 		components.Animation{ClipID: "walk", Playing: false, PlaybackSpeed: 1.0},
 	)
@@ -315,7 +315,7 @@ func TestUpdateRespectsPlaybackSpeed(t *testing.T) {
 	world, store, _ := setupTestWorld(t)
 	buildTestClip(t, store, "walk", []string{"frame_0", "frame_1"}, 10, LoopNone)
 	entity, _ := world.CreateWithComponents("test",
-		components.NewTransform(geom.Vector2{}, 0, geom.Vector2{X: 1, Y: 1}),
+		components.NewTransform(geom.Vector2{}, 0, geom.Vector2{X: 1, Y: 1}, geom.Vector2{X: 0, Y: 0}),
 		components.Sprite{Visible: true},
 		components.Animation{ClipID: "walk", Playing: true, PlaybackSpeed: 2.0},
 	)

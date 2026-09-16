@@ -131,9 +131,14 @@ func (r *Renderer) DrawScene(ctx context.Context, screen *ebiten.Image) {
 		}
 
 		if cullable {
+			// Origin shifts the sprite rect asymmetrically from Position.
+			// Total width/height is unchanged; the rect is offset by
+			// Origin * Scale in world space.
+			originX := transform.Origin.X * transform.Scale.X
+			originY := transform.Origin.Y * transform.Scale.Y
 			entityBounds := geom.Rect{
-				Min: geom.Vector2{X: transform.Position.X - halfW, Y: transform.Position.Y - halfH},
-				Max: geom.Vector2{X: transform.Position.X + halfW, Y: transform.Position.Y + halfH},
+				Min: geom.Vector2{X: transform.Position.X - (halfW + originX), Y: transform.Position.Y - (halfH + originY)},
+				Max: geom.Vector2{X: transform.Position.X + (halfW - originX), Y: transform.Position.Y + (halfH - originY)},
 			}
 			if !viewportBounds.Intersects(entityBounds) {
 				continue
@@ -254,8 +259,10 @@ func (r *Renderer) drawImage(_ context.Context, screen *ebiten.Image, cam compon
 	screenPos := cam.WorldToScreen(transform.Position)
 
 	op := &ebiten.DrawImageOptions{}
-	// first we set the position of the sprite on the screen by updating the DrawImageOptions
-	op.GeoM.Translate(-float64(w)/2, -float64(h)/2)
+	// Center the sprite on the entity position, then shift by Origin so the
+	// pivot point (center + Origin) lands on the screen position. Rotation
+	// happens around this pivot, matching the cull bounds below.
+	op.GeoM.Translate(-float64(w)/2-transform.Origin.X, -float64(h)/2-transform.Origin.Y)
 	// Apply scaling (including camera zoom), rotation, and other transforms from Transform
 	scaleX := transform.Scale.X * cam.Zoom
 	scaleY := transform.Scale.Y * cam.Zoom
