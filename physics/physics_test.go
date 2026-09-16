@@ -74,14 +74,14 @@ func TestPhysicsSystem_InactiveColliderRemovesPreviousPair(t *testing.T) {
 
 	first, err := world.CreateWithComponents("",
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
-		components.NewCollider(geom.Circle{Radius: 10}, true, false, 0, 1),
+		mustCollider(geom.Circle{Radius: 10}, true, false, 0, 1),
 	)
 	if err != nil {
 		t.Fatalf("Create first entity: %v", err)
 	}
 	second, err := world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 5}, Scale: geom.Vector2{X: 1, Y: 1}},
-		components.NewCollider(geom.Circle{Radius: 10}, true, false, 1, 0),
+		mustCollider(geom.Circle{Radius: 10}, true, false, 1, 0),
 	)
 	if err != nil {
 		t.Fatalf("Create second entity: %v", err)
@@ -153,14 +153,14 @@ func TestPhysicsSystem_FilterChangesReevaluateStaticPair(t *testing.T) {
 
 	first, err := world.CreateWithComponents("",
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
-		components.NewCollider(geom.Circle{Radius: 10}, true, false, 0, 1),
+		mustCollider(geom.Circle{Radius: 10}, true, false, 0, 1),
 	)
 	if err != nil {
 		t.Fatalf("Create first entity: %v", err)
 	}
 	_, err = world.CreateWithComponents("",
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
-		components.NewCollider(geom.Circle{Radius: 10}, true, false, 1, 0),
+		mustCollider(geom.Circle{Radius: 10}, true, false, 1, 0),
 	)
 	if err != nil {
 		t.Fatalf("Create second entity: %v", err)
@@ -179,7 +179,7 @@ func TestPhysicsSystem_FilterChangesReevaluateStaticPair(t *testing.T) {
 	}
 
 	eventTypes = nil
-	if err := world.SetComponent(first.ID, components.NewCollider(geom.Circle{Radius: 10}, true, false, 0)); err != nil {
+	if err := world.SetComponent(first.ID, mustCollider(geom.Circle{Radius: 10}, true, false, 0)); err != nil {
 		t.Fatalf("remove collision mask: %v", err)
 	}
 	if err := system.Update(world, 0); err != nil {
@@ -190,7 +190,7 @@ func TestPhysicsSystem_FilterChangesReevaluateStaticPair(t *testing.T) {
 	}
 
 	eventTypes = nil
-	if err := world.SetComponent(first.ID, components.NewCollider(geom.Circle{Radius: 10}, true, false, 0, 1)); err != nil {
+	if err := world.SetComponent(first.ID, mustCollider(geom.Circle{Radius: 10}, true, false, 0, 1)); err != nil {
 		t.Fatalf("restore collision mask: %v", err)
 	}
 	if err := system.Update(world, 0); err != nil {
@@ -213,14 +213,14 @@ func TestPhysicsSystem_EventIncludesContactDepthAndTriggerState(t *testing.T) {
 
 	_, err := world.CreateWithComponents("",
 		components.Transform{},
-		components.NewCollider(geom.Circle{Radius: 10}, true, true, 0, 1),
+		mustCollider(geom.Circle{Radius: 10}, true, true, 0, 1),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = world.CreateWithComponents("",
 		components.Transform{Position: geom.Vector2{X: 15}},
-		components.NewCollider(geom.Circle{Radius: 10}, true, false, 1, 0),
+		mustCollider(geom.Circle{Radius: 10}, true, false, 1, 0),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +256,7 @@ func TestPhysicsSystem_OffscreenCollidersStillCollide(t *testing.T) {
 	for index, position := range []geom.Vector2{{X: 100000, Y: 100000}, {X: 100005, Y: 100000}} {
 		if _, err := world.CreateWithComponents("",
 			components.Transform{Position: position},
-			components.NewCollider(geom.Circle{Radius: 10}, true, false, uint8(index), 1-uint(index)),
+			mustCollider(geom.Circle{Radius: 10}, true, false, uint8(index), 1-uint(index)),
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -285,11 +285,11 @@ func TestPhysicsSystem_TransformOnlyChangesReevaluatePair(t *testing.T) {
 		}
 		first, _ := world.CreateWithComponents("",
 			components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
-			components.NewCollider(geom.Rect{Min: geom.Vector2{X: -5, Y: -1}, Max: geom.Vector2{X: 5, Y: 1}}, true, false, 0, 1),
+			mustCollider(geom.Rect{Min: geom.Vector2{X: -5, Y: -1}, Max: geom.Vector2{X: 5, Y: 1}}, true, false, 0, 1),
 		)
 		_, _ = world.CreateWithComponents("",
 			components.Transform{Position: geom.Vector2{X: 0, Y: 6}, Scale: geom.Vector2{X: 1, Y: 1}},
-			components.NewCollider(geom.Rect{Min: geom.Vector2{X: -5, Y: -1}, Max: geom.Vector2{X: 5, Y: 1}}, true, false, 1, 0),
+			mustCollider(geom.Rect{Min: geom.Vector2{X: -5, Y: -1}, Max: geom.Vector2{X: 5, Y: 1}}, true, false, 1, 0),
 		)
 		var enters int
 		bus.On(func(_ events.EventMeta, event CollisionEvent) {
@@ -323,11 +323,11 @@ func TestPhysicsSystem_TransformOnlyChangesReevaluatePair(t *testing.T) {
 		// Two circles far apart (distance 100), each with radius 1 - should NOT collide
 		first, _ := world.CreateWithComponents("",
 			components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
-			components.NewCollider(geom.Circle{Radius: 1}, true, false, 0, 1),
+			mustCollider(geom.Circle{Radius: 1}, true, false, 0, 1),
 		)
 		_, _ = world.CreateWithComponents("",
 			components.Transform{Position: geom.Vector2{X: 100}, Scale: geom.Vector2{X: 1, Y: 1}},
-			components.NewCollider(geom.Circle{Radius: 1}, true, false, 1, 0),
+			mustCollider(geom.Circle{Radius: 1}, true, false, 1, 0),
 		)
 		var enters int
 		bus.On(func(_ events.EventMeta, event CollisionEvent) {

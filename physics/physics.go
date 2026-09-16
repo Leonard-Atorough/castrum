@@ -127,7 +127,7 @@ func (s *PhysicsSystem) TestCollision(world *ecs.World, entityA, entityB ecs.Ent
 		return CollisionResult{}, err
 	}
 
-	if !colliderA.CanCollideWith(&colliderB) {
+	if !colliderA.CanCollideWith(colliderB) {
 		return CollisionResult{}, nil
 	}
 
@@ -158,7 +158,7 @@ func (s *PhysicsSystem) CollidingWith(world *ecs.World, entityID ecs.EntityID) (
 			continue
 		}
 
-		if !collider.CanCollideWith(&other) {
+		if !collider.CanCollideWith(other) {
 			continue
 		}
 
@@ -189,7 +189,7 @@ func (s *PhysicsSystem) syncIndex() ([]PairKey, error) {
 			continue
 		}
 
-		shape, err := transformedCollider(collider.Shape, transform)
+		shape, err := transformedCollider(collider.Shape, collider.Offset, transform)
 		if err != nil {
 			return nil, fmt.Errorf("entity %d: %w", entityID, err)
 		}
@@ -354,7 +354,7 @@ func (s *PhysicsSystem) worldShape(world *ecs.World, entityID ecs.EntityID) (com
 		return components.Collider{}, transformedShape{}, fmt.Errorf("entity %d: %w", entityID, err)
 	}
 
-	shape, err := transformedCollider(collider.Shape, transform)
+	shape, err := transformedCollider(collider.Shape, collider.Offset, transform)
 	if err != nil {
 		return components.Collider{}, transformedShape{}, fmt.Errorf("entity %d: %w", entityID, err)
 	}

@@ -197,22 +197,29 @@ func orientedRectContact(a, b orientedRect) CollisionResult {
 	}
 }
 
-// transformedCollider applies rotation and translation to a local collider, ignoring scale.
-func transformedCollider(shape any, transform components.Transform) (transformedShape, error) {
+// transformedCollider applies the collider's local-space offset, then
+// rotation and translation from the transform, ignoring scale.
+func transformedCollider(shape any, offset geom.Vector2, transform components.Transform) (transformedShape, error) {
 	if shape == nil {
 		return transformedShape{}, fmt.Errorf("collider shape is nil")
 	}
 
 	switch local := shape.(type) {
 	case geom.Rect:
+		// Apply offset to the rect's corners in local space before
+		// transforming to world space.
+		ox, oy := offset.X, offset.Y
 		corners := [4]geom.Vector2{
-			{X: local.Min.X, Y: local.Min.Y},
-			{X: local.Max.X, Y: local.Min.Y},
-			{X: local.Max.X, Y: local.Max.Y},
-			{X: local.Min.X, Y: local.Max.Y},
+			{X: local.Min.X + ox, Y: local.Min.Y + oy},
+			{X: local.Max.X + ox, Y: local.Min.Y + oy},
+			{X: local.Max.X + ox, Y: local.Max.Y + oy},
+			{X: local.Min.X + ox, Y: local.Max.Y + oy},
 		}
 		worldCorners := transformPoints(corners, transform)
-		center := transformPoint(local.Min.Add(local.Max).Mul(0.5), transform)
+		center := transformPoint(geom.Vector2{
+			X: (local.Min.X+local.Max.X)/2 + ox,
+			Y: (local.Min.Y+local.Max.Y)/2 + oy,
+		}, transform)
 		// Use exact local dimensions without scaling
 		halfExtents := geom.Vector2{
 			X: math.Abs(local.Width()) / 2,
@@ -229,7 +236,13 @@ func transformedCollider(shape any, transform components.Transform) (transformed
 		}
 		return transformedShape{shape: oriented, bounds: oriented.bounds}, nil
 	case geom.Circle:
-		center := transformPoint(local.Center, transform)
+		// Apply offset to the circle's center in local space before
+		// transforming to world space.
+		offsetCenter := geom.Vector2{
+			X: local.Center.X + offset.X,
+			Y: local.Center.Y + offset.Y,
+		}
+		center := transformPoint(offsetCenter, transform)
 		// Use exact local radius without scaling
 		world := geom.Circle{Center: center, Radius: math.Abs(local.Radius)}
 		return transformedShape{shape: world, bounds: world.BoundingBox()}, nil

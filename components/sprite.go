@@ -60,7 +60,16 @@ type Sprite struct {
 }
 
 // NewSprite creates a new Sprite component with the specified properties.
-func NewSprite(texturePath string, atlasID string, regionName string, primitive PrimitiveType, color color.Color, size geom.Vector2, renderLayer uint8, sortOrder int8, visible bool, flipH bool, flipV bool, opacity float32, polygon geom.Polygon) (Sprite, error) {
+func NewSprite(
+	texturePath, atlasID, regionName string,
+	primitive PrimitiveType,
+	color color.Color,
+	size geom.Vector2,
+	renderLayer uint8,
+	sortOrder int8,
+	visible, flipH, flipV bool,
+	opacity float32,
+	polygon geom.Polygon) (Sprite, error) {
 	if renderLayer > 31 {
 		renderLayer = 31
 	}
@@ -180,21 +189,11 @@ func (s Sprite) Deserialize(data map[string]any) (Sprite, error) {
 			s.Size.Y = y
 		}
 	}
-	if v, ok := data["renderLayer"]; ok {
-		switch val := v.(type) {
-		case float64:
-			s.RenderLayer = uint8(val)
-		case uint8:
-			s.RenderLayer = val
-		}
+	if v, ok := data["renderLayer"].(float64); ok {
+		s.RenderLayer = uint8(v)
 	}
-	if v, ok := data["sortOrder"]; ok {
-		switch val := v.(type) {
-		case float64:
-			s.SortOrder = int8(val)
-		case int8:
-			s.SortOrder = val
-		}
+	if v, ok := data["sortOrder"].(float64); ok {
+		s.SortOrder = int8(v)
 	}
 	if v, ok := data["visible"].(bool); ok {
 		s.Visible = v
