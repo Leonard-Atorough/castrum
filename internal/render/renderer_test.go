@@ -141,7 +141,7 @@ func assertRenderOrder(t *testing.T, items []renderItem, want []ecs.EntityID) {
 func TestDrawScene_NoCameraReturnsEarly(t *testing.T) {
 	tr := newTestRenderer(t)
 	tr.addEntity(t,
-		components.Sprite{TexturePath: "square", Visible: true},
+		components.Sprite{TexturePath: "square", Visible: true, Opacity: 1},
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
@@ -181,7 +181,7 @@ func TestDrawScene_PrimitivesDoNotPanic(t *testing.T) {
 		components.PrimitiveKindLine,
 	} {
 		tr.addEntity(t,
-			components.Sprite{Primitive: kind, Size: geom.Vector2{X: 10, Y: 10}, Visible: true},
+			components.Sprite{Primitive: kind, Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1},
 			components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 		)
 	}
@@ -196,7 +196,7 @@ func TestDrawScene_PrimitivesDoNotPanic(t *testing.T) {
 func TestDrawScene_NilColorDoesNotPanic(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	tr.addEntity(t,
-		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Color: nil},
+		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, Color: nil},
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
@@ -210,7 +210,7 @@ func TestDrawScene_NilColorDoesNotPanic(t *testing.T) {
 func TestDrawScene_TextureSpriteLoadsTexture(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	tr.addEntity(t,
-		components.Sprite{TexturePath: "square", Visible: true},
+		components.Sprite{TexturePath: "square", Visible: true, Opacity: 1},
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
@@ -230,7 +230,7 @@ func TestDrawScene_TextureSpriteLoadsTexture(t *testing.T) {
 func TestDrawScene_MissingTextureCapturesError(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	id := tr.addEntity(t,
-		components.Sprite{TexturePath: "missing", Visible: true},
+		components.Sprite{TexturePath: "missing", Visible: true, Opacity: 1},
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
@@ -273,14 +273,14 @@ func TestDrawScene_CullsEntitiesOutsideViewport(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	// Camera at (0,0), screen 200x200, zoom 1: viewport is (-100,-100)..(100,100)
 	inside := tr.addEntity(t,
-		components.Sprite{TexturePath: "square", Visible: true},
+		components.Sprite{TexturePath: "square", Visible: true, Opacity: 1},
 		components.Transform{
 			Position: geom.Vector2{X: 50, Y: 50},
 			Scale:    geom.Vector2{X: 10, Y: 10},
 		},
 	)
 	tr.addEntity(t,
-		components.Sprite{TexturePath: "square", Visible: true},
+		components.Sprite{TexturePath: "square", Visible: true, Opacity: 1},
 		components.Transform{
 			Position: geom.Vector2{X: 500, Y: 500},
 			Scale:    geom.Vector2{X: 10, Y: 10},
@@ -305,12 +305,12 @@ func TestDrawScene_CullsPrimitivesBySpriteSize(t *testing.T) {
 	// A 20x20 primitive at (90,0) with Scale{1,1}: half-extents = 10, bounds
 	// (80,-10)-(100,10) — just inside the viewport.
 	inside := tr.addEntity(t,
-		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 20, Y: 20}, Visible: true},
+		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 20, Y: 20}, Visible: true, Opacity: 1},
 		components.Transform{Position: geom.Vector2{X: 90, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	// Same size at (200,0): bounds (190,-10)-(210,10) — outside.
 	tr.addEntity(t,
-		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 20, Y: 20}, Visible: true},
+		components.Sprite{Primitive: components.PrimitiveKindRectangle, Size: geom.Vector2{X: 20, Y: 20}, Visible: true, Opacity: 1},
 		components.Transform{Position: geom.Vector2{X: 200, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
@@ -338,7 +338,7 @@ func TestDrawScene_CullsTexturedSpriteByImageDimensions(t *testing.T) {
 	tr.provider.dimensions["big"] = [2]int{256, 256}
 
 	visible := tr.addEntity(t,
-		components.Sprite{TexturePath: "big", Visible: true},
+		components.Sprite{TexturePath: "big", Visible: true, Opacity: 1},
 		components.Transform{Position: geom.Vector2{X: 200, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
@@ -360,15 +360,15 @@ func TestDrawScene_SortByLayer(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	// Create in non-sorted order.
 	third := tr.addEntity(t,
-		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 20},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, RenderLayer: 20},
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	first := tr.addEntity(t,
-		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, RenderLayer: 0},
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	second := tr.addEntity(t,
-		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 10},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, RenderLayer: 10},
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
@@ -380,15 +380,15 @@ func TestDrawScene_SortByLayer(t *testing.T) {
 func TestDrawScene_SortBySortOrderWithinLayer(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	third := tr.addEntity(t,
-		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0, SortOrder: 100},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, RenderLayer: 0, SortOrder: 100},
 		components.Transform{Position: geom.Vector2{X: 0, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	first := tr.addEntity(t,
-		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0, SortOrder: 10},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, RenderLayer: 0, SortOrder: 10},
 		components.Transform{Position: geom.Vector2{X: 20, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	second := tr.addEntity(t,
-		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0, SortOrder: 50},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, RenderLayer: 0, SortOrder: 50},
 		components.Transform{Position: geom.Vector2{X: 40, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
@@ -401,11 +401,11 @@ func TestDrawScene_LayerTakesPriorityOverSortOrder(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	// Lower layer with higher sort order still renders first.
 	first := tr.addEntity(t,
-		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 5, SortOrder: 100},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, RenderLayer: 5, SortOrder: 100},
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	second := tr.addEntity(t,
-		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 10, SortOrder: 1},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, RenderLayer: 10, SortOrder: 1},
 		components.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 
@@ -417,11 +417,11 @@ func TestDrawScene_LayerTakesPriorityOverSortOrder(t *testing.T) {
 func TestDrawScene_YPositionFallbackWhenLayerAndSortOrderEqual(t *testing.T) {
 	tr := newTestRenderer(t).withCamera(t)
 	second := tr.addEntity(t,
-		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0, SortOrder: 50},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, RenderLayer: 0, SortOrder: 50},
 		components.Transform{Position: geom.Vector2{X: 0, Y: 70}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	first := tr.addEntity(t,
-		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, RenderLayer: 0, SortOrder: 50},
+		components.Sprite{Size: geom.Vector2{X: 10, Y: 10}, Visible: true, Opacity: 1, RenderLayer: 0, SortOrder: 50},
 		components.Transform{Position: geom.Vector2{X: 0, Y: 30}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 

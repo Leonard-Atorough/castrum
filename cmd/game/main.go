@@ -89,7 +89,7 @@ func main() {
 			Position: geom.Vector2{X: 0, Y: 0},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		components.Sprite{TexturePath: "example.png", Visible: true, RenderLayer: 1},
+		components.Sprite{TexturePath: "example.png", Visible: true, RenderLayer: 1, Opacity: 1},
 		gamecomponents.Player{},
 		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
 		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -16, Y: -16}, Max: geom.Vector2{X: 16, Y: 16}}, true, false, 0, 1),
@@ -116,6 +116,7 @@ func main() {
 					Visible:     true,
 					RenderLayer: 0,
 					Color:       color.RGBA{R: 60, G: 220, B: 60, A: 255},
+					Opacity:     1,
 				},
 				gamecomponents.Pulse{StartScale: geom.Vector2{X: 1, Y: 1}, Amplitude: 0.5, Frequency: 1, TimeOffset: float64(i+j) * 0.1},
 			)
@@ -147,6 +148,7 @@ func main() {
 				Visible:     true,
 				RenderLayer: 1,
 				Color:       color.RGBA{R: 255, G: 100, B: 100, A: 255},
+				Opacity:     1,
 			},
 			components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
 		)
