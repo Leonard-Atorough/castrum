@@ -44,19 +44,19 @@ const (
 // Polygon holds the vertex data when Primitive is PrimitiveKindPolygon. It
 // is ignored for all other primitive types and textured sprites.
 type Sprite struct {
-	TexturePath string
-	AtlasID     string
-	RegionName  string
-	Primitive   PrimitiveType
-	Color       color.Color
-	Size        geom.Vector2 // base dimensions in pixels for primitives; ignored by textured sprites
-	RenderLayer uint8        // which of 32 layers to render on (0-31)
-	SortOrder   int8         // [-128..127], higher values render on top within the layer
-	Visible     bool
-	FlipH       bool         // mirror horizontally
-	FlipV       bool         // mirror vertically
-	Opacity     float32      // 0.0 (transparent) to 1.0 (opaque); multiplies Color alpha
-	Polygon     geom.Polygon // vertex data for PrimitiveKindPolygon; zero value for other types
+	TexturePath string        // path to a standalone texture file, used for rendering single texture sprites
+	AtlasID     string        // ID of a texture Atlas. Combined with region name to render sprites using a sprite sheet
+	RegionName  string        // name of the region within the atlas to use for this sprite
+	Primitive   PrimitiveType // type of primitive shape to render when not using a texture
+	Color       color.Color   // color tint applied to the sprite; multiplied with texture or primitive color
+	Size        geom.Vector2  // base dimensions in pixels for primitives; ignored by textured sprites
+	RenderLayer uint8         // which of 32 layers to render on (0-31)
+	SortOrder   int8          // [-128..127], higher values render on top within the layer
+	Visible     bool          // whether the sprite is currently visible
+	FlipH       bool          // mirror horizontally
+	FlipV       bool          // mirror vertically
+	Opacity     float32       // 0.0 (transparent) to 1.0 (opaque); multiplies Color alpha
+	Polygon     geom.Polygon  // vertex data for PrimitiveKindPolygon; zero value for other types
 }
 
 // NewSprite creates a new Sprite component with the specified properties.
@@ -97,6 +97,8 @@ func NewSprite(texturePath string, atlasID string, regionName string, primitive 
 	return sprite, nil
 }
 
+// Validate checks that the Sprite component has valid values for
+// AtlasID/RegionName invariants, RenderLayer range, Primitive type, and Opacity range.
 func (s Sprite) Validate() error {
 	if s.AtlasID != "" && s.RegionName == "" || s.AtlasID == "" && s.RegionName != "" {
 		return fmt.Errorf("atlasID and regionName must be specified together")
@@ -113,6 +115,8 @@ func (s Sprite) Validate() error {
 	return nil
 }
 
+// Serialize converts the Sprite component to a map suitable for blueprint
+// serialization or save-game storage. All fields are included.
 func (s Sprite) Serialize() (map[string]any, error) {
 	data := map[string]any{
 		"texturePath": s.TexturePath,
@@ -153,6 +157,8 @@ func (s Sprite) Serialize() (map[string]any, error) {
 	return data, nil
 }
 
+// Deserialize populates a Sprite component from a serialized map, returning the
+// reconstructed component. The result is validated before returning.
 func (s Sprite) Deserialize(data map[string]any) (Sprite, error) {
 	if v, ok := data["texturePath"].(string); ok {
 		s.TexturePath = v
