@@ -100,7 +100,7 @@ func TestAnimationSerializeIncludesAllFields(t *testing.T) {
 
 	expected := map[string]any{
 		"clipID":        "idle",
-		"frameIndex":    2,
+		"frameIndex":    float64(2),
 		"frameTime":     0.05,
 		"playing":       false,
 		"playbackSpeed": 0.5,

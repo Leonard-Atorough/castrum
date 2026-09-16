@@ -60,7 +60,7 @@ func (a Animation) Validate() error {
 func (a Animation) Serialize() (map[string]any, error) {
 	return map[string]any{
 		"clipID":        a.ClipID,
-		"frameIndex":    a.FrameIndex,
+		"frameIndex":    float64(a.FrameIndex),
 		"frameTime":     a.FrameTime,
 		"playing":       a.Playing,
 		"playbackSpeed": a.PlaybackSpeed,
