@@ -1,7 +1,6 @@
 package components
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/leonard-atorough/castrum/geom"
@@ -10,43 +9,6 @@ import (
 // SceneTag marks which scene an entity belongs to, for query-time scene filtering.
 type SceneTag struct {
 	SceneID string
-}
-
-
-
-// Animation holds playback state for an animating entity.
-// The animation definition (frames, frame speed, loop) is managed by the AnimationManager.
-type Animation struct {
-	ClipID        string  // ID to look up the AnimationClip in the manager
-	FrameIndex    int     // current frame index
-	FrameTime     float64 // accumulated time for current frame (seconds)
-	Playing       bool    // is the animation running
-	PlaybackSpeed float64 // playback multiplier (1.0 = normal speed)
-}
-
-// NewAnimation creates an Animation for a given clip ID.
-func NewAnimation(clipID string, autoplay bool) Animation {
-	return Animation{
-		ClipID:        clipID,
-		PlaybackSpeed: 1.0,
-		Playing:       autoplay,
-	}
-}
-
-func (a *Animation) Validate() error {
-	if a.ClipID == "" {
-		return fmt.Errorf("clipID must be specified")
-	}
-	if a.FrameIndex < 0 {
-		return fmt.Errorf("frameIndex cannot be negative")
-	}
-	if a.FrameTime < 0 {
-		return fmt.Errorf("frameTime cannot be negative")
-	}
-	if a.PlaybackSpeed <= 0 {
-		return fmt.Errorf("playbackSpeed must be positive")
-	}
-	return nil
 }
 
 // ColliderShapeContext defines the local-space bounds required by a collider.
