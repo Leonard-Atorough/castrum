@@ -30,19 +30,10 @@ func NewTransform(position geom.Vector2, rotation float64, scale geom.Vector2, o
 
 func (t Transform) Serialize() (map[string]any, error) {
 	return map[string]any{
-		"position": map[string]float64{
-			"x": t.Position.X,
-			"y": t.Position.Y,
-		},
+		"position": map[string]any{"x": t.Position.X, "y": t.Position.Y},
 		"rotation": t.Rotation,
-		"scale": map[string]float64{
-			"x": t.Scale.X,
-			"y": t.Scale.Y,
-		},
-		"origin": map[string]float64{
-			"x": t.Origin.X,
-			"y": t.Origin.Y,
-		},
+		"scale":    map[string]any{"x": t.Scale.X, "y": t.Scale.Y},
+		"origin":   map[string]any{"x": t.Origin.X, "y": t.Origin.Y},
 	}, nil
 }
 
