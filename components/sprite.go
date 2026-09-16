@@ -131,26 +131,23 @@ func (s Sprite) Serialize() (map[string]any, error) {
 		"texturePath": s.TexturePath,
 		"atlasID":     s.AtlasID,
 		"regionName":  s.RegionName,
-		"primitive":   uint8(s.Primitive),
-		"size": map[string]float64{
-			"x": s.Size.X,
-			"y": s.Size.Y,
-		},
-		"renderLayer": s.RenderLayer,
-		"sortOrder":   s.SortOrder,
+		"primitive":   float64(s.Primitive),
+		"size": map[string]any{"x": s.Size.X, "y": s.Size.Y},
+		"renderLayer": float64(s.RenderLayer),
+		"sortOrder":   float64(s.SortOrder),
 		"visible":     s.Visible,
 		"flipH":       s.FlipH,
 		"flipV":       s.FlipV,
-		"opacity":     s.Opacity,
+		"opacity":     float64(s.Opacity),
 	}
 
 	if s.Color != nil {
 		r, g, b, a := s.Color.RGBA()
-		data["color"] = map[string]uint32{
-			"r": uint32(r),
-			"g": uint32(g),
-			"b": uint32(b),
-			"a": uint32(a),
+		data["color"] = map[string]any{
+			"r": float64(r),
+			"g": float64(g),
+			"b": float64(b),
+			"a": float64(a),
 		}
 	}
 
