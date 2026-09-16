@@ -76,28 +76,25 @@ func (c Collider) Validate() error {
 // geom.Circle as a center+radius map, geom.Rect as a min+max map.
 func (c Collider) Serialize() (map[string]any, error) {
 	data := map[string]any{
-		"layer":   c.Layer,
-		"mask":    c.Mask,
+		"layer":   float64(c.Layer),
+		"mask":    float64(c.Mask),
 		"trigger": c.Trigger,
 		"active":  c.Active,
-		"offset": map[string]float64{
-			"x": c.Offset.X,
-			"y": c.Offset.Y,
-		},
+		"offset": map[string]any{"x": c.Offset.X, "y": c.Offset.Y},
 	}
 
 	switch shape := c.Shape.(type) {
 	case geom.Circle:
 		data["shape"] = map[string]any{
 			"type":   "circle",
-			"center": map[string]float64{"x": shape.Center.X, "y": shape.Center.Y},
+			"center": map[string]any{"x": shape.Center.X, "y": shape.Center.Y},
 			"radius": shape.Radius,
 		}
 	case geom.Rect:
 		data["shape"] = map[string]any{
 			"type": "rect",
-			"min":  map[string]float64{"x": shape.Min.X, "y": shape.Min.Y},
-			"max":  map[string]float64{"x": shape.Max.X, "y": shape.Max.Y},
+			"min":  map[string]any{"x": shape.Min.X, "y": shape.Min.Y},
+			"max":  map[string]any{"x": shape.Max.X, "y": shape.Max.Y},
 		}
 	default:
 		return nil, fmt.Errorf("cannot serialize unsupported shape %T", c.Shape)
