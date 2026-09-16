@@ -16,18 +16,18 @@ type mockComponent struct {
 	Value int
 }
 
-func (m *mockComponent) Serialize() map[string]any {
-	return map[string]any{"Name": m.Name, "Value": m.Value}
+func (m mockComponent) Serialize() (map[string]any, error) {
+	return map[string]any{"Name": m.Name, "Value": m.Value}, nil
 }
 
-func (m *mockComponent) Deserialize(props map[string]any) error {
+func (m mockComponent) Deserialize(props map[string]any) (mockComponent, error) {
 	if name, ok := props["Name"].(string); ok {
 		m.Name = name
 	}
 	if value, ok := props["Value"].(float64); ok {
 		m.Value = int(value)
 	}
-	return nil
+	return m, nil
 }
 
 type anotherComponent struct {

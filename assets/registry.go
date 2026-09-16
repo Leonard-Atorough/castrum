@@ -42,13 +42,20 @@ func (r *ComponentRegistry) RegisterComponent[T ecs.Component](name string, fact
 			return factories[0](properties)
 		}
 
-		value := reflect.New(typ).Elem()
-		if serializable, ok := value.Addr().Interface().(ecs.Serializable); ok {
-			if err := serializable.Deserialize(properties); err != nil {
+		// If T implements Serializable[T], use the typed Deserialize path.
+		// Value receivers on both methods mean the zero value satisfies the
+		// interface directly — no reflection or pointer needed.
+		var zero T
+		if serializable, ok := any(zero).(ecs.Serializable[T]); ok {
+			result, err := serializable.Deserialize(properties)
+			if err != nil {
 				return nil, err
 			}
-			return value.Interface(), nil
+			return result, nil
 		}
+
+		// Fallback: set fields by name via reflection.
+		value := reflect.New(typ).Elem()
 		for key, raw := range properties {
 			field := value.FieldByName(key)
 			if !field.IsValid() || !field.CanSet() {
