@@ -83,6 +83,10 @@ func main() {
 	}
 
 	// Spawn a controllable circle on Layer1 at the center
+	playerCollider, err := components.NewCollider(geom.Rect{Min: geom.Vector2{X: -16, Y: -16}, Max: geom.Vector2{X: 16, Y: 16}}, true, false, geom.Vector2{X: 0, Y: 0}, 0, 1)
+	if err != nil {
+		log.Fatalf("failed to create player collider: %v", err)
+	}
 	_, createErr := world.CreateWithComponents(
 		"player",
 		components.Transform{
@@ -92,7 +96,7 @@ func main() {
 		components.Sprite{TexturePath: "example.png", Visible: true, RenderLayer: 1, Opacity: 1},
 		gamecomponents.Player{},
 		gamecomponents.Velocity{Linear: geom.Vector2{X: 0, Y: 0}},
-		components.NewCollider(geom.Rect{Min: geom.Vector2{X: -16, Y: -16}, Max: geom.Vector2{X: 16, Y: 16}}, true, false, 0, 1),
+		playerCollider,
 	)
 	if createErr != nil {
 		log.Fatalf("failed to spawn player circle: %v", createErr)
@@ -137,7 +141,11 @@ func main() {
 	}
 
 	for i, pos := range circlePositions {
-		_, err := world.CreateWithComponents(
+		circleCollider, err := components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, geom.Vector2{X: 0, Y: 0}, 1, 0)
+		if err != nil {
+			log.Fatalf("failed to create circle collider: %v", err)
+		}
+		_, err = world.CreateWithComponents(
 			"circle_obstacle",
 			components.Transform{
 				Position: pos,
@@ -150,7 +158,7 @@ func main() {
 				Color:       color.RGBA{R: 255, G: 100, B: 100, A: 255},
 				Opacity:     1,
 			},
-			components.NewCollider(geom.Circle{Center: geom.Vector2{}, Radius: 15}, true, false, 1, 0),
+			circleCollider,
 		)
 		if err != nil {
 			log.Fatalf("failed to spawn circle %d: %v", i, err)

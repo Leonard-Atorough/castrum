@@ -11,67 +11,6 @@ type SceneTag struct {
 	SceneID string
 }
 
-// ColliderShapeContext defines the local-space bounds required by a collider.
-// Physics currently supports geom.Circle and geom.Rect for exact collision
-// testing. Other bounds-providing types are not valid physics shapes yet.
-type ColliderShapeContext interface {
-	BoundingBox() geom.Rect
-}
-
-// Collider represents a collision shape for an entity.
-type Collider struct {
-	Shape   ColliderShapeContext // geom.Circle or geom.Rect, defined in local space
-	Layer   uint8                // The layer this collider belongs to
-	Mask    uint32               // The collision masks determine which layers this collider can interact with.
-	Trigger bool                 // Detects and emits events without implying collision response.
-	Active  bool                 // Indicates if this collider is currently active
-}
-
-// NewCollider creates a new Collider component with the specified properties.
-func NewCollider(shape ColliderShapeContext, active, trigger bool, layer uint8, collidesWith ...uint) Collider {
-	mask := layersToMask(collidesWith...)
-	if layer > 31 {
-		layer = 31
-	}
-	return Collider{
-		Shape:   shape,
-		Layer:   layer,
-		Mask:    mask,
-		Active:  active,
-		Trigger: trigger,
-	}
-}
-
-func (c Collider) BoundingBox() geom.Rect {
-	if c.Shape == nil {
-		return geom.Rect{}
-	}
-	return c.Shape.BoundingBox()
-}
-
-// IsSupportedShape reports whether physics has exact narrow-phase support for
-// the collider's concrete shape type.
-func (c Collider) IsSupportedShape() bool {
-	switch c.Shape.(type) {
-	case geom.Circle, geom.Rect:
-		return true
-	default:
-		return false
-	}
-}
-
-func (c Collider) CanCollideWith(other *Collider) bool {
-	return (c.Mask&(1<<other.Layer)) != 0 && (other.Mask&(1<<c.Layer)) != 0
-}
-
-func layersToMask(layers ...uint) uint32 {
-	var mask uint32 = 0
-	for _, layer := range layers {
-		mask |= 1 << layer
-	}
-	return mask
-}
-
 // TimerID uniquely identifies a timer within a Manager.
 type TimerID string
 

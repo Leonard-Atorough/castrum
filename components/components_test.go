@@ -155,16 +155,15 @@ func (ct *ColliderTestShape) BoundingBox() geom.Rect {
 
 func TestColliderComponent(t *testing.T) {
 	t.Run("Create New Collider Component with all fields", func(t *testing.T) {
-		testShape := &ColliderTestShape{Width: 10, Height: 10}
-		collider := NewCollider(testShape, true, true, 0, 1, 3, 6)
-		// testing components.Collider fields
+		testShape := geom.Rect{Min: geom.Vector2{X: 0, Y: 0}, Max: geom.Vector2{X: 10, Y: 10}}
+		collider, _ := NewCollider(testShape, true, true, geom.Vector2{X: 0, Y: 0}, 0, 1, 3, 6)
 		if collider.Shape != testShape {
 			t.Errorf("Expected shape to be %v, got %v", testShape, collider.Shape)
 		}
-		if collider.Active != true {
+		if !collider.Active {
 			t.Errorf("Expected active to be true, got %v", collider.Active)
 		}
-		if collider.Trigger != true {
+		if !collider.Trigger {
 			t.Errorf("Expected trigger to be true, got %v", collider.Trigger)
 		}
 		if collider.Layer != 0 {
@@ -178,16 +177,16 @@ func TestColliderComponent(t *testing.T) {
 	})
 
 	t.Run("Create New Collider Component with layer field greater than 31", func(t *testing.T) {
-		testShape := &ColliderTestShape{Width: 10, Height: 10}
-		collider := NewCollider(testShape, true, true, 150, 1)
+		testShape := geom.Rect{Min: geom.Vector2{X: 0, Y: 0}, Max: geom.Vector2{X: 10, Y: 10}}
+		collider, _ := NewCollider(testShape, true, true, geom.Vector2{X: 0, Y: 0}, 150, 1)
 		if collider.Layer != 31 {
 			t.Errorf("Expected layer to be 31, got %v", collider.Layer)
 		}
 	})
 
 	t.Run("Collider Bounding Box", func(t *testing.T) {
-		testShape := &ColliderTestShape{Width: 10, Height: 10}
-		collider := NewCollider(testShape, true, true, 0, 1)
+		testShape := geom.Rect{Min: geom.Vector2{X: 0, Y: 0}, Max: geom.Vector2{X: 10, Y: 10}}
+		collider, _ := NewCollider(testShape, true, true, geom.Vector2{X: 0, Y: 0}, 0, 1)
 		expectedBoundingBox := geom.Rect{
 			Min: geom.Vector2{X: 0, Y: 0},
 			Max: geom.Vector2{X: 10, Y: 10},
@@ -197,28 +196,46 @@ func TestColliderComponent(t *testing.T) {
 		}
 	})
 
+	t.Run("Collider Bounding Box with Offset", func(t *testing.T) {
+		testShape := geom.Rect{Min: geom.Vector2{X: 0, Y: 0}, Max: geom.Vector2{X: 10, Y: 10}}
+		collider, _ := NewCollider(testShape, true, true, geom.Vector2{X: 5, Y: -3}, 0, 1)
+		expectedBoundingBox := geom.Rect{
+			Min: geom.Vector2{X: 5, Y: -3},
+			Max: geom.Vector2{X: 15, Y: 7},
+		}
+		if collider.BoundingBox() != expectedBoundingBox {
+			t.Errorf("Expected bounding box to be %v, got %v", expectedBoundingBox, collider.BoundingBox())
+		}
+	})
+
 	t.Run("Collider CanCollideWith", func(t *testing.T) {
-		shapeA := &ColliderTestShape{Width: 10, Height: 10}
-		shapeB := &ColliderTestShape{Width: 5, Height: 5}
-		colliderA := NewCollider(shapeA, true, true, 0, 1)
-		colliderB := NewCollider(shapeB, true, true, 1, 0)
-		if !colliderA.CanCollideWith(&colliderB) {
+		shapeA := geom.Rect{Min: geom.Vector2{X: 0, Y: 0}, Max: geom.Vector2{X: 10, Y: 10}}
+		shapeB := geom.Rect{Min: geom.Vector2{X: 0, Y: 0}, Max: geom.Vector2{X: 5, Y: 5}}
+		colliderA, _ := NewCollider(shapeA, true, true, geom.Vector2{X: 0, Y: 0}, 0, 1)
+		colliderB, _ := NewCollider(shapeB, true, true, geom.Vector2{X: 0, Y: 0}, 1, 0)
+		if !colliderA.CanCollideWith(colliderB) {
 			t.Errorf("Expected colliderA to be able to collide with colliderB")
 		}
-		if !colliderB.CanCollideWith(&colliderA) {
+		if !colliderB.CanCollideWith(colliderA) {
 			t.Errorf("Expected colliderB to be able to collide with colliderA")
 		}
 	})
 
 	t.Run("Supported collider shapes", func(t *testing.T) {
-		if !NewCollider(geom.Circle{Radius: 1}, true, false, 0).IsSupportedShape() {
+		circle, _ := NewCollider(geom.Circle{Radius: 1}, true, false, geom.Vector2{X: 0, Y: 0}, 0)
+		if !circle.IsSupportedShape() {
 			t.Error("Circle should be supported")
 		}
-		if !NewCollider(geom.Rect{}, true, false, 0).IsSupportedShape() {
+		rect, _ := NewCollider(geom.Rect{}, true, false, geom.Vector2{X: 0, Y: 0}, 0)
+		if !rect.IsSupportedShape() {
 			t.Error("Rect should be supported")
 		}
-		if NewCollider(&ColliderTestShape{}, true, false, 0).IsSupportedShape() {
-			t.Error("custom bounds-only shape should not be reported as supported")
+	})
+
+	t.Run("Unsupported shape returns error", func(t *testing.T) {
+		_, err := NewCollider(&ColliderTestShape{Width: 10, Height: 10}, true, false, geom.Vector2{X: 0, Y: 0}, 0)
+		if err == nil {
+			t.Error("Expected error for unsupported shape")
 		}
 	})
 }
