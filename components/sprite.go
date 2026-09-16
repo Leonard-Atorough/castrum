@@ -132,7 +132,7 @@ func (s Sprite) Serialize() (map[string]any, error) {
 		"atlasID":     s.AtlasID,
 		"regionName":  s.RegionName,
 		"primitive":   float64(s.Primitive),
-		"size": map[string]any{"x": s.Size.X, "y": s.Size.Y},
+		"size":        map[string]any{"x": s.Size.X, "y": s.Size.Y},
 		"renderLayer": float64(s.RenderLayer),
 		"sortOrder":   float64(s.SortOrder),
 		"visible":     s.Visible,

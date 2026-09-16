@@ -19,11 +19,11 @@ import (
 // unbounded (infinite in all directions). Set finite bounds to keep the
 // camera within a level or region.
 type Camera struct {
-	Position   geom.Vector2 // camera center in world space
-	Zoom        float64      // zoom multiplier (1.0 = no zoom)
-	ScreenSize  geom.Vector2I // render target dimensions in pixels
-	Bounds      geom.Rect    // movement bounds; unbounded by default
-	Primary     bool         // marks this as the active camera for rendering
+	Position   geom.Vector2  // camera center in world space
+	Zoom       float64       // zoom multiplier (1.0 = no zoom)
+	ScreenSize geom.Vector2I // render target dimensions in pixels
+	Bounds     geom.Rect     // movement bounds; unbounded by default
+	Primary    bool          // marks this as the active camera for rendering
 }
 
 // NewCamera returns a camera centered on the world origin with no zoom and
@@ -37,7 +37,7 @@ func NewCamera(screenWidth, screenHeight uint32, primary bool) Camera {
 	return Camera{
 		Position:   geom.Vector2{X: 0, Y: 0},
 		Zoom:       1,
-		ScreenSize:  geom.Vector2I{X: int(screenWidth), Y: int(screenHeight)},
+		ScreenSize: geom.Vector2I{X: int(screenWidth), Y: int(screenHeight)},
 		Bounds:     UnboundedRect(),
 		Primary:    primary,
 	}

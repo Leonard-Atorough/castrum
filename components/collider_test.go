@@ -112,7 +112,7 @@ func TestColliderCanCollideWith(t *testing.T) {
 }
 
 func TestColliderCannotCollideWithMismatchedMasks(t *testing.T) {
-	a, _ := NewCollider(geom.Rect{}, true, true, geom.Vector2{}, 0)     // mask=0, no collisions
+	a, _ := NewCollider(geom.Rect{}, true, true, geom.Vector2{}, 0)    // mask=0, no collisions
 	b, _ := NewCollider(geom.Rect{}, true, true, geom.Vector2{}, 1, 0) // mask=1, collides with layer 0
 	if a.CanCollideWith(b) {
 		t.Error("expected a.CanCollideWith(b) = false (a has mask 0)")

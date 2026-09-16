@@ -21,11 +21,11 @@ type TimerID string
 // ElapsedTime >= Duration, a TimerCompletedEvent is emitted. One-shot timers
 // are then removed; repeating timers reset ElapsedTime to zero.
 type Timer struct {
-	ID          TimerID  // unique identifier for this timer
-	Duration    float64  // how long the timer runs before firing (seconds)
-	ElapsedTime float64  // accumulated time since the timer started (seconds)
-	Running     bool     // whether the timer is currently accumulating time
-	Once        bool     // true = fire once and remove; false = repeating
+	ID          TimerID // unique identifier for this timer
+	Duration    float64 // how long the timer runs before firing (seconds)
+	ElapsedTime float64 // accumulated time since the timer started (seconds)
+	Running     bool    // whether the timer is currently accumulating time
+	Once        bool    // true = fire once and remove; false = repeating
 }
 
 // NewTimer creates a Timer component with the given ID and duration. If

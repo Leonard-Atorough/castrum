@@ -80,7 +80,7 @@ func (c Collider) Serialize() (map[string]any, error) {
 		"mask":    float64(c.Mask),
 		"trigger": c.Trigger,
 		"active":  c.Active,
-		"offset": map[string]any{"x": c.Offset.X, "y": c.Offset.Y},
+		"offset":  map[string]any{"x": c.Offset.X, "y": c.Offset.Y},
 	}
 
 	switch shape := c.Shape.(type) {
