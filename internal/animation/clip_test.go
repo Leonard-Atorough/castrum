@@ -117,6 +117,28 @@ func TestBuildValidatesUnknownFrame(t *testing.T) {
 	}
 }
 
+func TestBuildCollectsAllErrors(t *testing.T) {
+	store := NewClipStore()
+	a := testAtlas()
+	_, err := store.NewBuilder("idle", a).
+		AddFrame("frame_0").
+		AddFrame("missing_a").
+		AddFrame("missing_b").
+		SetFPS(0).
+		Build()
+	if err == nil {
+		t.Fatal("Build() returned nil error, want collected errors")
+	}
+	list, ok := err.(*ClipErrorList)
+	if !ok {
+		t.Fatalf("Build() error type = %T, want *ClipErrorList", err)
+	}
+	// Expect one error per missing frame plus one for FPS.
+	if len(list.Errors) != 3 {
+		t.Fatalf("ClipErrorList has %d errors, want 3: %v", len(list.Errors), list.Errors)
+	}
+}
+
 func TestBuildRegistersClip(t *testing.T) {
 	store := NewClipStore()
 	a := testAtlas()

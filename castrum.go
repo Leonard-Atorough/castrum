@@ -30,6 +30,7 @@ type Game struct {
 	assetsLoader *assets.Loader
 	atlasSvc     *internalatlas.Service
 	clipStore    *internalanimation.ClipStore
+	eventBus     *events.EventBus
 	config       *Config
 	renderer     *render.Renderer
 	input        input.Reader
@@ -74,7 +75,8 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 
 	newWorld.SetResource[input.Reader](inputHandler)
 	newWorld.SetResource(clipStore)
-	newWorld.SetResource(events.NewEventBus())
+	eventBus := events.NewEventBus()
+	newWorld.SetResource(eventBus)
 
 	var err error
 	if err = newWorld.RegisterSystem("timer", -1, &timers.TimerSystem{Capacity: 60}); err != nil {
@@ -116,6 +118,7 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 		assetsLoader: assetsLoader,
 		atlasSvc:     atlasService,
 		clipStore:    clipStore,
+		eventBus:     eventBus,
 		config:       config,
 		renderer:     renderer,
 		input:        inputHandler,
@@ -147,7 +150,7 @@ func (g *Game) AssetsSaver() *assets.Saver {
 // NewAtlas returns a [atlas.Builder] for creating a new texture atlas with
 // the specified ID, asset path, and tile dimensions. The atlas is registered
 // with the engine when [atlas.Builder.Build] is called.
-func (g *Game) NewAtlas(id string, assetPath string, width, height int) (*atlas.Builder, error) {
+func (g *Game) NewAtlas(id string, assetPath string, width, height int) *atlas.Builder {
 	return g.atlasSvc.NewBuilder(id, assetPath, width, height)
 }
 
@@ -161,6 +164,10 @@ func (g *Game) NewClip(id string, atlas *atlas.Atlas) *animation.ClipBuilder {
 // Input returns the resolved action reader used by gameplay systems.
 func (g *Game) Input() input.Reader {
 	return g.input
+}
+
+func (g *Game) EventBus() *events.EventBus {
+	return g.eventBus
 }
 
 func (g *Game) SetPaused(paused bool) {

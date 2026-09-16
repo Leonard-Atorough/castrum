@@ -2,6 +2,7 @@ package animation
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/leonard-atorough/castrum/internal/atlas"
 )
@@ -40,22 +41,30 @@ type ClipBuilder struct {
 }
 
 // Build validates the clip definition and registers it with the
-// [ClipStore]. The returned clip is a copy; mutating it does not
-// affect the store entry.
+// [ClipStore]. All validation errors (missing atlas, no frames, non-positive
+// FPS, unknown frame names) are collected and surfaced together as a
+// [*ClipErrorList]; if any error is collected, no clip is registered. The
+// returned clip is a copy; mutating it does not affect the store entry.
 func (b *ClipBuilder) Build() (*AnimationClip, error) {
+	var errs []error
 	if b.atlas == nil {
-		return nil, fmt.Errorf("atlas is required for clip %q", b.id)
+		errs = append(errs, fmt.Errorf("atlas is required for clip %q", b.id))
 	}
 	if len(b.frames) == 0 {
-		return nil, fmt.Errorf("no frames added to clip %q", b.id)
+		errs = append(errs, fmt.Errorf("no frames added to clip %q", b.id))
 	}
 	if b.fps <= 0 {
-		return nil, fmt.Errorf("FPS must be greater than 0 for clip %q", b.id)
+		errs = append(errs, fmt.Errorf("FPS must be greater than 0 for clip %q", b.id))
 	}
-	for _, frame := range b.frames {
-		if _, ok := b.atlas.Region(frame); !ok {
-			return nil, fmt.Errorf("frame %q not found in atlas for clip %q", frame, b.id)
+	if b.atlas != nil {
+		for _, frame := range b.frames {
+			if _, ok := b.atlas.Region(frame); !ok {
+				errs = append(errs, fmt.Errorf("frame %q not found in atlas for clip %q", frame, b.id))
+			}
 		}
+	}
+	if len(errs) > 0 {
+		return nil, &ClipErrorList{Errors: errs}
 	}
 
 	frames := make([]string, len(b.frames))
@@ -114,4 +123,19 @@ func (b *ClipBuilder) OnFrame(frameIndex int, eventName string) *ClipBuilder {
 	}
 	b.events[frameIndex] = append(b.events[frameIndex], eventName)
 	return b
+}
+
+// ClipErrorList is a collection of validation errors collected by
+// [ClipBuilder.Build].
+type ClipErrorList struct {
+	Errors []error
+}
+
+func (e *ClipErrorList) Error() string {
+	var msg strings.Builder
+	for _, err := range e.Errors {
+		msg.WriteString(err.Error())
+		msg.WriteString("; ")
+	}
+	return msg.String()
 }

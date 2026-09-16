@@ -422,19 +422,9 @@ func TestSubImageKey(t *testing.T) {
 func TestBuilderToSubImageIntegration(t *testing.T) {
 	f := newTextureFixture(t)
 
-	builder, err := f.atlasSvc.NewBuilder("player", "sprite.png", 64, 64)
-	if err != nil {
-		t.Fatalf("NewBuilder() error = %v", err)
-	}
-
-	_, err = builder.SliceRegion("idle", 0, 0, 32, 32)
-	if err != nil {
-		t.Fatalf("SliceRegion() error = %v", err)
-	}
-	_, err = builder.SliceRegion("walk", 32, 0, 32, 32)
-	if err != nil {
-		t.Fatalf("SliceRegion() error = %v", err)
-	}
+	builder := f.atlasSvc.NewBuilder("player", "sprite.png", 64, 64).
+		SliceRegion("idle", 0, 0, 32, 32).
+		SliceRegion("walk", 32, 0, 32, 32)
 
 	builtAtlas, err := builder.Build()
 	if err != nil {

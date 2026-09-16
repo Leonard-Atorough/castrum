@@ -11,3 +11,7 @@ type Serializable interface {
 	Serialize() (map[string]any, error)
 	Deserialize(map[string]any) error
 }
+
+type Validatable interface {
+	Validate() error
+}

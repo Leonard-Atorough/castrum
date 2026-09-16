@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	screenWidth  = 800
+	screenWidth  = 1200
 	screenHeight = 600
 
 	torchAssetPath = "examples/animated/torch_light.png"
@@ -46,14 +46,9 @@ func main() {
 	world := game.World()
 
 	// 1. Slice the torch texture into 6 frames of 16x28.
-	builder, err := game.NewAtlas(torchAtlasID, torchAssetPath, 96, 28)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if _, errs := builder.GridSlice(frameW, frameH, "torch"); len(errs) > 0 {
-		log.Fatal(errs[0])
-	}
-	torchAtlas, err := builder.Build()
+	torchAtlas, err := game.NewAtlas(torchAtlasID, torchAssetPath, 96, 28).
+		GridSlice(frameW, frameH, "torch").
+		Build()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -65,7 +60,7 @@ func main() {
 	for i := range frameCount {
 		clipBuilder.AddFrame(fmt.Sprintf("torch_%d", i))
 	}
-	if _, err := clipBuilder.SetFPS(10).SetLoop(animation.LoopForever).Build(); err != nil {
+	if _, err := clipBuilder.SetLoop(animation.LoopForever).Build(); err != nil {
 		log.Fatal(err)
 	}
 
