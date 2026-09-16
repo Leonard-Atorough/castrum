@@ -7,9 +7,9 @@ type ComponentHooks interface {
 	OnDestroy(entityID EntityID)
 }
 
-type Serializable interface {
+type Serializable[T any] interface {
 	Serialize() (map[string]any, error)
-	Deserialize(map[string]any) error
+	Deserialize(map[string]any) (T, error)
 }
 
 type Validatable interface {
