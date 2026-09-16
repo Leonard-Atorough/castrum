@@ -17,14 +17,12 @@ type Builder struct {
 	texW, texH       int
 	atlasID, assetID string
 	store            *Service
+	errs             []error
 }
 
 // NewBuilder creates a Builder wired to this Service. Build will register
 // the atlas with the Service so it is retrievable by the texture provider.
-func (s *Service) NewBuilder(id, assetID string, texW, texH int) (*Builder, error) {
-	if texW <= 0 || texH <= 0 {
-		return nil, &AtlasError{Message: "invalid texture dimensions"}
-	}
+func (s *Service) NewBuilder(id, assetID string, texW, texH int) *Builder {
 	return &Builder{
 		regions: make(map[string]AtlasRegion),
 		texW:    texW,
@@ -32,20 +30,22 @@ func (s *Service) NewBuilder(id, assetID string, texW, texH int) (*Builder, erro
 		atlasID: id,
 		assetID: assetID,
 		store:   s,
-	}, nil
+	}
 }
 
 // SliceRegion adds a named region at the given pixel coordinates. Returns
 // an error if the name is already in use, the region is out of texture
 // bounds, or it overlaps an existing region. The Builder is returned on
 // error to allow continued chaining, but the failed region is not added.
-func (b *Builder) SliceRegion(name string, x, y, w, h int) (*Builder, error) {
+func (b *Builder) SliceRegion(name string, x, y, w, h int) *Builder {
 	if _, exists := b.regions[name]; exists {
-		return b, &AtlasError{Message: "region already exists"}
+		b.errs = append(b.errs, &AtlasError{Message: "region already exists"})
+		return b
 	}
 
 	if x < 0 || y < 0 || w <= 0 || h <= 0 || x+w > b.texW || y+h > b.texH {
-		return b, &AtlasError{Message: "region out of bounds"}
+		b.errs = append(b.errs, &AtlasError{Message: "region out of bounds"})
+		return b
 	}
 
 	newRegion := AtlasRegion{
@@ -58,27 +58,30 @@ func (b *Builder) SliceRegion(name string, x, y, w, h int) (*Builder, error) {
 	newBounds := newRegion.Bounds()
 	for _, existing := range b.regions {
 		if existing.Bounds().Intersects(newBounds) {
-			return b, &AtlasError{Message: "region overlaps with existing region"}
+			b.errs = append(b.errs, &AtlasError{Message: fmt.Sprintf("region '%s' overlaps with existing region", name)})
+			return b
 		}
 	}
 
 	b.regions[name] = newRegion
-	return b, nil
+	return b
 }
 
-// GridSlice divides the texture into a uniform grid of w x h tiles. The
-// nameFunc receives the zero-based tile index (left-to-right, top-to-bottom)
-// and returns the region name. Returns all errors collected during the
-// slice; the Builder is still returned to allow further chaining.
-func (b *Builder) GridSlice(w, h int, prefix string) (*Builder, []error) {
-	var errs AtlasErrorList
+// GridSlice divides the texture into a uniform grid of w x h tiles,
+// naming regions "<prefix>_<index>" left-to-right, top-to-bottom. Errors
+// (non-positive tile dimensions, texture not evenly divisible, per-region
+// failures) are collected on the Builder and surfaced by [Builder.Build].
+// Returns the Builder to allow chaining.
+func (b *Builder) GridSlice(w, h int, prefix string) *Builder {
 	if w <= 0 || h <= 0 {
-		return b, []error{&AtlasError{Message: "tile dimensions must be positive"}}
+		b.errs = append(b.errs, &AtlasError{Message: "tile dimensions must be positive"})
+		return b
 	}
 	if b.texW%w != 0 || b.texH%h != 0 {
-		return b, []error{&AtlasError{Message: fmt.Sprintf(
+		b.errs = append(b.errs, &AtlasError{Message: fmt.Sprintf(
 			"texture dimensions (%d,%d) not evenly divisible by tile dimensions (%d,%d)",
-			b.texW, b.texH, w, h)}}
+			b.texW, b.texH, w, h)})
+		return b
 	}
 	rows := b.texH / h
 	cols := b.texW / w
@@ -86,30 +89,36 @@ func (b *Builder) GridSlice(w, h int, prefix string) (*Builder, []error) {
 	for y := range rows {
 		for x := range cols {
 			name := fmt.Sprintf("%s_%d", prefix, idx)
-			if _, err := b.SliceRegion(name, x*w, y*h, w, h); err != nil {
-				errs.Errors = append(errs.Errors, err)
-			}
+			b.SliceRegion(name, x*w, y*h, w, h)
 			idx++
 		}
 	}
-	return b, errs.Errors
+	return b
 }
 
-// FromMeta adds regions from atlas metadata. Returns all errors collected
-// during the slice; the Builder is still returned to allow further chaining.
-func (b *Builder) FromMeta(meta assets.AtlasMeta) (*Builder, []error) {
-	var errs AtlasErrorList
+// FromMeta adds regions from atlas metadata. Per-region errors are
+// collected on the Builder and surfaced by [Builder.Build]. Returns the
+// Builder to allow chaining.
+func (b *Builder) FromMeta(meta assets.AtlasMeta) *Builder {
 	for _, region := range meta.Regions {
-		if _, err := b.SliceRegion(region.Name, region.X, region.Y, region.W, region.H); err != nil {
-			errs.Errors = append(errs.Errors, err)
-		}
+		b.SliceRegion(region.Name, region.X, region.Y, region.W, region.H)
 	}
-	return b, errs.Errors
+	return b
 }
 
-// Build creates the Atlas and registers it with the Service's store. The
-// returned Atlas is a copy; modifying it does not affect the store entry.
+// Build creates the Atlas and registers it with the Service's store. All
+// errors collected by the Builder's slice methods, plus texture-dimension
+// and per-region bounds validation, are surfaced here; if any error was
+// collected, Build returns an [*AtlasErrorList] and no atlas is registered.
+// The returned Atlas is a copy; modifying it does not affect the store entry.
 func (b *Builder) Build() (*Atlas, error) {
+	if b.texW <= 0 || b.texH <= 0 {
+		return nil, &AtlasError{Message: "invalid texture dimensions"}
+	}
+	if len(b.errs) > 0 {
+		return nil, &AtlasErrorList{Errors: b.errs}
+	}
+
 	atlasRegions := make(map[string]AtlasRegion)
 	maps.Copy(atlasRegions, b.regions)
 	atlas := NewTextureAtlas(

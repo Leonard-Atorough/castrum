@@ -10,64 +10,64 @@ func newTestService() *Service {
 	return NewService(NewStore())
 }
 
-func TestBuilderSliceRegion(t *testing.T) {
+func TestBuilderSliceRegionValid(t *testing.T) {
 	svc := newTestService()
-	builder, err := svc.NewBuilder("test", "texture.png", 256, 128)
-	if err != nil {
-		t.Fatalf("NewBuilder() error = %v", err)
-	}
-
-	b, err := builder.SliceRegion("idle", 0, 0, 32, 32)
-	if err != nil {
-		t.Errorf("SliceRegion() error = %v, want nil", err)
-	}
+	b := svc.NewBuilder("test", "texture.png", 256, 128).
+		SliceRegion("idle", 0, 0, 32, 32)
 	if b == nil {
 		t.Fatal("SliceRegion() returned nil builder")
 	}
 
-	b, err = b.SliceRegion("idle", 10, 10, 32, 32)
-	if err == nil {
-		t.Error("SliceRegion() with duplicate name error = nil, want error")
+	atlas, err := b.Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v, want nil", err)
 	}
-
-	b, err = b.SliceRegion("oob", 300, 0, 32, 32)
-	if err == nil {
-		t.Error("SliceRegion() out of bounds (x+w) error = nil, want error")
+	if _, ok := atlas.Region("idle"); !ok {
+		t.Error("Build() atlas missing region 'idle'")
 	}
+}
 
-	b, err = b.SliceRegion("oob2", 0, 200, 32, 32)
-	if err == nil {
-		t.Error("SliceRegion() out of bounds (y+h) error = nil, want error")
+func TestBuilderSliceRegionErrors(t *testing.T) {
+	svc := newTestService()
+	tests := []struct {
+		name   string
+		region func(*Builder) *Builder
+	}{
+		{"duplicate name", func(b *Builder) *Builder {
+			return b.SliceRegion("idle", 0, 0, 32, 32).
+				SliceRegion("idle", 10, 10, 32, 32)
+		}},
+		{"out of bounds x+w", func(b *Builder) *Builder {
+			return b.SliceRegion("oob", 300, 0, 32, 32)
+		}},
+		{"out of bounds y+h", func(b *Builder) *Builder {
+			return b.SliceRegion("oob2", 0, 200, 32, 32)
+		}},
+		{"negative width", func(b *Builder) *Builder {
+			return b.SliceRegion("negw", 0, 0, -1, 32)
+		}},
+		{"negative height", func(b *Builder) *Builder {
+			return b.SliceRegion("negh", 0, 0, 32, -1)
+		}},
+		{"overlap", func(b *Builder) *Builder {
+			return b.SliceRegion("idle", 0, 0, 32, 32).
+				SliceRegion("overlap", 16, 16, 32, 32)
+		}},
 	}
-
-	b, err = b.SliceRegion("negative_w", 0, 0, -1, 32)
-	if err == nil {
-		t.Error("SliceRegion() negative width error = nil, want error")
-	}
-
-	b, err = b.SliceRegion("negative_h", 0, 0, 32, -1)
-	if err == nil {
-		t.Error("SliceRegion() negative height error = nil, want error")
-	}
-
-	b, err = b.SliceRegion("overlap", 16, 16, 32, 32)
-	if err == nil {
-		t.Error("SliceRegion() overlapping error = nil, want error")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := tt.region(svc.NewBuilder("test", "texture.png", 256, 128))
+			if _, err := b.Build(); err == nil {
+				t.Error("Build() error = nil, want error")
+			}
+		})
 	}
 }
 
 func TestBuilderGridSlice(t *testing.T) {
 	svc := newTestService()
-	builder, err := svc.NewBuilder("grid", "grid.png", 64, 64)
-	if err != nil {
-		t.Fatalf("NewBuilder() error = %v", err)
-	}
-
-	b, errs := builder.GridSlice(16, 16, "frame")
-
-	if len(errs) > 0 {
-		t.Errorf("GridSlice() errors = %v, want nil", errs)
-	}
+	b := svc.NewBuilder("grid", "grid.png", 64, 64).
+		GridSlice(16, 16, "frame")
 
 	atlas, err := b.Build()
 	if err != nil {
@@ -97,11 +97,6 @@ func TestBuilderGridSlice(t *testing.T) {
 
 func TestBuilderFromMeta(t *testing.T) {
 	svc := newTestService()
-	builder, err := svc.NewBuilder("meta", "meta.png", 256, 256)
-	if err != nil {
-		t.Fatalf("NewBuilder() error = %v", err)
-	}
-
 	meta := assets.AtlasMeta{
 		Regions: []assets.AtlasRegionMeta{
 			{Name: "region1", X: 0, Y: 0, W: 64, H: 64},
@@ -110,10 +105,8 @@ func TestBuilderFromMeta(t *testing.T) {
 		},
 	}
 
-	b, errs := builder.FromMeta(meta)
-	if len(errs) > 0 {
-		t.Fatalf("FromMeta() errors = %v", errs)
-	}
+	b := svc.NewBuilder("meta", "meta.png", 256, 256).
+		FromMeta(meta)
 
 	atlas, err := b.Build()
 	if err != nil {
@@ -135,10 +128,7 @@ func TestBuilderFromMeta(t *testing.T) {
 
 func TestBuilderBuild(t *testing.T) {
 	svc := newTestService()
-	builder, err := svc.NewBuilder("build_test", "build.png", 1024, 512)
-	if err != nil {
-		t.Fatalf("NewBuilder() error = %v", err)
-	}
+	builder := svc.NewBuilder("build_test", "build.png", 1024, 512)
 
 	atlas, err := builder.Build()
 	if err != nil {
@@ -148,12 +138,9 @@ func TestBuilderBuild(t *testing.T) {
 		t.Errorf("Build() with no regions returned atlas with %d regions, want 0", len(atlas.Regions()))
 	}
 
-	builder2, err := svc.NewBuilder("build_test2", "build.png", 1024, 512)
-	if err != nil {
-		t.Fatalf("NewBuilder() error = %v", err)
-	}
-	b, _ := builder2.SliceRegion("valid", 0, 0, 100, 100)
-	atlas, err = b.Build()
+	builder2 := svc.NewBuilder("build_test2", "build.png", 1024, 512).
+		SliceRegion("valid", 0, 0, 100, 100)
+	atlas, err = builder2.Build()
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
@@ -175,7 +162,7 @@ func TestBuilderBuild(t *testing.T) {
 	}
 }
 
-func TestNewBuilderRejectsInvalidDimensions(t *testing.T) {
+func TestBuildRejectsInvalidDimensions(t *testing.T) {
 	svc := newTestService()
 	tests := []struct {
 		name    string
@@ -191,12 +178,13 @@ func TestNewBuilderRejectsInvalidDimensions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := svc.NewBuilder("test", "tex.png", tt.texW, tt.texH)
+			builder := svc.NewBuilder("test", "tex.png", tt.texW, tt.texH)
+			_, err := builder.Build()
 			if tt.wantErr && err == nil {
-				t.Error("NewBuilder() error = nil, want error")
+				t.Error("Build() error = nil, want error")
 			}
 			if !tt.wantErr && err != nil {
-				t.Errorf("NewBuilder() error = %v, want nil", err)
+				t.Errorf("Build() error = %v, want nil", err)
 			}
 		})
 	}
@@ -221,16 +209,13 @@ func TestBuilderGridSliceRejectsNonDivisibleDimensions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			builder, err := svc.NewBuilder("grid", "grid.png", tt.texW, tt.texH)
-			if err != nil {
-				t.Fatalf("NewBuilder() error = %v", err)
+			builder := svc.NewBuilder("grid", "grid.png", tt.texW, tt.texH)
+			_, err := builder.GridSlice(tt.tileW, tt.tileH, "tile").Build()
+			if tt.errs && err == nil {
+				t.Error("Build() error = nil, want errors")
 			}
-			_, errs := builder.GridSlice(tt.tileW, tt.tileH, "tile")
-			if tt.errs && len(errs) == 0 {
-				t.Error("GridSlice() errors = nil, want errors")
-			}
-			if !tt.errs && len(errs) > 0 {
-				t.Errorf("GridSlice() errors = %v, want nil", errs)
+			if !tt.errs && err != nil {
+				t.Errorf("Build() error = %v, want nil", err)
 			}
 		})
 	}

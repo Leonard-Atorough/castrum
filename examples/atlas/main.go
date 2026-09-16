@@ -52,13 +52,8 @@ func main() {
 
 	// Slice the torch texture into 6 frames of 16x28 using a grid slice.
 	// GridSlice auto-names regions as "torch_0", "torch_1", ... left-to-right.
-	builder, err := game.NewAtlas(torchAtlasID, torchAssetPath, 96, 28)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if _, errs := builder.GridSlice(frameW, frameH, "torch"); len(errs) > 0 {
-		log.Fatal(errs[0])
-	}
+	builder := game.NewAtlas(torchAtlasID, torchAssetPath, 96, 28).
+		GridSlice(frameW, frameH, "torch")
 	if _, err := builder.Build(); err != nil {
 		log.Fatal(err)
 	}
