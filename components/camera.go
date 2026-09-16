@@ -60,11 +60,11 @@ func (c Camera) Validate() error {
 // since JSON cannot represent infinity.
 func (c Camera) Serialize() (map[string]any, error) {
 	data := map[string]any{
-		"position": map[string]float64{"x": c.Position.X, "y": c.Position.Y},
+		"position": map[string]any{"x": c.Position.X, "y": c.Position.Y},
 		"zoom":     c.Zoom,
-		"screenSize": map[string]int{
-			"x": c.ScreenSize.X,
-			"y": c.ScreenSize.Y,
+		"screenSize": map[string]any{
+			"x": float64(c.ScreenSize.X),
+			"y": float64(c.ScreenSize.Y),
 		},
 		"primary": c.Primary,
 	}
@@ -73,8 +73,8 @@ func (c Camera) Serialize() (map[string]any, error) {
 		data["bounds"] = nil
 	} else {
 		data["bounds"] = map[string]any{
-			"min": map[string]float64{"x": c.Bounds.Min.X, "y": c.Bounds.Min.Y},
-			"max": map[string]float64{"x": c.Bounds.Max.X, "y": c.Bounds.Max.Y},
+			"min": map[string]any{"x": c.Bounds.Min.X, "y": c.Bounds.Min.Y},
+			"max": map[string]any{"x": c.Bounds.Max.X, "y": c.Bounds.Max.Y},
 		}
 	}
 
