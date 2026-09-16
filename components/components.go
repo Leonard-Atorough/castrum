@@ -2,7 +2,6 @@ package components
 
 import (
 	"fmt"
-	"image/color"
 	"math"
 
 	"github.com/leonard-atorough/castrum/geom"
@@ -13,84 +12,7 @@ type SceneTag struct {
 	SceneID string
 }
 
-// Sprite is the renderable component. It carries either a texture reference
-// or a primitive shape (Primitive).
-//
-// For textured sprites, set TexturePath for a standalone texture, or set
-// AtlasID and RegionName for an atlas region. TexturePath is optional when
-// AtlasID is set — the renderer resolves the texture path from the atlas.
-//
-// RegionName is the initial/fallback region used for static sprites. When
-// the entity also has an [Animation] component, the animation system
-// advances the frame index each tick and the renderer uses the animation's
-// current frame instead of RegionName.
-//
-// For primitive sprites, Size is the base dimension in pixels and
-// Transform.Scale is a multiplier on top of it. A 32x32 rectangle with
-// Scale{1,1} renders at 32x32; with Scale{2,2} it renders at 64x64.
-type Sprite struct {
-	TexturePath string
-	AtlasID     string
-	RegionName  string
-	Primitive   PrimitiveType
-	Color       color.Color
-	Size        geom.Vector2 // base dimensions in pixels for primitives; ignored by textured sprites
-	RenderLayer uint8        // which of 32 layers to render on (0-31)
-	SortOrder   int8         // [-128..127], higher values render on top within the layer
-	Visible     bool
-	Data        any // holds additional data for the primitive, e.g., *Polygon for PrimitiveKindPolygon
-}
 
-// NewSprite creates a new Sprite component with the specified properties.
-func NewSprite(texturePath string, atlasID string, regionName string, primitive PrimitiveType, color color.Color, size geom.Vector2, renderLayer uint8, sortOrder int8, visible bool, data any) (Sprite, error) {
-	if data == nil {
-		data = struct{}{}
-	}
-	if renderLayer > 31 {
-		renderLayer = 31
-	}
-	if primitive < PrimitiveKindRectangle || primitive > PrimitiveKindPolygon {
-		primitive = PrimitiveKindRectangle
-	}
-	if atlasID != "" && regionName == "" || atlasID == "" && regionName != "" {
-		return Sprite{}, fmt.Errorf("atlasID and regionName must be specified together")
-	}
-	return Sprite{
-		TexturePath: texturePath,
-		AtlasID:     atlasID,
-		RegionName:  regionName,
-		Primitive:   primitive,
-		Color:       color,
-		Size:        size,
-		RenderLayer: renderLayer,
-		SortOrder:   sortOrder,
-		Visible:     visible,
-		Data:        data,
-	}, nil
-}
-
-func (s *Sprite) Validate() error {
-	if s.AtlasID != "" && s.RegionName == "" || s.AtlasID == "" && s.RegionName != "" {
-		return fmt.Errorf("atlasID and regionName must be specified together")
-	}
-	if s.RenderLayer > 31 {
-		return fmt.Errorf("renderLayer must be between 0 and 31")
-	}
-	if s.Primitive < PrimitiveKindRectangle || s.Primitive > PrimitiveKindPolygon {
-		return fmt.Errorf("invalid primitive type")
-	}
-	return nil
-}
-
-// PrimitiveType represents the type of a procedural shape for rendering.
-type PrimitiveType uint8
-
-const (
-	PrimitiveKindRectangle PrimitiveType = iota
-	PrimitiveKindCircle
-	PrimitiveKindLine
-	PrimitiveKindPolygon
-)
 
 // Animation holds playback state for an animating entity.
 // The animation definition (frames, frame speed, loop) is managed by the AnimationManager.

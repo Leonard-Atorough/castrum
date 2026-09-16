@@ -2,7 +2,6 @@ package components
 
 import (
 	"image/color"
-	"reflect"
 	"testing"
 
 	"github.com/leonard-atorough/castrum/geom"
@@ -44,7 +43,7 @@ func TestTransformComponent(t *testing.T) {
 
 func TestSpriteComponent(t *testing.T) {
 	t.Run("Create New Sprite Component with all fields", func(t *testing.T) {
-		sprite, _ := NewSprite("texture.png", "Atlas-1", "sprite-1", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, nil)
+		sprite, _ := NewSprite("texture.png", "Atlas-1", "sprite-1", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, false, false, 1, geom.Polygon{})
 		if sprite.TexturePath != "texture.png" {
 			t.Errorf("Expected texture path to be 'texture.png', got %v", sprite.TexturePath)
 		}
@@ -66,37 +65,53 @@ func TestSpriteComponent(t *testing.T) {
 		if !sprite.Visible {
 			t.Errorf("Expected visible to be true, got %v", sprite.Visible)
 		}
-		data := reflect.ValueOf(sprite.Data)
-		if !data.IsValid() || data.Kind() != reflect.Struct || data.NumField() != 0 {
-			t.Errorf("Expected data to be an empty struct, got %v", sprite.Data)
+		if sprite.FlipH {
+			t.Errorf("Expected flipH to be false, got %v", sprite.FlipH)
+		}
+		if sprite.FlipV {
+			t.Errorf("Expected flipV to be false, got %v", sprite.FlipV)
+		}
+		if sprite.Opacity != 1 {
+			t.Errorf("Expected opacity to be 1, got %v", sprite.Opacity)
 		}
 	})
 
 	t.Run("Create New Sprite with layer greater than 31", func(t *testing.T) {
-		sprite, _ := NewSprite("texture.png", "", "", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 35, 0, true, nil)
+		sprite, _ := NewSprite("texture.png", "", "", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 35, 0, true, false, false, 1, geom.Polygon{})
 		if sprite.RenderLayer != 31 {
 			t.Errorf("Expected layer to be capped at 31, got %v", sprite.RenderLayer)
 		}
 	})
 
 	t.Run("Create New Sprite with invalid primitive type", func(t *testing.T) {
-		sprite, _ := NewSprite("texture.png", "", "", 99, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, nil)
+		sprite, _ := NewSprite("texture.png", "", "", 99, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, false, false, 1, geom.Polygon{})
 		if sprite.Primitive != PrimitiveKindRectangle {
 			t.Errorf("Expected primitive to default to Rectangle, got %v", sprite.Primitive)
 		}
 	})
 
 	t.Run("Create New Sprite with atlasID but no regionName", func(t *testing.T) {
-		_, err := NewSprite("texture.png", "Atlas-1", "", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, nil)
+		_, err := NewSprite("texture.png", "Atlas-1", "", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, false, false, 1, geom.Polygon{})
 		if err == nil {
 			t.Errorf("Expected error when atlasID is specified without regionName")
 		}
 	})
 
 	t.Run("Create New Sprite with regionName but no atlasID", func(t *testing.T) {
-		_, err := NewSprite("texture.png", "", "sprite-1", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, nil)
+		_, err := NewSprite("texture.png", "", "sprite-1", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, false, false, 1, geom.Polygon{})
 		if err == nil {
 			t.Errorf("Expected error when regionName is specified without atlasID")
+		}
+	})
+
+	t.Run("Create New Sprite with opacity clamped to 0-1", func(t *testing.T) {
+		sprite, _ := NewSprite("texture.png", "", "", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, false, false, -0.5, geom.Polygon{})
+		if sprite.Opacity != 0 {
+			t.Errorf("Expected opacity clamped to 0, got %v", sprite.Opacity)
+		}
+		sprite, _ = NewSprite("texture.png", "", "", PrimitiveKindRectangle, color.White, geom.Vector2{X: 32, Y: 32}, 0, 0, true, false, false, 1.5, geom.Polygon{})
+		if sprite.Opacity != 1 {
+			t.Errorf("Expected opacity clamped to 1, got %v", sprite.Opacity)
 		}
 	})
 }
