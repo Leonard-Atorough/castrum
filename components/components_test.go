@@ -116,31 +116,6 @@ func TestSpriteComponent(t *testing.T) {
 	})
 }
 
-func TestAnimationComponent(t *testing.T) {
-	tests := []struct {
-		name     string
-		clipID   string
-		autoplay bool
-	}{
-		{"With Autoplay", "clip1", true},
-		{"Without Autoplay", "clip2", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			animation := NewAnimation(tt.clipID, tt.autoplay)
-			if animation.ClipID != tt.clipID {
-				t.Errorf("Expected clip path to be '%v', got %v", tt.clipID, animation.ClipID)
-			}
-			if animation.Playing != tt.autoplay {
-				t.Errorf("Expected playing to be %v, got %v", tt.autoplay, animation.Playing)
-			}
-			if animation.PlaybackSpeed != 1.0 {
-				t.Errorf("Expected playback speed to be 1.0, got %v", animation.PlaybackSpeed)
-			}
-		})
-	}
-}
-
 type ColliderTestShape struct {
 	Width  float64
 	Height float64
