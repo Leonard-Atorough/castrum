@@ -380,6 +380,24 @@ func TestResolveFormat(t *testing.T) {
 			want:     FormatPNG,
 		},
 		{
+			name:     "mp3 extension",
+			path:     "test.mp3",
+			explicit: "",
+			want:     FormatMP3,
+		},
+		{
+			name:     "ogg extension",
+			path:     "test.ogg",
+			explicit: "",
+			want:     FormatOGG,
+		},
+		{
+			name:     "wav extension",
+			path:     "test.wav",
+			explicit: "",
+			want:     FormatWAV,
+		},
+		{
 			name:     "unknown extension",
 			path:     "test.unknown",
 			explicit: "",

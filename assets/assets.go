@@ -14,6 +14,9 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/hajimehoshi/ebiten/v2/audio/mp3"
+	"github.com/hajimehoshi/ebiten/v2/audio/vorbis"
+	"github.com/hajimehoshi/ebiten/v2/audio/wav"
 	"github.com/leonard-atorough/castrum/ecs"
 	internalassets "github.com/leonard-atorough/castrum/internal/assets"
 	"go.yaml.in/yaml/v3"
@@ -49,6 +52,13 @@ type Blueprint struct {
 type ComponentData struct {
 	Type       string         `yaml:"type"`
 	Properties map[string]any `yaml:"properties"`
+}
+
+// AudioData holds raw PCM audio data along with its sample rate and length in bytes.
+type AudioData struct {
+	PCM        []byte
+	SampleRate int
+	Length     int64
 }
 
 // Assets is the top-level facade for the asset subsystem. It owns a [Loader]
@@ -101,6 +111,9 @@ func registerDefaultDecoders(s *internalassets.Service) {
 	registerDefaultDecoder(s, FormatPNG, decodeTexture)
 	registerDefaultDecoder(s, FormatJPG, decodeTexture)
 	registerDefaultDecoder(s, FormatJPEG, decodeTexture)
+	registerDefaultDecoder(s, FormatWAV, decodeAudioWAV)
+	registerDefaultDecoder(s, FormatMP3, decodeAudioMP3)
+	registerDefaultDecoder(s, FormatOGG, decodeAudioOGG)
 }
 
 func registerDefaultEncoders(s *internalassets.Service) {
@@ -185,6 +198,54 @@ func decodeAtlasMetaJSON(_ context.Context, reader io.Reader) (AtlasMeta, error)
 		return AtlasMeta{}, err
 	}
 	return meta, nil
+}
+
+func decodeAudioWAV(_ context.Context, reader io.Reader) (AudioData, error) {
+	s, err := wav.DecodeWithoutResampling(reader)
+	if err != nil {
+		return AudioData{}, err
+	}
+	data, err := io.ReadAll(s)
+	if err != nil {
+		return AudioData{}, err
+	}
+	return AudioData{
+		PCM:        data,
+		SampleRate: s.SampleRate(),
+		Length:     int64(len(data)),
+	}, nil
+}
+
+func decodeAudioMP3(_ context.Context, reader io.Reader) (AudioData, error) {
+	s, err := mp3.DecodeWithoutResampling(reader)
+	if err != nil {
+		return AudioData{}, err
+	}
+	data, err := io.ReadAll(s)
+	if err != nil {
+		return AudioData{}, err
+	}
+	return AudioData{
+		PCM:        data,
+		SampleRate: s.SampleRate(),
+		Length:     int64(len(data)),
+	}, nil
+}
+
+func decodeAudioOGG(_ context.Context, reader io.Reader) (AudioData, error) {
+	s, err := vorbis.DecodeWithoutResampling(reader)
+	if err != nil {
+		return AudioData{}, err
+	}
+	data, err := io.ReadAll(s)
+	if err != nil {
+		return AudioData{}, err
+	}
+	return AudioData{
+		PCM:        data,
+		SampleRate: s.SampleRate(),
+		Length:     int64(len(data)),
+	}, nil
 }
 
 // AssetError wraps an error that occurred while loading or saving an asset.
