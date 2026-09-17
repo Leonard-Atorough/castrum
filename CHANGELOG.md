@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move bump.sh into .github/scripts, rewrite benchstat gate in shell
 
 ### Internal
-- Simplify release workflow, conventional-commits changelog, pre-release support
+- Simplify release pipeline and changelog generation (#125)
 
 ### Miscellaneous
 - Add tag and scene tag tests
