@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Computes the next semver tag from conventional commits since the last v* tag.
-# Usage: scripts/bump.sh [auto|major|minor|patch]
+# Usage: bump.sh [auto|major|minor|patch] [pre-release-suffix]
+#   e.g. bump.sh auto        -> v0.3.0
+#        bump.sh auto rc     -> v0.3.0-rc.1
+#        bump.sh minor beta  -> v0.4.0-beta.1
 set -euo pipefail
 
 MODE="${1:-auto}"
+PRE="${2:-}"
 case "${MODE}" in
   auto|major|minor|patch) ;;
-  *) echo "Error: invalid bump mode '${MODE}'. Usage: bump.sh [auto|major|minor|patch]" >&2; exit 1 ;;
+  *) echo "Error: invalid bump mode '${MODE}'. Usage: bump.sh [auto|major|minor|patch] [pre-release-suffix]" >&2; exit 1 ;;
 esac
 
 LATEST="$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)"
@@ -15,7 +19,13 @@ if [[ -z "${LATEST}" ]]; then
   RANGE=""
   MAJOR=0; MINOR=0; PATCH=0
 else
-  PREV="${LATEST#v}"
+  # Use the latest stable tag (no pre-release suffix) as the base version,
+  # so that v0.2.1-rc.1 -> rc.2 keeps the same base (0.2.1) instead of
+  # bumping the patch again. The range is still from the latest tag (pre-release
+  # or stable) so the "nothing to release" check catches no-op dispatches.
+  BASE_TAG="$(git tag --list 'v*' --sort=-v:refname | grep -v -- '-' | head -n1 || true)"
+  [[ -z "${BASE_TAG}" ]] && BASE_TAG="${LATEST}"
+  PREV="${BASE_TAG#v}"
   RANGE="${LATEST}..HEAD"
   IFS='.' read -r MAJOR MINOR PATCH <<<"${PREV}"
 fi
@@ -48,4 +58,19 @@ case "${LEVEL}" in
   patch) PATCH=$((PATCH + 1)) ;;
 esac
 
-echo "v${MAJOR}.${MINOR}.${PATCH}"
+VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+
+# Append a pre-release suffix (e.g. -rc.1, -beta.2) if requested.
+# The number is incremented from the highest existing tag for this version+suffix.
+if [[ -n "${PRE}" ]]; then
+  PREFIX="${VERSION}-${PRE}."
+  LAST_NUM="$(git tag --list "${PREFIX}*" --sort=-v:refname | head -n1 | sed "s|.*${PREFIX}||" || true)"
+  if [[ -n "${LAST_NUM}" && "${LAST_NUM}" =~ ^[0-9]+$ ]]; then
+    NUM=$((LAST_NUM + 1))
+  else
+    NUM=1
+  fi
+  VERSION="${PREFIX}${NUM}"
+fi
+
+echo "${VERSION}"

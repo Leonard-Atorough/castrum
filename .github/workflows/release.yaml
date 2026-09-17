@@ -1,10 +1,6 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
-
   workflow_dispatch:
     inputs:
       bump:
@@ -12,8 +8,12 @@ on:
         type: choice
         options: [auto, patch, minor, major]
         default: auto
+      pre:
+        description: "Pre-release suffix (e.g. rc, beta). Leave empty for a full release."
+        type: string
+        default: ""
       dry_run:
-        description: "Compute version + changelog preview only"
+        description: "Compute version + changelog preview only (no tag, no release)"
         type: boolean
         default: false
 
@@ -21,23 +21,10 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
-  validate:
-    name: Validate Tag
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enforce semver tag format
-        run: |
-          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Tag '${GITHUB_REF_NAME}' does not match vX.Y.Z semantic versioning"
-            exit 1
-          fi
-          echo "Releasing ${GITHUB_REF_NAME}"
-
   test:
     name: Tests (Release Gate)
     runs-on: ubuntu-latest
@@ -59,12 +46,11 @@ jobs:
       - name: Run tests
         run: go test -race ./...
 
-  compute:
-    name: Compute Next Version
-    if: github.event_name == 'workflow_dispatch'
+  release:
+    name: Publish Release
+    needs: test
+    if: ${{ !cancelled() && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.next.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -77,80 +63,78 @@ jobs:
           tool: git-cliff
 
       - name: Compute next version
-        id: next
+        id: version
         run: |
-          NEXT="$(bash ./.github/scripts/bump.sh '${{ inputs.bump }}')"
+          if [[ "${{ github.ref_name }}" != "main" ]]; then
+            echo "::error::Releases must be dispatched from main (currently on ${{ github.ref_name }})"
+            exit 1
+          fi
+
+          NEXT="$(bash ./.github/scripts/bump.sh '${{ inputs.bump }}' '${{ inputs.pre }}')"
           echo "Next version: ${NEXT}"
+
           if git rev-parse "${NEXT}" >/dev/null 2>&1; then
             echo "::error::Tag ${NEXT} already exists"
             exit 1
           fi
-          echo "next=${NEXT}" >> "$GITHUB_STEP_SUMMARY"
-          echo "version=${NEXT}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify release contains changes
-        run: |
           LATEST="$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)"
           if [[ -z "${LATEST}" ]]; then
-            # Genesis release: any commit at all is releasable
             COUNT=$(git rev-list --count HEAD)
-            BASE="beginning"
           else
             COUNT=$(git rev-list --count "${LATEST}..HEAD")
-            BASE="${LATEST}"
           fi
-          echo "Commits since ${BASE}: ${COUNT}"
           if (( COUNT == 0 )); then
-            echo "Nothing to release — no commits since ${BASE}"
+            echo "::error::Nothing to release — no commits since ${LATEST:-beginning}"
             exit 1
           fi
 
-      - name: Preview changelog (dry run)
-        if: inputs.dry_run
-        run: |
-          git-cliff --unreleased > /tmp/preview.md
-          cat /tmp/preview.md >> "$GITHUB_STEP_SUMMARY"
+          # Pre-1.0 releases are marked as prerelease on GitHub.
+          if [[ "${NEXT}" =~ ^v0\. ]]; then
+            echo "prerelease=true"  >> "$GITHUB_OUTPUT"
+            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "make_latest=true"  >> "$GITHUB_OUTPUT"
+          fi
 
-  release:
-    name: Publish Release
-    runs-on: ubuntu-latest
-    needs: [test, compute]
-    if: ${{ !cancelled() && needs.test.result == 'success' && needs.compute.result == 'success' && inputs.dry_run != true }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+          echo "version=${NEXT}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Next version: ${NEXT}"
+            echo "- Pre-release: $([[ "${NEXT}" =~ ^v0\. ]] && echo yes || echo no)"
+            echo "- Commits since ${LATEST:-beginning}: ${COUNT}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Install git-cliff
-        uses: taiki-e/install-action@v2
-        with:
-          tool: git-cliff
-
-      - name: Generate release notes
-        run: git-cliff --latest --strip all > RELEASE_BODY.md
-
-      - name: Regenerate CHANGELOG.md
+      - name: Generate CHANGELOG.md
         run: git-cliff --output CHANGELOG.md
 
-      - name: Resolve release tag
-        id: resolve
+      - name: Preview changelog (dry run)
+        if: ${{ inputs.dry_run }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            TAG="${{ needs.compute.outputs.version }}"
-            if [[ -z "${TAG}" ]]; then
-              echo "::error::Computed version is empty — refusing to release"
-              exit 1
-            fi
-          else
-            TAG="${{ github.ref_name }}"
-          fi
-          echo "Resolved release tag: ${TAG}"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          git-cliff --latest > /tmp/preview.md
+          cat /tmp/preview.md >> "$GITHUB_STEP_SUMMARY"
+          echo "Dry run complete — no tag or release created."
+
+      - name: Commit CHANGELOG, create and push tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "chore(release): ${{ steps.version.outputs.version }}"
+          git tag "${{ steps.version.outputs.version }}"
+          git push origin main --tags
+
+      - name: Generate release notes
+        if: ${{ !inputs.dry_run }}
+        run: git-cliff --latest --strip all > RELEASE_BODY.md
 
       - name: Create GitHub Release
+        if: ${{ !inputs.dry_run }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.resolve.outputs.tag }}
+          tag_name: ${{ steps.version.outputs.version }}
           body_path: RELEASE_BODY.md
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          make_latest: ${{ steps.version.outputs.make_latest }}
           # files: dist/*     # <- enable when the build matrix ships binaries
