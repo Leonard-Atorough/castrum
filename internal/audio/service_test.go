@@ -4,31 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"sync"
 	"testing"
 	"testing/fstest"
 
-	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/leonard-atorough/castrum"
 	"github.com/leonard-atorough/castrum/assets"
 	"github.com/leonard-atorough/castrum/ecs"
 )
-
-const testSampleRate = 44100
-
-// Ebiten's audio context is a process-wide singleton: audio.NewContext panics
-// on the second call, so it is created once and shared across all tests.
-var (
-	testCtxOnce sync.Once
-	testCtx     *audio.Context
-)
-
-func testAudioContext() *audio.Context {
-	testCtxOnce.Do(func() {
-		testCtx = audio.NewContext(testSampleRate)
-	})
-	return testCtx
-}
 
 // newTestService builds an AudioService with a real headless Ebiten audio
 // context and unit volumes. The loader is nil; tests exercising AddTrack build
