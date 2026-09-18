@@ -2,15 +2,15 @@ package components
 
 import "fmt"
 
-// Audio is the per-entity component for audio playback. It references a track
+// AudioPlayer is the per-entity component for audio playback. It references a track
 // by ID in the audio system's AudioStore. The track definition (asset data,
-// group, loop mode, default volume) lives on the track, not here — Audio
+// group, loop mode, default volume) lives on the track, not here — AudioPlayer
 // only carries the runtime playback state.
 //
 // Field roles:
 //   - TrackID and Autoplay are configuration set at creation time.
 //   - Playing is runtime state mutated by the audio system.
-type Audio struct {
+type AudioPlayer struct {
 	TrackID  string
 	Playing  bool
 	Autoplay bool
@@ -19,8 +19,8 @@ type Audio struct {
 // NewAudio creates an Audio for the given track ID. When autoplay is true,
 // Playing is set to true so the audio system begins playback immediately on
 // the first update tick.
-func NewAudio(trackID string, autoplay bool) Audio {
-	return Audio{
+func NewAudio(trackID string, autoplay bool) AudioPlayer {
+	return AudioPlayer{
 		TrackID:  trackID,
 		Playing:  autoplay,
 		Autoplay: autoplay,
@@ -28,7 +28,7 @@ func NewAudio(trackID string, autoplay bool) Audio {
 }
 
 // Validate checks that the Audio has a non-empty TrackID.
-func (a Audio) Validate() error {
+func (a AudioPlayer) Validate() error {
 	if a.TrackID == "" {
 		return fmt.Errorf("TrackID cannot be empty")
 	}
@@ -37,7 +37,7 @@ func (a Audio) Validate() error {
 
 // Serialize converts the Audio to a map suitable for blueprint serialization
 // or save-game storage. All fields are included.
-func (a Audio) Serialize() (map[string]any, error) {
+func (a AudioPlayer) Serialize() (map[string]any, error) {
 	return map[string]any{
 		"trackID":  a.TrackID,
 		"playing":  a.Playing,
@@ -47,7 +47,7 @@ func (a Audio) Serialize() (map[string]any, error) {
 
 // Deserialize populates an Audio from a serialized map, returning the
 // reconstructed component. The result is validated before returning.
-func (a Audio) Deserialize(data map[string]any) (Audio, error) {
+func (a AudioPlayer) Deserialize(data map[string]any) (AudioPlayer, error) {
 	if v, ok := data["trackID"].(string); ok {
 		a.TrackID = v
 	}

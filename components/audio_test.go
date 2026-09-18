@@ -14,7 +14,7 @@ func TestNewAudio(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want Audio
+		want AudioPlayer
 	}{
 		{
 			name: "with autoplay",
@@ -22,11 +22,10 @@ func TestNewAudio(t *testing.T) {
 				trackID:  "track1",
 				autoplay: true,
 			},
-			want: Audio{
+			want: AudioPlayer{
 				TrackID:  "track1",
 				Autoplay: true,
-				Playing: false,
-
+				Playing:  false,
 			},
 		},
 		{
@@ -35,10 +34,10 @@ func TestNewAudio(t *testing.T) {
 				trackID:  "track2",
 				autoplay: false,
 			},
-			want: Audio{
+			want: AudioPlayer{
 				TrackID:  "track2",
 				Autoplay: false,
-				Playing: false,
+				Playing:  false,
 			},
 		},
 		{
@@ -47,10 +46,10 @@ func TestNewAudio(t *testing.T) {
 				trackID:  "track3",
 				autoplay: true,
 			},
-			want: Audio{
+			want: AudioPlayer{
 				TrackID:  "track3",
 				Autoplay: true,
-				Playing: false,
+				Playing:  false,
 			},
 		},
 		{
@@ -59,10 +58,10 @@ func TestNewAudio(t *testing.T) {
 				trackID:  "track4",
 				autoplay: false,
 			},
-			want: Audio{
+			want: AudioPlayer{
 				TrackID:  "track4",
 				Autoplay: false,
-				Playing: false,
+				Playing:  false,
 			},
 		},
 	}
@@ -78,17 +77,17 @@ func TestNewAudio(t *testing.T) {
 func TestAudio_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
-		a       Audio
+		a       AudioPlayer
 		wantErr bool
 	}{
 		{
 			name:    "valid audio",
-			a:       Audio{TrackID: "track1", Autoplay: true, Playing: false},
+			a:       AudioPlayer{TrackID: "track1", Autoplay: true, Playing: false},
 			wantErr: false,
 		},
 		{
 			name:    "invalid audio with empty trackID",
-			a:       Audio{TrackID: "", Autoplay: true, Playing: false},
+			a:       AudioPlayer{TrackID: "", Autoplay: true, Playing: false},
 			wantErr: true,
 		},
 	}
@@ -104,25 +103,25 @@ func TestAudio_Validate(t *testing.T) {
 func TestAudio_Serialize(t *testing.T) {
 	tests := []struct {
 		name    string
-		a       Audio
+		a       AudioPlayer
 		want    map[string]any
 		wantErr bool
 	}{
 		{
 			name:    "valid audio",
-			a:       Audio{TrackID: "track1", Autoplay: true, Playing: false},
+			a:       AudioPlayer{TrackID: "track1", Autoplay: true, Playing: false},
 			want:    map[string]any{"trackID": "track1", "autoplay": true, "playing": false},
 			wantErr: false,
 		},
 		{
 			name:    "valid audio without autoplay",
-			a:       Audio{TrackID: "track4", Autoplay: false, Playing: false},
+			a:       AudioPlayer{TrackID: "track4", Autoplay: false, Playing: false},
 			want:    map[string]any{"trackID": "track4", "autoplay": false, "playing": false},
 			wantErr: false,
 		},
 		{
 			name:    "valid audio with autoplay false and volume 1",
-			a:       Audio{TrackID: "track5", Autoplay: false, Playing: false},
+			a:       AudioPlayer{TrackID: "track5", Autoplay: false, Playing: false},
 			want:    map[string]any{"trackID": "track5", "autoplay": false, "playing": false},
 			wantErr: false,
 		},
@@ -147,23 +146,23 @@ func TestAudio_Deserialize(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
-		a       Audio
+		a       AudioPlayer
 		args    args
-		want    Audio
+		want    AudioPlayer
 		wantErr bool
 	}{
 		{
 			name:    "valid audio",
-			a:       Audio{},
+			a:       AudioPlayer{},
 			args:    args{data: map[string]any{"trackID": "track1", "autoplay": true, "playing": false}},
-			want:    Audio{TrackID: "track1", Autoplay: true, Playing: false},
+			want:    AudioPlayer{TrackID: "track1", Autoplay: true, Playing: false},
 			wantErr: false,
 		},
 		{
 			name:    "invalid audio with empty trackID",
-			a:       Audio{},
+			a:       AudioPlayer{},
 			args:    args{data: map[string]any{"trackID": "", "autoplay": true, "playing": false}},
-			want:    Audio{TrackID: "", Autoplay: true, Playing: false},
+			want:    AudioPlayer{TrackID: "", Autoplay: true, Playing: false},
 			wantErr: true,
 		},
 	}
