@@ -56,6 +56,7 @@ type GraphicsConfig struct {
 }
 
 type AudioConfig struct {
+	SampleRate   int     `yaml:"sample_rate"`
 	Enabled      bool    `yaml:"enabled"`
 	MasterVolume float64 `yaml:"master_volume"`
 	MusicVolume  float64 `yaml:"music_volume"`
@@ -213,6 +214,7 @@ func DefaultConfig() *Config {
 			Filtering:     "linear",
 		},
 		Audio: AudioConfig{
+			SampleRate:   44100,
 			Enabled:      true,
 			MasterVolume: 1.0,
 			MusicVolume:  1.0,
