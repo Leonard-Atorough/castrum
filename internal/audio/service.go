@@ -11,7 +11,6 @@ import (
 	"github.com/leonard-atorough/castrum"
 	"github.com/leonard-atorough/castrum/assets"
 	"github.com/leonard-atorough/castrum/ecs"
-	"github.com/leonard-atorough/castrum/geom"
 )
 
 type playerKey struct {
@@ -19,10 +18,8 @@ type playerKey struct {
 }
 
 type playerState struct {
-	player *audio.Player
-	track  *AudioTrack
-	// data     *assets.AudioData
-	position geom.Vector2
+	player   *audio.Player
+	track    *AudioTrack
 	entityID ecs.EntityID
 }
 
