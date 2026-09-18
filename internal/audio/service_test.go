@@ -373,3 +373,122 @@ func TestRemovePlayerStopsAndDiscards(t *testing.T) {
 		t.Error("RemovePlayer left the player state, want it discarded")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// HasPlayer / IsPlaying / IsLooping
+// ---------------------------------------------------------------------------
+
+func TestHasPlayerUnknownEntityReturnsFalse(t *testing.T) {
+	s := newTestService(t)
+	if s.HasPlayer(ecs.EntityID(1)) {
+		t.Error("HasPlayer(unknown) = true, want false")
+	}
+}
+
+func TestHasPlayerAfterSyncReturnsTrue(t *testing.T) {
+	s := newTestService(t)
+	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
+
+	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+		t.Fatalf("SyncPlayer: %v", err)
+	}
+	if !s.HasPlayer(ecs.EntityID(1)) {
+		t.Error("HasPlayer(after sync) = false, want true")
+	}
+}
+
+func TestHasPlayerFalseAfterRemove(t *testing.T) {
+	s := newTestService(t)
+	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
+
+	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+		t.Fatalf("SyncPlayer: %v", err)
+	}
+	if err := s.RemovePlayer(ecs.EntityID(1)); err != nil {
+		t.Fatalf("RemovePlayer: %v", err)
+	}
+	if s.HasPlayer(ecs.EntityID(1)) {
+		t.Error("HasPlayer(after remove) = true, want false")
+	}
+}
+
+func TestIsPlayingUnknownEntityReturnsFalse(t *testing.T) {
+	s := newTestService(t)
+	if s.IsPlaying(ecs.EntityID(1)) {
+		t.Error("IsPlaying(unknown) = true, want false")
+	}
+}
+
+func TestIsPlayingTrueAfterPlay(t *testing.T) {
+	s := newTestService(t)
+	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
+
+	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+		t.Fatalf("SyncPlayer: %v", err)
+	}
+	if !s.IsPlaying(ecs.EntityID(1)) {
+		t.Error("IsPlaying(after play) = false, want true")
+	}
+}
+
+func TestIsPlayingFalseAfterPause(t *testing.T) {
+	s := newTestService(t)
+	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
+
+	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	if s.IsPlaying(ecs.EntityID(1)) {
+		t.Error("IsPlaying(after pause) = true, want false")
+	}
+}
+
+func TestIsPlayingFalseWhenStateHasNoPlayer(t *testing.T) {
+	s := newTestService(t)
+	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
+
+	// SyncPlayer(false) creates a state entry but no player.
+	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
+		t.Fatalf("SyncPlayer: %v", err)
+	}
+	if !s.HasPlayer(ecs.EntityID(1)) {
+		t.Fatal("HasPlayer = false, want true (state exists)")
+	}
+	if s.IsPlaying(ecs.EntityID(1)) {
+		t.Error("IsPlaying(state-without-player) = true, want false")
+	}
+}
+
+func TestIsLoopingUnknownEntityReturnsFalse(t *testing.T) {
+	s := newTestService(t)
+	if s.IsLooping(ecs.EntityID(1)) {
+		t.Error("IsLooping(unknown) = true, want false")
+	}
+}
+
+func TestIsLoopingTrueAfterSyncLoopForever(t *testing.T) {
+	s := newTestService(t)
+	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
+
+	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+		t.Fatalf("SyncPlayer: %v", err)
+	}
+	if !s.IsLooping(ecs.EntityID(1)) {
+		t.Error("IsLooping(after sync loop forever) = false, want true")
+	}
+}
+
+func TestIsLoopingFalseAfterSyncLoopNone(t *testing.T) {
+	s := newTestService(t)
+	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopNone, 1)
+
+	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+		t.Fatalf("SyncPlayer: %v", err)
+	}
+	if s.IsLooping(ecs.EntityID(1)) {
+		t.Error("IsLooping(after sync loop none) = true, want false")
+	}
+}

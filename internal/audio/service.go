@@ -94,6 +94,38 @@ func (s *AudioService) HasTrack(id ID) bool {
 	return ok
 }
 
+// HasPlayer reports whether a player state exists for entityID.
+func (s *AudioService) HasPlayer(entityID ecs.EntityID) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.players[playerKey{entityID: entityID}]
+	return ok
+}
+
+// IsPlaying reports whether the player for entityID is actively playing.
+// It returns false if no player exists for entityID.
+func (s *AudioService) IsPlaying(entityID ecs.EntityID) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	state, ok := s.players[playerKey{entityID: entityID}]
+	if !ok || state.player == nil {
+		return false
+	}
+	return state.player.IsPlaying()
+}
+
+// IsLooping reports whether the player for entityID is set to loop indefinitely.
+// It returns false if no player exists for entityID.
+func (s *AudioService) IsLooping(entityID ecs.EntityID) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	state, ok := s.players[playerKey{entityID: entityID}]
+	if !ok || state.player == nil {
+		return false
+	}
+	return state.track.loop == LoopForever
+}
+
 // SyncPlayer synchronizes the player for entityID with the desired playing
 // state and per-entity volume. The player is created lazily on the first
 // request to play. The effective volume is the product of master, group,
