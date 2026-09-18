@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/leonard-atorough/castrum/animation"
 	"github.com/leonard-atorough/castrum/assets"
 	"github.com/leonard-atorough/castrum/atlas"
@@ -17,6 +18,7 @@ import (
 	"github.com/leonard-atorough/castrum/input"
 	internalanimation "github.com/leonard-atorough/castrum/internal/animation"
 	internalatlas "github.com/leonard-atorough/castrum/internal/atlas"
+	internalaudio "github.com/leonard-atorough/castrum/internal/audio"
 	internalinput "github.com/leonard-atorough/castrum/internal/input"
 	"github.com/leonard-atorough/castrum/internal/render"
 	"github.com/leonard-atorough/castrum/internal/timingscheduler"
@@ -30,6 +32,7 @@ type Game struct {
 	assetsLoader *assets.Loader
 	atlasSvc     *internalatlas.Service
 	clipStore    *internalanimation.ClipStore
+	audioService *internalaudio.AudioService
 	eventBus     *events.EventBus
 	config       *Config
 	renderer     *render.Renderer
@@ -61,22 +64,34 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	newWorld := ecs.NewWorld()
 
 	inputHandler := internalinput.New(config.Input.Bindings)
+	newWorld.SetResource[input.Reader](inputHandler)
 
 	assetSys := assets.NewAssets(filesystem)
 	assetsLoader := assetSys.AssetLoader()
 	assetsSaver := assetSys.AssetSaver()
 
 	clipStore := internalanimation.NewClipStore()
+	newWorld.SetResource(clipStore)
 
 	atlasStore := internalatlas.NewStore()
 	atlasService := internalatlas.NewService(atlasStore)
 	textureProvider := render.NewTextureProvider(assetsLoader, atlasService)
 	renderer := render.New(textureProvider, newWorld, render.RenderConfig{DrawDebugInfo: config.Engine.EnableDebug})
 
-	newWorld.SetResource[input.Reader](inputHandler)
-	newWorld.SetResource(clipStore)
 	eventBus := events.NewEventBus()
 	newWorld.SetResource(eventBus)
+
+	audioCtx := audio.NewContext(config.Audio.SampleRate)
+	audioConfig := internalaudio.Config{
+		SampleRate:   config.Audio.SampleRate,
+		MasterVolume: config.Audio.MasterVolume,
+		GroupVolumes: map[internalaudio.Group]float64{
+			internalaudio.GroupMusic: config.Audio.MusicVolume,
+			internalaudio.GroupSFX:   config.Audio.SFXVolume,
+		},
+	}
+	audioService := internalaudio.NewService(audioCtx, assetsLoader, audioConfig, context.Background())
+	audioSys := internalaudio.NewSystem(audioService)
 
 	var err error
 	if err = newWorld.RegisterSystem("timer", -1, &timers.TimerSystem{Capacity: 60}); err != nil {
@@ -84,6 +99,9 @@ func NewGame(config *Config, filesystem fs.FS) (*Game, error) {
 	}
 
 	if err = newWorld.RegisterSystem("animation", -1, internalanimation.NewSystem()); err != nil {
+		return nil, err
+	}
+	if err = newWorld.RegisterSystem("audio", -1, audioSys); err != nil {
 		return nil, err
 	}
 
@@ -168,6 +186,10 @@ func (g *Game) Input() input.Reader {
 
 func (g *Game) EventBus() *events.EventBus {
 	return g.eventBus
+}
+
+func (g *Game) AudioService() *internalaudio.AudioService {
+	return g.audioService
 }
 
 func (g *Game) SetPaused(paused bool) {
