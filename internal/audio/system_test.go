@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/leonard-atorough/castrum"
 	"github.com/leonard-atorough/castrum/components"
 	"github.com/leonard-atorough/castrum/ecs"
 	"github.com/leonard-atorough/castrum/events"
@@ -13,14 +12,20 @@ import (
 func setupSystemTestWorld(t *testing.T) (*ecs.World, *AudioService, *events.EventBus) {
 	t.Helper()
 	world := ecs.NewWorld()
-	svc := NewAudioService(
+	svc := NewService(
 		testAudioContext(),
 		nil,
-		castrum.AudioConfig{MasterVolume: 1, MusicVolume: 1, SFXVolume: 1},
+		Config{
+			SampleRate:   44100,
+			MasterVolume: 1,
+			GroupVolumes: map[Group]float64{
+				GroupMusic: 1,
+				GroupSFX:   1,
+			},
+		},
 		context.Background(),
 	)
 	bus := events.NewEventBus()
-	world.SetResource(svc)
 	world.SetResource(bus)
 	return world, svc, bus
 }
@@ -42,7 +47,7 @@ func spawnAudioEntity(t *testing.T, world *ecs.World, trackID string, volume flo
 
 func TestSystemInitResolvesResources(t *testing.T) {
 	world, svc, bus := setupSystemTestWorld(t)
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	if err := sys.Init(world); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -60,7 +65,7 @@ func TestSystemInitResolvesResources(t *testing.T) {
 func TestSystemInitFailsWithoutAudioService(t *testing.T) {
 	world := ecs.NewWorld()
 	world.SetResource(events.NewEventBus())
-	sys := NewSystem()
+	sys := NewSystem(nil)
 	if err := sys.Init(world); err == nil {
 		t.Fatal("Init() without AudioService returned nil error")
 	}
@@ -68,9 +73,9 @@ func TestSystemInitFailsWithoutAudioService(t *testing.T) {
 
 func TestSystemInitFailsWithoutEventBus(t *testing.T) {
 	world := ecs.NewWorld()
-	svc := NewAudioService(testAudioContext(), nil, castrum.AudioConfig{}, context.Background())
+	svc := NewService(testAudioContext(), nil, Config{}, context.Background())
 	world.SetResource(svc)
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	if err := sys.Init(world); err == nil {
 		t.Fatal("Init() without EventBus returned nil error")
 	}
@@ -85,7 +90,7 @@ func TestUpdateCreatesPlayerOnFirstPlay(t *testing.T) {
 	svc.tracks["sfx"] = NewAudioTrack("sfx", silencePCM(), GroupSFX, LoopNone, 1)
 	entity := spawnAudioEntity(t, world, "sfx", 1, components.PlaybackPersist, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	var startedEvents []Event
@@ -98,10 +103,10 @@ func TestUpdateCreatesPlayerOnFirstPlay(t *testing.T) {
 	if err := sys.Update(world, 0.016); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
-	if !svc.HasPlayer(entity) {
+	if !svc.hasPlayer(entity) {
 		t.Error("HasPlayer = false, want true after first Update")
 	}
-	if !svc.IsPlaying(entity) {
+	if !svc.isPlaying(entity) {
 		t.Error("IsPlaying = false, want true after first Update")
 	}
 	if len(startedEvents) != 1 {
@@ -117,7 +122,7 @@ func TestUpdateDoesNotReEmitStartedOnSecondTick(t *testing.T) {
 	svc.tracks["sfx"] = NewAudioTrack("sfx", silencePCM(), GroupSFX, LoopNone, 1)
 	spawnAudioEntity(t, world, "sfx", 1, components.PlaybackPersist, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	var startedCount int
@@ -144,11 +149,11 @@ func TestUpdatePausesWhenPlayingSetFalse(t *testing.T) {
 	svc.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 	entity := spawnAudioEntity(t, world, "bgm", 1, components.PlaybackPersist, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	_ = sys.Update(world, 0.016) // start
-	if !svc.IsPlaying(entity) {
+	if !svc.isPlaying(entity) {
 		t.Fatal("player not playing after first Update")
 	}
 
@@ -158,7 +163,7 @@ func TestUpdatePausesWhenPlayingSetFalse(t *testing.T) {
 	_ = world.SetComponent(entity, ap)
 
 	_ = sys.Update(world, 0.016) // pause
-	if svc.IsPlaying(entity) {
+	if svc.isPlaying(entity) {
 		t.Error("IsPlaying = true, want false after pause")
 	}
 }
@@ -168,7 +173,7 @@ func TestUpdateResumesWhenPlayingSetTrue(t *testing.T) {
 	svc.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 	entity := spawnAudioEntity(t, world, "bgm", 1, components.PlaybackPersist, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	_ = sys.Update(world, 0.016) // start
@@ -182,7 +187,7 @@ func TestUpdateResumesWhenPlayingSetTrue(t *testing.T) {
 	_ = world.SetComponent(entity, ap)
 	_ = sys.Update(world, 0.016) // resume
 
-	if !svc.IsPlaying(entity) {
+	if !svc.isPlaying(entity) {
 		t.Error("IsPlaying = false, want true after resume")
 	}
 }
@@ -196,7 +201,7 @@ func TestUpdateHandlesCompletionPersistMode(t *testing.T) {
 	svc.tracks["sfx"] = NewAudioTrack("sfx", silencePCM(), GroupSFX, LoopNone, 1)
 	entity := spawnAudioEntity(t, world, "sfx", 1, components.PlaybackPersist, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	var stoppedEvents []Event
@@ -207,7 +212,7 @@ func TestUpdateHandlesCompletionPersistMode(t *testing.T) {
 	}, false)
 
 	_ = sys.Update(world, 0.016) // start playback
-	if !svc.IsPlaying(entity) {
+	if !svc.isPlaying(entity) {
 		t.Fatal("player not playing after first Update")
 	}
 
@@ -226,7 +231,7 @@ func TestUpdateHandlesCompletionPersistMode(t *testing.T) {
 
 	_ = sys.Update(world, 0.016) // detect completion
 
-	if svc.HasPlayer(entity) {
+	if svc.hasPlayer(entity) {
 		t.Error("HasPlayer = true, want false (player should be removed on completion)")
 	}
 	ap, _ := world.GetComponent[components.AudioPlayer](entity)
@@ -243,7 +248,7 @@ func TestUpdateCompletionDoesNotRestartOneShot(t *testing.T) {
 	svc.tracks["sfx"] = NewAudioTrack("sfx", silencePCM(), GroupSFX, LoopNone, 1)
 	entity := spawnAudioEntity(t, world, "sfx", 1, components.PlaybackPersist, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	_ = sys.Update(world, 0.016) // start
@@ -258,7 +263,7 @@ func TestUpdateCompletionDoesNotRestartOneShot(t *testing.T) {
 	_ = sys.Update(world, 0.016) // completion: Playing set false, player removed
 	_ = sys.Update(world, 0.016) // third tick: should NOT restart
 
-	if svc.HasPlayer(entity) {
+	if svc.hasPlayer(entity) {
 		t.Error("HasPlayer = true, want false (one-shot should not restart after completion)")
 	}
 	ap, _ := world.GetComponent[components.AudioPlayer](entity)
@@ -272,7 +277,7 @@ func TestUpdateReplaysOneShotAfterUserSetsPlayingTrue(t *testing.T) {
 	svc.tracks["sfx"] = NewAudioTrack("sfx", silencePCM(), GroupSFX, LoopNone, 1)
 	entity := spawnAudioEntity(t, world, "sfx", 1, components.PlaybackPersist, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	_ = sys.Update(world, 0.016) // start
@@ -293,10 +298,10 @@ func TestUpdateReplaysOneShotAfterUserSetsPlayingTrue(t *testing.T) {
 
 	_ = sys.Update(world, 0.016) // new play: should create a fresh player
 
-	if !svc.HasPlayer(entity) {
+	if !svc.hasPlayer(entity) {
 		t.Error("HasPlayer = false, want true (one-shot should replay)")
 	}
-	if !svc.IsPlaying(entity) {
+	if !svc.isPlaying(entity) {
 		t.Error("IsPlaying = false, want true (replayed one-shot should be playing)")
 	}
 }
@@ -306,7 +311,7 @@ func TestUpdateCompletionDespawnDestroysEntity(t *testing.T) {
 	svc.tracks["sfx"] = NewAudioTrack("sfx", silencePCM(), GroupSFX, LoopNone, 1)
 	entity := spawnAudioEntity(t, world, "sfx", 1, components.PlaybackDespawn, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	var stoppedEvents []Event
@@ -327,7 +332,7 @@ func TestUpdateCompletionDespawnDestroysEntity(t *testing.T) {
 
 	_ = sys.Update(world, 0.016) // completion + despawn
 
-	if svc.HasPlayer(entity) {
+	if svc.hasPlayer(entity) {
 		t.Error("HasPlayer = true, want false (player removed before despawn)")
 	}
 	if len(stoppedEvents) != 1 {
@@ -347,7 +352,7 @@ func TestUpdateLoopingTrackDoesNotComplete(t *testing.T) {
 	svc.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 	entity := spawnAudioEntity(t, world, "bgm", 1, components.PlaybackPersist, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	_ = sys.Update(world, 0.016) // start
@@ -362,9 +367,9 @@ func TestUpdateLoopingTrackDoesNotComplete(t *testing.T) {
 
 	_ = sys.Update(world, 0.016)
 
-	if svc.IsLooping(entity) {
+	if svc.isLooping(entity) {
 		// Looping track should NOT be treated as completed.
-		if !svc.HasPlayer(entity) {
+		if !svc.hasPlayer(entity) {
 			t.Error("HasPlayer = false, want true (looping track should not be removed)")
 		}
 	} else {
@@ -381,13 +386,13 @@ func TestUpdateSkipsIdleEntity(t *testing.T) {
 	svc.tracks["sfx"] = NewAudioTrack("sfx", silencePCM(), GroupSFX, LoopNone, 1)
 	entity := spawnAudioEntity(t, world, "sfx", 1, components.PlaybackPersist, false)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	if err := sys.Update(world, 0.016); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
-	if svc.HasPlayer(entity) {
+	if svc.hasPlayer(entity) {
 		t.Error("HasPlayer = true, want false (idle entity should not create a player)")
 	}
 }
@@ -404,13 +409,13 @@ func TestUpdateMissingTrackSkipsEntity(t *testing.T) {
 	world, svc, _ := setupSystemTestWorld(t)
 	entity := spawnAudioEntity(t, world, "nonexistent", 1, components.PlaybackPersist, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	if err := sys.Update(world, 0.016); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
-	if svc.HasPlayer(entity) {
+	if svc.hasPlayer(entity) {
 		t.Error("HasPlayer = true, want false (missing track should not create a player)")
 	}
 }
@@ -424,25 +429,25 @@ func TestSystemShutdownRemovesAllPlayers(t *testing.T) {
 	svc.tracks["sfx"] = NewAudioTrack("sfx", silencePCM(), GroupSFX, LoopNone, 1)
 	entity := spawnAudioEntity(t, world, "sfx", 1, components.PlaybackPersist, true)
 
-	sys := NewSystem()
+	sys := NewSystem(svc)
 	sys.Init(world)
 
 	_ = sys.Update(world, 0.016) // start playback
-	if !svc.HasPlayer(entity) {
+	if !svc.hasPlayer(entity) {
 		t.Fatal("player not created before shutdown")
 	}
 
 	if err := sys.Shutdown(world); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
-	if svc.HasPlayer(entity) {
+	if svc.hasPlayer(entity) {
 		t.Error("HasPlayer = true, want false after shutdown")
 	}
 }
 
 func TestSystemShutdownOnUninitializedIsNoop(t *testing.T) {
 	world, _, _ := setupSystemTestWorld(t)
-	sys := &System{}
+	sys := NewSystem(nil)
 	if err := sys.Shutdown(world); err != nil {
 		t.Errorf("Shutdown() on uninitialized system = %v, want nil", err)
 	}

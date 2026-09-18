@@ -7,7 +7,6 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/leonard-atorough/castrum"
 	"github.com/leonard-atorough/castrum/assets"
 	"github.com/leonard-atorough/castrum/ecs"
 )
@@ -17,10 +16,17 @@ import (
 // their own service via newTestServiceWithLoader.
 func newTestService(t *testing.T) *AudioService {
 	t.Helper()
-	return NewAudioService(
+	return NewService(
 		testAudioContext(),
 		nil,
-		castrum.AudioConfig{MasterVolume: 1, MusicVolume: 1, SFXVolume: 1},
+		Config{
+			SampleRate:   44100,
+			MasterVolume: 1,
+			GroupVolumes: map[Group]float64{
+				GroupMusic: 1,
+				GroupSFX:   1,
+			},
+		},
 		context.Background(),
 	)
 }
@@ -70,10 +76,17 @@ func newTestServiceWithLoader(t *testing.T, path string, wav []byte) *AudioServi
 	a := assets.NewAssets(fstest.MapFS{
 		path: &fstest.MapFile{Data: wav},
 	})
-	return NewAudioService(
+	return NewService(
 		testAudioContext(),
 		a.AssetLoader(),
-		castrum.AudioConfig{MasterVolume: 1, MusicVolume: 1, SFXVolume: 1},
+		Config{
+			SampleRate:   44100,
+			MasterVolume: 1,
+			GroupVolumes: map[Group]float64{
+				GroupMusic: 1,
+				GroupSFX:   1,
+			},
+		},
 		context.Background(),
 	)
 }
@@ -209,7 +222,7 @@ func TestAddTrackMissingAssetReturnsError(t *testing.T) {
 
 func TestSyncPlayerMissingTrackReturnsError(t *testing.T) {
 	s := newTestService(t)
-	if err := s.SyncPlayer(ecs.EntityID(1), "missing", true, 1); err == nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "missing", true, 1); err == nil {
 		t.Fatal("SyncPlayer with missing track succeeded, want error")
 	}
 }
@@ -218,7 +231,7 @@ func TestSyncPlayerCreatesAndPlays(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("SyncPlayer play: %v", err)
 	}
 	state := s.players[playerKey{entityID: 1}]
@@ -234,10 +247,10 @@ func TestSyncPlayerPauses(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("play: %v", err)
 	}
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
 	state := s.players[playerKey{entityID: 1}]
@@ -250,12 +263,12 @@ func TestSyncPlayerReusesPlayerAcrossCalls(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("play: %v", err)
 	}
 	first := s.players[playerKey{entityID: 1}].player
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
 	second := s.players[playerKey{entityID: 1}].player
@@ -268,10 +281,17 @@ func TestSyncPlayerReusesPlayerAcrossCalls(t *testing.T) {
 func TestSyncPlayerAppliesMixedVolume(t *testing.T) {
 	// Master=1, music=0.5, track=0.8, component=0.5 → effective 0.2.
 	s := newTestService(t)
-	s.config = castrum.AudioConfig{MasterVolume: 1, MusicVolume: 0.5, SFXVolume: 1}
+	s.config = Config{
+		SampleRate:   44100,
+		MasterVolume: 1,
+		GroupVolumes: map[Group]float64{
+			GroupMusic: 0.5,
+			GroupSFX:   1,
+		},
+	}
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 0.8)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 0.5); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 0.5); err != nil {
 		t.Fatalf("SyncPlayer: %v", err)
 	}
 	const want = 0.2
@@ -286,7 +306,7 @@ func TestSyncPlayerAppliesMixedVolume(t *testing.T) {
 
 func TestStopPlayerUnknownEntityIsNoop(t *testing.T) {
 	s := newTestService(t)
-	if err := s.StopPlayer(ecs.EntityID(1)); err != nil {
+	if err := s.stopPlayer(ecs.EntityID(1)); err != nil {
 		t.Errorf("StopPlayer(unknown) = %v, want nil (no-op)", err)
 	}
 }
@@ -295,10 +315,10 @@ func TestStopPlayerStateWithoutPlayerIsNoop(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 	// SyncPlayer(false) registers a state but never creates a player.
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
 		t.Fatalf("SyncPlayer(false): %v", err)
 	}
-	if err := s.StopPlayer(ecs.EntityID(1)); err != nil {
+	if err := s.stopPlayer(ecs.EntityID(1)); err != nil {
 		t.Errorf("StopPlayer(state-without-player) = %v, want nil (no-op)", err)
 	}
 }
@@ -307,10 +327,10 @@ func TestStopPlayerPausesAndRetains(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("SyncPlayer: %v", err)
 	}
-	if err := s.StopPlayer(ecs.EntityID(1)); err != nil {
+	if err := s.stopPlayer(ecs.EntityID(1)); err != nil {
 		t.Fatalf("StopPlayer: %v", err)
 	}
 	// The player state must still be present so it can be resumed.
@@ -321,7 +341,7 @@ func TestStopPlayerPausesAndRetains(t *testing.T) {
 
 func TestRemovePlayerUnknownEntityIsNoop(t *testing.T) {
 	s := newTestService(t)
-	if err := s.RemovePlayer(ecs.EntityID(1)); err != nil {
+	if err := s.removePlayer(ecs.EntityID(1)); err != nil {
 		t.Errorf("RemovePlayer(unknown) = %v, want nil (no-op)", err)
 	}
 }
@@ -329,10 +349,10 @@ func TestRemovePlayerUnknownEntityIsNoop(t *testing.T) {
 func TestRemovePlayerStateWithoutPlayerDiscardsState(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
 		t.Fatalf("SyncPlayer(false): %v", err)
 	}
-	if err := s.RemovePlayer(ecs.EntityID(1)); err != nil {
+	if err := s.removePlayer(ecs.EntityID(1)); err != nil {
 		t.Fatalf("RemovePlayer(state-without-player) = %v, want nil", err)
 	}
 	// No player was ever created, so RemovePlayer just discards the state.
@@ -345,10 +365,10 @@ func TestRemovePlayerStopsAndDiscards(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("SyncPlayer: %v", err)
 	}
-	if err := s.RemovePlayer(ecs.EntityID(1)); err != nil {
+	if err := s.removePlayer(ecs.EntityID(1)); err != nil {
 		t.Fatalf("RemovePlayer: %v", err)
 	}
 	if _, ok := s.players[playerKey{entityID: 1}]; ok {
@@ -362,7 +382,7 @@ func TestRemovePlayerStopsAndDiscards(t *testing.T) {
 
 func TestHasPlayerUnknownEntityReturnsFalse(t *testing.T) {
 	s := newTestService(t)
-	if s.HasPlayer(ecs.EntityID(1)) {
+	if s.hasPlayer(ecs.EntityID(1)) {
 		t.Error("HasPlayer(unknown) = true, want false")
 	}
 }
@@ -371,10 +391,10 @@ func TestHasPlayerAfterSyncReturnsTrue(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("SyncPlayer: %v", err)
 	}
-	if !s.HasPlayer(ecs.EntityID(1)) {
+	if !s.hasPlayer(ecs.EntityID(1)) {
 		t.Error("HasPlayer(after sync) = false, want true")
 	}
 }
@@ -383,20 +403,20 @@ func TestHasPlayerFalseAfterRemove(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("SyncPlayer: %v", err)
 	}
-	if err := s.RemovePlayer(ecs.EntityID(1)); err != nil {
+	if err := s.removePlayer(ecs.EntityID(1)); err != nil {
 		t.Fatalf("RemovePlayer: %v", err)
 	}
-	if s.HasPlayer(ecs.EntityID(1)) {
+	if s.hasPlayer(ecs.EntityID(1)) {
 		t.Error("HasPlayer(after remove) = true, want false")
 	}
 }
 
 func TestIsPlayingUnknownEntityReturnsFalse(t *testing.T) {
 	s := newTestService(t)
-	if s.IsPlaying(ecs.EntityID(1)) {
+	if s.isPlaying(ecs.EntityID(1)) {
 		t.Error("IsPlaying(unknown) = true, want false")
 	}
 }
@@ -405,10 +425,10 @@ func TestIsPlayingTrueAfterPlay(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("SyncPlayer: %v", err)
 	}
-	if !s.IsPlaying(ecs.EntityID(1)) {
+	if !s.isPlaying(ecs.EntityID(1)) {
 		t.Error("IsPlaying(after play) = false, want true")
 	}
 }
@@ -417,13 +437,13 @@ func TestIsPlayingFalseAfterPause(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("play: %v", err)
 	}
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
-	if s.IsPlaying(ecs.EntityID(1)) {
+	if s.isPlaying(ecs.EntityID(1)) {
 		t.Error("IsPlaying(after pause) = true, want false")
 	}
 }
@@ -433,20 +453,20 @@ func TestIsPlayingFalseWhenStateHasNoPlayer(t *testing.T) {
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
 	// SyncPlayer(false) creates a state entry but no player.
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", false, 1); err != nil {
 		t.Fatalf("SyncPlayer: %v", err)
 	}
-	if !s.HasPlayer(ecs.EntityID(1)) {
+	if !s.hasPlayer(ecs.EntityID(1)) {
 		t.Fatal("HasPlayer = false, want true (state exists)")
 	}
-	if s.IsPlaying(ecs.EntityID(1)) {
+	if s.isPlaying(ecs.EntityID(1)) {
 		t.Error("IsPlaying(state-without-player) = true, want false")
 	}
 }
 
 func TestIsLoopingUnknownEntityReturnsFalse(t *testing.T) {
 	s := newTestService(t)
-	if s.IsLooping(ecs.EntityID(1)) {
+	if s.isLooping(ecs.EntityID(1)) {
 		t.Error("IsLooping(unknown) = true, want false")
 	}
 }
@@ -455,10 +475,10 @@ func TestIsLoopingTrueAfterSyncLoopForever(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopForever, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("SyncPlayer: %v", err)
 	}
-	if !s.IsLooping(ecs.EntityID(1)) {
+	if !s.isLooping(ecs.EntityID(1)) {
 		t.Error("IsLooping(after sync loop forever) = false, want true")
 	}
 }
@@ -467,10 +487,10 @@ func TestIsLoopingFalseAfterSyncLoopNone(t *testing.T) {
 	s := newTestService(t)
 	s.tracks["bgm"] = NewAudioTrack("bgm", silencePCM(), GroupMusic, LoopNone, 1)
 
-	if err := s.SyncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
+	if err := s.syncPlayer(ecs.EntityID(1), "bgm", true, 1); err != nil {
 		t.Fatalf("SyncPlayer: %v", err)
 	}
-	if s.IsLooping(ecs.EntityID(1)) {
+	if s.isLooping(ecs.EntityID(1)) {
 		t.Error("IsLooping(after sync loop none) = true, want false")
 	}
 }

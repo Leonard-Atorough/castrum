@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2/audio"
-	"github.com/leonard-atorough/castrum"
 	"github.com/leonard-atorough/castrum/assets"
 	"github.com/leonard-atorough/castrum/ecs"
 )
@@ -23,6 +22,12 @@ type playerState struct {
 	entityID ecs.EntityID
 }
 
+type Config struct {
+	SampleRate   int
+	MasterVolume float64
+	GroupVolumes map[Group]float64
+}
+
 // AudioService owns the registry of audio tracks and the per-entity players
 // that play them. It resolves track PCM data into players on demand and
 // applies a volume mix of master, group, track, and per-entity volumes.
@@ -32,15 +37,15 @@ type AudioService struct {
 	loader  *assets.Loader
 	tracks  map[ID]*AudioTrack
 	players map[playerKey]*playerState
-	config  castrum.AudioConfig
+	config  Config
 	mu      sync.RWMutex
 	context context.Context
 }
 
-// NewAudioService creates an AudioService backed by the given Ebiten audio
+// NewService creates an AudioService backed by the given Ebiten audio
 // context, asset loader, and volume configuration. The context is used to
 // create players at playback time.
-func NewAudioService(ctx *audio.Context, loader *assets.Loader, config castrum.AudioConfig, context context.Context) *AudioService {
+func NewService(ctx *audio.Context, loader *assets.Loader, config Config, context context.Context) *AudioService {
 	return &AudioService{
 		ctx:     ctx,
 		loader:  loader,
@@ -91,17 +96,17 @@ func (s *AudioService) HasTrack(id ID) bool {
 	return ok
 }
 
-// HasPlayer reports whether a player state exists for entityID.
-func (s *AudioService) HasPlayer(entityID ecs.EntityID) bool {
+// hasPlayer reports whether a player state exists for entityID.
+func (s *AudioService) hasPlayer(entityID ecs.EntityID) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	_, ok := s.players[playerKey{entityID: entityID}]
 	return ok
 }
 
-// IsPlaying reports whether the player for entityID is actively playing.
+// isPlaying reports whether the player for entityID is actively playing.
 // It returns false if no player exists for entityID.
-func (s *AudioService) IsPlaying(entityID ecs.EntityID) bool {
+func (s *AudioService) isPlaying(entityID ecs.EntityID) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	state, ok := s.players[playerKey{entityID: entityID}]
@@ -111,9 +116,9 @@ func (s *AudioService) IsPlaying(entityID ecs.EntityID) bool {
 	return state.player.IsPlaying()
 }
 
-// IsLooping reports whether the player for entityID is set to loop indefinitely.
+// isLooping reports whether the player for entityID is set to loop indefinitely.
 // It returns false if no player exists for entityID.
-func (s *AudioService) IsLooping(entityID ecs.EntityID) bool {
+func (s *AudioService) isLooping(entityID ecs.EntityID) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	state, ok := s.players[playerKey{entityID: entityID}]
@@ -123,12 +128,12 @@ func (s *AudioService) IsLooping(entityID ecs.EntityID) bool {
 	return state.track.loop == LoopForever
 }
 
-// SyncPlayer synchronizes the player for entityID with the desired playing
+// syncPlayer synchronizes the player for entityID with the desired playing
 // state and per-entity volume. The player is created lazily on the first
 // request to play. The effective volume is the product of master, group,
 // track, and the given per-entity volume. It returns an error if trackID is
 // not registered.
-func (as *AudioService) SyncPlayer(entityID ecs.EntityID, trackID ID, playing bool, volume float64) error {
+func (as *AudioService) syncPlayer(entityID ecs.EntityID, trackID ID, playing bool, volume float64) error {
 	as.mu.Lock()
 	defer as.mu.Unlock()
 
@@ -161,9 +166,9 @@ func (as *AudioService) SyncPlayer(entityID ecs.EntityID, trackID ID, playing bo
 	effectiveVol := as.config.MasterVolume
 	switch track.group {
 	case GroupMusic:
-		effectiveVol *= as.config.MusicVolume
+		effectiveVol *= as.config.GroupVolumes[GroupMusic]
 	case GroupSFX:
-		effectiveVol *= as.config.SFXVolume
+		effectiveVol *= as.config.GroupVolumes[GroupSFX]
 	}
 	effectiveVol *= volume * track.volume
 
@@ -180,10 +185,10 @@ func (as *AudioService) SyncPlayer(entityID ecs.EntityID, trackID ID, playing bo
 	return nil
 }
 
-// StopPlayer pauses the player for entityID and stops it reading its source.
+// stopPlayer pauses the player for entityID and stops it reading its source.
 // The player state is retained. If entityID has no registered player,
-// StopPlayer is a no-op.
-func (s *AudioService) StopPlayer(entityID ecs.EntityID) error {
+// stopPlayer is a no-op.
+func (s *AudioService) stopPlayer(entityID ecs.EntityID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -191,9 +196,9 @@ func (s *AudioService) StopPlayer(entityID ecs.EntityID) error {
 	return nil
 }
 
-// RemovePlayer stops and removes the player state for entityID, discarding it.
-// If entityID has no registered state, RemovePlayer is a no-op.
-func (s *AudioService) RemovePlayer(entityID ecs.EntityID) error {
+// removePlayer stops and removes the player state for entityID, discarding it.
+// If entityID has no registered state, removePlayer is a no-op.
+func (s *AudioService) removePlayer(entityID ecs.EntityID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

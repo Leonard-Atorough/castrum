@@ -20,8 +20,10 @@ type System struct {
 
 // NewSystem creates an uninitialized audio system. Resources are resolved
 // during [System.Init].
-func NewSystem() *System {
-	return &System{}
+func NewSystem(service *AudioService) *System {
+	return &System{
+		svc: service,
+	}
 }
 
 // Init resolves the [AudioService] and [events.EventBus] world resources and
@@ -29,18 +31,14 @@ func NewSystem() *System {
 // It returns an error if either resource is missing.
 func (s *System) Init(world *ecs.World) error {
 	s.query = world.NewQuery().WithRequiredComponents(components.AudioPlayer{})
-	svc, ok := world.GetResource[*AudioService]()
-	if !ok {
-		return fmt.Errorf("AudioService resource not found")
-	}
-	s.svc = svc
-
 	bus, ok := world.GetResource[*events.EventBus]()
 	if !ok {
 		return fmt.Errorf("EventBus resource not found")
 	}
 	s.events = bus
-
+	if s.svc == nil {
+		return fmt.Errorf("AudioService not set")
+	}
 	return nil
 }
 
@@ -63,13 +61,13 @@ func (s *System) Update(world *ecs.World, delta float64) error {
 		ap, _ := entry.Get[components.AudioPlayer]()
 
 		// Skip idle entities: not playing and no player to clean up.
-		if !ap.Playing && !s.svc.HasPlayer(entry.EntityID) {
+		if !ap.Playing && !s.svc.hasPlayer(entry.EntityID) {
 			continue
 		}
 
 		// New play: component requests playback but no player exists yet.
-		if ap.Playing && !s.svc.HasPlayer(entry.EntityID) {
-			if err := s.svc.SyncPlayer(entry.EntityID, ID(ap.TrackID), true, ap.Volume); err != nil {
+		if ap.Playing && !s.svc.hasPlayer(entry.EntityID) {
+			if err := s.svc.syncPlayer(entry.EntityID, ID(ap.TrackID), true, ap.Volume); err != nil {
 				continue
 			}
 			s.events.Emit(Event{
@@ -84,8 +82,8 @@ func (s *System) Update(world *ecs.World, delta float64) error {
 		// Completion: a non-looping track that was playing has finished.
 		// Check this before the state-change branch so we don't restart
 		// a finished one-shot.
-		if ap.Playing && s.svc.HasPlayer(entry.EntityID) && !s.svc.IsPlaying(entry.EntityID) && !s.svc.IsLooping(entry.EntityID) {
-			s.svc.RemovePlayer(entry.EntityID)
+		if ap.Playing && s.svc.hasPlayer(entry.EntityID) && !s.svc.isPlaying(entry.EntityID) && !s.svc.isLooping(entry.EntityID) {
+			s.svc.removePlayer(entry.EntityID)
 			ap.Playing = false
 			s.events.Emit(Event{
 				Type:     EventTypeTrackStopped,
@@ -100,8 +98,8 @@ func (s *System) Update(world *ecs.World, delta float64) error {
 		}
 
 		// State change: the Playing flag was flipped by external code.
-		if ap.Playing != s.svc.IsPlaying(entry.EntityID) {
-			if err := s.svc.SyncPlayer(entry.EntityID, ID(ap.TrackID), ap.Playing, ap.Volume); err != nil {
+		if ap.Playing != s.svc.isPlaying(entry.EntityID) {
+			if err := s.svc.syncPlayer(entry.EntityID, ID(ap.TrackID), ap.Playing, ap.Volume); err != nil {
 				continue
 			}
 		}
@@ -122,8 +120,8 @@ func (s *System) Shutdown(world *ecs.World) error {
 		return nil
 	}
 	for entry := range s.query.Execute() {
-		if s.svc.HasPlayer(entry.EntityID) {
-			s.svc.RemovePlayer(entry.EntityID)
+		if s.svc.hasPlayer(entry.EntityID) {
+			s.svc.removePlayer(entry.EntityID)
 		}
 	}
 	return nil
