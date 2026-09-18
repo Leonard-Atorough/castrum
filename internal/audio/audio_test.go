@@ -1,17 +1,18 @@
 package audio
 
 import (
+	"bytes"
 	"testing"
 )
 
 func TestNewAudioTrack(t *testing.T) {
-	track := NewAudioTrack("shoot", "audio/sfx/shoot.wav", GroupSFX, LoopNone, 0.8)
+	track := NewAudioTrack("shoot", []byte{}, GroupSFX, LoopNone, 0.8)
 
 	if track.ID() != "shoot" {
 		t.Errorf("ID() = %q, want %q", track.ID(), "shoot")
 	}
-	if track.DataID() != "audio/sfx/shoot.wav" {
-		t.Errorf("DataID() = %q, want %q", track.DataID(), "audio/sfx/shoot.wav")
+	if track.Data() == nil {
+		t.Errorf("Data() = nil, want non-nil")
 	}
 	if track.Group() != GroupSFX {
 		t.Errorf("Group() = %v, want %v", track.Group(), GroupSFX)
@@ -25,7 +26,7 @@ func TestNewAudioTrack(t *testing.T) {
 }
 
 func TestNewAudioTrackAllFields(t *testing.T) {
-	track := NewAudioTrack("bgm", "audio/music/loop.ogg", GroupMusic, LoopSingle, 1.0)
+	track := NewAudioTrack("bgm", []byte{}, GroupMusic, LoopForever, 1.0)
 
 	if track.ID() != "bgm" {
 		t.Errorf("ID() = %q, want %q", track.ID(), "bgm")
@@ -33,8 +34,8 @@ func TestNewAudioTrackAllFields(t *testing.T) {
 	if track.Group() != GroupMusic {
 		t.Errorf("Group() = %v, want %v", track.Group(), GroupMusic)
 	}
-	if track.Loop() != LoopSingle {
-		t.Errorf("Loop() = %v, want %v", track.Loop(), LoopSingle)
+	if track.Loop() != LoopForever {
+		t.Errorf("Loop() = %v, want %v", track.Loop(), LoopForever)
 	}
 	if track.Volume() != 1.0 {
 		t.Errorf("Volume() = %v, want %v", track.Volume(), 1.0)
@@ -42,7 +43,7 @@ func TestNewAudioTrackAllFields(t *testing.T) {
 }
 
 func TestNewAudioTrackClampsNegativeVolume(t *testing.T) {
-	track := NewAudioTrack("quiet", "data", GroupSFX, LoopNone, -0.5)
+	track := NewAudioTrack("quiet", []byte{}, GroupSFX, LoopNone, -0.5)
 
 	if track.Volume() != 0 {
 		t.Errorf("Volume() = %v, want 0 (clamped from -0.5)", track.Volume())
@@ -50,7 +51,7 @@ func TestNewAudioTrackClampsNegativeVolume(t *testing.T) {
 }
 
 func TestNewAudioTrackClampsVolumeAboveOne(t *testing.T) {
-	track := NewAudioTrack("loud", "data", GroupSFX, LoopNone, 2.0)
+	track := NewAudioTrack("loud", []byte{}, GroupSFX, LoopNone, 2.0)
 
 	if track.Volume() != 1 {
 		t.Errorf("Volume() = %v, want 1 (clamped from 2.0)", track.Volume())
@@ -58,7 +59,7 @@ func TestNewAudioTrackClampsVolumeAboveOne(t *testing.T) {
 }
 
 func TestNewAudioTrackZeroVolume(t *testing.T) {
-	track := NewAudioTrack("silent", "data", GroupSFX, LoopNone, 0)
+	track := NewAudioTrack("silent", []byte{}, GroupSFX, LoopNone, 0)
 
 	if track.Volume() != 0 {
 		t.Errorf("Volume() = %v, want 0", track.Volume())
@@ -66,141 +67,52 @@ func TestNewAudioTrackZeroVolume(t *testing.T) {
 }
 
 func TestNewAudioTrackReturnsNonNil(t *testing.T) {
-	track := NewAudioTrack("id", "data", GroupMusic, LoopNone, 0.5)
+	track := NewAudioTrack("id", []byte{}, GroupMusic, LoopNone, 0.5)
 
 	if track == nil {
 		t.Fatal("NewAudioTrack() returned nil")
 	}
 }
 
-func TestNewAudioStore(t *testing.T) {
-	store := NewAudioStore()
+func TestAudioTrackDataReturnsPassedPCM(t *testing.T) {
+	pcm := []byte{0xDE, 0xAD, 0xBE, 0xEF}
+	track := NewAudioTrack("sfx", pcm, GroupSFX, LoopNone, 1)
 
-	if store == nil {
-		t.Fatal("NewAudioStore() returned nil")
-	}
-	if store.HasTrack("anything") {
-		t.Error("NewAudioStore() should be empty")
+	if got := track.Data(); !bytes.Equal(got, pcm) {
+		t.Errorf("Data() = %v, want %v", got, pcm)
 	}
 }
 
-func TestAudioStoreAddAndGet(t *testing.T) {
-	store := NewAudioStore()
-	track := NewAudioTrack("shoot", "audio/sfx/shoot.wav", GroupSFX, LoopNone, 0.8)
-	store.AddTrack(track)
+func TestAudioTrackDataReturnsNilForNilInput(t *testing.T) {
+	track := NewAudioTrack("silent", nil, GroupSFX, LoopNone, 1)
 
-	got, ok := store.GetTrack("shoot")
-	if !ok {
-		t.Fatal("GetTrack() returned !ok after AddTrack()")
-	}
-	if got != track {
-		t.Error("GetTrack() returned a different track than the one added")
+	if got := track.Data(); got != nil {
+		t.Errorf("Data() = %v, want nil", got)
 	}
 }
 
-func TestAudioStoreGetMissingReturnsFalse(t *testing.T) {
-	store := NewAudioStore()
+func TestNewAudioTrackDoesNotClampBelowOne(t *testing.T) {
+	track := NewAudioTrack("id", []byte{}, GroupSFX, LoopNone, 0.9)
 
-	track, ok := store.GetTrack("nonexistent")
-	if ok {
-		t.Error("GetTrack() for missing track returned ok=true, want false")
-	}
-	if track != nil {
-		t.Error("GetTrack() for missing track returned non-nil track")
+	if track.Volume() != 0.9 {
+		t.Errorf("Volume() = %v, want 0.9 (not clamped)", track.Volume())
 	}
 }
 
-func TestAudioStoreHasTrack(t *testing.T) {
-	store := NewAudioStore()
-	store.AddTrack(NewAudioTrack("bgm", "data", GroupMusic, LoopSingle, 1.0))
-
-	if !store.HasTrack("bgm") {
-		t.Error("HasTrack() returned false for registered track")
+func TestGroupConstantValues(t *testing.T) {
+	if GroupMusic != 0 {
+		t.Errorf("GroupMusic = %d, want 0", GroupMusic)
 	}
-	if store.HasTrack("missing") {
-		t.Error("HasTrack() returned true for unregistered track")
+	if GroupSFX != 1 {
+		t.Errorf("GroupSFX = %d, want 1", GroupSFX)
 	}
 }
 
-func TestAudioStoreRemoveTrack(t *testing.T) {
-	store := NewAudioStore()
-	store.AddTrack(NewAudioTrack("temp", "data", GroupSFX, LoopNone, 0.5))
-
-	store.RemoveTrack("temp")
-
-	if store.HasTrack("temp") {
-		t.Error("HasTrack() returned true after RemoveTrack()")
+func TestLoopModeConstantValues(t *testing.T) {
+	if LoopNone != 0 {
+		t.Errorf("LoopNone = %d, want 0", LoopNone)
 	}
-}
-
-func TestAudioStoreRemoveTrackMissingIsNoOp(t *testing.T) {
-	store := NewAudioStore()
-
-	store.RemoveTrack("does-not-exist")
-
-	if store.HasTrack("does-not-exist") {
-		t.Error("HasTrack() returned true after removing non-existent track")
-	}
-}
-
-func TestAudioStoreAddTrackOverwritesExisting(t *testing.T) {
-	store := NewAudioStore()
-	original := NewAudioTrack("track", "old.wav", GroupMusic, LoopNone, 0.5)
-	replacement := NewAudioTrack("track", "new.wav", GroupSFX, LoopSingle, 1.0)
-
-	store.AddTrack(original)
-	store.AddTrack(replacement)
-
-	got, ok := store.GetTrack("track")
-	if !ok {
-		t.Fatal("GetTrack() returned !ok after overwrite")
-	}
-	if got.DataID() != "new.wav" {
-		t.Errorf("DataID() = %q, want %q (overwritten track)", got.DataID(), "new.wav")
-	}
-	if got.Group() != GroupSFX {
-		t.Errorf("Group() = %v, want %v (overwritten track)", got.Group(), GroupSFX)
-	}
-}
-
-func TestAudioStoreListTracksEmpty(t *testing.T) {
-	store := NewAudioStore()
-
-	tracks := store.ListTracks()
-	if len(tracks) != 0 {
-		t.Errorf("ListTracks() on empty store returned %d tracks, want 0", len(tracks))
-	}
-}
-
-func TestAudioStoreListTracks(t *testing.T) {
-	store := NewAudioStore()
-	t1 := NewAudioTrack("a", "data1", GroupMusic, LoopNone, 0.5)
-	t2 := NewAudioTrack("b", "data2", GroupSFX, LoopSingle, 1.0)
-	store.AddTrack(t1)
-	store.AddTrack(t2)
-
-	tracks := store.ListTracks()
-	if len(tracks) != 2 {
-		t.Fatalf("ListTracks() returned %d tracks, want 2", len(tracks))
-	}
-
-	// Order is non-deterministic; check by ID set.
-	ids := map[ID]bool{tracks[0].ID(): true, tracks[1].ID(): true}
-	if !ids["a"] || !ids["b"] {
-		t.Errorf("ListTracks() returned IDs %v, want {a, b}", ids)
-	}
-}
-
-func TestAudioStoreListTracksReturnsCopy(t *testing.T) {
-	store := NewAudioStore()
-	store.AddTrack(NewAudioTrack("a", "data", GroupSFX, LoopNone, 0.5))
-
-	tracks := store.ListTracks()
-	tracks[0] = nil // mutate the returned slice
-
-	// Store should be unaffected.
-	got, ok := store.GetTrack("a")
-	if !ok || got == nil {
-		t.Error("mutating ListTracks() result affected the store")
+	if LoopForever != 1 {
+		t.Errorf("LoopForever = %d, want 1", LoopForever)
 	}
 }
