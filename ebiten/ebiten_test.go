@@ -9,6 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/core"
 )
 
 func TestRunnerDefaults(t *testing.T) {
@@ -72,10 +73,10 @@ func TestInvalidRunnerOptionsPanic(t *testing.T) {
 func TestUpdateAdvancesGame(t *testing.T) {
 	g := castrum.New()
 	var frames int
-	g.AddSystem(castrum.ScheduleFrame, func(ctx *castrum.Context) error {
+	g.AddSystem(core.PhaseFrame, core.SystemFunc(func(ctx *core.Context) error {
 		frames++
 		return nil
-	})
+	}))
 	r := New(g)
 
 	if err := r.Update(); err != nil {
@@ -98,11 +99,11 @@ func TestDrawSetsAlphaAndDefersErrors(t *testing.T) {
 	var gotAlpha = -1.0
 	boom := errors.New("draw boom")
 	r := New(g)
-	r.AddDraw(func(ctx *castrum.Context, screen *ebiten.Image) error {
+	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
 		gotAlpha = ctx.Alpha
 		return nil
 	})
-	r.AddDraw(func(ctx *castrum.Context, screen *ebiten.Image) error {
+	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
 		return boom
 	})
 

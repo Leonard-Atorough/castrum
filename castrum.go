@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
+
+	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/internal/runtime"
 )
 
 // Options is the pure-data configuration [New] converges option values into.
@@ -29,66 +32,14 @@ type Options struct {
 // FixedDT returns the derived interval between fixed ticks.
 func (o Options) FixedDT() time.Duration { return o.fixedDT }
 
-// Schedule identifies when a system runs.
-type Schedule int8
-
-const (
-	// ScheduleStartup runs once, before the first frame.
-	ScheduleStartup Schedule = iota
-	// ScheduleFrame runs once per display frame, before fixed ticks.
-	// Timers and input consumption belong here.
-	ScheduleFrame
-	// ScheduleFixed runs at the fixed simulation rate. Movement and
-	// physics belong here.
-	ScheduleFixed
-)
-
-// Note: could try using stringer here
-func (s Schedule) String() string {
-	switch s {
-	case ScheduleStartup:
-		return "startup"
-	case ScheduleFrame:
-		return "frame"
-	case ScheduleFixed:
-		return "fixed"
-	default:
-		return fmt.Sprintf("schedule(%d)", int8(s))
-	}
-}
-
-// Context carries per-frame state to systems. It is reused across calls;
-// systems must not retain it.
-type Context struct {
-	// Tick counts fixed simulation steps since startup.
-	Tick uint64
-	// Frame counts display frames since startup.
-	Frame uint64
-	// DeltaTime is the current schedule's step: elapsed frame time in
-	// ScheduleFrame, the fixed tick interval in ScheduleFixed.
-	DeltaTime time.Duration
-	// Alpha is the fixed-loop remainder over the tick interval, for
-	// interpolating between the last two ticks. Only a runner sets it,
-	// when running its draw systems.
-	Alpha float64
-}
-
-// System is a unit of game logic bound to a Schedule. State persists via
-// closures; there is no system interface.
-type System func(ctx *Context) error
-
-// NOTE: This is bound to change. System will be an interface with three methods:
-// - Startup(world *World) error
-// - Frame(world *World, ctx *Context) error
-// - Fixed(world *World, ctx *Context) error
-
 // Game is the core engine: configuration, schedules, and the fixed loop.
 // It is runner-agnostic: a [Runner] drives it and owns the window, the draw
 // surface, and input.
 type Game struct {
 	opts      Options
-	schedules map[Schedule][]System
-	ctx       Context
+	world     *core.World
+	ctx       core.Context
+	schedules map[core.Phase]*runtime.Schedule[core.System]
 
 	acc     time.Duration
 	started atomic.Bool
@@ -124,7 +75,13 @@ func New(opts ...option) *Game {
 		o.apply(&options)
 	}
 	options.finalize()
-	return &Game{opts: options, schedules: map[Schedule][]System{}}
+	g := &Game{
+		opts:      options,
+		world:     core.NewWorld(),
+		schedules: map[core.Phase]*runtime.Schedule[core.System]{},
+	}
+	g.ctx.World = g.world
+	return g
 }
 
 // finalize derives dependent values and enforces cross-field invariants.
@@ -143,9 +100,21 @@ func (g *Game) Options() Options {
 	return g.opts
 }
 
+// World returns the game's world: entities and resources live there.
+func (g *Game) World() *core.World {
+	return g.world
+}
+
 // AddSystem binds systems to a schedule. Systems run in registration order.
-func (g *Game) AddSystem(s Schedule, systems ...System) {
-	g.schedules[s] = append(g.schedules[s], systems...)
+func (g *Game) AddSystem(s core.Phase, systems ...core.System) {
+	sched, ok := g.schedules[s]
+	if !ok {
+		sched = runtime.NewSchedule(s, func(sys core.System, ctx *core.Context) error {
+			return sys.Update(ctx)
+		})
+		g.schedules[s] = sched
+	}
+	sched.Add(systems...)
 }
 
 // Startup runs the ScheduleStartup systems once. Runners call it before
@@ -154,7 +123,10 @@ func (g *Game) Startup() error {
 	if !g.startup.CompareAndSwap(false, true) {
 		return errors.New("castrum: Startup already ran")
 	}
-	return g.run(ScheduleStartup)
+	if err := g.world.ResolveEager(); err != nil {
+		return err
+	}
+	return g.run(core.PhaseStartup)
 }
 
 // Advance runs one display frame: ScheduleFrame, then every fixed tick due
@@ -166,7 +138,7 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	}
 	g.ctx.Frame++
 	g.ctx.DeltaTime = elapsed
-	if err := g.run(ScheduleFrame); err != nil {
+	if err := g.run(core.PhaseFrame); err != nil {
 		return err
 	}
 	g.acc += elapsed
@@ -174,7 +146,7 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	for g.acc >= g.opts.fixedDT {
 		g.ctx.Tick++
 		g.ctx.DeltaTime = g.opts.fixedDT
-		if err := g.run(ScheduleFixed); err != nil {
+		if err := g.run(core.PhaseFixed); err != nil {
 			return err
 		}
 		g.acc -= g.opts.fixedDT
@@ -194,7 +166,7 @@ func (g *Game) Alpha() float64 {
 
 // Context returns the live context. Runners use it when running their draw
 // systems; game code receives it as a system argument.
-func (g *Game) Context() *Context {
+func (g *Game) Context() *core.Context {
 	return &g.ctx
 }
 
@@ -223,11 +195,9 @@ func (g *Game) Run(r Runner) error {
 	return r.Run()
 }
 
-func (g *Game) run(s Schedule) error {
-	for _, sys := range g.schedules[s] {
-		if err := sys(&g.ctx); err != nil {
-			return fmt.Errorf("%s: %w", s, err)
-		}
+func (g *Game) run(s core.Phase) error {
+	if schedule, ok := g.schedules[s]; ok {
+		return schedule.Run(&g.ctx)
 	}
 	return nil
 }
