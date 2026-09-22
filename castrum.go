@@ -109,7 +109,7 @@ func (g *Game) World() *core.World {
 // registration order. The name identifies the registration in error
 // messages and will serve as the handle for future ordering constraints;
 // Returns an error if the name is empty.
-func (g *Game) AddSystem(phase core.Phase, name string, systems ...core.System) error {
+func (g *Game) AddSystem(phase core.Phase, name string, system core.System) error {
 	if name == "" {
 		return fmt.Errorf("castrum: AddSystem: system name must not be empty (phase %s)", phase)
 	}
@@ -120,9 +120,8 @@ func (g *Game) AddSystem(phase core.Phase, name string, systems ...core.System) 
 		})
 		g.schedules[phase] = sched
 	}
-	for _, sys := range systems {
-		sched.Add(runtime.Entry[core.System]{Name: name, System: sys})
-	}
+	sched.Add(runtime.Entry[core.System]{Name: name, System: system})
+
 	return nil
 }
 
