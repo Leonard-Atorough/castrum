@@ -1,0 +1,60 @@
+name: Bug Report
+description: Report a bug in the Castrum engine.
+title: "[BUG] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "## Bug Description"
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Clear description of the bug
+      placeholder: "The engine crashes when..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How to reproduce the issue
+      placeholder: |
+        1. Create a scene with X component
+        2. Run the engine with Y config
+        3. Observe crash/unexpected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen instead
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Which component is affected?
+      options:
+        - ECS (entities/components/systems)
+        - Rendering
+        - Input
+        - Scene Management
+        - Camera
+        - Physics/Collision
+        - Animation
+        - Build/Configuration
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment (Go version, OS)
+      placeholder: "Go 1.21, Windows 11"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs or Error Output
+      render: go

@@ -1,0 +1,50 @@
+name: General Question
+description: Ask a question about using the Castrum engine.
+title: "[QUESTION] "
+labels: ['question', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: "## Question"
+  - type: textarea
+    id: question
+    attributes:
+      label: What's your question?
+      description: Be specific and provide context
+      placeholder: "How do I... "
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What are you trying to do? Include relevant code/config
+      placeholder: |
+        I'm building a game where...
+        
+        ```go
+        // My code here
+        ```
+  - type: textarea
+    id: attempts
+    attributes:
+      label: What Have You Tried?
+      description: What approaches have you already explored?
+  - type: dropdown
+    id: phase
+    attributes:
+      label: What's the main area?
+      options:
+        - ECS / Entities & Components
+        - Rendering & Graphics
+        - Input Handling
+        - Scene Management
+        - Camera & Viewport
+        - Physics / Collision
+        - Animation
+        - Asset Management
+        - Configuration
+        - Build & Deployment
+        - Other
+    validations:
+      required: true

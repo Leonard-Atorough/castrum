@@ -1,0 +1,6 @@
+cover.out
+bin/
+
+# Ignore executable files in the examples directory and the project root
+/examples/*.exe
+*.exe
