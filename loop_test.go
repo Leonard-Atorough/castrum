@@ -16,12 +16,12 @@ func TestAdvanceAccumulatesFixedTicks(t *testing.T) {
 	g := New(WithFixedTPS(4))
 	var ticks, frames int
 	var frameDT, fixedDT time.Duration
-	g.AddSystem(core.PhaseFrame, core.SystemFunc(func(ctx *core.Context) error {
+	g.AddSystem(core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
 		frames++
 		frameDT = ctx.DeltaTime
 		return nil
 	}))
-	g.AddSystem(core.PhaseFixed, core.SystemFunc(func(ctx *core.Context) error {
+	g.AddSystem(core.PhaseFixed, "fixed counter", core.SystemFunc(func(ctx *core.Context) error {
 		ticks++
 		fixedDT = ctx.DeltaTime
 		return nil
@@ -60,7 +60,7 @@ func TestMaxFrameTimeClampsElapsed(t *testing.T) {
 	// FixedTPS 1 => fixedDT = 1s; MaxFrameTime 50ms clamps a 10s stall.
 	g := New(WithFixedTPS(1), WithMaxFrameTime(50*time.Millisecond))
 	var ticks int
-	g.AddSystem(core.PhaseFixed, core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
+	g.AddSystem(core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
 
 	g.Advance(10 * time.Second)
 	if ticks != 0 {
@@ -75,7 +75,7 @@ func TestMaxTicksPerFrameDropsBacklog(t *testing.T) {
 	// FixedTPS 100 => fixedDT = 10ms; 1s due, capped at 5 ticks, backlog dropped.
 	g := New(WithFixedTPS(100), WithMaxFrameTime(time.Second))
 	var ticks int
-	g.AddSystem(core.PhaseFixed, core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
+	g.AddSystem(core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
 
 	g.Advance(time.Second)
 	if ticks != 5 {
@@ -89,7 +89,7 @@ func TestMaxTicksPerFrameDropsBacklog(t *testing.T) {
 func TestSystemErrorPropagates(t *testing.T) {
 	g := New()
 	boom := errors.New("boom")
-	g.AddSystem(core.PhaseFixed, core.SystemFunc(func(ctx *core.Context) error { return boom }))
+	g.AddSystem(core.PhaseFixed, "boom", core.SystemFunc(func(ctx *core.Context) error { return boom }))
 
 	err := g.Advance(100 * time.Millisecond)
 	if !errors.Is(err, boom) {
@@ -103,7 +103,7 @@ func TestSystemErrorPropagates(t *testing.T) {
 func TestStartupRunsOnce(t *testing.T) {
 	g := New()
 	var runs int
-	g.AddSystem(core.PhaseStartup, core.SystemFunc(func(ctx *core.Context) error { runs++; return nil }))
+	g.AddSystem(core.PhaseStartup, "startup counter", core.SystemFunc(func(ctx *core.Context) error { runs++; return nil }))
 
 	if err := g.Startup(); err != nil {
 		t.Fatalf("first Startup: %v", err)
@@ -140,7 +140,7 @@ func TestStartupResolvesEagerBeforeSystems(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("ProvideEager: %v", err)
 	}
-	g.AddSystem(core.PhaseStartup, core.SystemFunc(func(ctx *core.Context) error {
+	g.AddSystem(core.PhaseStartup, "probe", core.SystemFunc(func(ctx *core.Context) error {
 		if !resolved {
 			t.Error("eager resource not resolved before startup systems ran")
 		}

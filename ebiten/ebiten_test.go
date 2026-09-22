@@ -73,7 +73,7 @@ func TestInvalidRunnerOptionsPanic(t *testing.T) {
 func TestUpdateAdvancesGame(t *testing.T) {
 	g := castrum.New()
 	var frames int
-	g.AddSystem(core.PhaseFrame, core.SystemFunc(func(ctx *core.Context) error {
+	g.AddSystem(core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
 		frames++
 		return nil
 	}))

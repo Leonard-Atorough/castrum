@@ -105,16 +105,25 @@ func (g *Game) World() *core.World {
 	return g.world
 }
 
-// AddSystem binds systems to a schedule. Systems run in registration order.
-func (g *Game) AddSystem(s core.Phase, systems ...core.System) {
-	sched, ok := g.schedules[s]
+// AddSystem binds systems to a schedule under a name. Systems run in
+// registration order. The name identifies the registration in error
+// messages and will serve as the handle for future ordering constraints;
+// Returns an error if the name is empty.
+func (g *Game) AddSystem(phase core.Phase, name string, systems ...core.System) error {
+	if name == "" {
+		return fmt.Errorf("castrum: AddSystem: system name must not be empty (phase %s)", phase)
+	}
+	sched, ok := g.schedules[phase]
 	if !ok {
-		sched = runtime.NewSchedule(s, func(sys core.System, ctx *core.Context) error {
+		sched = runtime.NewSchedule(phase, func(sys core.System, ctx *core.Context) error {
 			return sys.Update(ctx)
 		})
-		g.schedules[s] = sched
+		g.schedules[phase] = sched
 	}
-	sched.Add(systems...)
+	for _, sys := range systems {
+		sched.Add(runtime.Entry[core.System]{Name: name, System: sys})
+	}
+	return nil
 }
 
 // Startup runs the ScheduleStartup systems once. Runners call it before
