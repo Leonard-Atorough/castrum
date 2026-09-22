@@ -124,7 +124,7 @@ func New(opts ...option) *Game {
 		o.apply(&options)
 	}
 	options.finalize()
-	return &Game{schedules: map[Schedule][]System{}}
+	return &Game{opts: options, schedules: map[Schedule][]System{}}
 }
 
 // finalize derives dependent values and enforces cross-field invariants.
