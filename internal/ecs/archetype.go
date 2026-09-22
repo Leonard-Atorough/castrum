@@ -363,6 +363,7 @@ func (s *Service) Update(entityID uint64, types []reflect.Type, values []any) Re
 	}
 
 	from.removeEntity(loc.Index)
+	s.store.cleanupEmpty()
 
 	newIndex := to.insertEntity(entityID)
 	for i, t := range types {
@@ -374,52 +375,50 @@ func (s *Service) Update(entityID uint64, types []reflect.Type, values []any) Re
 	}
 	return Result{
 		Success: true,
+		Moved:   true,
+		MovedID: entityID,
 	}
 }
 
 // Component retrieves the value of a specific component for the given entity.
-// It returns the component value and a [Result] indicating the success or failure of the operation.
-func (s *Service) Component(entityID uint64, t reflect.Type) (any, Result) {
-	return s.resolveComponent(entityID, t)
+// If the component is not found or the entity does not exist, an error is returned.
+func (s *Service) Component(entityID uint64, t reflect.Type) (any, error) {
+	val, res := s.resolveComponent(entityID, t)
+	if !res.Success {
+		return nil, res.Error
+	}
+	return val, nil
 }
 
 // HasComponent checks if the given entity has a specific component.
-// It returns a boolean indicating the presence of the component and a [Result] indicating the success or failure of the operation.
-func (s *Service) HasComponent(entityID uint64, t reflect.Type) bool {
+// If the entity does not exist, an error is returned.
+func (s *Service) HasComponent(entityID uint64, t reflect.Type) (bool, error) {
 	_, res := s.resolveComponent(entityID, t)
 	if !res.Success {
-		return false
+		return false, res.Error
 	}
-	return res.Success
+	return true, nil
 }
 
 // SetComponent sets the value of a specific component for the given entity.
-// It returns a [Result] indicating the success or failure of the operation.
-func (s *Service) SetComponent(entityID uint64, t reflect.Type, value any) Result {
+// It returns a boolean indicating success and an error if the operation failed.
+func (s *Service) SetComponent(entityID uint64, t reflect.Type, value any) (bool, error) {
 	loc, res := s.location(entityID)
 	if !res.Success {
-		return res
+		return false, res.Error
 	}
 
 	arch, ok := s.store.get(loc.ArchetypeID)
 	if !ok {
-		return Result{
-			Success: false,
-			Error:   fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID),
-		}
+		return false, fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID)
 	}
 
 	if arch.component(loc.Index, t) == nil {
-		return Result{
-			Success: false,
-			Error:   fmt.Errorf("component of type %v not found for entity with ID %d", t, entityID),
-		}
+		return false, fmt.Errorf("component of type %v not found for entity with ID %d", t, entityID)
 	}
 
 	arch.setComponent(loc.Index, t, value)
-	return Result{
-		Success: true,
-	}
+	return true, nil
 }
 
 // Match returns a list of archetypes that match the required and excluded component types.

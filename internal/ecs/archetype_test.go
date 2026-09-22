@@ -27,19 +27,21 @@ func TestServiceCreateAndComponent(t *testing.T) {
 	}
 
 	// Test Component retrieval
-	pos, result := svc.Component(1, reflect.TypeFor[Position]())
-	if !result.Success {
-		t.Fatalf("Component failed: %v", result.Error)
+	pos, error := svc.Component(1, reflect.TypeFor[Position]())
+	if error != nil {
+		t.Fatalf("Component failed: %v", error)
 	}
 	if p, ok := pos.(Position); !ok || p.X != 10 || p.Y != 20 {
 		t.Errorf("Got wrong position: %+v", pos)
 	}
 
 	// Test HasComponent
-	if !svc.HasComponent(1, reflect.TypeFor[Position]()) {
+	has, error := svc.HasComponent(1, reflect.TypeFor[Position]())
+	if error != nil || !has {
 		t.Error("HasComponent should return true for existing component")
 	}
-	if svc.HasComponent(1, reflect.TypeFor[Health]()) {
+	has, error = svc.HasComponent(1, reflect.TypeFor[Health]())
+	if error != nil || has {
 		t.Error("HasComponent should return false for non-existent component")
 	}
 }
@@ -98,13 +100,15 @@ func TestServiceRemove(t *testing.T) {
 	}
 
 	// Entity 2 should be gone
-	if svc.HasComponent(2, reflect.TypeFor[Position]()) {
+	has, error := svc.HasComponent(2, reflect.TypeFor[Position]())
+	if error == nil && has {
 		t.Error("Removed entity should not have components")
 	}
 
 	// Entity 1 and 3 should still exist
-	if !svc.HasComponent(1, reflect.TypeFor[Position]()) ||
-		!svc.HasComponent(3, reflect.TypeFor[Position]()) {
+	has1, error1 := svc.HasComponent(1, reflect.TypeFor[Position]())
+	has3, error3 := svc.HasComponent(3, reflect.TypeFor[Position]())
+	if error1 != nil || error3 != nil || !has1 || !has3 {
 		t.Error("Other entities should still exist")
 	}
 }
@@ -154,9 +158,9 @@ func TestServiceSetComponent(t *testing.T) {
 	}, []any{Position{X: 10, Y: 20}})
 
 	// Update existing component
-	result := svc.SetComponent(1, reflect.TypeFor[Position](), Position{X: 30, Y: 40})
-	if !result.Success {
-		t.Fatalf("SetComponent failed: %v", result.Error)
+	success, error := svc.SetComponent(1, reflect.TypeFor[Position](), Position{X: 30, Y: 40})
+	if !success {
+		t.Fatalf("SetComponent failed: %v", error)
 	}
 
 	pos, _ := svc.Component(1, reflect.TypeFor[Position]())
@@ -165,8 +169,8 @@ func TestServiceSetComponent(t *testing.T) {
 	}
 
 	// Try to set non-existent component
-	result = svc.SetComponent(1, reflect.TypeFor[Velocity](), Velocity{X: 1, Y: 1})
-	if result.Success {
+	success, error = svc.SetComponent(1, reflect.TypeFor[Velocity](), Velocity{X: 1, Y: 1})
+	if success {
 		t.Error("SetComponent should fail for non-existent component type")
 	}
 }
@@ -193,8 +197,8 @@ func TestServiceErrorCases(t *testing.T) {
 	}
 
 	// Component on non-existent entity
-	_, result = svc.Component(999, reflect.TypeFor[Position]())
-	if result.Success {
+	_, error := svc.Component(999, reflect.TypeFor[Position]())
+	if error == nil {
 		t.Error("Component should fail for non-existent entity")
 	}
 
