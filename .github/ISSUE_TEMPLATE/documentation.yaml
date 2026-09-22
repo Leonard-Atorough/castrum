@@ -1,0 +1,54 @@
+name: Documentation Update
+description: Suggest improvements or report missing documentation.
+title: "[DOCS] "
+labels: ['documentation', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: "## Documentation Issue"
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type of Documentation Issue
+      options:
+        - Missing documentation
+        - Unclear explanation
+        - Outdated example
+        - Missing API reference
+        - Broken link
+        - Incomplete tutorial
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: location
+    attributes:
+      label: Where is the issue?
+      description: File path, URL, or section name
+      placeholder: "README.md: Installation section"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's Wrong?
+      description: What's confusing or missing?
+      placeholder: "The example doesn't show how to..."
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Improvement
+      description: What should be added or changed?
+      placeholder: |
+        Add this section:
+        ```markdown
+        # Example
+        ```
+  - type: checkboxes
+    id: offer
+    attributes:
+      label: Offer to Help
+      options:
+        - label: "I can submit a PR with suggested changes"
