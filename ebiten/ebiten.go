@@ -18,6 +18,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/core"
 )
 
 // Size is a 2D dimension in pixels, shared by window and logical resolution.
@@ -29,7 +30,7 @@ type Size struct {
 // DrawFunc renders one frame. DrawFuncs are backend-typed by design: they
 // receive the runner's canvas directly, so they do not transfer across
 // runners.
-type DrawFunc func(ctx *castrum.Context, screen *ebiten.Image) error
+type DrawFunc func(ctx *core.Context, screen *ebiten.Image) error
 
 // Options holds the runner's launch settings: window, vsync, and the
 // internal render resolution.
