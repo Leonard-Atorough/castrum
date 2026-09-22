@@ -43,7 +43,7 @@ const (
 	ScheduleFixed
 )
 
-//Note: could try using stringer here
+// Note: could try using stringer here
 func (s Schedule) String() string {
 	switch s {
 	case ScheduleStartup:
