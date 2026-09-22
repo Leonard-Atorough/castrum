@@ -129,6 +129,32 @@ func TestContextWiredToWorld(t *testing.T) {
 	}
 }
 
+type startupProbe struct{}
+
+func TestStartupResolvesEagerBeforeSystems(t *testing.T) {
+	g := New()
+	resolved := false
+	if err := g.World().ProvideEager(func(w *core.World) (*startupProbe, error) {
+		resolved = true
+		return &startupProbe{}, nil
+	}); err != nil {
+		t.Fatalf("ProvideEager: %v", err)
+	}
+	g.AddSystem(core.PhaseStartup, core.SystemFunc(func(ctx *core.Context) error {
+		if !resolved {
+			t.Error("eager resource not resolved before startup systems ran")
+		}
+		if _, err := ctx.World.Resource[*startupProbe](); err != nil {
+			t.Errorf("startup system fetching eager resource: %v", err)
+		}
+		return nil
+	}))
+
+	if err := g.Startup(); err != nil {
+		t.Fatalf("Startup: %v", err)
+	}
+}
+
 func TestQuit(t *testing.T) {
 	g := New()
 	if g.Quitting() {
