@@ -301,10 +301,10 @@ func (s *Service) Create(entityID uint64, types []reflect.Type, values []any) Re
 
 }
 
-// Remove deletes the entity with the specified ID from the ECS.
+// Destroy deletes the entity with the specified ID from the ECS.
 // It returns a [Result] indicating the success or failure of the operation,
 // and whether the entity was moved within its archetype as a result of the removal.
-func (s *Service) Remove(entityID uint64) Result {
+func (s *Service) Destroy(entityID uint64) Result {
 	loc, res := s.location(entityID)
 	if !res.Success {
 		return res
@@ -335,10 +335,14 @@ func (s *Service) Remove(entityID uint64) Result {
 	}
 }
 
-// Update modifies the components of an existing entity within the ECS.
-// If the entity's archetype changes as a result of the update, it is moved to the appropriate archetype.
-// It returns a [Result] indicating the success or failure of the operation.
-func (s *Service) Update(entityID uint64, types []reflect.Type, values []any) Result {
+// AddComponents attaches components to an existing entity, migrating it to
+// the archetype that holds the union of its current and new components.
+// Values of existing components are preserved. Adding a component the
+// entity already has overwrites its value without migrating.
+//
+// It returns a [Result] reporting whether the entity migrated; Moved and
+// MovedID refer to the target entity, not to swap-removal bookkeeping.
+func (s *Service) AddComponents(entityID uint64, types []reflect.Type, values []any) Result {
 	if err := validateComponentInput(types, values); err != nil {
 		return Result{
 			Success: false,
@@ -351,21 +355,40 @@ func (s *Service) Update(entityID uint64, types []reflect.Type, values []any) Re
 		return res
 	}
 
-	from, _ := s.store.get(loc.ArchetypeID)
-	to := s.store.getOrCreate(types...)
-	if from.ID() == to.ID() {
-		for i, t := range types {
-			from.setComponent(loc.Index, t, values[i])
-		}
+	from, ok := s.store.get(loc.ArchetypeID)
+	if !ok {
 		return Result{
-			Success: true,
+			Success: false,
+			Error:   fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID),
 		}
 	}
 
-	from.removeEntity(loc.Index)
-	s.store.cleanupEmpty()
+	if from.key.containsAll(types...) {
+		for i, t := range types {
+			from.setComponent(loc.Index, t, values[i])
+		}
+		return Result{Success: true}
+	}
 
+	oldKey := from.key
+	oldValues := make([]any, oldKey.Len())
+	for i, t := range oldKey {
+		oldValues[i] = from.component(loc.Index, t)
+	}
+
+	movedID, moved := from.removeEntity(loc.Index)
+	if moved {
+		s.locations[movedID] = location{
+			ArchetypeID: loc.ArchetypeID,
+			Index:       loc.Index,
+		}
+	}
+
+	to := s.store.getOrCreate(append(slices.Clone(oldKey), types...)...)
 	newIndex := to.insertEntity(entityID)
+	for i, t := range oldKey {
+		to.setComponent(newIndex, t, oldValues[i])
+	}
 	for i, t := range types {
 		to.setComponent(newIndex, t, values[i])
 	}
@@ -373,6 +396,82 @@ func (s *Service) Update(entityID uint64, types []reflect.Type, values []any) Re
 		ArchetypeID: to.ID(),
 		Index:       newIndex,
 	}
+
+	s.store.cleanupEmpty()
+
+	return Result{
+		Success: true,
+		Moved:   true,
+		MovedID: entityID,
+	}
+}
+
+// RemoveComponents detaches components from an existing entity, migrating
+// it to the archetype that holds its remaining components. Values of the
+// remaining components are preserved. Types the entity does not have are
+// ignored; removing all components leaves the entity in an empty archetype.
+//
+// It returns a [Result] reporting whether the entity migrated; Moved and
+// MovedID refer to the target entity, not to swap-removal bookkeeping.
+func (s *Service) RemoveComponents(entityID uint64, types []reflect.Type) Result {
+	if err := validateTypes(types); err != nil {
+		return Result{
+			Success: false,
+			Error:   err,
+		}
+	}
+
+	loc, res := s.location(entityID)
+	if !res.Success {
+		return res
+	}
+
+	from, ok := s.store.get(loc.ArchetypeID)
+	if !ok {
+		return Result{
+			Success: false,
+			Error:   fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID),
+		}
+	}
+
+	// Fast path: nothing to remove, nothing migrates.
+	if from.key.containsNone(types...) {
+		return Result{Success: true}
+	}
+
+	remaining := make(key, 0, from.key.Len())
+	for _, t := range from.key {
+		if !slices.Contains(types, t) {
+			remaining = append(remaining, t)
+		}
+	}
+
+	// Snapshot current values before the swap-remove reuses the row.
+	oldValues := make([]any, from.key.Len())
+	for i, t := range from.key {
+		oldValues[i] = from.component(loc.Index, t)
+	}
+
+	movedID, moved := from.removeEntity(loc.Index)
+	if moved {
+		s.locations[movedID] = location{
+			ArchetypeID: loc.ArchetypeID,
+			Index:       loc.Index,
+		}
+	}
+
+	to := s.store.getOrCreate(remaining...)
+	newIndex := to.insertEntity(entityID)
+	for i, t := range remaining {
+		to.setComponent(newIndex, t, oldValues[i])
+	}
+	s.locations[entityID] = location{
+		ArchetypeID: to.ID(),
+		Index:       newIndex,
+	}
+
+	s.store.cleanupEmpty()
+
 	return Result{
 		Success: true,
 		Moved:   true,
@@ -390,14 +489,21 @@ func (s *Service) Component(entityID uint64, t reflect.Type) (any, error) {
 	return val, nil
 }
 
-// HasComponent checks if the given entity has a specific component.
-// If the entity does not exist, an error is returned.
-func (s *Service) HasComponent(entityID uint64, t reflect.Type) (bool, error) {
-	_, res := s.resolveComponent(entityID, t)
-	if !res.Success {
-		return false, res.Error
+// HasComponent reports whether the given entity has a specific component.
+// It returns false if the entity does not exist or does not have the
+// component.
+func (s *Service) HasComponent(entityID uint64, t reflect.Type) bool {
+	loc, exists := s.locations[entityID]
+	if !exists {
+		return false
 	}
-	return true, nil
+
+	arch, ok := s.store.get(loc.ArchetypeID)
+	if !ok {
+		return false
+	}
+
+	return arch.component(loc.Index, t) != nil
 }
 
 // SetComponent sets the value of a specific component for the given entity.
@@ -417,9 +523,14 @@ func (s *Service) SetComponent(entityID uint64, t reflect.Type, value any) (bool
 		return false, fmt.Errorf("component of type %v not found for entity with ID %d", t, entityID)
 	}
 
-	arch.setComponent(loc.Index, t, value)
+	success := arch.setComponent(loc.Index, t, value)
+	if !success {
+		return false, fmt.Errorf("failed to set component of type %v for entity with ID %d", t, entityID)
+	}
 	return true, nil
 }
+
+
 
 // Match returns a list of archetypes that match the required and excluded component types.
 // The `required` parameter specifies the component types that must be present in the archetype.
@@ -441,14 +552,23 @@ func (s *Service) location(entityID uint64) (location, Result) {
 	}
 }
 
-func validateComponentInput(types []reflect.Type, values []any) error {
-	if len(types) != len(values) {
-		return fmt.Errorf("mismatched number of types and values")
-	}
+func validateTypes(types []reflect.Type) error {
 	for i, t := range types {
 		if t == nil {
 			return fmt.Errorf("type at index %d is nil", i)
 		}
+	}
+	return nil
+}
+
+func validateComponentInput(types []reflect.Type, values []any) error {
+	if len(types) != len(values) {
+		return fmt.Errorf("mismatched number of types and values")
+	}
+	if err := validateTypes(types); err != nil {
+		return err
+	}
+	for i, t := range types {
 		v := reflect.ValueOf(values[i])
 		if !v.IsValid() || !v.Type().AssignableTo(t) {
 			return fmt.Errorf("value at index %d is not assignable to type %v", i, t)
