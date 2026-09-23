@@ -530,8 +530,6 @@ func (s *Service) SetComponent(entityID uint64, t reflect.Type, value any) (bool
 	return true, nil
 }
 
-
-
 // Match returns a list of archetypes that match the required and excluded component types.
 // The `required` parameter specifies the component types that must be present in the archetype.
 // The `excluded` parameter specifies the component types that must not be present in the archetype.
