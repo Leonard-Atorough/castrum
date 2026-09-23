@@ -13,7 +13,7 @@ import (
 )
 
 func TestRunnerDefaults(t *testing.T) {
-	r := New(castrum.New())
+	r, _ := New(mustGame())
 	if r.opts.Window != (Size{1280, 720}) {
 		t.Errorf("Window = %v, want 1280x720", r.opts.Window)
 	}
@@ -29,7 +29,7 @@ func TestRunnerDefaults(t *testing.T) {
 }
 
 func TestRunnerOptions(t *testing.T) {
-	r := New(castrum.New(),
+	r, _ := New(mustGame(),
 		WithWindowSize(1920, 1080),
 		WithLogicalSize(640, 360),
 		WithResizable(),
@@ -49,35 +49,44 @@ func TestRunnerOptions(t *testing.T) {
 	}
 }
 
-func TestInvalidRunnerOptionsPanic(t *testing.T) {
+func mustGame() *castrum.Game {
+	g, err := castrum.New()
+	if err != nil {
+		panic(err)
+	}
+	return g
+}
+
+func TestInvalidRunnerOptionsError(t *testing.T) {
 	cases := []struct {
 		name string
-		opt  option
+		opts []option
 	}{
-		{"zero window width", WithWindowSize(0, 600)},
-		{"zero window height", WithWindowSize(800, 0)},
-		{"zero logical size", WithLogicalSize(0, 0)},
+		{"zero window width", []option{WithWindowSize(0, 600)}},
+		{"zero window height", []option{WithWindowSize(800, 0)}},
+		{"zero logical size", []option{WithLogicalSize(0, 0)}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Errorf("%s: expected panic", c.name)
-				}
-			}()
-			New(castrum.New(), c.opt)
+			r, err := New(mustGame(), c.opts...)
+			if err == nil {
+				t.Errorf("%s: expected an error", c.name)
+			}
+			if r != nil {
+				t.Errorf("%s: New must not return a half-built runner", c.name)
+			}
 		})
 	}
 }
 
 func TestUpdateAdvancesGame(t *testing.T) {
-	g := castrum.New()
+	g := mustGame()
 	var frames int
 	g.AddSystem(core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
 		frames++
 		return nil
 	}))
-	r := New(g)
+	r, _ := New(g)
 
 	if err := r.Update(); err != nil {
 		t.Fatalf("Update: %v", err)
@@ -93,12 +102,12 @@ func TestUpdateAdvancesGame(t *testing.T) {
 }
 
 func TestDrawSetsAlphaAndDefersErrors(t *testing.T) {
-	g := castrum.New(castrum.WithFixedTPS(4)) // fixedDT = 250ms
-	g.Advance(100 * time.Millisecond)         // alpha = 0.4
+	g, _ := castrum.New(castrum.WithFixedTPS(4)) // fixedDT = 250ms
+	g.Advance(100 * time.Millisecond)            // alpha = 0.4
 
 	var gotAlpha = -1.0
 	boom := errors.New("draw boom")
-	r := New(g)
+	r, _ := New(g)
 	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
 		gotAlpha = ctx.Alpha
 		return nil

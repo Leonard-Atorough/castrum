@@ -379,3 +379,147 @@ func TestServiceErrorCases(t *testing.T) {
 		t.Error("Remove should fail for non-existent entity")
 	}
 }
+
+func TestStoreGetOrCreateVerifiesCollidingHash(t *testing.T) {
+	position := reflect.TypeFor[Position]()
+	velocity := reflect.TypeFor[Velocity]()
+
+	s := newArchetypes()
+	positionArchetype := s.getOrCreate(position)
+	// Simulate a collision: point the velocity key's hash at the wrong archetype.
+	velocityHash := newKey(velocity).hash()
+	s.byHash[velocityHash] = positionArchetype.ID()
+
+	velocityArchetype := s.getOrCreate(velocity)
+	if velocityArchetype == positionArchetype {
+		t.Fatal("getOrCreate returned the wrong archetype for a colliding hash")
+	}
+	if !velocityArchetype.Key().equals(newKey(velocity)) {
+		t.Fatalf("created archetype has key %v, want the velocity key", velocityArchetype.Key())
+	}
+	if s.getOrCreate(velocity) != velocityArchetype {
+		t.Fatal("repeat getOrCreate with a colliding key should resolve to the same archetype")
+	}
+}
+
+func TestStoreGetOrCreateScansPastShadowedHash(t *testing.T) {
+	position := reflect.TypeFor[Position]()
+	velocity := reflect.TypeFor[Velocity]()
+
+	s := newArchetypes()
+	positionArchetype := s.getOrCreate(position)
+	velocityArchetype := s.getOrCreate(velocity)
+	// Simulate a collision: both keys funnel through one hash slot that
+	// points at the wrong archetype for position.
+	s.byHash[newKey(position).hash()] = velocityArchetype.ID()
+
+	if s.getOrCreate(position) != positionArchetype {
+		t.Fatal("getOrCreate should scan past a shadowed hash registration")
+	}
+}
+
+func TestStoreCleanupEmptyPreservesCollidingRegistration(t *testing.T) {
+	position := reflect.TypeFor[Position]()
+	velocity := reflect.TypeFor[Velocity]()
+
+	s := newArchetypes()
+	positionArchetype := s.getOrCreate(position) // empty: eligible for cleanup
+	velocityArchetype := s.getOrCreate(velocity)
+	velocityArchetype.insertEntity(1) // survives cleanup
+	positionHash := newKey(position).hash()
+	s.byHash[positionHash] = velocityArchetype.ID() // collision: slot names another archetype
+
+	s.cleanupEmpty()
+
+	if _, ok := s.get(positionArchetype.ID()); ok {
+		t.Error("empty archetype should have been removed")
+	}
+	if s.byHash[positionHash] != velocityArchetype.ID() {
+		t.Error("cleanup must not unregister a hash slot naming another archetype")
+	}
+}
+
+func TestArchetypeColumnAliasesStorage(t *testing.T) {
+	position := reflect.TypeFor[Position]()
+	a := newArchetype(1, newKey(position))
+	index := a.insertEntity(7)
+	a.setComponent(index, position, Position{X: 3})
+
+	col := a.Column(position)
+	if len(col) != 1 || col[index].(Position).X != 3 {
+		t.Fatalf("column = %v, want the stored value", col)
+	}
+	col[index] = Position{X: 9}
+	if c := a.component(index, position); c.(Position).X != 9 {
+		t.Fatal("column must alias archetype storage without copying")
+	}
+}
+
+func TestArchetypeEachEntity(t *testing.T) {
+	position := reflect.TypeFor[Position]()
+	a := newArchetype(1, newKey(position))
+	a.insertEntity(3)
+	a.insertEntity(5)
+	a.insertEntity(7)
+
+	var seen []EntityID
+	a.EachEntity(func(index int, entityID EntityID) bool {
+		if index != len(seen) {
+			t.Fatalf("index = %d, want %d", index, len(seen))
+		}
+		seen = append(seen, entityID)
+		return true
+	})
+	if len(seen) != 3 || seen[0] != 3 || seen[1] != 5 || seen[2] != 7 {
+		t.Fatalf("eachEntity visited %v, want [3 5 7]", seen)
+	}
+
+	// Yielding false stops iteration.
+	seen = seen[:0]
+	a.EachEntity(func(index int, entityID EntityID) bool {
+		seen = append(seen, entityID)
+		return len(seen) < 2
+	})
+	if len(seen) != 2 {
+		t.Fatalf("eachEntity should stop on a false yield, visited %v", seen)
+	}
+}
+
+func TestServiceMatchIntoReusesCapacity(t *testing.T) {
+	position := reflect.TypeFor[Position]()
+	velocity := reflect.TypeFor[Velocity]()
+	health := reflect.TypeFor[Health]()
+
+	svc := NewService()
+	if err := svc.Create(1, []reflect.Type{position}, []any{Position{}}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := svc.Create(2, []reflect.Type{position, velocity}, []any{Position{}, Velocity{}}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	buf := svc.MatchInto(nil, []reflect.Type{position}, nil)
+	if len(buf) != 2 {
+		t.Fatalf("MatchInto found %d matches, want 2", len(buf))
+	}
+	first := &buf[0]
+
+	buf = svc.MatchInto(buf, []reflect.Type{position}, nil)
+	if len(buf) != 2 {
+		t.Fatalf("MatchInto found %d matches on reuse, want 2", len(buf))
+	}
+	if &buf[0] != first {
+		t.Fatal("MatchInto must reuse the buffer's backing array when capacity fits")
+	}
+
+	// A match with no results truncates the buffer correctly.
+	buf = svc.MatchInto(buf, []reflect.Type{position, health}, nil)
+	if len(buf) != 0 {
+		t.Fatalf("MatchInto found %d matches, want 0", len(buf))
+	}
+
+	// Match stays consistent with MatchInto for one-off use.
+	if got := svc.Match([]reflect.Type{position}, nil); len(got) != 2 {
+		t.Fatalf("Match found %d matches, want 2", len(got))
+	}
+}

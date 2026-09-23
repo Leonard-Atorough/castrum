@@ -49,6 +49,19 @@ func (k key) hash() hash {
 	return hash(h)
 }
 
+// equals reports whether two keys hold the same component types.
+func (k key) equals(other key) bool {
+	if len(k) != len(other) {
+		return false
+	}
+	for i := range k {
+		if k[i] != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func (k key) contains(t reflect.Type) bool {
 	return slices.Contains(k, t)
 }
@@ -80,19 +93,22 @@ func (k key) String() string {
 
 const initialColumnCapacity = 16
 
-type archetype struct {
+// Archetype represents a collection of entities that share the same set
+// of component types. Every column holds one slot per entity: column
+// length always equals the entity ID slice length.
+type Archetype struct {
 	archetypeID
 	key       key
 	entityIDs []EntityID
 	columns   map[reflect.Type][]any
 }
 
-func newArchetype(id archetypeID, key key) *archetype {
+func newArchetype(id archetypeID, key key) *Archetype {
 	columns := make(map[reflect.Type][]any, len(key))
 	for _, typ := range key {
 		columns[typ] = make([]any, 0, initialColumnCapacity)
 	}
-	return &archetype{
+	return &Archetype{
 		archetypeID: id,
 		key:         key,
 		entityIDs:   make([]EntityID, 0, initialColumnCapacity),
@@ -100,23 +116,29 @@ func newArchetype(id archetypeID, key key) *archetype {
 	}
 }
 
-func (a *archetype) ID() archetypeID {
+// ID returns the archetype's unique identifier.
+func (a *Archetype) ID() archetypeID {
 	return a.archetypeID
 }
 
-func (a *archetype) Key() key {
+// Key returns the archetype's component type set: the types shared by
+// every entity in the archetype.
+func (a *Archetype) Key() key {
 	return a.key
 }
 
-func (a *archetype) EntityIDs() []EntityID {
+// EntityIDs returns a copy of the archetype's entity ID list. Hot paths
+// should prefer EachEntity, which iterates the list in place.
+func (a *Archetype) EntityIDs() []EntityID {
 	return slices.Clone(a.entityIDs)
 }
 
-func (a *archetype) Len() int {
+// Len returns the number of entities in the archetype.
+func (a *Archetype) Len() int {
 	return len(a.entityIDs)
 }
 
-func (a *archetype) insertEntity(entityID EntityID) int {
+func (a *Archetype) insertEntity(entityID EntityID) int {
 	a.entityIDs = append(a.entityIDs, entityID)
 	for typ, col := range a.columns {
 		a.columns[typ] = append(col, nil)
@@ -124,7 +146,7 @@ func (a *archetype) insertEntity(entityID EntityID) int {
 	return len(a.entityIDs) - 1
 }
 
-func (a *archetype) removeEntity(index int) (movedID EntityID, moved bool) {
+func (a *Archetype) removeEntity(index int) (movedID EntityID, moved bool) {
 	lastIndex := len(a.entityIDs) - 1
 	if index < 0 || index > lastIndex {
 		return 0, false // 0 is the zero value for entityID
@@ -136,8 +158,6 @@ func (a *archetype) removeEntity(index int) (movedID EntityID, moved bool) {
 	}
 	a.entityIDs = a.entityIDs[:lastIndex]
 
-	// Columns always match entityIDs in length: swap the moved row down,
-	// then shrink every column.
 	for typ, col := range a.columns {
 		if index != lastIndex {
 			col[index] = col[lastIndex]
@@ -148,7 +168,7 @@ func (a *archetype) removeEntity(index int) (movedID EntityID, moved bool) {
 	return movedID, moved
 }
 
-func (a *archetype) setComponent(index int, typ reflect.Type, value any) bool {
+func (a *Archetype) setComponent(index int, typ reflect.Type, value any) bool {
 	if index < 0 {
 		return false
 	}
@@ -164,7 +184,7 @@ func (a *archetype) setComponent(index int, typ reflect.Type, value any) bool {
 	return true
 }
 
-func (a *archetype) component(index int, typ reflect.Type) any {
+func (a *Archetype) component(index int, typ reflect.Type) any {
 	if index < 0 {
 		return nil
 	}
@@ -175,15 +195,34 @@ func (a *archetype) component(index int, typ reflect.Type) any {
 	return col[index]
 }
 
+// Column returns the backing slice for typ without copying. The slice
+// aliases the archetype's storage: do not append to it, and do not hold it
+// across insertions, removals, or migrations, which can reallocate.
+func (a *Archetype) Column(typ reflect.Type) []any {
+	return a.columns[typ]
+}
+
+// EachEntity iterates the archetype's entities in place, yielding each
+// entity's index and ID without copying the ID slice. Iteration stops when
+// yield returns false.
+func (a *Archetype) EachEntity(yield func(index int, entityID EntityID) bool) {
+	for i, entityID := range a.entityIDs {
+		if !yield(i, entityID) {
+			return
+		}
+	}
+}
+
 type store struct {
-	archetypes map[archetypeID]*archetype
+	archetypes map[archetypeID]*Archetype
 	byHash     map[hash]archetypeID
+	generation uint64
 	nextID     archetypeID
 }
 
 func newArchetypes() *store {
 	return &store{
-		archetypes: make(map[archetypeID]*archetype),
+		archetypes: make(map[archetypeID]*Archetype),
 		byHash:     make(map[hash]archetypeID),
 		nextID:     1,
 	}
@@ -195,42 +234,58 @@ func (s *store) nextArchetypeID() archetypeID {
 	return id
 }
 
-func (s *store) getOrCreate(types ...reflect.Type) *archetype {
+func (s *store) getOrCreate(types ...reflect.Type) *Archetype {
 	key := newKey(types...)
 	hash := key.hash()
 	if id, ok := s.byHash[hash]; ok {
-		return s.archetypes[id]
+		if archetype := s.archetypes[id]; archetype.key.equals(key) {
+			return archetype
+		}
+
+		for _, archetype := range s.archetypes {
+			if archetype.key.equals(key) {
+				return archetype
+			}
+		}
 	}
 
 	id := s.nextArchetypeID()
 	archetype := newArchetype(id, key)
 	s.byHash[hash] = id
 	s.archetypes[id] = archetype
+	s.generation++
+
 	return archetype
 }
 
-func (s *store) get(id archetypeID) (*archetype, bool) {
+func (s *store) get(id archetypeID) (*Archetype, bool) {
 	archetype, ok := s.archetypes[id]
 	return archetype, ok
 }
 
-func (s *store) match(required []reflect.Type, excluded []reflect.Type) []*archetype {
-	var result []*archetype
+// matchInto appends the matching archetypes to buf, reusing its capacity,
+// and returns the possibly grown slice.
+func (s *store) matchInto(buf []*Archetype, required, excluded []reflect.Type) []*Archetype {
+	buf = buf[:0]
 	for _, archetype := range s.archetypes {
 		if archetype.Key().containsAll(required...) && archetype.Key().containsNone(excluded...) {
-			result = append(result, archetype)
+			buf = append(buf, archetype)
 		}
 	}
-	return result
+	return buf
 }
 
 func (s *store) cleanupEmpty() {
 	for id, archetype := range s.archetypes {
 		if archetype.Len() == 0 {
 			delete(s.archetypes, id)
-			delete(s.byHash, archetype.Key().hash())
+
+			if s.byHash[archetype.Key().hash()] == id {
+				delete(s.byHash, archetype.Key().hash())
+			}
 		}
 	}
+	s.generation++
 }
 
 func (s *store) Len() int {
@@ -521,11 +576,24 @@ func (s *Service) SetComponent(entityID EntityID, t reflect.Type, value any) err
 	return nil
 }
 
-// Match returns a list of archetypes that match the required and excluded component types.
-// The `required` parameter specifies the component types that must be present in the archetype.
-// The `excluded` parameter specifies the component types that must not be present in the archetype.
-func (s *Service) Match(required, excluded []reflect.Type) []*archetype {
-	return s.store.match(required, excluded)
+// Match returns the archetypes that match the required and excluded
+// component types. It allocates a new slice on every call; hot paths that
+// re-match repeatedly should prefer [Service.MatchInto] to reuse capacity.
+func (s *Service) Match(required, excluded []reflect.Type) []*Archetype {
+	return s.store.matchInto(nil, required, excluded)
+}
+
+// MatchInto appends the matching archetypes to buf, reusing its capacity,
+// and returns the possibly grown slice. Pass the returned slice back on
+// the next call to keep the capacity.
+func (s *Service) MatchInto(buf []*Archetype, required, excluded []reflect.Type) []*Archetype {
+	return s.store.matchInto(buf, required, excluded)
+}
+
+// Generation returns the current generation of the underlying store.
+// It can be used to track changes in the store and detect if any modifications have occurred.
+func (s *Service) Generation() uint64 {
+	return s.store.generation
 }
 
 func (s *Service) location(entityID EntityID) (Location, error) {

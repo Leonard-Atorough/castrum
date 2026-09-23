@@ -68,13 +68,29 @@ type Runner struct {
 	drawErr error
 }
 
-// New creates the Runner for g, applying opts over defaults.
-func New(g *castrum.Game, opts ...option) *Runner {
+// New creates the Runner for g, applying opts over defaults. The option
+// constructors never fail; all validation happens here in a single pass.
+func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	options := defaultOptions()
 	for _, o := range opts {
 		o.apply(&options)
 	}
-	return &Runner{g: g, opts: options, last: time.Now()}
+	if err := options.validate(); err != nil {
+		return nil, err
+	}
+	return &Runner{g: g, opts: options, last: time.Now()}, nil
+}
+
+// validate checks the converged options. It is the single owner of
+// validation: the option constructors are dumb setters.
+func (o *Options) validate() error {
+	if o.Window.Width <= 0 || o.Window.Height <= 0 {
+		return fmt.Errorf("castrum/ebiten: window size %dx%d is not positive", o.Window.Width, o.Window.Height)
+	}
+	if o.Logical.Width <= 0 || o.Logical.Height <= 0 {
+		return fmt.Errorf("castrum/ebiten: logical size %dx%d is not positive", o.Logical.Width, o.Logical.Height)
+	}
+	return nil
 }
 
 // AddDraw registers a draw system. DrawFuncs run in registration order.
@@ -142,21 +158,16 @@ func (r *Runner) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return r.opts.Logical.Width, r.opts.Logical.Height
 }
 
-// WithWindowSize sets the window size in pixels. Panics if not positive.
+// WithWindowSize sets the window size in pixels. Default is 1280x720.
+// Invalid values are reported by [New].
 func WithWindowSize(width, height int) option {
-	return optionFunc(func(o *Options) {
-		mustBePositive("WithWindowSize", width, height)
-		o.Window = Size{Width: width, Height: height}
-	})
+	return optionFunc(func(o *Options) { o.Window = Size{Width: width, Height: height} })
 }
 
-// WithLogicalSize sets the internal render resolution in pixels. Panics if
-// not positive.
+// WithLogicalSize sets the internal render resolution in pixels.
+// Default is 1280x720. Invalid values are reported by [New].
 func WithLogicalSize(width, height int) option {
-	return optionFunc(func(o *Options) {
-		mustBePositive("WithLogicalSize", width, height)
-		o.Logical = Size{Width: width, Height: height}
-	})
+	return optionFunc(func(o *Options) { o.Logical = Size{Width: width, Height: height} })
 }
 
 // WithResizable enables window resizing. Default is a fixed-size window.
@@ -167,12 +178,4 @@ func WithResizable() option {
 // WithoutVSync disables vsync. Default is on.
 func WithoutVSync() option {
 	return optionFunc(func(o *Options) { o.VSync = false })
-}
-
-func mustBePositive(name string, values ...int) {
-	for _, v := range values {
-		if v <= 0 {
-			panic(fmt.Sprintf("castrum/ebiten: %s: values must be positive, got %d", name, v))
-		}
-	}
 }

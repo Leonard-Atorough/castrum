@@ -33,14 +33,22 @@ import (
 )
 
 func main() {
-	game := castrum.New(castrum.WithTitle("Hello, Castrum"))
+	game, err := castrum.New(castrum.WithTitle("Hello, Castrum"))
+	if err != nil {
+		panic(err)
+	}
 
-	game.AddSystem(core.PhaseFixed, "hello", core.SystemFunc(func(ctx *core.Context) error {
+	if err := game.AddSystem(core.PhaseFixed, "hello", core.SystemFunc(func(ctx *core.Context) error {
 		// Game logic runs here, at a fixed rate.
 		return nil
-	}))
+	})); err != nil {
+		panic(err)
+	}
 
-	runner := ebitrun.New(game)
+	runner, err := ebitrun.New(game)
+	if err != nil {
+		panic(err)
+	}
 
 	// typically not required, the runner registers a default draw function automatically.
 	// you can omit this if you don't need a custom draw function.

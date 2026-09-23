@@ -66,32 +66,42 @@ func defaultOptions() Options {
 	}
 }
 
-// New creates a Game from defaults overridden by opts. Invalid values
-// panic: registration is a build-time error by design, and the stack points
-// at the offending constructor.
-func New(opts ...option) *Game {
+// New creates a Game from defaults overridden by opts. The option
+// constructors never fail; all validation happens here in a single pass,
+// and New returns an error for invalid values, leaving no half-built
+// game behind.
+func New(opts ...option) (*Game, error) {
 	options := defaultOptions()
 	for _, o := range opts {
 		o.apply(&options)
 	}
-	options.finalize()
+	if err := options.finalize(); err != nil {
+		return nil, err
+	}
 	g := &Game{
 		opts:      options,
 		world:     core.NewWorld(),
 		schedules: map[core.Phase]*runtime.Schedule[core.System]{},
 	}
 	g.ctx.World = g.world
-	return g
+	return g, nil
 }
 
-// finalize derives dependent values and enforces cross-field invariants.
-// Per-field validation lives in the option constructors; this is the
-// single owner of derived state.
-func (o *Options) finalize() {
+func (o *Options) finalize() error {
+	if o.FixedTPS <= 0 {
+		return fmt.Errorf("castrum: FixedTPS = %d, want > 0", o.FixedTPS)
+	}
+	if o.MaxFrameTime <= 0 {
+		return fmt.Errorf("castrum: MaxFrameTime = %v, want > 0", o.MaxFrameTime)
+	}
+	if o.MaxTicksPerFrame <= 0 {
+		return fmt.Errorf("castrum: MaxTicksPerFrame = %d, want > 0", o.MaxTicksPerFrame)
+	}
 	o.fixedDT = time.Second / time.Duration(o.FixedTPS)
 	if o.fixedDT <= 0 {
-		panic(fmt.Sprintf("castrum: FixedTPS %d yields a non-representable tick interval", o.FixedTPS))
+		return fmt.Errorf("castrum: FixedTPS %d yields a non-representable tick interval", o.FixedTPS)
 	}
+	return nil
 }
 
 // Options returns a copy of the converged configuration. The runner reads
@@ -216,34 +226,21 @@ func WithTitle(title string) option {
 }
 
 // WithFixedTPS sets the fixed simulation rate in ticks per second.
-// Panics if not positive. Default is 60.
+// Default is 60. Invalid values are reported by [New].
 func WithFixedTPS(tps int) option {
-	return optionFunc(func(o *Options) {
-		if tps <= 0 {
-			panic(fmt.Sprintf("castrum: WithFixedTPS: got %d, want > 0", tps))
-		}
-		o.FixedTPS = tps
-	})
+	return optionFunc(func(o *Options) { o.FixedTPS = tps })
 }
 
 // WithMaxFrameTime sets the per-frame accumulator clamp, the
-// spiral-of-death guard. Default is 250ms.
+// spiral-of-death guard. Default is 250ms. Invalid values are reported
+// by [New].
 func WithMaxFrameTime(d time.Duration) option {
-	return optionFunc(func(o *Options) {
-		if d <= 0 {
-			panic(fmt.Sprintf("castrum: WithMaxFrameTime: got %v, want > 0", d))
-		}
-		o.MaxFrameTime = d
-	})
+	return optionFunc(func(o *Options) { o.MaxFrameTime = d })
 }
 
 // WithMaxTicksPerFrame sets how many fixed ticks may run in one display
 // frame before excess accumulated time is dropped. Default is 5.
+// Invalid values are reported by [New].
 func WithMaxTicksPerFrame(n int) option {
-	return optionFunc(func(o *Options) {
-		if n <= 0 {
-			panic(fmt.Sprintf("castrum: WithMaxTicksPerFrame: got %d, want > 0", n))
-		}
-		o.MaxTicksPerFrame = n
-	})
+	return optionFunc(func(o *Options) { o.MaxTicksPerFrame = n })
 }

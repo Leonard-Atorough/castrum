@@ -25,7 +25,7 @@ func TestKillMarksEntityDead(t *testing.T) {
 
 func TestComponentRoundTrip(t *testing.T) {
 	w := NewWorld()
-	e := w.NewEntity(position{x: 1, y: 2}, velocity{dx: 3, dy: 4})
+	e, _ := w.NewEntity(position{x: 1, y: 2}, velocity{dx: 3, dy: 4})
 
 	p, ok := e.Component[position](w)
 	if !ok || p != (position{x: 1, y: 2}) {
@@ -41,7 +41,7 @@ func TestComponentRoundTrip(t *testing.T) {
 
 func TestHasComponent(t *testing.T) {
 	w := NewWorld()
-	e := w.NewEntity(position{})
+	e, _ := w.NewEntity(position{})
 	if !e.HasComponent[position](w) {
 		t.Error("HasComponent[position] = false, want true")
 	}
@@ -52,7 +52,7 @@ func TestHasComponent(t *testing.T) {
 
 func TestSetComponent(t *testing.T) {
 	w := NewWorld()
-	e := w.NewEntity(position{x: 1})
+	e, _ := w.NewEntity(position{x: 1})
 
 	if err := e.SetComponent(w, position{x: 9}); err != nil {
 		t.Fatalf("SetComponent: %v", err)
