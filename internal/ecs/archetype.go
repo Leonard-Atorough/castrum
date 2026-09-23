@@ -13,7 +13,9 @@ const (
 	fnvPrime64       = 1099511628211
 )
 
-type id uint64
+type archetypeID uint64
+
+type EntityID uint64
 
 type key []reflect.Type
 
@@ -79,34 +81,34 @@ func (k key) String() string {
 const initialColumnCapacity = 16
 
 type archetype struct {
-	id
+	archetypeID
 	key       key
-	entityIDs []uint64
+	entityIDs []EntityID
 	columns   map[reflect.Type][]any
 }
 
-func newArchetype(id id, key key) *archetype {
+func newArchetype(id archetypeID, key key) *archetype {
 	columns := make(map[reflect.Type][]any, len(key))
 	for _, typ := range key {
 		columns[typ] = make([]any, 0, initialColumnCapacity)
 	}
 	return &archetype{
-		id:        id,
-		key:       key,
-		entityIDs: make([]uint64, 0, initialColumnCapacity),
-		columns:   columns,
+		archetypeID: id,
+		key:         key,
+		entityIDs:   make([]EntityID, 0, initialColumnCapacity),
+		columns:     columns,
 	}
 }
 
-func (a *archetype) ID() id {
-	return a.id
+func (a *archetype) ID() archetypeID {
+	return a.archetypeID
 }
 
 func (a *archetype) Key() key {
 	return a.key
 }
 
-func (a *archetype) EntityIDs() []uint64 {
+func (a *archetype) EntityIDs() []EntityID {
 	return slices.Clone(a.entityIDs)
 }
 
@@ -114,7 +116,7 @@ func (a *archetype) Len() int {
 	return len(a.entityIDs)
 }
 
-func (a *archetype) insertEntity(entityID uint64) int {
+func (a *archetype) insertEntity(entityID EntityID) int {
 	a.entityIDs = append(a.entityIDs, entityID)
 	for typ, col := range a.columns {
 		a.columns[typ] = append(col, nil)
@@ -122,10 +124,10 @@ func (a *archetype) insertEntity(entityID uint64) int {
 	return len(a.entityIDs) - 1
 }
 
-func (a *archetype) removeEntity(index int) (movedID uint64, moved bool) {
+func (a *archetype) removeEntity(index int) (movedID EntityID, moved bool) {
 	lastIndex := len(a.entityIDs) - 1
 	if index < 0 || index > lastIndex {
-		return 0, false
+		return 0, false // 0 is the zero value for entityID
 	}
 	if index != lastIndex {
 		a.entityIDs[index] = a.entityIDs[lastIndex]
@@ -174,20 +176,20 @@ func (a *archetype) component(index int, typ reflect.Type) any {
 }
 
 type store struct {
-	archetypes map[id]*archetype
-	byHash     map[hash]id
-	nextID     id
+	archetypes map[archetypeID]*archetype
+	byHash     map[hash]archetypeID
+	nextID     archetypeID
 }
 
 func newArchetypes() *store {
 	return &store{
-		archetypes: make(map[id]*archetype),
-		byHash:     make(map[hash]id),
+		archetypes: make(map[archetypeID]*archetype),
+		byHash:     make(map[hash]archetypeID),
 		nextID:     1,
 	}
 }
 
-func (s *store) nextArchetypeID() id {
+func (s *store) nextArchetypeID() archetypeID {
 	id := s.nextID
 	s.nextID++
 	return id
@@ -207,7 +209,7 @@ func (s *store) getOrCreate(types ...reflect.Type) *archetype {
 	return archetype
 }
 
-func (s *store) get(id id) (*archetype, bool) {
+func (s *store) get(id archetypeID) (*archetype, bool) {
 	archetype, ok := s.archetypes[id]
 	return archetype, ok
 }
@@ -235,10 +237,10 @@ func (s *store) Len() int {
 	return len(s.archetypes)
 }
 
-// location represents the position of an entity within an archetype,
+// Location represents the position of an entity within an archetype,
 // including the archetype ID and the index within that archetype.
-type location struct {
-	ArchetypeID id
+type Location struct {
+	ArchetypeID archetypeID
 	Index       int
 }
 
@@ -247,9 +249,7 @@ type Result struct {
 	// Moved indicates if the entity was moved to a different archetype as a result of the operation.
 	Moved bool
 	// MovedID is the ID of the entity that was moved, if any.
-	MovedID uint64
-	// Success indicates if the operation was successful.
-	Success bool
+	MovedID EntityID
 	// Error contains any error encountered during the operation.
 	Error error
 }
@@ -258,32 +258,26 @@ type Result struct {
 // managing their locations and archetypes.
 type Service struct {
 	store     *store
-	locations map[uint64]location
+	locations map[EntityID]Location
 }
 
 // NewService initializes and returns a new Service instance with an empty store and location map.
 func NewService() *Service {
 	return &Service{
 		store:     newArchetypes(),
-		locations: make(map[uint64]location),
+		locations: make(map[EntityID]Location),
 	}
 }
 
 // Create adds a new entity with the specified components to the ECS.
 // It returns a [Result] indicating the success or failure of the operation.
-func (s *Service) Create(entityID uint64, types []reflect.Type, values []any) Result {
+func (s *Service) Create(entityID EntityID, types []reflect.Type, values []any) error {
 	if err := validateComponentInput(types, values); err != nil {
-		return Result{
-			Success: false,
-			Error:   err,
-		}
+		return err
 	}
 
 	if _, exists := s.locations[entityID]; exists {
-		return Result{
-			Success: false,
-			Error:   fmt.Errorf("entity with ID %d already exists", entityID),
-		}
+		return fmt.Errorf("entity with ID %d already exists", entityID)
 	}
 
 	arch := s.store.getOrCreate(types...)
@@ -291,37 +285,36 @@ func (s *Service) Create(entityID uint64, types []reflect.Type, values []any) Re
 	for i, t := range types {
 		arch.setComponent(index, t, values[i])
 	}
-	s.locations[entityID] = location{
+	s.locations[entityID] = Location{
 		ArchetypeID: arch.ID(),
 		Index:       index,
 	}
-	return Result{
-		Success: true,
-	}
+	return nil
 
 }
 
 // Destroy deletes the entity with the specified ID from the ECS.
 // It returns a [Result] indicating the success or failure of the operation,
 // and whether the entity was moved within its archetype as a result of the removal.
-func (s *Service) Destroy(entityID uint64) Result {
-	loc, res := s.location(entityID)
-	if !res.Success {
-		return res
+func (s *Service) Destroy(entityID EntityID) Result {
+	loc, err := s.location(entityID)
+	if err != nil {
+		return Result{
+			Error: err,
+		}
 	}
 
 	arch, ok := s.store.get(loc.ArchetypeID)
 	if !ok {
 		return Result{
-			Success: false,
-			Error:   fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID),
+			Error: fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID),
 		}
 	}
 
 	movedID, moved := arch.removeEntity(loc.Index)
 	delete(s.locations, entityID)
 	if moved {
-		s.locations[movedID] = location{
+		s.locations[movedID] = Location{
 			ArchetypeID: loc.ArchetypeID,
 			Index:       loc.Index,
 		}
@@ -331,7 +324,6 @@ func (s *Service) Destroy(entityID uint64) Result {
 	return Result{
 		Moved:   moved,
 		MovedID: movedID,
-		Success: true,
 	}
 }
 
@@ -342,24 +334,24 @@ func (s *Service) Destroy(entityID uint64) Result {
 //
 // It returns a [Result] reporting whether the entity migrated; Moved and
 // MovedID refer to the target entity, not to swap-removal bookkeeping.
-func (s *Service) AddComponents(entityID uint64, types []reflect.Type, values []any) Result {
+func (s *Service) AddComponents(entityID EntityID, types []reflect.Type, values []any) Result {
 	if err := validateComponentInput(types, values); err != nil {
 		return Result{
-			Success: false,
-			Error:   err,
+			Error: err,
 		}
 	}
 
-	loc, res := s.location(entityID)
-	if !res.Success {
-		return res
+	loc, err := s.location(entityID)
+	if err != nil {
+		return Result{
+			Error: err,
+		}
 	}
 
 	from, ok := s.store.get(loc.ArchetypeID)
 	if !ok {
 		return Result{
-			Success: false,
-			Error:   fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID),
+			Error: fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID),
 		}
 	}
 
@@ -367,7 +359,7 @@ func (s *Service) AddComponents(entityID uint64, types []reflect.Type, values []
 		for i, t := range types {
 			from.setComponent(loc.Index, t, values[i])
 		}
-		return Result{Success: true}
+		return Result{}
 	}
 
 	oldKey := from.key
@@ -378,7 +370,7 @@ func (s *Service) AddComponents(entityID uint64, types []reflect.Type, values []
 
 	movedID, moved := from.removeEntity(loc.Index)
 	if moved {
-		s.locations[movedID] = location{
+		s.locations[movedID] = Location{
 			ArchetypeID: loc.ArchetypeID,
 			Index:       loc.Index,
 		}
@@ -392,7 +384,7 @@ func (s *Service) AddComponents(entityID uint64, types []reflect.Type, values []
 	for i, t := range types {
 		to.setComponent(newIndex, t, values[i])
 	}
-	s.locations[entityID] = location{
+	s.locations[entityID] = Location{
 		ArchetypeID: to.ID(),
 		Index:       newIndex,
 	}
@@ -400,7 +392,6 @@ func (s *Service) AddComponents(entityID uint64, types []reflect.Type, values []
 	s.store.cleanupEmpty()
 
 	return Result{
-		Success: true,
 		Moved:   true,
 		MovedID: entityID,
 	}
@@ -413,30 +404,30 @@ func (s *Service) AddComponents(entityID uint64, types []reflect.Type, values []
 //
 // It returns a [Result] reporting whether the entity migrated; Moved and
 // MovedID refer to the target entity, not to swap-removal bookkeeping.
-func (s *Service) RemoveComponents(entityID uint64, types []reflect.Type) Result {
+func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Result {
 	if err := validateTypes(types); err != nil {
 		return Result{
-			Success: false,
-			Error:   err,
+			Error: err,
 		}
 	}
 
-	loc, res := s.location(entityID)
-	if !res.Success {
-		return res
+	loc, err := s.location(entityID)
+	if err != nil {
+		return Result{
+			Error: err,
+		}
 	}
 
 	from, ok := s.store.get(loc.ArchetypeID)
 	if !ok {
 		return Result{
-			Success: false,
-			Error:   fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID),
+			Error: fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID),
 		}
 	}
 
 	// Fast path: nothing to remove, nothing migrates.
 	if from.key.containsNone(types...) {
-		return Result{Success: true}
+		return Result{}
 	}
 
 	remaining := make(key, 0, from.key.Len())
@@ -454,7 +445,7 @@ func (s *Service) RemoveComponents(entityID uint64, types []reflect.Type) Result
 
 	movedID, moved := from.removeEntity(loc.Index)
 	if moved {
-		s.locations[movedID] = location{
+		s.locations[movedID] = Location{
 			ArchetypeID: loc.ArchetypeID,
 			Index:       loc.Index,
 		}
@@ -465,7 +456,7 @@ func (s *Service) RemoveComponents(entityID uint64, types []reflect.Type) Result
 	for i, t := range remaining {
 		to.setComponent(newIndex, t, oldValues[i])
 	}
-	s.locations[entityID] = location{
+	s.locations[entityID] = Location{
 		ArchetypeID: to.ID(),
 		Index:       newIndex,
 	}
@@ -473,7 +464,6 @@ func (s *Service) RemoveComponents(entityID uint64, types []reflect.Type) Result
 	s.store.cleanupEmpty()
 
 	return Result{
-		Success: true,
 		Moved:   true,
 		MovedID: entityID,
 	}
@@ -481,18 +471,19 @@ func (s *Service) RemoveComponents(entityID uint64, types []reflect.Type) Result
 
 // Component retrieves the value of a specific component for the given entity.
 // If the component is not found or the entity does not exist, an error is returned.
-func (s *Service) Component(entityID uint64, t reflect.Type) (any, error) {
-	val, res := s.resolveComponent(entityID, t)
-	if !res.Success {
-		return nil, res.Error
+func (s *Service) Component(entityID EntityID, t reflect.Type) (any, bool) {
+	val, err := s.resolveComponent(entityID, t)
+	if err != nil {
+		return nil, false
 	}
-	return val, nil
+
+	return val, true
 }
 
 // HasComponent reports whether the given entity has a specific component.
 // It returns false if the entity does not exist or does not have the
 // component.
-func (s *Service) HasComponent(entityID uint64, t reflect.Type) bool {
+func (s *Service) HasComponent(entityID EntityID, t reflect.Type) bool {
 	loc, exists := s.locations[entityID]
 	if !exists {
 		return false
@@ -507,27 +498,27 @@ func (s *Service) HasComponent(entityID uint64, t reflect.Type) bool {
 }
 
 // SetComponent sets the value of a specific component for the given entity.
-// It returns a boolean indicating success and an error if the operation failed.
-func (s *Service) SetComponent(entityID uint64, t reflect.Type, value any) (bool, error) {
-	loc, res := s.location(entityID)
-	if !res.Success {
-		return false, res.Error
+// It returns an error if the operation failed.
+func (s *Service) SetComponent(entityID EntityID, t reflect.Type, value any) error {
+	loc, err := s.location(entityID)
+	if err != nil {
+		return err
 	}
 
 	arch, ok := s.store.get(loc.ArchetypeID)
 	if !ok {
-		return false, fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID)
+		return fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID)
 	}
 
 	if arch.component(loc.Index, t) == nil {
-		return false, fmt.Errorf("component of type %v not found for entity with ID %d", t, entityID)
+		return fmt.Errorf("component of type %v not found for entity with ID %d", t, entityID)
 	}
 
 	success := arch.setComponent(loc.Index, t, value)
 	if !success {
-		return false, fmt.Errorf("failed to set component of type %v for entity with ID %d", t, entityID)
+		return fmt.Errorf("failed to set component of type %v for entity with ID %d", t, entityID)
 	}
-	return true, nil
+	return nil
 }
 
 // Match returns a list of archetypes that match the required and excluded component types.
@@ -537,17 +528,15 @@ func (s *Service) Match(required, excluded []reflect.Type) []*archetype {
 	return s.store.match(required, excluded)
 }
 
-func (s *Service) location(entityID uint64) (location, Result) {
+func (s *Service) location(entityID EntityID) (Location, error) {
 	loc, exists := s.locations[entityID]
 	if !exists {
-		return location{}, Result{
-			Success: false,
-			Error:   fmt.Errorf("entity with ID %d not found", entityID),
-		}
+		return Location{}, fmt.Errorf("entity with ID %d not found", entityID)
 	}
-	return loc, Result{
-		Success: true,
-	}
+	return Location{
+		ArchetypeID: loc.ArchetypeID,
+		Index:       loc.Index,
+	}, nil
 }
 
 func validateTypes(types []reflect.Type) error {
@@ -575,29 +564,21 @@ func validateComponentInput(types []reflect.Type, values []any) error {
 	return nil
 }
 
-func (s *Service) resolveComponent(entityID uint64, t reflect.Type) (any, Result) {
-	loc, res := s.location(entityID)
-	if !res.Success {
-		return nil, res
+func (s *Service) resolveComponent(entityID EntityID, t reflect.Type) (any, error) {
+	loc, err := s.location(entityID)
+	if err != nil {
+		return nil, err
 	}
 
 	arch, ok := s.store.get(loc.ArchetypeID)
 	if !ok {
-		return nil, Result{
-			Success: false,
-			Error:   fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID),
-		}
+		return nil, fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID)
 	}
 
 	value := arch.component(loc.Index, t)
 	if value == nil {
-		return nil, Result{
-			Success: false,
-			Error:   fmt.Errorf("component of type %v not found for entity with ID %d", t, entityID),
-		}
+		return nil, fmt.Errorf("component of type %v not found for entity with ID %d", t, entityID)
 	}
 
-	return value, Result{
-		Success: true,
-	}
+	return value, nil
 }
