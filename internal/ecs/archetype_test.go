@@ -14,7 +14,7 @@ func TestServiceCreateAndComponent(t *testing.T) {
 	svc := NewService()
 
 	// Create entity with Position and Velocity
-	result := svc.Create(1, []reflect.Type{
+	err := svc.Create(1, []reflect.Type{
 		reflect.TypeFor[Position](),
 		reflect.TypeFor[Velocity](),
 	}, []any{
@@ -22,14 +22,14 @@ func TestServiceCreateAndComponent(t *testing.T) {
 		Velocity{X: 1, Y: 2},
 	})
 
-	if !result.Success {
-		t.Fatalf("Create failed: %v", result.Error)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
 	}
 
 	// Test Component retrieval
-	pos, error := svc.Component(1, reflect.TypeFor[Position]())
-	if error != nil {
-		t.Fatalf("Component failed: %v", error)
+	pos, ok := svc.Component(1, reflect.TypeFor[Position]())
+	if !ok {
+		t.Fatalf("Component failed: %v", ok)
 	}
 	if p, ok := pos.(Position); !ok || p.X != 10 || p.Y != 20 {
 		t.Errorf("Got wrong position: %+v", pos)
@@ -63,7 +63,7 @@ func TestServiceAddComponents(t *testing.T) {
 	}, []any{
 		Position{X: 30, Y: 40},
 	})
-	if !result.Success {
+	if result.Error != nil {
 		t.Fatalf("AddComponents failed: %v", result.Error)
 	}
 	if result.Moved {
@@ -81,7 +81,7 @@ func TestServiceAddComponents(t *testing.T) {
 	}, []any{
 		Velocity{X: 3, Y: 4},
 	})
-	if !result.Success {
+	if result.Error != nil {
 		t.Fatalf("AddComponents migration failed: %v", result.Error)
 	}
 	if !result.Moved || result.MovedID != 1 {
@@ -117,7 +117,7 @@ func TestServiceAddComponents(t *testing.T) {
 	}, []any{
 		Velocity{X: 5, Y: 6},
 	})
-	if !result.Success {
+	if result.Error != nil {
 		t.Fatalf("AddComponents to pre-existing archetype failed: %v", result.Error)
 	}
 	if !result.Moved {
@@ -131,7 +131,7 @@ func TestServiceAddComponents(t *testing.T) {
 
 	// Non-existent entity
 	result = svc.AddComponents(999, []reflect.Type{reflect.TypeFor[Position]()}, []any{Position{X: 1}})
-	if result.Success {
+	if result.Error == nil {
 		t.Error("AddComponents should fail for non-existent entity")
 	}
 }
@@ -147,13 +147,13 @@ func TestServiceAddComponentsSwapFixup(t *testing.T) {
 	svc.Create(3, []reflect.Type{reflect.TypeFor[Position]()}, []any{Position{X: 3}})
 
 	result := svc.AddComponents(1, []reflect.Type{reflect.TypeFor[Velocity]()}, []any{Velocity{X: 0}})
-	if !result.Success {
+	if result.Error != nil {
 		t.Fatalf("AddComponents failed: %v", result.Error)
 	}
 
-	pos, err := svc.Component(3, reflect.TypeFor[Position]())
-	if err != nil {
-		t.Fatalf("Swapped entity 3 unreadable: %v", err)
+	pos, ok := svc.Component(3, reflect.TypeFor[Position]())
+	if !ok {
+		t.Fatalf("Swapped entity 3 unreadable: %v", ok)
 	}
 	if p, ok := pos.(Position); !ok || p.X != 3 {
 		t.Errorf("Swapped entity 3 has wrong data: %+v", pos)
@@ -173,7 +173,7 @@ func TestServiceRemoveComponents(t *testing.T) {
 
 	// Migration: removed component gone, remaining values preserved
 	result := svc.RemoveComponents(1, []reflect.Type{reflect.TypeFor[Velocity]()})
-	if !result.Success {
+	if result.Error != nil {
 		t.Fatalf("RemoveComponents failed: %v", result.Error)
 	}
 	if !result.Moved || result.MovedID != 1 {
@@ -190,7 +190,7 @@ func TestServiceRemoveComponents(t *testing.T) {
 
 	// Fast path: removing a component the entity doesn't have is a no-op
 	result = svc.RemoveComponents(1, []reflect.Type{reflect.TypeFor[Health]()})
-	if !result.Success {
+	if result.Error != nil {
 		t.Fatalf("RemoveComponents no-op failed: %v", result.Error)
 	}
 	if result.Moved {
@@ -199,26 +199,26 @@ func TestServiceRemoveComponents(t *testing.T) {
 
 	// Removing all components leaves the entity in an empty archetype
 	result = svc.RemoveComponents(1, []reflect.Type{reflect.TypeFor[Position]()})
-	if !result.Success {
+	if result.Error != nil {
 		t.Fatalf("RemoveComponents failed: %v", result.Error)
 	}
 	if svc.HasComponent(1, reflect.TypeFor[Position]()) {
 		t.Error("Position should be removed")
 	}
-	if _, err := svc.Component(1, reflect.TypeFor[Position]()); err == nil {
+	if _, ok := svc.Component(1, reflect.TypeFor[Position]()); ok {
 		t.Error("Component should fail on empty archetype")
 	}
-	if result := svc.Destroy(1); !result.Success {
+	if result := svc.Destroy(1); result.Error != nil {
 		t.Error("Bare entity should still be destroyable")
 	}
 
 	// Non-existent entity
-	if result := svc.RemoveComponents(999, []reflect.Type{reflect.TypeFor[Position]()}); result.Success {
+	if result := svc.RemoveComponents(999, []reflect.Type{reflect.TypeFor[Position]()}); result.Error == nil {
 		t.Error("RemoveComponents should fail for non-existent entity")
 	}
 
 	// Nil type
-	if result := svc.RemoveComponents(1, []reflect.Type{nil}); result.Success {
+	if result := svc.RemoveComponents(1, []reflect.Type{nil}); result.Error == nil {
 		t.Error("RemoveComponents should fail for nil type")
 	}
 }
@@ -240,13 +240,13 @@ func TestServiceRemoveComponentsSwapFixup(t *testing.T) {
 	}, []any{Position{X: 3}, Velocity{X: 3}})
 
 	result := svc.RemoveComponents(1, []reflect.Type{reflect.TypeFor[Velocity]()})
-	if !result.Success {
+	if result.Error != nil {
 		t.Fatalf("RemoveComponents failed: %v", result.Error)
 	}
 
-	pos, err := svc.Component(3, reflect.TypeFor[Position]())
-	if err != nil {
-		t.Fatalf("Swapped entity 3 unreadable: %v", err)
+	pos, ok := svc.Component(3, reflect.TypeFor[Position]())
+	if !ok {
+		t.Fatalf("Swapped entity 3 unreadable: %v", ok)
 	}
 	if p, ok := pos.(Position); !ok || p.X != 3 {
 		t.Errorf("Swapped entity 3 has wrong data: %+v", pos)
@@ -263,7 +263,7 @@ func TestServiceRemove(t *testing.T) {
 
 	// Remove middle entity
 	result := svc.Destroy(2)
-	if !result.Success {
+	if result.Error != nil {
 		t.Fatalf("Remove failed: %v", result.Error)
 	}
 
@@ -323,9 +323,9 @@ func TestServiceSetComponent(t *testing.T) {
 	}, []any{Position{X: 10, Y: 20}})
 
 	// Update existing component
-	success, error := svc.SetComponent(1, reflect.TypeFor[Position](), Position{X: 30, Y: 40})
-	if !success {
-		t.Fatalf("SetComponent failed: %v", error)
+	err := svc.SetComponent(1, reflect.TypeFor[Position](), Position{X: 30, Y: 40})
+	if err != nil {
+		t.Fatalf("SetComponent failed: %v", err)
 	}
 
 	pos, _ := svc.Component(1, reflect.TypeFor[Position]())
@@ -334,8 +334,8 @@ func TestServiceSetComponent(t *testing.T) {
 	}
 
 	// Try to set non-existent component
-	success, error = svc.SetComponent(1, reflect.TypeFor[Velocity](), Velocity{X: 1, Y: 1})
-	if success {
+	err = svc.SetComponent(1, reflect.TypeFor[Velocity](), Velocity{X: 1, Y: 1})
+	if err == nil {
 		t.Error("SetComponent should fail for non-existent component type")
 	}
 }
@@ -344,38 +344,38 @@ func TestServiceErrorCases(t *testing.T) {
 	svc := NewService()
 
 	// Create with mismatched types/values
-	result := svc.Create(1, []reflect.Type{
+	err := svc.Create(1, []reflect.Type{
 		reflect.TypeFor[Position](),
 		reflect.TypeFor[Velocity](),
 	}, []any{
 		Position{X: 1}, // Missing second value
 	})
-	if result.Success {
+	if err == nil {
 		t.Error("Create should fail with mismatched types/values")
 	}
 
 	// Create duplicate entity
-	svc.Create(1, []reflect.Type{reflect.TypeFor[Position]()}, []any{Position{X: 1}})
-	result = svc.Create(1, []reflect.Type{reflect.TypeFor[Position]()}, []any{Position{X: 2}})
-	if result.Success {
+	err = svc.Create(1, []reflect.Type{reflect.TypeFor[Position]()}, []any{Position{X: 1}})
+	err = svc.Create(1, []reflect.Type{reflect.TypeFor[Position]()}, []any{Position{X: 2}})
+	if err == nil {
 		t.Error("Create should fail for duplicate entity ID")
 	}
 
 	// Component on non-existent entity
-	_, error := svc.Component(999, reflect.TypeFor[Position]())
-	if error == nil {
+	_, ok := svc.Component(999, reflect.TypeFor[Position]())
+	if ok {
 		t.Error("Component should fail for non-existent entity")
 	}
 
 	// Update non-existent entity
-	result = svc.AddComponents(999, []reflect.Type{reflect.TypeFor[Position]()}, []any{Position{X: 1}})
-	if result.Success {
+	result := svc.AddComponents(999, []reflect.Type{reflect.TypeFor[Position]()}, []any{Position{X: 1}})
+	if result.Error == nil {
 		t.Error("Update should fail for non-existent entity")
 	}
 
 	// Remove non-existent entity
 	result = svc.Destroy(999)
-	if result.Success {
+	if result.Error == nil {
 		t.Error("Remove should fail for non-existent entity")
 	}
 }

@@ -5,6 +5,8 @@ package core
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/Leonard-Atorough/castrum/internal/ecs"
 )
 
 // resourceState represents the current state of a resource within the world.
@@ -39,6 +41,8 @@ const defaultEagerCapacity = 8
 // World represents the game world, containing all entities and resources.
 type World struct {
 	*Resources
+	nextEntityID EntityID
+	archetypes   *ecs.Service
 }
 
 // NewWorld creates and initializes a new game world with empty resources.
@@ -49,6 +53,7 @@ func NewWorld() *World {
 			entries: make(map[reflect.Type]*resourceEntry[any]),
 			eager:   make([]reflect.Type, 0, defaultEagerCapacity),
 		},
+		archetypes: ecs.NewService(),
 	}
 }
 
@@ -131,4 +136,51 @@ func (w *World) resolve(key reflect.Type) error {
 	}
 
 	return nil
+}
+
+func (w *World) NewEntity(components ...any) *Entity {
+	id := w.getNextID()
+	types := make([]reflect.Type, len(components))
+	for i, c := range components {
+		types[i] = reflect.TypeOf(c)
+	}
+	values := make([]any, len(components))
+	copy(values, components)
+
+	entity := NewEntity(id)
+	w.archetypes.Create(entity.id, types, values)
+	return entity
+}
+
+func (w *World) NewEntities(count int, components ...any) []*Entity {
+	entities := make([]*Entity, count)
+	for i := range entities {
+		entities[i] = w.NewEntity(components...)
+	}
+	return entities
+}
+
+func (w *World) DestroyEntity(entity *Entity) error {
+	res := w.archetypes.Destroy(entity.id)
+	if res.Error != nil {
+		return res.Error
+	}
+
+	entity.Kill()
+	return nil
+}
+
+func (w *World) DestroyEntities(entities []*Entity) error {
+	for _, entity := range entities {
+		if err := w.DestroyEntity(entity); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *World) getNextID() EntityID {
+	id := w.nextEntityID
+	w.nextEntityID++
+	return id
 }

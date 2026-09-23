@@ -241,3 +241,94 @@ func TestCtorReceivesWorld(t *testing.T) {
 		t.Error("ctor did not receive the owning world")
 	}
 }
+
+func TestNewEntityAssignsSequentialIDs(t *testing.T) {
+	w := NewWorld()
+	e1 := w.NewEntity(position{})
+	e2 := w.NewEntity(position{})
+	if e1.ID() == e2.ID() {
+		t.Errorf("entities got the same ID %d", e1.ID())
+	}
+	if e2.ID() != e1.ID()+1 {
+		t.Errorf("IDs not sequential: %d then %d", e1.ID(), e2.ID())
+	}
+	for _, e := range []*Entity{e1, e2} {
+		if !e.IsAlive() {
+			t.Errorf("entity %d should be alive after creation", e.ID())
+		}
+	}
+}
+
+func TestNewEntitiesCreatesBatch(t *testing.T) {
+	w := NewWorld()
+	entities := w.NewEntities(3, position{x: 1})
+	if len(entities) != 3 {
+		t.Fatalf("NewEntities(3) returned %d entities, want 3", len(entities))
+	}
+	seen := map[EntityID]bool{}
+	for _, e := range entities {
+		if seen[e.ID()] {
+			t.Errorf("duplicate ID %d in batch", e.ID())
+		}
+		seen[e.ID()] = true
+		if !e.HasComponent[position](w) {
+			t.Errorf("entity %d missing its components", e.ID())
+		}
+	}
+}
+
+func TestDestroyEntityKillsAndRemovesComponents(t *testing.T) {
+	w := NewWorld()
+	e := w.NewEntity(position{})
+	if err := w.DestroyEntity(e); err != nil {
+		t.Fatalf("DestroyEntity: %v", err)
+	}
+	if e.IsAlive() {
+		t.Error("destroyed entity should be killed")
+	}
+	if _, ok := e.Component[position](w); ok {
+		t.Error("Component on a destroyed entity should report false")
+	}
+}
+
+func TestDestroyEntityTwiceErrors(t *testing.T) {
+	w := NewWorld()
+	e := w.NewEntity(position{})
+	if err := w.DestroyEntity(e); err != nil {
+		t.Fatalf("first DestroyEntity: %v", err)
+	}
+	if err := w.DestroyEntity(e); err == nil {
+		t.Error("destroying an already-destroyed entity should error")
+	}
+}
+
+func TestDestroyEntitiesAll(t *testing.T) {
+	w := NewWorld()
+	entities := w.NewEntities(2, position{})
+	if err := w.DestroyEntities(entities); err != nil {
+		t.Fatalf("DestroyEntities: %v", err)
+	}
+	for _, e := range entities {
+		if e.IsAlive() {
+			t.Errorf("entity %d should be dead", e.ID())
+		}
+		if e.HasComponent[position](w) {
+			t.Errorf("entity %d components should be gone", e.ID())
+		}
+	}
+}
+
+func TestDestroyEntitiesStopsAtFirstError(t *testing.T) {
+	w := NewWorld()
+	e1 := w.NewEntity(position{})
+	e2 := w.NewEntity(position{})
+	if err := w.DestroyEntity(e1); err != nil {
+		t.Fatalf("DestroyEntity: %v", err)
+	}
+	if err := w.DestroyEntities([]*Entity{e1, e2}); err == nil {
+		t.Error("DestroyEntities should fail when any entity fails to destroy")
+	}
+	if !e2.IsAlive() {
+		t.Error("DestroyEntities should stop at the first failure, leaving later entities untouched")
+	}
+}
