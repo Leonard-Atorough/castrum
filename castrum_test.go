@@ -6,7 +6,11 @@ import (
 )
 
 func TestNewDefaults(t *testing.T) {
-	opts := New().Options()
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	opts := g.Options()
 	if opts.Title != "castrum" {
 		t.Errorf("Title = %q, want %q", opts.Title, "castrum")
 	}
@@ -25,12 +29,16 @@ func TestNewDefaults(t *testing.T) {
 }
 
 func TestOptionOverrides(t *testing.T) {
-	opts := New(
+	g, err := New(
 		WithTitle("Demo"),
 		WithFixedTPS(120),
 		WithMaxFrameTime(time.Second),
 		WithMaxTicksPerFrame(2),
-	).Options()
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	opts := g.Options()
 
 	if opts.Title != "Demo" {
 		t.Errorf("Title = %q, want %q", opts.Title, "Demo")
@@ -49,33 +57,26 @@ func TestOptionOverrides(t *testing.T) {
 	}
 }
 
-func TestInvalidOptionsPanic(t *testing.T) {
+func TestInvalidOptionsError(t *testing.T) {
 	cases := []struct {
 		name string
-		opt  option
+		opts []option
 	}{
-		{"zero tps", WithFixedTPS(0)},
-		{"negative tps", WithFixedTPS(-1)},
-		{"zero max frame time", WithMaxFrameTime(0)},
-		{"zero max ticks", WithMaxTicksPerFrame(0)},
+		{"zero tps", []option{WithFixedTPS(0)}},
+		{"negative tps", []option{WithFixedTPS(-1)}},
+		{"zero max frame time", []option{WithMaxFrameTime(0)}},
+		{"zero max ticks", []option{WithMaxTicksPerFrame(0)}},
+		{"unrepresentable tick interval", []option{WithFixedTPS(2_000_000_000)}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Errorf("%s: expected panic", c.name)
-				}
-			}()
-			New(c.opt)
+			g, err := New(c.opts...)
+			if err == nil {
+				t.Errorf("%s: expected an error", c.name)
+			}
+			if g != nil {
+				t.Errorf("%s: New must not return a half-built game", c.name)
+			}
 		})
 	}
-}
-
-func TestFinalizePanicsOnUnrepresentableTick(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Error("expected panic for FixedTPS with no representable tick interval")
-		}
-	}()
-	New(WithFixedTPS(2_000_000_000))
 }

@@ -138,7 +138,17 @@ func (w *World) resolve(key reflect.Type) error {
 	return nil
 }
 
-func (w *World) NewEntity(components ...any) *Entity {
+// NewEntity spawns an entity with the given components and returns its
+// handle. The handle is convenience for immediate follow-up calls; the
+// ID is the durable reference, and every component operation accepts it
+// directly. It returns an error if any component is nil; a failed spawn
+// consumes no ID and leaves no state behind.
+func (w *World) NewEntity(components ...any) (*Entity, error) {
+	for i, c := range components {
+		if c == nil {
+			return nil, fmt.Errorf("castrum: NewEntity: component at index %d is nil", i)
+		}
+	}
 	id := w.getNextID()
 	types := make([]reflect.Type, len(components))
 	for i, c := range components {
@@ -148,18 +158,28 @@ func (w *World) NewEntity(components ...any) *Entity {
 	copy(values, components)
 
 	entity := NewEntity(id)
+	// Create cannot fail here: IDs are unique by construction and the
+	// components were validated above.
 	w.archetypes.Create(entity.id, types, values)
-	return entity
+	return entity, nil
 }
 
-func (w *World) NewEntities(count int, components ...any) []*Entity {
+// NewEntities spawns count entities with the same components and returns
+// their handles. It returns an error under the same conditions as
+// NewEntity, without partial results.
+func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
 	entities := make([]*Entity, count)
 	for i := range entities {
-		entities[i] = w.NewEntity(components...)
+		var err error
+		entities[i], err = w.NewEntity(components...)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return entities
+	return entities, nil
 }
 
+// DestroyEntity removes the entity from the world and kills its handle.
 func (w *World) DestroyEntity(entity *Entity) error {
 	res := w.archetypes.Destroy(entity.id)
 	if res.Error != nil {
@@ -170,6 +190,8 @@ func (w *World) DestroyEntity(entity *Entity) error {
 	return nil
 }
 
+// DestroyEntities removes all the given entities from the world and kills
+// their handles, stopping at the first error.
 func (w *World) DestroyEntities(entities []*Entity) error {
 	for _, entity := range entities {
 		if err := w.DestroyEntity(entity); err != nil {
@@ -179,6 +201,8 @@ func (w *World) DestroyEntities(entities []*Entity) error {
 	return nil
 }
 
+// getNextID reserves the next sequential entity ID. IDs are never
+// recycled within a world's lifetime.
 func (w *World) getNextID() EntityID {
 	id := w.nextEntityID
 	w.nextEntityID++

@@ -4,3 +4,5 @@ bin/
 # Ignore executable files in the examples directory and the project root
 /examples/*.exe
 *.exe
+# Internal working documents: decision ledgers, not part of the shipped source
+.internal/

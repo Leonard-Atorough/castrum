@@ -13,7 +13,7 @@ import (
 
 func TestAdvanceAccumulatesFixedTicks(t *testing.T) {
 	// FixedTPS 4 => fixedDT = 250ms.
-	g := New(WithFixedTPS(4))
+	g, _ := New(WithFixedTPS(4))
 	var ticks, frames int
 	var frameDT, fixedDT time.Duration
 	g.AddSystem(core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
@@ -58,7 +58,7 @@ func TestAdvanceAccumulatesFixedTicks(t *testing.T) {
 
 func TestMaxFrameTimeClampsElapsed(t *testing.T) {
 	// FixedTPS 1 => fixedDT = 1s; MaxFrameTime 50ms clamps a 10s stall.
-	g := New(WithFixedTPS(1), WithMaxFrameTime(50*time.Millisecond))
+	g, _ := New(WithFixedTPS(1), WithMaxFrameTime(50*time.Millisecond))
 	var ticks int
 	g.AddSystem(core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
 
@@ -73,7 +73,7 @@ func TestMaxFrameTimeClampsElapsed(t *testing.T) {
 
 func TestMaxTicksPerFrameDropsBacklog(t *testing.T) {
 	// FixedTPS 100 => fixedDT = 10ms; 1s due, capped at 5 ticks, backlog dropped.
-	g := New(WithFixedTPS(100), WithMaxFrameTime(time.Second))
+	g, _ := New(WithFixedTPS(100), WithMaxFrameTime(time.Second))
 	var ticks int
 	g.AddSystem(core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
 
@@ -87,7 +87,7 @@ func TestMaxTicksPerFrameDropsBacklog(t *testing.T) {
 }
 
 func TestSystemErrorPropagates(t *testing.T) {
-	g := New()
+	g, _ := New()
 	boom := errors.New("boom")
 	g.AddSystem(core.PhaseFixed, "boom", core.SystemFunc(func(ctx *core.Context) error { return boom }))
 
@@ -101,7 +101,7 @@ func TestSystemErrorPropagates(t *testing.T) {
 }
 
 func TestStartupRunsOnce(t *testing.T) {
-	g := New()
+	g, _ := New()
 	var runs int
 	g.AddSystem(core.PhaseStartup, "startup counter", core.SystemFunc(func(ctx *core.Context) error { runs++; return nil }))
 
@@ -120,7 +120,7 @@ func TestStartupRunsOnce(t *testing.T) {
 }
 
 func TestContextWiredToWorld(t *testing.T) {
-	g := New()
+	g, _ := New()
 	if g.World() == nil {
 		t.Fatal("World = nil, want an initialized world")
 	}
@@ -132,7 +132,7 @@ func TestContextWiredToWorld(t *testing.T) {
 type startupProbe struct{}
 
 func TestStartupResolvesEagerBeforeSystems(t *testing.T) {
-	g := New()
+	g, _ := New()
 	resolved := false
 	if err := g.World().ProvideEager(func(w *core.World) (*startupProbe, error) {
 		resolved = true
@@ -156,7 +156,7 @@ func TestStartupResolvesEagerBeforeSystems(t *testing.T) {
 }
 
 func TestQuit(t *testing.T) {
-	g := New()
+	g, _ := New()
 	if g.Quitting() {
 		t.Fatal("new game should not be quitting")
 	}
@@ -173,7 +173,7 @@ type fakeRunner struct {
 func (f *fakeRunner) Run() error { return f.err }
 
 func TestRunOnce(t *testing.T) {
-	g := New()
+	g, _ := New()
 	boom := errors.New("runner failed")
 	if err := g.Run(&fakeRunner{err: boom}); !errors.Is(err, boom) {
 		t.Fatalf("Run error = %v, want %v", err, boom)

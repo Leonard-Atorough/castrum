@@ -244,8 +244,8 @@ func TestCtorReceivesWorld(t *testing.T) {
 
 func TestNewEntityAssignsSequentialIDs(t *testing.T) {
 	w := NewWorld()
-	e1 := w.NewEntity(position{})
-	e2 := w.NewEntity(position{})
+	e1, _ := w.NewEntity(position{})
+	e2, _ := w.NewEntity(position{})
 	if e1.ID() == e2.ID() {
 		t.Errorf("entities got the same ID %d", e1.ID())
 	}
@@ -261,7 +261,7 @@ func TestNewEntityAssignsSequentialIDs(t *testing.T) {
 
 func TestNewEntitiesCreatesBatch(t *testing.T) {
 	w := NewWorld()
-	entities := w.NewEntities(3, position{x: 1})
+	entities, _ := w.NewEntities(3, position{x: 1})
 	if len(entities) != 3 {
 		t.Fatalf("NewEntities(3) returned %d entities, want 3", len(entities))
 	}
@@ -279,7 +279,7 @@ func TestNewEntitiesCreatesBatch(t *testing.T) {
 
 func TestDestroyEntityKillsAndRemovesComponents(t *testing.T) {
 	w := NewWorld()
-	e := w.NewEntity(position{})
+	e, _ := w.NewEntity(position{})
 	if err := w.DestroyEntity(e); err != nil {
 		t.Fatalf("DestroyEntity: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestDestroyEntityKillsAndRemovesComponents(t *testing.T) {
 
 func TestDestroyEntityTwiceErrors(t *testing.T) {
 	w := NewWorld()
-	e := w.NewEntity(position{})
+	e, _ := w.NewEntity(position{})
 	if err := w.DestroyEntity(e); err != nil {
 		t.Fatalf("first DestroyEntity: %v", err)
 	}
@@ -304,7 +304,7 @@ func TestDestroyEntityTwiceErrors(t *testing.T) {
 
 func TestDestroyEntitiesAll(t *testing.T) {
 	w := NewWorld()
-	entities := w.NewEntities(2, position{})
+	entities, _ := w.NewEntities(2, position{})
 	if err := w.DestroyEntities(entities); err != nil {
 		t.Fatalf("DestroyEntities: %v", err)
 	}
@@ -320,8 +320,8 @@ func TestDestroyEntitiesAll(t *testing.T) {
 
 func TestDestroyEntitiesStopsAtFirstError(t *testing.T) {
 	w := NewWorld()
-	e1 := w.NewEntity(position{})
-	e2 := w.NewEntity(position{})
+	e1, _ := w.NewEntity(position{})
+	e2, _ := w.NewEntity(position{})
 	if err := w.DestroyEntity(e1); err != nil {
 		t.Fatalf("DestroyEntity: %v", err)
 	}
@@ -330,5 +330,85 @@ func TestDestroyEntitiesStopsAtFirstError(t *testing.T) {
 	}
 	if !e2.IsAlive() {
 		t.Error("DestroyEntities should stop at the first failure, leaving later entities untouched")
+	}
+}
+
+func TestEntityMintedFromIDResolvesComponents(t *testing.T) {
+	w := NewWorld()
+	e, _ := w.NewEntity(queryPos{X: 1, Y: 2})
+	id := e.ID()
+
+	// The flow query results rely on: collect an ID, mint a handle, work.
+	e = NewEntity(id)
+	pos, ok := e.Component[queryPos](w)
+	if !ok || pos.X != 1 {
+		t.Fatalf("Component = %v, %v, want the stored value", pos, ok)
+	}
+	if e.HasComponent[queryVel](w) {
+		t.Fatal("HasComponent should be false for a type the entity lacks")
+	}
+
+	if err := e.AddComponent[queryVel](w, queryVel{X: 5, Y: 6}); err != nil {
+		t.Fatalf("AddComponent: %v", err)
+	}
+	if !e.HasComponent[queryVel](w) {
+		t.Fatal("HasComponent should be true after AddComponent")
+	}
+
+	if err := e.SetComponent[queryPos](w, queryPos{X: 9, Y: 9}); err != nil {
+		t.Fatalf("SetComponent: %v", err)
+	}
+	if pos, _ := e.Component[queryPos](w); pos.X != 9 {
+		t.Fatalf("Component = %v, want the overwritten value", pos)
+	}
+
+	if err := e.RemoveComponent[queryVel](w); err != nil {
+		t.Fatalf("RemoveComponent: %v", err)
+	}
+	if e.HasComponent[queryVel](w) {
+		t.Fatal("HasComponent should be false after RemoveComponent")
+	}
+
+	if err := w.DestroyEntity(e); err != nil {
+		t.Fatalf("DestroyEntity: %v", err)
+	}
+	if e.IsAlive() {
+		t.Fatal("DestroyEntity should kill the handle")
+	}
+	if _, ok := e.Component[queryPos](w); ok {
+		t.Fatal("Component should report false for a destroyed entity")
+	}
+}
+
+func TestEntitySetComponentMissingErrors(t *testing.T) {
+	w := NewWorld()
+	e, _ := w.NewEntity(queryPos{X: 1, Y: 1})
+
+	if err := e.SetComponent[queryVel](w, queryVel{X: 2, Y: 2}); err == nil {
+		t.Fatal("SetComponent for a type the entity lacks should error")
+	}
+	ghost := NewEntity(9999)
+	if err := ghost.SetComponent[queryPos](w, queryPos{}); err == nil {
+		t.Fatal("SetComponent for a nonexistent entity should error")
+	}
+}
+func TestNewEntityNilComponentErrors(t *testing.T) {
+	w := NewWorld()
+	if _, err := w.NewEntity(queryPos{X: 1, Y: 1}, nil); err == nil {
+		t.Fatal("NewEntity with a nil component should return an error")
+	}
+
+	// A failed spawn must consume no ID and leave no state behind.
+	e, err := w.NewEntity(queryPos{X: 2, Y: 2})
+	if err != nil {
+		t.Fatalf("NewEntity after a failed spawn: %v", err)
+	}
+	if e.ID() != 0 {
+		t.Fatalf("successful spawn after a failed one got ID %d, want 0 (failed spawn burned no ID)", e.ID())
+	}
+
+	// NewEntities propagates the error without partial results.
+	if entities, err := w.NewEntities(2, queryPos{X: 3, Y: 3}, nil); err == nil || entities != nil {
+		t.Fatal("NewEntities with a nil component should return an error and no entities")
 	}
 }
