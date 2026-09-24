@@ -70,12 +70,14 @@ func New(filesystem fs.FS) *Asset {
 	if filesystem == nil {
 		filesystem = os.DirFS(".")
 	}
-	return &Asset{
+	a := &Asset{
 		fs:        filesystem,
 		decoders:  make(map[codecKey]decoderFunc),
 		cache:     newCache(),
 		loadGroup: &singleflight.Group{},
 	}
+	a.registerDefaults()
+	return a
 }
 
 // Load reads and decodes the asset at name as T, serving repeat loads
