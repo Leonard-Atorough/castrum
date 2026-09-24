@@ -72,24 +72,43 @@ func NewQuery(world *World) *Query {
 	}
 }
 
-// With adds component types that must be present for an entity to match the query.
+// With adds component types that must be present for an entity to match
+// the query. Pass zero values of the component types — the values are
+// markers, only their types are used. A nil or a pointer value panics:
+// both are build-time mistakes, and a pointer would otherwise silently
+// match no component at all.
+//
 // The listed types are also the only ones [Entry.Get] can retrieve during
 // iteration: they are prefetched per archetype, which is what makes Get a
 // bare column lookup.
-func (q *Query) With(types ...reflect.Type) *Query {
-	clone := make([]reflect.Type, len(q.with))
-	copy(clone, q.with)
-	clone = append(clone, types...)
-	q.with = clone
+func (q *Query) With(components ...any) *Query {
+	for _, c := range components {
+		typ := reflect.TypeOf(c)
+		if typ == nil {
+			panic("castrum: With: cannot provide nil type to query, component types must be non-nil")
+		}
+		if typ.Kind() == reflect.Pointer {
+			panic("castrum: With: pointer types are not allowed, component types must be non-pointer")
+		}
+		q.with = append(q.with, typ)
+	}
 	return q
 }
 
-// Without adds component types that must be absent for an entity to match the query.
-func (q *Query) Without(types ...reflect.Type) *Query {
-	clone := make([]reflect.Type, len(q.without))
-	copy(clone, q.without)
-	clone = append(clone, types...)
-	q.without = clone
+// Without adds component types that must be absent for an entity to match
+// the query. Pass zero values of the component types — the values are
+// markers, only their types are used. A nil or a pointer value panics.
+func (q *Query) Without(components ...any) *Query {
+	for _, c := range components {
+		typ := reflect.TypeOf(c)
+		if typ == nil {
+			panic("castrum: Without: cannot provide nil type to query, component types must be non-nil")
+		}
+		if typ.Kind() == reflect.Pointer {
+			panic("castrum: Without: pointer types are not allowed, component types must be non-pointer")
+		}
+		q.without = append(q.without, typ)
+	}
 	return q
 }
 
