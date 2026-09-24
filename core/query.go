@@ -2,6 +2,7 @@ package core
 
 import (
 	"cmp"
+	"fmt"
 	"iter"
 	"reflect"
 	"slices"
@@ -28,6 +29,21 @@ type Entry struct {
 // Unlike the entry itself, the ID is safe to retain.
 func (e Entry) ID() EntityID {
 	return e.entityID
+}
+
+// Set overwrites the visited entity's component of type T in place,
+// through the prefetched column. Only the types listed in [Query.With]
+// are available — the same contract as [Entry.Get]. Value writes are
+// safe during iteration: they mutate the entity's slot without moving
+// rows. Structural changes (spawning, destroying, adding or removing
+// components) remain invalid during a pass.
+func (e Entry) Set[T any](value T) {
+	typ := reflect.TypeFor[T]()
+	column, ok := e.columns[typ]
+	if !ok {
+		panic(fmt.Sprintf("castrum: Entry.Set: type %v was not listed in With", typ))
+	}
+	column[e.index] = value
 }
 
 // Get retrieves the component value of type T for the entity associated with this entry.
