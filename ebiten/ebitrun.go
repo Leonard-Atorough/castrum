@@ -100,6 +100,12 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, fmt.Errorf("castrum/ebiten: provide texture provider: %w", err)
 	}
 
+	// The logical resolution is static per game: publish it to the
+	// context at construction, where culling and camera projection
+	// read it. (Alpha is per-frame and set in Draw.)
+	g.Context().LogicalWidth = options.Logical.Width
+	g.Context().LogicalHeight = options.Logical.Height
+
 	return &Runner{g: g, opts: options, last: time.Now()}, nil
 }
 

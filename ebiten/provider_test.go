@@ -144,3 +144,109 @@ func TestSubImageResolvesAndCaches(t *testing.T) {
 		t.Errorf("unknown atlas error = %v, want it to name the atlas", err)
 	}
 }
+
+// Texture is the whole-texture half of the blit: convert once per path,
+// repeat calls are the same image, misses error naming the path.
+func TestTextureResolvesAndCaches(t *testing.T) {
+	g, _ := castrum.New()
+	if _, err := New(g, WithFilesystem(newAssetTestFS(t))); err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	provider, err := g.World().Resource[*TextureProvider]()
+	if err != nil {
+		t.Fatalf("Resource[*TextureProvider]: %v", err)
+	}
+
+	texture, err := provider.Texture("tex.png")
+	if err != nil {
+		t.Fatalf("Texture: %v", err)
+	}
+	if texture.Bounds() != image.Rect(0, 0, 4, 4) {
+		t.Errorf("bounds = %v, want the full 4x4 texture", texture.Bounds())
+	}
+
+	again, err := provider.Texture("tex.png")
+	if err != nil {
+		t.Fatalf("Texture repeat: %v", err)
+	}
+	if again != texture {
+		t.Fatal("Texture must return the same image on repeat calls")
+	}
+
+	_, err = provider.Texture("missing.png")
+	if err == nil || !strings.Contains(err.Error(), "missing.png") {
+		t.Errorf("unknown texture error = %v, want it to name the path", err)
+	}
+}
+
+// SubImageRect is the region half of the blit: one subimage per path
+// and rect, shared with the atlas-named path, with user-supplied rects
+// validated against the texture.
+func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
+	g, _ := castrum.New()
+	if _, err := New(g, WithFilesystem(newAssetTestFS(t))); err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	server, err := g.World().Resource[*asset.Server]()
+	if err != nil {
+		t.Fatalf("Resource[*asset.Server]: %v", err)
+	}
+	if err := server.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
+		t.Fatalf("RegisterAtlasFromSidecar: %v", err)
+	}
+	provider, err := g.World().Resource[*TextureProvider]()
+	if err != nil {
+		t.Fatalf("Resource[*TextureProvider]: %v", err)
+	}
+
+	player := image.Rect(0, 0, 2, 2)
+	sub, err := provider.SubImageRect("tex.png", player)
+	if err != nil {
+		t.Fatalf("SubImageRect: %v", err)
+	}
+	if sub.Bounds() != player {
+		t.Errorf("bounds = %v, want %v", sub.Bounds(), player)
+	}
+
+	// Repeat resolution is a cache hit: the same pointer.
+	again, err := provider.SubImageRect("tex.png", player)
+	if err != nil {
+		t.Fatalf("SubImageRect repeat: %v", err)
+	}
+	if again != sub {
+		t.Fatal("SubImageRect must return the same subimage on repeat calls")
+	}
+
+	// The atlas-named path resolves regions through the same cache.
+	named, err := provider.SubImage("sprites", "player")
+	if err != nil {
+		t.Fatalf("SubImage: %v", err)
+	}
+	if named != sub {
+		t.Fatal("SubImage and SubImageRect must share the cached subimage")
+	}
+
+	enemy := image.Rect(2, 2, 4, 4)
+	other, err := provider.SubImageRect("tex.png", enemy)
+	if err != nil {
+		t.Fatalf("SubImageRect second rect: %v", err)
+	}
+	if other == sub || other.Bounds() != enemy {
+		t.Fatal("distinct rects must resolve to distinct subimages with their own bounds")
+	}
+
+	// User-supplied rects are validated: empty and out-of-bounds rect
+	// error instead of reaching the backend.
+	_, err = provider.SubImageRect("tex.png", image.Rect(1, 1, 1, 1))
+	if err == nil || !strings.Contains(err.Error(), "empty") {
+		t.Errorf("empty rect error = %v, want it to say empty", err)
+	}
+	_, err = provider.SubImageRect("tex.png", image.Rect(3, 3, 6, 6))
+	if err == nil || !strings.Contains(err.Error(), "outside") {
+		t.Errorf("out-of-bounds rect error = %v, want it to say outside", err)
+	}
+	_, err = provider.SubImageRect("missing.png", player)
+	if err == nil || !strings.Contains(err.Error(), "missing.png") {
+		t.Errorf("unknown texture error = %v, want it to name the path", err)
+	}
+}
