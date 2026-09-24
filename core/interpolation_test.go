@@ -1,7 +1,6 @@
 package core
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -94,9 +93,9 @@ func TestEntrySetWritesThroughPrefetchedColumn(t *testing.T) {
 		t.Fatalf("add prev: %v", err)
 	}
 
-	q := NewQuery(w).With(reflect.TypeFor[Transform](), reflect.TypeFor[PrevTransform]())
+	q := NewQuery(w).With(Transform{}, PrevTransform{})
 	for e := range q.Execute() {
-		e.Set(PrevTransform{Position: geom.Vector2{X: 9, Y: 9}})
+		e.SetComponent(PrevTransform{Position: geom.Vector2{X: 9, Y: 9}})
 	}
 
 	prev, _ := entity.Component[PrevTransform](w)
@@ -114,13 +113,13 @@ func TestEntrySetUnprefetchedTypePanics(t *testing.T) {
 		t.Fatalf("spawn: %v", err)
 	}
 
-	q := NewQuery(w).With(reflect.TypeFor[Transform]())
+	q := NewQuery(w).With(Transform{})
 	defer func() {
 		if recover() == nil {
 			t.Fatal("Set for a type not in With should panic")
 		}
 	}()
 	for e := range q.Execute() {
-		e.Set(PrevTransform{})
+		e.SetComponent(PrevTransform{})
 	}
 }

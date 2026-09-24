@@ -1,8 +1,6 @@
 package core
 
 import (
-	"reflect"
-
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
@@ -38,20 +36,20 @@ func NewPrevTransformCapture() System {
 	return SystemFunc(func(ctx *Context) error {
 		if update == nil {
 			update = NewQuery(ctx.World).
-				With(reflect.TypeFor[Transform](), reflect.TypeFor[PrevTransform]())
+				With(Transform{}, PrevTransform{})
 			newborns = NewQuery(ctx.World).
-				With(reflect.TypeFor[Transform]()).
-				Without(reflect.TypeFor[PrevTransform]())
+				With(Transform{}).
+				Without(PrevTransform{})
 		}
 
 		// Snapshot entities that already carry a previous state:
 		// zero-copy writes through the prefetched columns.
 		for e := range update.Execute() {
-			t, ok := e.Get[Transform]()
+			t, ok := e.Component[Transform]()
 			if !ok {
 				continue
 			}
-			e.Set(PrevTransform{Position: t.Position})
+			e.SetComponent(PrevTransform{Position: t.Position})
 		}
 
 		// Entities spawned during the previous tick have no snapshot.

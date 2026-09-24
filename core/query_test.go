@@ -18,8 +18,8 @@ func TestQueryYieldsMatchingEntities(t *testing.T) {
 
 	var got []EntityID
 	for e := range q.Execute() {
-		p, ok := e.Get[queryPos]()
-		v, okV := e.Get[queryVel]()
+		p, ok := e.Component[queryPos]()
+		v, okV := e.Component[queryVel]()
 		if !ok || !okV {
 			t.Fatalf("entry %d: pos ok=%v vel ok=%v, want both present", e.ID(), ok, okV)
 		}
@@ -60,7 +60,7 @@ func TestQueryWhereFilters(t *testing.T) {
 	q := NewQuery(w).
 		With(queryPos{}).
 		Where(func(e Entry) bool {
-			p, ok := e.Get[queryPos]()
+			p, ok := e.Component[queryPos]()
 			return ok && p.X > 10
 		})
 
@@ -158,10 +158,10 @@ func TestQueryGetLimitedToWithTypes(t *testing.T) {
 
 	q := NewQuery(w).With(queryPos{})
 	for e := range q.Execute() {
-		if _, ok := e.Get[queryVel](); ok {
+		if _, ok := e.Component[queryVel](); ok {
 			t.Fatal("Get returned a component that was not in With: the prefetch must only carry requested types")
 		}
-		if p, ok := e.Get[queryPos](); !ok || p.X != 1 {
+		if p, ok := e.Component[queryPos](); !ok || p.X != 1 {
 			t.Fatalf("Get[queryPos] = %v, %v, want the stored value", p, ok)
 		}
 	}
