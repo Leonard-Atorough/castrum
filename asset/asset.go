@@ -34,7 +34,7 @@ type Format string
 
 // Asset formats with built-in constants. Decoders for them are not
 // registered by default; the engine or runner registers the set it
-// supports. New formats are introduced by [Asset.RegisterDecoder].
+// supports. New formats are introduced by [Server.RegisterDecoder].
 const (
 	FormatJSON Format = "json"
 	FormatYAML Format = "yaml"
@@ -50,34 +50,43 @@ const (
 // Decoder decodes a value of type T from a reader.
 type Decoder[T any] func(reader io.Reader) (T, error)
 
-// Asset loads and caches decoded assets from a filesystem. It is the
+// Server loads and caches decoded assets from a filesystem. It is the
 // single owner of the load flow — cache check, deduplication, open,
 // decode, cache put — and the pieces of that flow are not callable
-// separately.
-type Asset struct {
-	fs        fs.FS
-	mu        sync.RWMutex // guards decoders
-	decoders  map[codecKey]decoderFunc
-	cache     *cache
-	loadGroup *singleflight.Group
+// separately. It also hosts the atlas registry; see [Server.Store].
+type Server struct {
+	fs         fs.FS
+	mu         sync.RWMutex // guards decoders
+	decoders   map[codecKey]decoderFunc
+	cache      *cache
+	loadGroup  *singleflight.Group
+	atlasStore *AtlasStore
 }
 
 // New creates an Asset over filesystem. A nil filesystem defaults to
 // os.DirFS("."), the game's working directory: asset names resolve
 // relative to it, wherever the files live. Nothing is read at
-// construction; loading is lazy and starts at the first [Asset.Load].
-func New(filesystem fs.FS) *Asset {
+// construction; loading is lazy and starts at the first [Server.Load].
+func New(filesystem fs.FS) *Server {
 	if filesystem == nil {
 		filesystem = os.DirFS(".")
 	}
-	a := &Asset{
-		fs:        filesystem,
-		decoders:  make(map[codecKey]decoderFunc),
-		cache:     newCache(),
-		loadGroup: &singleflight.Group{},
+	a := &Server{
+		fs:         filesystem,
+		decoders:   make(map[codecKey]decoderFunc),
+		cache:      newCache(),
+		loadGroup:  &singleflight.Group{},
+		atlasStore: newStore(),
 	}
 	a.registerDefaults()
 	return a
+}
+
+// Store returns the atlas registry. Exactly one store exists per Asset;
+// [Server.RegisterAtlasFromSidecar] and [Server.RegisterGridAtlas] are the
+// registration verbs, and there is no way to construct another.
+func (a *Server) Store() *AtlasStore {
+	return a.atlasStore
 }
 
 // Load reads and decodes the asset at name as T, serving repeat loads
@@ -87,7 +96,7 @@ func New(filesystem fs.FS) *Asset {
 //
 // The format defaults to the lowercased file extension; [WithFormat] and
 // [WithID] override it and the cache identity.
-func (a *Asset) Load[T any](fpath string, opts ...loadOption) (T, error) {
+func (a *Server) Load[T any](fpath string, opts ...loadOption) (T, error) {
 	var zero T
 	fpath = normalizeAssetPath(fpath)
 	typ := reflect.TypeFor[T]()
@@ -140,10 +149,10 @@ func (a *Asset) Load[T any](fpath string, opts ...loadOption) (T, error) {
 // registered decoder for format. A reader has no extension to infer the
 // format from, so it must be given explicitly.
 //
-// Unlike [Asset.Load], LoadReader does not cache and does not
+// Unlike [Server.Load], LoadReader does not cache and does not
 // deduplicate concurrent decodes. The reader is not closed; the caller
 // owns it.
-func (a *Asset) LoadReader[T any](reader io.Reader, format Format) (T, error) {
+func (a *Server) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 	var zero T
 	typ := reflect.TypeFor[T]()
 
@@ -169,11 +178,11 @@ func (a *Asset) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 // and format; without it, a duplicate is an error.
 //
 // This is the only way into the codec registry: the wrapper boxes the
-// decoded value as T, so the type assertions in [Asset.Load] and
-// [Asset.LoadReader] are safe by construction. A panic from either means
+// decoded value as T, so the type assertions in [Server.Load] and
+// [Server.LoadReader] are safe by construction. A panic from either means
 // a registration bypassed this wrapper — an engine-internal invariant
 // breach, not user error.
-func (a *Asset) RegisterDecoder[T any](format Format, d Decoder[T], override bool) error {
+func (a *Server) RegisterDecoder[T any](format Format, d Decoder[T], override bool) error {
 	if d == nil {
 		return fmt.Errorf("decoder cannot be nil")
 	}
@@ -308,7 +317,7 @@ type codecKey struct {
 }
 
 // decoderFunc is the type-erased form a registered Decoder[T] is stored
-// as. Only [Asset.RegisterDecoder] builds one, boxing the value as T.
+// as. Only [Server.RegisterDecoder] builds one, boxing the value as T.
 type decoderFunc func(reader io.Reader) (any, error)
 
 type loadOption interface {

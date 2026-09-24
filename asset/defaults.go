@@ -6,8 +6,8 @@ import "fmt"
 // can only be an engine authoring bug — a duplicate in this static
 // table — so it panics: no caller is positioned to recover from it
 // (Must-style, the same rule as template.Must). User codecs go through
-// [Asset.RegisterDecoder] and get errors instead.
-func (a *Asset) registerDefaults() {
+// [Server.RegisterDecoder] and get errors instead.
+func (a *Server) registerDefaults() {
 	for _, format := range []Format{FormatPNG, FormatJPG, FormatJPEG} {
 		mustRegister(a.RegisterDecoder(format, decodeTexture, false))
 	}
