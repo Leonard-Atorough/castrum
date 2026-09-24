@@ -141,12 +141,20 @@ func (w *World) resolve(key reflect.Type) error {
 // NewEntity spawns an entity with the given components and returns its
 // handle. The handle is convenience for immediate follow-up calls; the
 // ID is the durable reference, and every component operation accepts it
-// directly. It returns an error if any component is nil; a failed spawn
-// consumes no ID and leaves no state behind.
+// directly. It returns an error if any component is nil or fails its
+// Validate; a failed spawn consumes no ID and leaves no state behind.
 func (w *World) NewEntity(components ...any) (*Entity, error) {
 	for i, c := range components {
 		if c == nil {
 			return nil, fmt.Errorf("castrum: NewEntity: component at index %d is nil", i)
+		}
+		// Validate before the ID is allocated so a failed spawn burns
+		// nothing. The storage service re-checks at entry — every
+		// component path is enforced, this one just protects ordering.
+		if v, ok := c.(Validatable); ok {
+			if err := v.Validate(); err != nil {
+				return nil, fmt.Errorf("castrum: NewEntity: component at index %d (%T): %w", i, c, err)
+			}
 		}
 	}
 	id := w.getNextID()
@@ -158,9 +166,12 @@ func (w *World) NewEntity(components ...any) (*Entity, error) {
 	copy(values, components)
 
 	entity := NewEntity(id)
-	// Create cannot fail here: IDs are unique by construction and the
-	// components were validated above.
-	w.archetypes.Create(entity.id, types, values)
+	// Cannot fail here — input validated above, IDs unique by
+	// construction — but the check stays honest against the service
+	// growing new failure modes.
+	if err := w.archetypes.Create(entity.id, types, values); err != nil {
+		return nil, err
+	}
 	return entity, nil
 }
 

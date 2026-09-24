@@ -330,6 +330,11 @@ func (s *Service) Create(entityID EntityID, types []reflect.Type, values []any) 
 	if err := validateComponentInput(types, values); err != nil {
 		return err
 	}
+	for _, value := range values {
+		if err := validateComponent(value); err != nil {
+			return err
+		}
+	}
 
 	if _, exists := s.locations[entityID]; exists {
 		return fmt.Errorf("entity with ID %d already exists", entityID)
@@ -393,6 +398,15 @@ func (s *Service) AddComponents(entityID EntityID, types []reflect.Type, values 
 	if err := validateComponentInput(types, values); err != nil {
 		return Result{
 			Error: err,
+		}
+	}
+	// Validate before any mutation so a failure leaves the entity in its
+	// current archetype, untouched.
+	for _, value := range values {
+		if err := validateComponent(value); err != nil {
+			return Result{
+				Error: err,
+			}
 		}
 	}
 
@@ -565,6 +579,9 @@ func (s *Service) SetComponent(entityID EntityID, t reflect.Type, value any) err
 		return fmt.Errorf("archetype with ID %d not found", loc.ArchetypeID)
 	}
 
+	if err := validateComponent(value); err != nil {
+		return err
+	}
 	if arch.component(loc.Index, t) == nil {
 		return fmt.Errorf("component of type %v not found for entity with ID %d", t, entityID)
 	}
@@ -649,4 +666,13 @@ func (s *Service) resolveComponent(entityID EntityID, t reflect.Type) (any, erro
 	}
 
 	return value, nil
+}
+
+func validateComponent(value any) error {
+	if v, ok := value.(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return fmt.Errorf("component %T: %w", value, err)
+		}
+	}
+	return nil
 }
