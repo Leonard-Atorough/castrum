@@ -1,23 +1,26 @@
-// Package ebiten is the default castrum Runner, backed by Ebitengine.
+// Package ebitrun is the default castrum Runner, backed by Ebitengine.
 // It owns the window, the draw surface, and input; the core Game owns
 // configuration, schedules, and the fixed loop.
 //
-// Import alongside Ebitengine with an alias:
+// The package name is ebitrun so no import alias is needed alongside
+// Ebitengine itself:
 //
 //	import (
 //		"github.com/Leonard-Atorough/castrum"
-//		ebitrun "github.com/Leonard-Atorough/castrum/ebiten"
+//		"github.com/Leonard-Atorough/castrum/ebiten"
 //		"github.com/hajimehoshi/ebiten/v2"
 //	)
-package ebiten
+package ebitrun
 
 import (
 	"fmt"
+	"io/fs"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
@@ -35,10 +38,11 @@ type DrawFunc func(ctx *core.Context, screen *ebiten.Image) error
 // Options holds the runner's launch settings: window, vsync, and the
 // internal render resolution.
 type Options struct {
-	Window    Size
-	Resizable bool
-	VSync     bool
-	Logical   Size
+	Window     Size
+	Resizable  bool
+	VSync      bool
+	Logical    Size
+	Filesystem fs.FS
 }
 
 type option interface {
@@ -70,6 +74,10 @@ type Runner struct {
 
 // New creates the Runner for g, applying opts over defaults. The option
 // constructors never fail; all validation happens here in a single pass.
+// New also wires the asset pipeline into g's world: an [asset.Server]
+// over the configured filesystem, provided as a resource, and the
+// runner's [TextureProvider], provided eagerly. A game that already
+// provided its own server owns the conflict; New returns the error.
 func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	options := defaultOptions()
 	for _, o := range opts {
@@ -78,6 +86,20 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	if err := options.validate(); err != nil {
 		return nil, err
 	}
+
+	server := asset.New(options.Filesystem)
+	if err := g.World().Provide(func(*core.World) (*asset.Server, error) {
+		return server, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: provide asset server: %w", err)
+	}
+	provider := newTextureProvider(server)
+	if err := g.World().ProvideEager(func(*core.World) (*TextureProvider, error) {
+		return provider, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: provide texture provider: %w", err)
+	}
+
 	return &Runner{g: g, opts: options, last: time.Now()}, nil
 }
 
@@ -178,4 +200,12 @@ func WithResizable() option {
 // WithoutVSync disables vsync. Default is on.
 func WithoutVSync() option {
 	return optionFunc(func(o *Options) { o.VSync = false })
+}
+
+// WithFilesystem sets the filesystem asset paths resolve against. Any
+// fs.FS works: embed.FS for single-binary distribution, os.DirFS for
+// development layouts, fstest.MapFS for tests. Default is the game's
+// working directory.
+func WithFilesystem(fs fs.FS) option {
+	return optionFunc(func(o *Options) { o.Filesystem = fs })
 }

@@ -36,7 +36,7 @@ func newTestFS(files map[string]string) fs.FS {
 	return mapFS
 }
 
-func mustRegisterJSONDecoder(t *testing.T, a *Asset) {
+func mustRegisterJSONDecoder(t *testing.T, a *Server) {
 	t.Helper()
 	if err := a.RegisterDecoder(FormatJSON, jsonDecoder[spriteMeta](), false); err != nil {
 		t.Fatalf("RegisterDecoder: %v", err)
