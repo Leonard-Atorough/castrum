@@ -12,10 +12,10 @@ type Runner interface {
 
 ## The Ebitengine runner
 
-`castrum/ebiten` provides the default runner, backed by [Ebitengine](https://ebitengine.org). Because it shares its package name with Ebitengine, import it with an alias:
+`castrum/ebiten` provides the default runner, backed by [Ebitengine](https://ebitengine.org). The package is named `ebitrun`, so no import alias is needed:
 
 ```go
-import ebitrun "github.com/Leonard-Atorough/castrum/ebiten"
+import "github.com/Leonard-Atorough/castrum/ebiten" // package ebitrun
 ```
 
 ```go

@@ -28,7 +28,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/core"
-	ebitrun "github.com/Leonard-Atorough/castrum/ebiten"
+	"github.com/Leonard-Atorough/castrum/ebiten"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 

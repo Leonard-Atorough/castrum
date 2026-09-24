@@ -1,4 +1,4 @@
-package ebiten
+package ebitrun
 
 import (
 	"errors"
