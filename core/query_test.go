@@ -1,7 +1,6 @@
 package core
 
 import (
-	"reflect"
 	"testing"
 )
 
@@ -15,7 +14,7 @@ func TestQueryYieldsMatchingEntities(t *testing.T) {
 	both, _ := w.NewEntity(queryPos{X: 3, Y: 4}, queryVel{X: 5, Y: 6})
 
 	q := NewQuery(w).
-		With(reflect.TypeFor[queryPos](), reflect.TypeFor[queryVel]())
+		With(queryPos{}, queryVel{})
 
 	var got []EntityID
 	for e := range q.Execute() {
@@ -40,8 +39,8 @@ func TestQueryWithoutExcludes(t *testing.T) {
 	_, _ = w.NewEntity(queryPos{X: 3, Y: 4}, queryVel{X: 5, Y: 6})
 
 	q := NewQuery(w).
-		With(reflect.TypeFor[queryPos]()).
-		Without(reflect.TypeFor[queryVel]())
+		With(queryPos{}).
+		Without(queryVel{})
 
 	var got []EntityID
 	for e := range q.Execute() {
@@ -59,7 +58,7 @@ func TestQueryWhereFilters(t *testing.T) {
 	high2, _ := w.NewEntity(queryPos{X: 25, Y: 0})
 
 	q := NewQuery(w).
-		With(reflect.TypeFor[queryPos]()).
+		With(queryPos{}).
 		Where(func(e Entry) bool {
 			p, ok := e.Get[queryPos]()
 			return ok && p.X > 10
@@ -85,7 +84,7 @@ func TestQueryEarlyStop(t *testing.T) {
 	c, _ := w.NewEntity(queryPos{X: 3, Y: 3})
 	all := []EntityID{a.ID(), b.ID(), c.ID()}
 
-	q := NewQuery(w).With(reflect.TypeFor[queryPos]())
+	q := NewQuery(w).With(queryPos{})
 
 	count := 0
 	var first EntityID
@@ -120,7 +119,7 @@ func TestQueryGenerationInvalidation(t *testing.T) {
 	_, _ = w.NewEntity(queryPos{X: 1, Y: 1}, queryVel{X: 1, Y: 1})
 
 	q := NewQuery(w).
-		With(reflect.TypeFor[queryPos](), reflect.TypeFor[queryVel]())
+		With(queryPos{}, queryVel{})
 
 	count := 0
 	for range q.Execute() {
@@ -157,7 +156,7 @@ func TestQueryGetLimitedToWithTypes(t *testing.T) {
 	w := NewWorld()
 	_, _ = w.NewEntity(queryPos{X: 1, Y: 2}, queryVel{X: 3, Y: 4})
 
-	q := NewQuery(w).With(reflect.TypeFor[queryPos]())
+	q := NewQuery(w).With(queryPos{})
 	for e := range q.Execute() {
 		if _, ok := e.Get[queryVel](); ok {
 			t.Fatal("Get returned a component that was not in With: the prefetch must only carry requested types")
@@ -175,7 +174,7 @@ func TestQueryOrderDeterministic(t *testing.T) {
 	_, _ = w.NewEntity(queryPos{X: 3, Y: 3})
 	_, _ = w.NewEntity(queryPos{X: 4, Y: 4}, queryVel{X: 4, Y: 4}, queryTag{})
 
-	q := NewQuery(w).With(reflect.TypeFor[queryPos]())
+	q := NewQuery(w).With(queryPos{})
 
 	var first, second []EntityID
 	for e := range q.Execute() {
@@ -199,7 +198,7 @@ func TestQueryReentrantPanics(t *testing.T) {
 	_, _ = w.NewEntity(queryPos{X: 1, Y: 1})
 	_, _ = w.NewEntity(queryPos{X: 2, Y: 2})
 
-	q := NewQuery(w).With(reflect.TypeFor[queryPos]())
+	q := NewQuery(w).With(queryPos{})
 
 	defer func() {
 		if recover() == nil {
@@ -210,4 +209,37 @@ func TestQueryReentrantPanics(t *testing.T) {
 		for range q.Execute() {
 		}
 	}
+}
+
+func TestWithMarkerGuards(t *testing.T) {
+	w := NewWorld()
+
+	defer func() {
+		if recover() == nil {
+			t.Error("nil marker should panic")
+		}
+	}()
+	NewQuery(w).With(nil)
+}
+
+func TestWithPointerMarkerPanics(t *testing.T) {
+	w := NewWorld()
+
+	defer func() {
+		if recover() == nil {
+			t.Error("pointer marker should panic")
+		}
+	}()
+	NewQuery(w).With(&queryPos{})
+}
+
+func TestWithoutPointerMarkerPanics(t *testing.T) {
+	w := NewWorld()
+
+	defer func() {
+		if recover() == nil {
+			t.Error("pointer marker in Without should panic")
+		}
+	}()
+	NewQuery(w).Without(&queryPos{})
 }
