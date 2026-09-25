@@ -118,8 +118,7 @@ func TestWorldToScreen(t *testing.T) {
 func TestEngineDrawFailsFast(t *testing.T) {
 	g, r := newSpriteGame(t)
 	if _, err := g.World().NewEntity(
-		core.TextureSprite{Texture: "missing.png"},
-		core.Sprite{},
+		core.Sprite{Drawable: core.TextureSource{Texture: "missing.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 		core.PrevTransform{Position: geom.Vector2{X: 0, Y: 0}},
 	); err != nil {
@@ -150,16 +149,14 @@ func TestEngineDrawSmoke(t *testing.T) {
 	}
 
 	if _, err := g.World().NewEntity(
-		core.TextureSprite{Texture: "tex.png"},
-		core.Sprite{},
+		core.Sprite{Drawable: core.TextureSource{Texture: "tex.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 		core.PrevTransform{Position: geom.Vector2{X: 0, Y: 0}},
 	); err != nil {
 		t.Fatalf("spawn texture sprite: %v", err)
 	}
 	if _, err := g.World().NewEntity(
-		core.AtlasSprite{Atlas: "sprites", Region: "player"},
-		core.Sprite{},
+		core.Sprite{Drawable: core.AtlasSource{Atlas: "sprites", Region: "player"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 		core.PrevTransform{Position: geom.Vector2{X: 0, Y: 0}},
 	); err != nil {
@@ -178,8 +175,7 @@ func TestEngineDrawSmoke(t *testing.T) {
 func TestDrawEngineErrorPrefixedAndUserDrawsRun(t *testing.T) {
 	g, r := newSpriteGame(t)
 	if _, err := g.World().NewEntity(
-		core.TextureSprite{Texture: "missing.png"},
-		core.Sprite{},
+		core.Sprite{Drawable: core.TextureSource{Texture: "missing.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 		core.PrevTransform{Position: geom.Vector2{X: 0, Y: 0}},
 	); err != nil {

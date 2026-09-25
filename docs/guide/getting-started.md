@@ -109,12 +109,11 @@ if err := game.AddSystem(core.PhaseStartup, "register-atlas", core.SystemFunc(fu
 }
 ```
 
-A sprite is an entity with a source variant, the shared style, and a transform. `Sprite`'s zero value is the shown, opaque sprite - set `Hidden` to stop showing it, `Transparency` to fade it, `Layer`/`SortOrder` to order it against other sprites:
+A sprite is an entity with one component: the style plus what to draw. The `Drawable` sum carries the picture — an atlas region or a standalone texture — or a shape. `Sprite`'s zero-value style is shown and opaque: set `Hidden` to stop showing it, `Transparency` to fade it, `Layer`/`SortOrder` to order it against other sprites.
 
 ```go
 if _, err := game.World().NewEntity(
-	core.AtlasSprite{Atlas: "characters", Region: "char_0"},
-	core.Sprite{},
+	core.Sprite{Drawable: core.AtlasSource{Atlas: "characters", Region: "char_0"}},
 	core.Transform{Position: geom.Vector2{X: 640, Y: 360}, Scale: geom.Vector2{X: 4, Y: 4}},
 	core.PrevTransform{Position: geom.Vector2{X: 640, Y: 360}},
 ); err != nil {
@@ -122,7 +121,7 @@ if _, err := game.World().NewEntity(
 }
 ```
 
-`TextureSprite{Texture: "sky.png"}` is the other source variant, for standalone images - exactly one of the two per sprite.
+`core.TextureSource{Texture: "sky.png"}` draws a standalone image whole, and the shapes — `core.RectShape{Size: ...}`, `core.CircleShape{Radius: ...}`, `core.LineShape{To: ...}` — draw geometry with the same component, styled by `Tint` and outlined with `Outline` + `StrokeWidth`. One `Drawable` per sprite, enforced by the sum: a sprite cannot declare two pictures.
 
 Now move it in a fixed system, by writing `Transform` each tick:
 

@@ -78,16 +78,14 @@ type workingItem struct {
 	worldY    float64 // interpolated, the Y-fallback sort key
 }
 
-// Collector assembles each frame's draw list: it owns the camera,
-// sprite, and primitive queries, resolves sprite sources through the
-// asset server, culls against the camera viewport, and sorts by
-// layer, sort order, then world Y. Reused across frames - construct
-// once per game; the runner's engine draw calls Collect every frame.
+// Collector assembles each frame's draw list: it owns the camera and
+// sprite queries, resolves texture sources through the asset server,
+// culls against the camera viewport, and sorts by layer, sort order,
+// then world Y. Reused across frames - construct once per game; the
+// runner's engine draw calls Collect every frame.
 type Collector struct {
 	camera,
-	textureSprites,
-	atlasSprites,
-	primitives *Query
+	sprites *Query
 	// working is the pre-sort buffer; SortedItems the post-sort
 	// output. Both are reused across frames: steady-state collection
 	// is zero-alloc.
@@ -98,14 +96,12 @@ type Collector struct {
 }
 
 // NewCollector builds a Collector over world: one primary-camera
-// query, one query per sprite source variant, and one primitives
-// query — every shape geometry flows through the same query, because
-// Primitive carries its Shape as data rather than as a component
-// variant. Each is predicate-filtered (Primary; drawables not
-// Hidden). The first primary camera in deterministic query order
-// frames the world; sprites must pair Sprite with a source variant
-// (TextureSprite or AtlasSprite), primitives pair with a Transform
-// and a PrevTransform to match.
+// query and one sprite query — every Drawable kind flows through the
+// same query, because Sprite carries its Drawable as data rather than
+// as component variants. Each is predicate-filtered (Primary; sprites
+// not Hidden). The first primary camera in deterministic query order
+// frames the world; sprites pair with a Transform and a PrevTransform
+// to match.
 func NewCollector(world *World) *Collector {
 	camera := NewQuery(world).
 		With(Camera{}, Transform{}, PrevTransform{}).
@@ -117,57 +113,37 @@ func NewCollector(world *World) *Collector {
 			return cam.Primary
 		})
 
-	textureSprites := NewQuery(world).
-		With(TextureSprite{}, Sprite{}, Transform{}, PrevTransform{}).
+	sprites := NewQuery(world).
+		With(Sprite{}, Transform{}, PrevTransform{}).
 		Where(func(e Entry) bool {
 			s, ok := e.Component[Sprite]()
 			if !ok {
 				return false
 			}
 			return !s.Hidden
-		})
-
-	atlasSprites := NewQuery(world).
-		With(AtlasSprite{}, Sprite{}, Transform{}, PrevTransform{}).
-		Where(func(e Entry) bool {
-			s, ok := e.Component[Sprite]()
-			if !ok {
-				return false
-			}
-			return !s.Hidden
-		})
-
-	primitives := NewQuery(world).
-		With(Primitive{}, Transform{}, PrevTransform{}).
-		Where(func(e Entry) bool {
-			p, ok := e.Component[Primitive]()
-			if !ok {
-				return false
-			}
-			return !p.Hidden
 		})
 
 	return &Collector{
-		camera:         camera,
-		textureSprites: textureSprites,
-		atlasSprites:   atlasSprites,
-		primitives:     primitives,
-		working:        make([]workingItem, 0),
-		SortedItems:    make([]DrawItem, 0),
+		camera:      camera,
+		sprites:     sprites,
+		working:     make([]workingItem, 0),
+		SortedItems: make([]DrawItem, 0),
 	}
 }
 
-// Collect resolves the primary camera, collects both sprite source
-// variants and the three shape geometries, interpolates positions
-// from PrevTransform by ctx.Alpha, culls against the camera viewport,
-// and sorts by layer → SortOrder → world Y. It returns a DrawList
-// viewing the collector's buffers; do not retain it across frames.
+// Collect resolves the primary camera, collects every sprite — the
+// Drawable sum picks the path: texture sources resolve through the
+// asset server, shapes carry geometry alone, nil is style without a
+// picture and skips — interpolates positions from PrevTransform by
+// ctx.Alpha, culls against the camera viewport, and sorts by layer →
+// SortOrder → world Y. It returns a DrawList viewing the collector's
+// buffers; do not retain it across frames.
 //
 // No primary camera: an empty DrawList, no error - overlays still run.
-// Any unresolvable sprite source - an unregistered atlas or region, or
-// a texture that will not load - fails the collect, naming the handles:
-// registration problems surface at the first rendered frame. Shapes
-// cannot fail: there is nothing to resolve.
+// An unresolvable texture source - an unregistered atlas or region,
+// or a texture that will not load - fails the collect, naming the
+// handles: registration problems surface at the first rendered frame.
+// Shapes cannot fail: there is nothing to resolve.
 func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 	// First primary wins; query iteration order is deterministic.
 	entry, ok := c.camera.First()
@@ -196,107 +172,100 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 
 	c.working = c.working[:0]
 
-	for e := range c.textureSprites.Execute() {
-		src, _ := e.Component[TextureSprite]()
+	for e := range c.sprites.Execute() {
 		sprite, _ := e.Component[Sprite]()
 		transform, _ := e.Component[Transform]()
 		prev, _ := e.Component[PrevTransform]()
 
-		data, err := server.Load[asset.TextureData](string(src.Texture))
-		if err != nil {
-			return DrawList{}, fmt.Errorf("castrum: collect: texture %q: %w", src.Texture, err)
-		}
-		c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
-			prev.Position, transform.Position,
-			geom.Vector2{}, // sprites are centered on the position
-			geom.Vector2{
-				X: float64(data.Width) * transform.Scale.X,
-				Y: float64(data.Height) * transform.Scale.Y,
-			},
-			DrawItem{
-				Texture:      src.Texture,
-				Rect:         image.Rectangle{},
-				Rotation:     transform.Rotation,
-				Scale:        transform.Scale,
-				FlipH:        sprite.FlipH,
-				FlipV:        sprite.FlipV,
-				Tint:         sprite.Tint,
-				Transparency: sprite.Transparency,
-			})
-	}
-
-	for e := range c.atlasSprites.Execute() {
-		src, _ := e.Component[AtlasSprite]()
-		sprite, _ := e.Component[Sprite]()
-		transform, _ := e.Component[Transform]()
-		prev, _ := e.Component[PrevTransform]()
-
-		atlas, err := server.Store().Atlas(src.Atlas)
-		if err != nil {
-			return DrawList{}, fmt.Errorf("castrum: collect: atlas %q: %w", src.Atlas, err)
-		}
-		region, err := atlas.Region(src.Region)
-		if err != nil {
-			return DrawList{}, fmt.Errorf("castrum: collect: atlas %q: %w", src.Atlas, err)
-		}
-		c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
-			prev.Position, transform.Position,
-			geom.Vector2{}, // sprites are centered on the position
-			geom.Vector2{
-				X: float64(region.W) * transform.Scale.X,
-				Y: float64(region.H) * transform.Scale.Y,
-			},
-			DrawItem{
-				Texture:      atlas.TexturePath(),
-				Rect:         region.Rect(),
-				Rotation:     transform.Rotation,
-				Scale:        transform.Scale,
-				FlipH:        sprite.FlipH,
-				FlipV:        sprite.FlipV,
-				Tint:         sprite.Tint,
-				Transparency: sprite.Transparency,
-			})
-	}
-
-	// Shape primitives resolve to geometry alone — no assets, no
-	// fail-fast: there is nothing to look up. A nil color draws
-	// black, applied here so shape items always carry a concrete
-	// color. Bounds come from the geometry, scaled; a segment's
-	// bounds center halfway along the segment, not on the position.
-	for e := range c.primitives.Execute() {
-		prim, _ := e.Component[Primitive]()
-		transform, _ := e.Component[Transform]()
-		prev, _ := e.Component[PrevTransform]()
-
-		var offset, size geom.Vector2
-		switch shape := prim.Shape.(type) {
+		switch drawable := sprite.Drawable.(type) {
+		case nil:
+			// Style without a picture: legal, not drawn.
+			continue
+		case AtlasSource:
+			atlas, err := server.Store().Atlas(drawable.Atlas)
+			if err != nil {
+				return DrawList{}, fmt.Errorf("castrum: collect: atlas %q: %w", drawable.Atlas, err)
+			}
+			region, err := atlas.Region(drawable.Region)
+			if err != nil {
+				return DrawList{}, fmt.Errorf("castrum: collect: atlas %q: %w", drawable.Atlas, err)
+			}
+			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
+				prev.Position, transform.Position,
+				geom.Vector2{}, // sprites are centered on the position
+				geom.Vector2{
+					X: float64(region.W) * transform.Scale.X,
+					Y: float64(region.H) * transform.Scale.Y,
+				},
+				DrawItem{
+					Texture:      atlas.TexturePath(),
+					Rect:         region.Rect(),
+					Rotation:     transform.Rotation,
+					Scale:        transform.Scale,
+					FlipH:        sprite.FlipH,
+					FlipV:        sprite.FlipV,
+					Tint:         sprite.Tint,
+					Transparency: sprite.Transparency,
+				})
+		case TextureSource:
+			data, err := server.Load[asset.TextureData](string(drawable.Texture))
+			if err != nil {
+				return DrawList{}, fmt.Errorf("castrum: collect: texture %q: %w", drawable.Texture, err)
+			}
+			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
+				prev.Position, transform.Position,
+				geom.Vector2{}, // sprites are centered on the position
+				geom.Vector2{
+					X: float64(data.Width) * transform.Scale.X,
+					Y: float64(data.Height) * transform.Scale.Y,
+				},
+				DrawItem{
+					Texture:      drawable.Texture,
+					Rect:         image.Rectangle{},
+					Rotation:     transform.Rotation,
+					Scale:        transform.Scale,
+					FlipH:        sprite.FlipH,
+					FlipV:        sprite.FlipV,
+					Tint:         sprite.Tint,
+					Transparency: sprite.Transparency,
+				})
 		case RectShape:
-			size = geom.Vector2{
-				X: shape.Size.X * transform.Scale.X,
-				Y: shape.Size.Y * transform.Scale.Y,
-			}
+			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
+				prev.Position, transform.Position,
+				geom.Vector2{}, // rects are centered on the position
+				geom.Vector2{
+					X: drawable.Size.X * transform.Scale.X,
+					Y: drawable.Size.Y * transform.Scale.Y,
+				},
+				shapeItem(sprite, transform, drawable))
 		case CircleShape:
-			diameter := 2 * shape.Radius
-			size = geom.Vector2{
-				X: diameter * transform.Scale.X,
-				Y: diameter * transform.Scale.Y,
-			}
+			diameter := 2 * drawable.Radius
+			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
+				prev.Position, transform.Position,
+				geom.Vector2{}, // circles are centered on the position
+				geom.Vector2{
+					X: diameter * transform.Scale.X,
+					Y: diameter * transform.Scale.Y,
+				},
+				shapeItem(sprite, transform, drawable))
 		case LineShape:
-			offset = geom.Vector2{
-				X: shape.To.X * transform.Scale.X / 2,
-				Y: shape.To.Y * transform.Scale.Y / 2,
-			}
-			size = geom.Vector2{
-				X: math.Abs(shape.To.X * transform.Scale.X),
-				Y: math.Abs(shape.To.Y * transform.Scale.Y),
-			}
+			// A segment spans position to position+To, so its bounds
+			// center halfway along the segment, not on the position.
+			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
+				prev.Position, transform.Position,
+				geom.Vector2{
+					X: drawable.To.X * transform.Scale.X / 2,
+					Y: drawable.To.Y * transform.Scale.Y / 2,
+				},
+				geom.Vector2{
+					X: math.Abs(drawable.To.X * transform.Scale.X),
+					Y: math.Abs(drawable.To.Y * transform.Scale.Y),
+				},
+				shapeItem(sprite, transform, drawable))
 		default:
-			// Unreachable: Validate seals the sum at spawn.
+			// Unreachable: the sum is sealed and Validate covers it.
 			continue
 		}
-		c.stage(viewport, ctx.Alpha, prim.Layer, prim.SortOrder,
-			prev.Position, transform.Position, offset, size,
-			shapeItem(prim, transform))
 	}
 
 	slices.SortStableFunc(c.working, func(a, b workingItem) int {
@@ -338,20 +307,20 @@ func (c *Collector) stage(viewport geom.Rect, alpha float64, layer uint8, sortOr
 	})
 }
 
-// shapeItem assembles a shape primitive's DrawItem: the component's
-// Shape carried straight through, snapped rotation and scale, and
-// style. A nil color draws black, so shape items always carry a
+// shapeItem assembles a shape sprite's DrawItem: the geometry carried
+// straight through as the item's Shape, snapped rotation and scale,
+// and style. A nil tint draws black, so shape items always carry a
 // concrete color.
-func shapeItem(prim Primitive, transform Transform) DrawItem {
-	fill := prim.Color
+func shapeItem(sprite Sprite, transform Transform, shape Shape) DrawItem {
+	fill := sprite.Tint
 	if fill == nil {
 		fill = color.Black
 	}
 	return DrawItem{
-		Shape:        prim.Shape,
+		Shape:        shape,
 		Rotation:     transform.Rotation,
 		Scale:        transform.Scale,
 		Tint:         fill,
-		Transparency: prim.Transparency,
+		Transparency: sprite.Transparency,
 	}
 }
