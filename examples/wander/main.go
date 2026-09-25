@@ -1,7 +1,7 @@
 // Command wander demonstrates the v0.1.0 renderer: an atlas sprite
 // wanders to random screen points at fixed ticks, the engine renders it
 // interpolated between ticks, and a user DrawFunc draws an overlay
-// above the scene.
+// above the engine-rendered world.
 //
 // Run from the repository root:
 //
@@ -118,10 +118,10 @@ func run() error {
 		return err
 	}
 
-	// User draws run after the engine scene, so this lands on top of
+	// User draws run after the engine-rendered world, so this lands on
 	// the world.
 	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrint(screen, "castrum wander — engine scene below, this overlay above")
+		ebitenutil.DebugPrint(screen, "castrum wander - engine world below, this overlay above")
 		return nil
 	})
 

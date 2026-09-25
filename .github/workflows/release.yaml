@@ -113,12 +113,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate CHANGELOG.md
-        run: git-cliff --skip-tags 'v0\.(0|1)\.' --output CHANGELOG.md
+        run: git-cliff --skip-tags 'v0\.0\.' --output CHANGELOG.md
 
       - name: Preview changelog (dry run)
         if: ${{ inputs.dry_run }}
         run: |
-          git-cliff --latest --skip-tags 'v0\.(0|1)\.' > /tmp/preview.md
+          git-cliff --latest --skip-tags 'v0\.0\.' > /tmp/preview.md
           cat /tmp/preview.md >> "$GITHUB_STEP_SUMMARY"
           echo "Dry run complete — no tag or release created."
 
@@ -136,7 +136,7 @@ jobs:
 
       - name: Generate release notes
         if: ${{ !inputs.dry_run }}
-        run: git-cliff --latest --strip all --skip-tags 'v0\.(0|1)\.' > RELEASE_BODY.md
+        run: git-cliff --latest --strip all --skip-tags 'v0\.0\.' > RELEASE_BODY.md
 
       - name: Create GitHub Release
         if: ${{ !inputs.dry_run }}
