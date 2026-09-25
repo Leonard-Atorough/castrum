@@ -14,11 +14,11 @@ Castrum uses Ebitengine as its underlying rendering and window management librar
 
 Start here if you are new to Castrum. Each guide builds on the previous one.
 
-1. [Getting started](guide/getting-started.md) - install Castrum and open your first window.
+1. [Getting started](guide/getting-started.md) - install Castrum, open your first window, and put a sprite on screen.
 2. [The loop](guide/the-loop.md) - the fixed-timestep core: phases, DeltaTime, and the spiral-of-death guards.
 3. [Systems](guide/systems.md) - writing game logic and organizing it into schedules.
 4. [Resources](guide/resources.md) - typed, shared state on the world.
-5. [Runners](guide/runner.md) - the runner contract, windows, and drawing with Ebitengine.
+5. [Runners](guide/runner.md) - the runner contract, windows, overlays, and the engine renderer.
 
 ## Reference
 
