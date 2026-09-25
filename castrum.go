@@ -84,6 +84,13 @@ func New(opts ...option) (*Game, error) {
 		schedules: map[core.Phase]*runtime.Schedule[core.System]{},
 	}
 	g.ctx.World = g.world
+	// The engine's own systems, registered before any user system can.
+	// Prev-capture must run first in the fixed phase: see
+	// [core.NewPrevTransformCapture]. The AddSystem check stays honest
+	// against signature changes, though the name is never empty.
+	if err := g.AddSystem(core.PhaseFixed, "engine.prev-transform", core.NewPrevTransformCapture()); err != nil {
+		return nil, err
+	}
 	return g, nil
 }
 

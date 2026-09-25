@@ -47,6 +47,12 @@ type Context struct {
 	// interpolating between the last two ticks. Only a runner sets it,
 	// when running its draw systems.
 	Alpha float64
+	// LogicalWidth and LogicalHeight are the render target's internal
+	// resolution in pixels. Static per game: a runner sets them at
+	// construction from its options, and they never change. Culling
+	// and camera projection read them.
+	LogicalWidth  int
+	LogicalHeight int
 }
 
 // System is a unit of game logic. It runs during a specific phase

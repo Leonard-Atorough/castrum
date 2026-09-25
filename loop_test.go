@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/geom"
 )
 
 func TestAdvanceAccumulatesFixedTicks(t *testing.T) {
@@ -197,5 +198,26 @@ func TestCoreHasNoBackendImports(t *testing.T) {
 		if strings.Contains(dep, "hajimehoshi") || strings.Contains(dep, "ebitengine") {
 			t.Errorf("core depends on backend package %q", dep)
 		}
+	}
+}
+
+func TestEngineRegistersPrevTransformCapture(t *testing.T) {
+	g, _ := New()
+	entity, err := g.World().NewEntity(core.Transform{Position: geom.Vector2{X: 7, Y: 7}, Scale: geom.Vector2{X: 1, Y: 1}})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+
+	// One full tick advances the fixed phase: the engine's registered
+	// prev-capture system materializes the snapshot.
+	if err := g.Advance(time.Second / 60); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	prev, ok := entity.Component[core.PrevTransform](g.World())
+	if !ok {
+		t.Fatal("engine prev-capture did not run during the fixed phase")
+	}
+	if prev.Position.X != 7 {
+		t.Fatalf("prev = %+v, want the spawn position", prev)
 	}
 }

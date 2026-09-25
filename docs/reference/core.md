@@ -23,6 +23,7 @@ The `core` package holds the types game logic sees every tick: phases, the conte
 | `Frame` | `uint64` | display frames since startup |
 | `DeltaTime` | `time.Duration` | elapsed frame time in `PhaseFrame`; the constant tick interval in `PhaseFixed` |
 | `Alpha` | `float64` | fixed-loop remainder in `[0, 1)`, for interpolation; set by the runner for draw functions |
+| `LogicalWidth`, `LogicalHeight` | `int` | the render target's internal resolution, in pixels. Static per game: the runner sets them at construction and they never change. Culling and camera projection read them. |
 
 ## System
 

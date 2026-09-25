@@ -12,10 +12,10 @@ type Runner interface {
 
 ## The Ebitengine runner
 
-`castrum/ebiten` provides the default runner, backed by [Ebitengine](https://ebitengine.org). The package is named `ebitrun`, so no import alias is needed:
+`castrum/ebitrun` provides the default runner, backed by [Ebitengine](https://ebitengine.org). The import path matches the package name, so no import alias is needed:
 
 ```go
-import "github.com/Leonard-Atorough/castrum/ebiten" // package ebitrun
+import "github.com/Leonard-Atorough/castrum/ebitrun"
 ```
 
 ```go
@@ -35,21 +35,22 @@ The window is what the player sees; the **logical size** is the internal resolut
 
 ## Draw functions
 
-Drawing is registered on the runner, not the game - the runner owns the canvas type (`*ebiten.Image` here), so draw functions do not transfer across runners. They run in registration order, after the fixed loop settles, once per display frame:
+The engine renders the world itself each frame: it collects the primary camera and every visible sprite entity, interpolates their positions between the last two ticks, culls against the camera's view, sorts by `Layer` → `SortOrder` → world Y, and blits the result with positions snapped to whole pixels. There is no world-drawing code to write - declare `Camera` and `Sprite` entities and they appear.
+
+What you register with `AddDraw` are **overlays**, on top of the engine-rendered world. Overlays are backend-typed by design - the runner owns the canvas type (`*ebiten.Image` here), so they do not transfer across runners - and run in registration order, once per display frame:
 
 ```go
 runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-	screen.Clear()
-	// draw the world state
+	ebitenutil.DebugPrint(screen, "score: 12")
 	return nil
 })
 ```
 
-A draw error is stored and surfaces from `Run` on the next frame, because some platforms cannot report draw errors at draw time.
+A draw error is stored and surfaces from `Run` on the next frame, because some platforms cannot report draw errors at draw time. The stored error names the failing layer: `"engine draw"` for the engine's own rendering, `"draw"` for an overlay.
 
 ## Interpolated drawing
 
-`ctx.Alpha` in a draw function is the fixed-loop remainder in `[0, 1)`: how far the simulation has progressed toward the next tick. Multiply movement by it to render *between* the last two ticks:
+`ctx.Alpha` in an overlay is the fixed-loop remainder in `[0, 1)`: how far the simulation has progressed toward the next tick. The engine applies it to sprites automatically; overlays that draw their own geometry apply it by hand - interpolate positions between the last two ticks:
 
 ```go
 runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
@@ -59,7 +60,7 @@ runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
 })
 ```
 
-Skip this while prototyping; add it when fast-moving objects start to look choppy. See [the loop](the-loop.md#alpha-and-interpolation) for how alpha is produced.
+See [the loop](the-loop.md#alpha-and-interpolation) for how alpha is produced.
 
 ## Quitting
 

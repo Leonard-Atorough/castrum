@@ -2,6 +2,7 @@ package core
 
 import (
 	"cmp"
+	"fmt"
 	"iter"
 	"reflect"
 	"slices"
@@ -30,12 +31,27 @@ func (e Entry) ID() EntityID {
 	return e.entityID
 }
 
-// Get retrieves the component value of type T for the entity associated with this entry.
+// SetComponent overwrites the visited entity's component of type T in place,
+// through the prefetched column. Only the types listed in [Query.With]
+// are available — the same contract as [Entry.Component]. Value writes are
+// safe during iteration: they mutate the entity's slot without moving
+// rows. Structural changes (spawning, destroying, adding or removing
+// components) remain invalid during a pass.
+func (e Entry) SetComponent[T any](value T) {
+	typ := reflect.TypeFor[T]()
+	column, ok := e.columns[typ]
+	if !ok {
+		panic(fmt.Sprintf("castrum: Entry.Set: type %v was not listed in With", typ))
+	}
+	column[e.index] = value
+}
+
+// Component retrieves the component value of type T for the entity associated with this entry.
 // It returns the value and a boolean indicating whether the component was found.
 // Only the component types listed in [Query.With] are available: the
 // prefetch carries those types alone, so any other type reports false even
 // if the entity has the component.
-func (e Entry) Get[T any]() (T, bool) {
+func (e Entry) Component[T any]() (T, bool) {
 	v, ok := e.columns[reflect.TypeFor[T]()]
 	if !ok || e.index >= len(v) {
 		var zero T
@@ -78,7 +94,7 @@ func NewQuery(world *World) *Query {
 // both are build-time mistakes, and a pointer would otherwise silently
 // match no component at all.
 //
-// The listed types are also the only ones [Entry.Get] can retrieve during
+// The listed types are also the only ones [Entry.Component] can retrieve during
 // iteration: they are prefetched per archetype, which is what makes Get a
 // bare column lookup.
 func (q *Query) With(components ...any) *Query {
@@ -175,6 +191,17 @@ func (q *Query) Execute() iter.Seq[Entry] {
 			}
 		}
 	}
+}
+
+func (q *Query) First() (Entry, bool) {
+	var result Entry
+	found := false
+	for e := range q.Execute() {
+		result = e
+		found = true
+		break
+	}
+	return result, found
 }
 
 func byArchetypeID(a, b *ecs.Archetype) int {

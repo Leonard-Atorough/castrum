@@ -19,7 +19,7 @@ Guidance: leave `MaxFrameTime` and `MaxTicksPerFrame` at the defaults unless pro
 
 ## Runner options
 
-`castrum/ebiten` package.
+`castrum/ebitrun` package.
 
 | Option | Effect | Default | Panics when |
 |---|---|---|---|
