@@ -465,30 +465,43 @@ func TestCollectStagesShapeSprites(t *testing.T) {
 		Transform{Rotation: 0.5, Scale: geom.Vector2{X: 2, Y: 2}})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 		Sprite{Drawable: LineShape{To: geom.Vector2{X: 30, Y: 0}}}, Transform{})
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Outline: true, StrokeWidth: 2},
+		Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
 	if err != nil {
 		t.Fatalf("Collect with shapes: %v", err)
 	}
-	if len(list.Items) != 3 {
-		t.Fatalf("Items = %d, want 3", len(list.Items))
+	if len(list.Items) != 4 {
+		t.Fatalf("Items = %d, want 4", len(list.Items))
 	}
 
 	shapes := map[string]DrawItem{}
 	for _, item := range list.Items {
 		switch item.Shape.(type) {
 		case RectShape:
-			if item.Shape != Shape(RectShape{Size: geom.Vector2{X: 10, Y: 20}}) {
-				t.Errorf("rect shape = %v, want (10, 20)", item.Shape)
-			}
-			if !item.Position.AlmostEqual(geom.Vector2{X: 5, Y: 0}, 1e-9) {
-				t.Errorf("rect position = %v, want interpolated (5, 0)", item.Position)
-			}
-			if item.Tint != color.Black {
-				t.Errorf("rect tint = %v, want the black default for a nil tint", item.Tint)
-			}
-			if item.Transparency != 0.5 {
-				t.Errorf("rect transparency = %v, want 0.5", item.Transparency)
+			if item.Shape == Shape(RectShape{Size: geom.Vector2{X: 10, Y: 20}}) {
+				if !item.Position.AlmostEqual(geom.Vector2{X: 5, Y: 0}, 1e-9) {
+					t.Errorf("rect position = %v, want interpolated (5, 0)", item.Position)
+				}
+				if item.Tint != color.Black {
+					t.Errorf("rect tint = %v, want the black default for a nil tint", item.Tint)
+				}
+				if item.Transparency != 0.5 {
+					t.Errorf("rect transparency = %v, want 0.5", item.Transparency)
+				}
+				if item.Outline || item.StrokeWidth != 0 {
+					t.Errorf("filled rect outline/width = %v/%v, want false/0",
+						item.Outline, item.StrokeWidth)
+				}
+			} else {
+				// The outlined rect: outline style must flow to the
+				// item for the blit to know fill from stroke.
+				if !item.Outline || item.StrokeWidth != 2 {
+					t.Errorf("outlined rect outline/width = %v/%v, want true/2",
+						item.Outline, item.StrokeWidth)
+				}
 			}
 			shapes["rect"] = item
 		case CircleShape:

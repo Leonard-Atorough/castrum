@@ -1,6 +1,8 @@
 package ebitrun
 
 import (
+	"image/color"
+	"math"
 	"strings"
 	"testing"
 
@@ -198,5 +200,118 @@ func TestDrawEngineErrorPrefixedAndUserDrawsRun(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "engine draw") {
 		t.Errorf("error %q should carry the engine draw prefix", err)
+	}
+}
+
+// The shape projection helpers are the testable seam — pixel reads are
+// impossible headless, so the math lives here and the vector calls
+// stay smoke-only.
+func TestRectCorners(t *testing.T) {
+	center := geom.Vector2{X: 50, Y: 50}
+	unit := geom.Vector2{X: 1, Y: 1}
+
+	// Axis-aligned: corners at half the scaled size.
+	got := rectCorners(center, geom.Vector2{X: 10, Y: 20}, unit, 1, 0)
+	want := [4]geom.Vector2{
+		{X: 45, Y: 40}, {X: 55, Y: 40}, {X: 55, Y: 60}, {X: 45, Y: 60},
+	}
+	for i := range want {
+		if !got[i].AlmostEqual(want[i], 1e-9) {
+			t.Errorf("corner %d = %v, want %v", i, got[i], want[i])
+		}
+	}
+
+	// A quarter turn swaps the extents rigidly around the center.
+	rotated := rectCorners(center, geom.Vector2{X: 10, Y: 20}, unit, 1, math.Pi/2)
+	wantRotated := [4]geom.Vector2{
+		{X: 60, Y: 45}, {X: 60, Y: 55}, {X: 40, Y: 55}, {X: 40, Y: 45},
+	}
+	for i := range wantRotated {
+		if !rotated[i].AlmostEqual(wantRotated[i], 1e-9) {
+			t.Errorf("rotated corner %d = %v, want %v", i, rotated[i], wantRotated[i])
+		}
+	}
+
+	// Zoom scales the extents from the snapped center.
+	zoomed := rectCorners(center, geom.Vector2{X: 10, Y: 10}, unit, 2, 0)
+	if zoomed[1] != (geom.Vector2{X: 60, Y: 40}) {
+		t.Errorf("zoomed corner = %v, want (60, 40)", zoomed[1])
+	}
+}
+
+func TestLineEnd(t *testing.T) {
+	start := geom.Vector2{X: 10, Y: 10}
+	unit := geom.Vector2{X: 1, Y: 1}
+
+	end := lineEnd(start, geom.Vector2{X: 30, Y: 0}, unit, 1, 0)
+	if end != (geom.Vector2{X: 40, Y: 10}) {
+		t.Errorf("line end = %v, want (40, 10)", end)
+	}
+	// A quarter turn points the segment down: screen Y grows.
+	rotated := lineEnd(start, geom.Vector2{X: 30, Y: 0}, unit, 1, math.Pi/2)
+	if !rotated.AlmostEqual(geom.Vector2{X: 10, Y: 40}, 1e-9) {
+		t.Errorf("rotated line end = %v, want (10, 40)", rotated)
+	}
+	scaled := lineEnd(start, geom.Vector2{X: 30, Y: 0}, geom.Vector2{X: 2, Y: 2}, 1, 0)
+	if scaled != (geom.Vector2{X: 70, Y: 10}) {
+		t.Errorf("scaled line end = %v, want (70, 10)", scaled)
+	}
+}
+
+func TestCircleRadius(t *testing.T) {
+	if r := circleRadius(5, geom.Vector2{}.X, 1); r != 0 {
+		t.Errorf("zero scale radius = %v, want 0", r)
+	}
+	if r := circleRadius(5, 2, 1); r != 10 {
+		t.Errorf("scaled radius = %v, want 10", r)
+	}
+	if r := circleRadius(5, -2, 1); r != 10 {
+		t.Errorf("mirrored scale radius = %v, want 10 (mirroring is not a size)", r)
+	}
+}
+
+func TestShapeColor(t *testing.T) {
+	black := shapeColor(color.Black, 0)
+	if black != (color.RGBA{R: 0, G: 0, B: 0, A: 255}) {
+		t.Errorf("black shape color = %v, want opaque black", black)
+	}
+	red := shapeColor(color.RGBA{R: 255, A: 255}, 0.5)
+	if red != (color.RGBA{R: 255, G: 0, B: 0, A: 127}) {
+		t.Errorf("half-transparent red = %v, want alpha 127", red)
+	}
+	// A fully transparent tint carries no hue: invisible.
+	if empty := shapeColor(color.RGBA{}, 0); empty != (color.RGBA{}) {
+		t.Errorf("transparent tint = %v, want the zero color", empty)
+	}
+}
+
+// The shape blit is a smoke test: all three shapes, filled and
+// outlined, on and off center, against an offscreen image — no error,
+// no panic. Nothing pixel-assertable headless.
+func TestEngineDrawShapeSmoke(t *testing.T) {
+	g, r := newSpriteGame(t)
+	spawns := []core.Sprite{
+		{Drawable: core.RectShape{Size: geom.Vector2{X: 10, Y: 20}}},
+		{Drawable: core.RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Outline: true, StrokeWidth: 2},
+		{Drawable: core.CircleShape{Radius: 5}},
+		{Drawable: core.CircleShape{Radius: 5}, Outline: true, StrokeWidth: 1},
+		{Drawable: core.LineShape{To: geom.Vector2{X: 30, Y: 0}}, Outline: true, StrokeWidth: 2},
+	}
+	for i, sprite := range spawns {
+		sprite.Layer = uint8(i)
+		if _, err := g.World().NewEntity(
+			sprite,
+			core.Transform{
+				Position: geom.Vector2{X: 50, Y: 50},
+				Scale:    spriteScale,
+			},
+			core.PrevTransform{Position: geom.Vector2{X: 50, Y: 50}},
+		); err != nil {
+			t.Fatalf("spawn shape %d: %v", i, err)
+		}
+	}
+
+	if err := r.engine(g.Context(), ebiten.NewImage(100, 100)); err != nil {
+		t.Fatalf("engine draw shape smoke: %v", err)
 	}
 }

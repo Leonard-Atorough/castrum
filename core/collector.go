@@ -50,6 +50,13 @@ type DrawItem struct {
 	// Transparency fades the item: 0.0 - the zero value - is fully
 	// opaque, 1.0 is fully see-through.
 	Transparency float32
+	// Outline strokes the shape's border instead of filling it.
+	// Applies when Shape is non-nil.
+	Outline bool
+	// StrokeWidth is the outline's width in world units; the blit
+	// scales it by zoom. Applies when Shape is non-nil and Outline
+	// is set.
+	StrokeWidth float64
 }
 
 // CameraView is the resolved render camera: the interpolated position
@@ -322,5 +329,7 @@ func shapeItem(sprite Sprite, transform Transform, shape Shape) DrawItem {
 		Scale:        transform.Scale,
 		Tint:         fill,
 		Transparency: sprite.Transparency,
+		Outline:      sprite.Outline,
+		StrokeWidth:  sprite.StrokeWidth,
 	}
 }

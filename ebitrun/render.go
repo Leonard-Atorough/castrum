@@ -1,11 +1,14 @@
 package ebitrun
 
 import (
+	"image/color"
 	"math"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
-	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // newEngineDrawFunc builds the engine's world renderer: it collects
@@ -23,6 +26,10 @@ func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider) Dra
 
 		camera := list.Camera
 		for _, item := range list.Items {
+			if item.Shape != nil {
+				drawShape(screen, item, camera)
+				continue
+			}
 			var img *ebiten.Image
 			if item.Rect.Empty() {
 				img, err = provider.Texture(item.Texture)
@@ -81,4 +88,106 @@ func worldToScreen(world geom.Vector2, camera core.CameraView, screenWidth, scre
 	screenX := math.Round((world.X-camera.Position.X)*camera.Zoom + float64(screenWidth)/2)
 	screenY := math.Round((world.Y-camera.Position.Y)*camera.Zoom + float64(screenHeight)/2)
 	return geom.Vector2{X: screenX, Y: screenY}
+}
+
+// drawShape blits one shape item: geometry through the pure projection
+// helpers, filled or outlined by the item's style, into the vector
+// package. Pixel reads are impossible headless, so the helpers carry
+// the math and this stays a smoke-tested thin layer. Rects go through
+// the path API so any rotation renders with one code path; circles and
+// lines use the dedicated vector calls.
+func drawShape(screen *ebiten.Image, item core.DrawItem, camera core.CameraView) {
+	clr := shapeColor(item.Tint, item.Transparency)
+	width, height := screen.Bounds().Dx(), screen.Bounds().Dy()
+
+	switch shape := item.Shape.(type) {
+	case core.RectShape:
+		center := worldToScreen(item.Position, camera, width, height)
+		corners := rectCorners(center, shape.Size, item.Scale, camera.Zoom, item.Rotation)
+		var path vector.Path
+		path.MoveTo(float32(corners[0].X), float32(corners[0].Y))
+		for _, corner := range corners[1:] {
+			path.LineTo(float32(corner.X), float32(corner.Y))
+		}
+		path.Close()
+		opts := &vector.DrawPathOptions{AntiAlias: true}
+		opts.ColorScale.Scale(
+			float32(clr.R)/255, float32(clr.G)/255, float32(clr.B)/255, float32(clr.A)/255)
+		if item.Outline {
+			vector.StrokePath(screen, &path,
+				&vector.StrokeOptions{Width: float32(item.StrokeWidth * camera.Zoom)}, opts)
+			return
+		}
+		vector.FillPath(screen, &path, &vector.FillOptions{}, opts)
+	case core.CircleShape:
+		center := worldToScreen(item.Position, camera, width, height)
+		radius := circleRadius(shape.Radius, item.Scale.X, camera.Zoom)
+		if item.Outline {
+			vector.StrokeCircle(screen, float32(center.X), float32(center.Y), float32(radius),
+				float32(item.StrokeWidth*camera.Zoom), clr, true)
+			return
+		}
+		vector.FillCircle(screen, float32(center.X), float32(center.Y), float32(radius), clr, true)
+	case core.LineShape:
+		start := worldToScreen(item.Position, camera, width, height)
+		end := lineEnd(start, shape.To, item.Scale, camera.Zoom, item.Rotation)
+		vector.StrokeLine(screen, float32(start.X), float32(start.Y), float32(end.X), float32(end.Y),
+			float32(item.StrokeWidth*camera.Zoom), clr, true)
+	}
+}
+
+// rectCorners returns a rect's four screen-space corners around its
+// projected center, clockwise from top-left: half the size, scaled by
+// the item's scale and the camera zoom, rotated by the item's
+// rotation. The center is snapped once and the corners stay rigid, so
+// the rect never wobbles from per-corner rounding. Pure - no ebiten
+// types, testable headless.
+func rectCorners(center, size, scale geom.Vector2, zoom, rotation float64) [4]geom.Vector2 {
+	half := geom.Vector2{
+		X: size.X * math.Abs(scale.X) * zoom / 2,
+		Y: size.Y * math.Abs(scale.Y) * zoom / 2,
+	}
+	corners := [4]geom.Vector2{
+		{X: -half.X, Y: -half.Y},
+		{X: half.X, Y: -half.Y},
+		{X: half.X, Y: half.Y},
+		{X: -half.X, Y: half.Y},
+	}
+	for i, corner := range corners {
+		corners[i] = center.Add(corner.Rotate(rotation))
+	}
+	return corners
+}
+
+// lineEnd computes a line's second endpoint in screen space, rigidly
+// from the snapped start: the relative endpoint scaled, rotated, and
+// zoomed. Pure.
+func lineEnd(start, to, scale geom.Vector2, zoom, rotation float64) geom.Vector2 {
+	offset := geom.Vector2{
+		X: to.X * scale.X * zoom,
+		Y: to.Y * scale.Y * zoom,
+	}.Rotate(rotation)
+	return start.Add(offset)
+}
+
+// circleRadius scales a circle to screen space. Non-uniform Y scale is
+// ignored for circles: the X scale sizes the radius. Pure.
+func circleRadius(radius, scaleX, zoom float64) float64 {
+	return radius * math.Abs(scaleX) * zoom
+}
+
+// shapeColor composes a shape's draw color: the tint un-premultiplied,
+// its alpha reduced by transparency. Shape tints are never nil - the
+// collector defaults them to black. Pure.
+func shapeColor(tint color.Color, transparency float32) color.RGBA {
+	r, g, b, a := tint.RGBA()
+	if a == 0 {
+		return color.RGBA{}
+	}
+	return color.RGBA{
+		R: uint8(uint32(r) * 255 / a),
+		G: uint8(uint32(g) * 255 / a),
+		B: uint8(uint32(b) * 255 / a),
+		A: uint8(float64(a) * (1 - float64(transparency)) / 257),
+	}
 }
