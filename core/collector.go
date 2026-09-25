@@ -35,9 +35,9 @@ type DrawItem struct {
 	// Tint is the color to multiply the sprite's pixels by. nil means
 	// no tint.
 	Tint color.Color
-	// Opacity is the sprite's alpha, from 0.0 (fully transparent) to
-	// 1.0 (fully opaque).
-	Opacity float32
+	// Transparency fades the item: 0.0 — the zero value — is fully
+	// opaque, 1.0 is fully see-through.
+	Transparency float32
 }
 
 // CameraView is the resolved render camera: the interpolated position
@@ -86,10 +86,10 @@ type Collector struct {
 
 // NewCollector builds a Collector over world: one primary-camera
 // query and the two sprite-source queries, each predicate-filtered
-// (Primary, Visible). The first primary camera in deterministic query
-// order frames the world; sprites must pair Sprite with a source
-// variant (TextureSprite or AtlasSprite), a Transform, and a
-// PrevTransform to match.
+// (Primary; sprites not Hidden). The first primary camera in
+// deterministic query order frames the world; sprites must pair Sprite
+// with a source variant (TextureSprite or AtlasSprite), a Transform,
+// and a PrevTransform to match.
 func NewCollector(world *World) *Collector {
 	camera := NewQuery(world).
 		With(Camera{}, Transform{}, PrevTransform{}).
@@ -108,7 +108,7 @@ func NewCollector(world *World) *Collector {
 			if !ok {
 				return false
 			}
-			return s.Visible
+			return !s.Hidden
 		})
 
 	atlasSprites := NewQuery(world).
@@ -118,7 +118,7 @@ func NewCollector(world *World) *Collector {
 			if !ok {
 				return false
 			}
-			return s.Visible
+			return !s.Hidden
 		})
 	return &Collector{
 		camera:         camera,
@@ -231,17 +231,17 @@ func (c *Collector) stage(viewport geom.Rect, alpha float64, sprite Sprite, tran
 		return
 	}
 	c.working = append(c.working, workingItem{
-		Texture:   texture,
-		Rect:      rect,
-		Position:  position,
-		Rotation:  transform.Rotation,
-		Scale:     transform.Scale,
-		FlipH:     sprite.FlipH,
-		FlipV:     sprite.FlipV,
-		Tint:      sprite.Tint,
-		Opacity:   sprite.Opacity,
-		layer:     sprite.Layer,
-		sortOrder: sprite.SortOrder,
-		worldY:    position.Y,
+		Texture:      texture,
+		Rect:         rect,
+		Position:     position,
+		Rotation:     transform.Rotation,
+		Scale:        transform.Scale,
+		FlipH:        sprite.FlipH,
+		FlipV:        sprite.FlipV,
+		Tint:         sprite.Tint,
+		Transparency: sprite.Transparency,
+		layer:        sprite.Layer,
+		sortOrder:    sprite.SortOrder,
+		worldY:       position.Y,
 	})
 }

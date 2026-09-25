@@ -47,7 +47,7 @@ func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider) Dra
 			op.GeoM.Rotate(item.Rotation)
 			op.GeoM.Translate(screenPos.X, screenPos.Y)
 
-			// Tint × opacity, both multiplicative. RGBA is
+			// Tint and transparency are both multiplicative. RGBA is
 			// alpha-premultiplied, so divide the channels out: the
 			// tint multiplies by hue alone, not by the tint color's
 			// own alpha. A nil or fully transparent tint carries no
@@ -58,7 +58,7 @@ func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider) Dra
 					op.ColorScale.Scale(float32(r)/float32(a), float32(g)/float32(a), float32(b)/float32(a), 1)
 				}
 			}
-			op.ColorScale.ScaleAlpha(item.Opacity)
+			op.ColorScale.ScaleAlpha(1 - item.Transparency)
 
 			screen.DrawImage(img, op)
 		}

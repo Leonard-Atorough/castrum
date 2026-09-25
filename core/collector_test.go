@@ -84,7 +84,7 @@ func spawnTextureSprite(t *testing.T, w *World, texture asset.ID, prev, curr geo
 // sprite resolution never happens on this path.
 func TestCollectWithoutPrimaryCameraReturnsEmptyList(t *testing.T) {
 	w := newCollectorWorld(t)
-	spawnTextureSprite(t, w, "missing.png", geom.Vector2{}, geom.Vector2{}, Sprite{Visible: true})
+	spawnTextureSprite(t, w, "missing.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
 	if err != nil {
@@ -105,6 +105,26 @@ func TestCollectIgnoresNonPrimaryCameras(t *testing.T) {
 	}
 	if len(list.Items) != 0 {
 		t.Errorf("Items = %d, want 0", len(list.Items))
+	}
+}
+
+// The zero value shows; Hidden opts out. A hidden sprite never
+// collects — no resolution, no bounds, no draw.
+func TestCollectSkipsHiddenSprites(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	spawnTextureSprite(t, w, "tex.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
+	spawnTextureSprite(t, w, "tex2.png", geom.Vector2{}, geom.Vector2{}, Sprite{Hidden: true})
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0))
+	if err != nil {
+		t.Fatalf("Collect with hidden sprite: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("Items = %d, want 1 — the hidden sprite must not collect", len(list.Items))
+	}
+	if list.Items[0].Texture != "tex.png" {
+		t.Errorf("Items[0].Texture = %q, want tex.png", list.Items[0].Texture)
 	}
 }
 
@@ -160,7 +180,7 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnTextureSprite(t, w, "tex.png",
 		geom.Vector2{}, geom.Vector2{X: 10, Y: 20},
-		Sprite{Visible: true, Opacity: 0.5, FlipH: true})
+		Sprite{FlipH: true, Transparency: 0.5})
 
 	collector := NewCollector(w)
 	for _, tc := range []struct {
@@ -188,8 +208,8 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 		if item.Rect != (image.Rectangle{}) {
 			t.Errorf("rect = %v, want empty for a whole-texture sprite", item.Rect)
 		}
-		if !item.FlipH || item.Opacity != 0.5 {
-			t.Errorf("flip/opacity = %v/%v, want true/0.5", item.FlipH, item.Opacity)
+		if !item.FlipH || item.Transparency != 0.5 {
+			t.Errorf("flip/transparency = %v/%v, want true/0.5", item.FlipH, item.Transparency)
 		}
 	}
 }
@@ -205,7 +225,7 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 	} {
 		if _, err := w.NewEntity(
 			AtlasSprite{Atlas: "sprites", Region: name},
-			Sprite{Visible: true},
+			Sprite{},
 			Transform{Position: geom.Vector2{}, Scale: unitScale},
 			PrevTransform{},
 		); err != nil {
@@ -215,7 +235,7 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 		// bounds end at 61, well outside the 100x100 viewport's +50.
 		if _, err := w.NewEntity(
 			AtlasSprite{Atlas: "sprites", Region: name},
-			Sprite{Visible: true},
+			Sprite{},
 			Transform{Position: geom.Vector2{X: 60}, Scale: unitScale},
 			PrevTransform{Position: geom.Vector2{X: 60}},
 		); err != nil {
@@ -253,15 +273,15 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 func TestCollectCullsAgainstViewport(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-	spawnTextureSprite(t, w, "tex.png", geom.Vector2{}, geom.Vector2{}, Sprite{Visible: true})           // dead center: kept
-	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 48}, geom.Vector2{X: 48}, Sprite{Visible: true}) // 4x4 bounds touch +50: kept
-	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 54}, geom.Vector2{X: 54}, Sprite{Visible: true}) // bounds [52,56]: culled
-	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 60}, geom.Vector2{X: 60}, Sprite{Visible: true}) // far out: culled
+	spawnTextureSprite(t, w, "tex.png", geom.Vector2{}, geom.Vector2{}, Sprite{})           // dead center: kept
+	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 48}, geom.Vector2{X: 48}, Sprite{}) // 4x4 bounds touch +50: kept
+	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 54}, geom.Vector2{X: 54}, Sprite{}) // bounds [52,56]: culled
+	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 60}, geom.Vector2{X: 60}, Sprite{}) // far out: culled
 
 	// Scale grows bounds: the same off-screen position survives at 10x.
 	if _, err := w.NewEntity(
 		TextureSprite{Texture: "tex.png"},
-		Sprite{Visible: true},
+		Sprite{},
 		Transform{Position: geom.Vector2{X: 60}, Scale: geom.Vector2{X: 10, Y: 10}},
 		PrevTransform{Position: geom.Vector2{X: 60}},
 	); err != nil {
@@ -285,7 +305,7 @@ func TestCollectCullsAgainstViewport(t *testing.T) {
 	// bounds touch +50, now falls outside the +25 edge.
 	zoomed := newCollectorWorld(t)
 	spawnCamera(t, zoomed, geom.Vector2{}, geom.Vector2{}, 2, true)
-	spawnTextureSprite(t, zoomed, "tex.png", geom.Vector2{X: 48}, geom.Vector2{X: 48}, Sprite{Visible: true})
+	spawnTextureSprite(t, zoomed, "tex.png", geom.Vector2{X: 48}, geom.Vector2{X: 48}, Sprite{})
 	list, err = NewCollector(zoomed).Collect(drawContext(zoomed, 0))
 	if err != nil {
 		t.Fatalf("Collect with zoom: %v", err)
@@ -304,12 +324,12 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 		want   []string
 	}{
 		{"unloadable texture", func(t *testing.T, w *World) {
-			spawnTextureSprite(t, w, "missing.png", geom.Vector2{}, geom.Vector2{}, Sprite{Visible: true})
+			spawnTextureSprite(t, w, "missing.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
 		}, []string{"missing.png"}},
 		{"unregistered atlas", func(t *testing.T, w *World) {
 			if _, err := w.NewEntity(
 				AtlasSprite{Atlas: "ghost", Region: "player"},
-				Sprite{Visible: true},
+				Sprite{},
 				Transform{Position: geom.Vector2{}, Scale: unitScale},
 				PrevTransform{},
 			); err != nil {
@@ -319,7 +339,7 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 		{"unknown region", func(t *testing.T, w *World) {
 			if _, err := w.NewEntity(
 				AtlasSprite{Atlas: "sprites", Region: "boss"},
-				Sprite{Visible: true},
+				Sprite{},
 				Transform{Position: geom.Vector2{}, Scale: unitScale},
 				PrevTransform{},
 			); err != nil {
@@ -358,13 +378,13 @@ func TestCollectSortsLayerThenOrderThenY(t *testing.T) {
 		spawnTextureSprite(t, w, texture, geom.Vector2{Y: y}, geom.Vector2{Y: y}, sprite)
 	}
 
-	at("tex.png", -10, Sprite{Visible: true, Layer: 0})               // A
-	at("tex.png", 10, Sprite{Visible: true, Layer: 0})                // B
-	at("tex.png", -10, Sprite{Visible: true, Layer: 1})               // C
-	at("tex.png", -10, Sprite{Visible: true, Layer: 0, SortOrder: 1}) // D
-	at("tex.png", 10, Sprite{Visible: true, Layer: 0, SortOrder: -1}) // E
-	at("tex.png", 0, Sprite{Visible: true, Layer: 2})                 // tie 1
-	at("tex2.png", 0, Sprite{Visible: true, Layer: 2})                // tie 2
+	at("tex.png", -10, Sprite{Layer: 0})               // A
+	at("tex.png", 10, Sprite{Layer: 0})                // B
+	at("tex.png", -10, Sprite{Layer: 1})               // C
+	at("tex.png", -10, Sprite{Layer: 0, SortOrder: 1}) // D
+	at("tex.png", 10, Sprite{Layer: 0, SortOrder: -1}) // E
+	at("tex.png", 0, Sprite{Layer: 2})                 // tie 1
+	at("tex2.png", 0, Sprite{Layer: 2})                // tie 2
 
 	want := []asset.ID{
 		"tex.png",  // E: layer 0, sort -1 — beats every sort-0 sprite
@@ -396,8 +416,8 @@ func TestCollectSortsLayerThenOrderThenY(t *testing.T) {
 func TestCollectReusesBuffers(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-	firstSprite := spawnTextureSprite(t, w, "tex.png", geom.Vector2{}, geom.Vector2{}, Sprite{Visible: true})
-	spawnTextureSprite(t, w, "tex2.png", geom.Vector2{}, geom.Vector2{}, Sprite{Visible: true})
+	firstSprite := spawnTextureSprite(t, w, "tex.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
+	spawnTextureSprite(t, w, "tex2.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
 
 	collector := NewCollector(w)
 	first, err := collector.Collect(drawContext(w, 0))

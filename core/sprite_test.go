@@ -7,14 +7,14 @@ import (
 )
 
 func TestSpriteValidate(t *testing.T) {
-	valid := Sprite{Opacity: 1, Layer: 31, Tint: color.White}
+	valid := Sprite{Layer: 31, Tint: color.White}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid Sprite rejected: %v", err)
 	}
 	for name, sprite := range map[string]Sprite{
-		"negative opacity": {Opacity: -0.1},
-		"opacity over one": {Opacity: 1.1},
-		"layer over 31":    {Layer: 32},
+		"negative transparency": {Transparency: -0.1},
+		"transparency over one": {Transparency: 1.1},
+		"layer over 31":         {Layer: 32},
 	} {
 		if err := sprite.Validate(); err == nil {
 			t.Errorf("Sprite with %s should fail validation", name)
@@ -43,7 +43,7 @@ func TestSpriteSourceVariantsValidate(t *testing.T) {
 func TestComponentValidationAtSpawn(t *testing.T) {
 	w := NewWorld()
 
-	if _, err := w.NewEntity(Sprite{Opacity: 2}); err == nil {
+	if _, err := w.NewEntity(Sprite{Transparency: 2}); err == nil {
 		t.Fatal("spawn with an invalid Sprite should error")
 	} else if !strings.Contains(err.Error(), "Sprite") {
 		t.Errorf("error %v should name the component type", err)
