@@ -17,7 +17,7 @@ import (
 // server's cache, so the provider's loads are hits.
 //
 // Texture and SubImageRect map one-to-one onto the DrawItem source
-// variants the scene collector produces: an empty Rect routes to
+// variants the collector produces: an empty Rect routes to
 // Texture, a populated one to SubImageRect.
 //
 // [New] provides the provider as a resource; the engine renderer and

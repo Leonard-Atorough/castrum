@@ -16,41 +16,48 @@ import (
 // here, so the runner never deals in atlas IDs. World-space,
 // interpolated; the blit projects to screen.
 type DrawItem struct {
-	// The texture ID for the sprite or sprite atlas.
+	// Texture is the texture the sprite's pixels come from: a
+	// standalone texture's path, or the atlas's texture path.
 	Texture asset.ID
-	// The rectangle within the texture to use for this sprite. If empty, the entire texture is used.
+	// Rect is the region of Texture to draw, in pixels. Empty means
+	// the whole texture - dimension knowledge lives in the blit.
 	Rect image.Rectangle
-	// The interpolated position of the sprite in world space.
+	// Position is the interpolated position of the sprite in world
+	// space.
 	Position geom.Vector2
-	// The rotation of the sprite in world space, in radians.
+	// Rotation is the rotation of the sprite in world space, in
+	// radians.
 	Rotation float64
-	// The scale of the sprite in world space.
+	// Scale is the scale of the sprite in world space.
 	Scale geom.Vector2
-	// Whether the sprite is flipped horizontally and vertically.
+	// FlipH and FlipV mirror the sprite horizontally and vertically.
 	FlipH, FlipV bool
-	// The tint color to apply to the sprite. nil means no tint.
+	// Tint is the color to multiply the sprite's pixels by. nil means
+	// no tint.
 	Tint color.Color
-	// The opacity of the sprite, from 0.0 (fully transparent) to 1.0 (fully opaque).
+	// Opacity is the sprite's alpha, from 0.0 (fully transparent) to
+	// 1.0 (fully opaque).
 	Opacity float32
 }
 
-// CameraView is the resolved render camera: interpolated position and
-// zoom, everything the blit needs to project.
+// CameraView is the resolved render camera: the interpolated position
+// (previous → current by the collect alpha) and the current zoom -
+// everything the blit needs to project world space to the screen.
 type CameraView struct {
 	Position geom.Vector2
 	Zoom     float64
 }
 
-// Scene is one collected frame: the camera and the sorted draw list.
-// Items views the collector's reused buffer of draw items. It should
-// not be modified directly or retained beyond the frame it was collected for.
-type Scene struct {
+// DrawList is one collected frame: the resolved camera and the sorted
+// draw items. Items views the collector's reused buffer; do not modify
+// it or retain the list beyond the frame it was collected for.
+type DrawList struct {
 	Camera CameraView
 	Items  []DrawItem
 }
 
 // workingItem carries the sort keys through collection. The keys are
-// consumed by the sort and stripped before items join the Scene:
+// consumed by the sort and stripped before items join the DrawList:
 // consumers see the post-sort draw list, lean, without ordering data.
 type workingItem struct {
 	DrawItem
@@ -59,20 +66,31 @@ type workingItem struct {
 	worldY    float64 // interpolated, the Y-fallback sort key
 }
 
-// Collector is responsible for collecting draw items from various queries
-// and maintaining a sorted list of items ready for rendering.
+// Collector assembles each frame's draw list: it owns the camera and
+// sprite queries, resolves sprite sources through the asset server,
+// culls against the camera viewport, and sorts by layer, sort order,
+// then world Y. Reused across frames - construct once per game; the
+// runner's engine draw calls Collect every frame.
 type Collector struct {
 	camera,
 	textureSprites,
 	atlasSprites *Query
-	// working is the pre-sort buffer; SortedItems the post-sort output.
-	// Both are reused across frames: steady-state collection is zero-alloc.
-	working     []workingItem
+	// working is the pre-sort buffer; SortedItems the post-sort
+	// output. Both are reused across frames: steady-state collection
+	// is zero-alloc.
+	working []workingItem
+	// SortedItems is the sorted output the returned DrawList views.
+	// It is reused across frames; do not modify or retain it.
 	SortedItems []DrawItem
 }
 
+// NewCollector builds a Collector over world: one primary-camera
+// query and the two sprite-source queries, each predicate-filtered
+// (Primary, Visible). The first primary camera in deterministic query
+// order frames the world; sprites must pair Sprite with a source
+// variant (TextureSprite or AtlasSprite), a Transform, and a
+// PrevTransform to match.
 func NewCollector(world *World) *Collector {
-	// predicate checks for camera component with primary field set to true
 	camera := NewQuery(world).
 		With(Camera{}, Transform{}, PrevTransform{}).
 		Where(func(e Entry) bool {
@@ -111,21 +129,21 @@ func NewCollector(world *World) *Collector {
 	}
 }
 
-// Collect resolves the primary camera (interpolated), collects both
-// sprite source variants, interpolates positions from PrevTransform by
-// ctx.Alpha, culls against the camera viewport, and sorts by layer →
-// SortOrder → world Y. It returns a Scene viewing the collector's
-// buffers; do not retain it across frames.
+// Collect resolves the primary camera, collects both sprite source
+// variants, interpolates positions from PrevTransform by ctx.Alpha,
+// culls against the camera viewport, and sorts by layer → SortOrder →
+// world Y. It returns a DrawList viewing the collector's buffers; do
+// not retain it across frames.
 //
-// No primary camera: an empty Scene, no error — overlays still run.
-// Any unresolvable sprite source such as an unregistered atlas or region, or
-// a texture that will not load fails the collect, naming the handles:
+// No primary camera: an empty DrawList, no error - overlays still run.
+// Any unresolvable sprite source - an unregistered atlas or region, or
+// a texture that will not load - fails the collect, naming the handles:
 // registration problems surface at the first rendered frame.
-func (c *Collector) Collect(ctx *Context) (Scene, error) {
+func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 	// First primary wins; query iteration order is deterministic.
 	entry, ok := c.camera.First()
 	if !ok {
-		return Scene{}, nil
+		return DrawList{}, nil
 	}
 	cam, _ := entry.Component[Camera]()
 	camTransform, _ := entry.Component[Transform]()
@@ -144,7 +162,7 @@ func (c *Collector) Collect(ctx *Context) (Scene, error) {
 
 	server, err := ctx.World.Resource[*asset.Server]()
 	if err != nil {
-		return Scene{}, fmt.Errorf("castrum: collect: resolve asset server: %w", err)
+		return DrawList{}, fmt.Errorf("castrum: collect: resolve asset server: %w", err)
 	}
 
 	c.working = c.working[:0]
@@ -157,7 +175,7 @@ func (c *Collector) Collect(ctx *Context) (Scene, error) {
 
 		data, err := server.Load[asset.TextureData](string(src.Texture))
 		if err != nil {
-			return Scene{}, fmt.Errorf("castrum: collect: texture %q: %w", src.Texture, err)
+			return DrawList{}, fmt.Errorf("castrum: collect: texture %q: %w", src.Texture, err)
 		}
 		c.stage(viewport, ctx.Alpha, sprite, transform, prev,
 			src.Texture, image.Rectangle{}, data.Width, data.Height)
@@ -171,11 +189,11 @@ func (c *Collector) Collect(ctx *Context) (Scene, error) {
 
 		atlas, err := server.Store().Atlas(src.Atlas)
 		if err != nil {
-			return Scene{}, fmt.Errorf("castrum: collect: atlas %q: %w", src.Atlas, err)
+			return DrawList{}, fmt.Errorf("castrum: collect: atlas %q: %w", src.Atlas, err)
 		}
 		region, err := atlas.Region(src.Region)
 		if err != nil {
-			return Scene{}, fmt.Errorf("castrum: collect: atlas %q: %w", src.Atlas, err)
+			return DrawList{}, fmt.Errorf("castrum: collect: atlas %q: %w", src.Atlas, err)
 		}
 		c.stage(viewport, ctx.Alpha, sprite, transform, prev,
 			atlas.TexturePath(), region.Rect(), region.W, region.H)
@@ -195,13 +213,13 @@ func (c *Collector) Collect(ctx *Context) (Scene, error) {
 	for _, item := range c.working {
 		c.SortedItems = append(c.SortedItems, item.DrawItem)
 	}
-	return Scene{Camera: camera, Items: c.SortedItems}, nil
+	return DrawList{Camera: camera, Items: c.SortedItems}, nil
 }
 
 // stage interpolates one sprite's position, culls it against the
 // viewport, and appends it to the working buffer. width and height are
-// the sprite's source dimensions in pixels — the atlas region's, or
-// the standalone texture's — before world scale; rect is empty for
+// the sprite's source dimensions in pixels - the atlas region's, or
+// the standalone texture's - before world scale; rect is empty for
 // whole textures.
 func (c *Collector) stage(viewport geom.Rect, alpha float64, sprite Sprite, transform Transform, prev PrevTransform, texture asset.ID, rect image.Rectangle, width, height int) {
 	position := prev.Position.Lerp(transform.Position, alpha)

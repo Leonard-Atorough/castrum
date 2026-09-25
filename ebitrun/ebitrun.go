@@ -68,6 +68,7 @@ type Runner struct {
 	g       *castrum.Game
 	opts    Options
 	draws   []DrawFunc
+	engine  DrawFunc
 	last    time.Time
 	drawErr error
 }
@@ -106,7 +107,10 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	g.Context().LogicalWidth = options.Logical.Width
 	g.Context().LogicalHeight = options.Logical.Height
 
-	return &Runner{g: g, opts: options, last: time.Now()}, nil
+	collector := core.NewCollector(g.World())
+	engineDraw := newEngineDrawFunc(collector, provider)
+
+	return &Runner{g: g, opts: options, last: time.Now(), engine: engineDraw}, nil
 }
 
 // validate checks the converged options. It is the single owner of
@@ -121,7 +125,9 @@ func (o *Options) validate() error {
 	return nil
 }
 
-// AddDraw registers a draw system. DrawFuncs run in registration order.
+// AddDraw registers a user draw system. DrawFuncs run in registration
+// order, after the engine's world rendering - overlays land on top of
+// the world.
 func (r *Runner) AddDraw(f DrawFunc) {
 	r.draws = append(r.draws, f)
 }
@@ -168,12 +174,18 @@ func (r *Runner) Update() error {
 	return nil
 }
 
-// Draw runs the registered DrawFuncs with the interpolation alpha. A
-// DrawFunc error is stored and surfaces from Update on the next frame,
-// since Ebitengine's Draw cannot return errors.
+// Draw renders the engine's collected draw list, then the registered
+// DrawFuncs, with the interpolation alpha - engine world first, user
+// overlays on top. A draw error is stored and surfaces from Update on
+// the next frame, since Ebitengine's Draw cannot return errors; the
+// stored error names the failing layer ("engine draw" or "draw").
 func (r *Runner) Draw(screen *ebiten.Image) {
 	ctx := r.g.Context()
 	ctx.Alpha = r.g.Alpha()
+
+	if err := r.engine(ctx, screen); err != nil && r.drawErr == nil {
+		r.drawErr = fmt.Errorf("engine draw: %w", err)
+	}
 	for _, f := range r.draws {
 		if err := f(ctx, screen); err != nil && r.drawErr == nil {
 			r.drawErr = fmt.Errorf("draw: %w", err)
@@ -181,7 +193,11 @@ func (r *Runner) Draw(screen *ebiten.Image) {
 	}
 }
 
-// Layout returns the internal render resolution; the window may differ.
+// Layout returns the internal render resolution; the window may
+// differ, and Ebitengine letterboxes the difference (uniform scale,
+// centered). The returned size must stay equal to the logical
+// resolution New published to Context.LogicalWidth/Height: culling
+// reads those, projection reads this, and the two must never diverge.
 func (r *Runner) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return r.opts.Logical.Width, r.opts.Logical.Height
 }

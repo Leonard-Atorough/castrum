@@ -14,10 +14,10 @@ import (
 
 var unitScale = geom.Vector2{X: 1, Y: 1}
 
-// newSceneWorld wires a world the way a runner wires it: an asset
+// newCollectorWorld wires a world the way a runner wires it: an asset
 // server over a filesystem holding two 4x4 textures and a two-region
 // atlas sidecar over the first, both registered.
-func newSceneWorld(t *testing.T) *World {
+func newCollectorWorld(t *testing.T) *World {
 	t.Helper()
 	encode := func() []byte {
 		var buf bytes.Buffer
@@ -48,9 +48,9 @@ func newSceneWorld(t *testing.T) *World {
 	return w
 }
 
-// sceneContext builds a draw context against a 100x100 logical target,
+// drawContext builds a draw context against a 100x100 logical target,
 // the resolution every culling test's viewport math assumes.
-func sceneContext(w *World, alpha float64) *Context {
+func drawContext(w *World, alpha float64) *Context {
 	return &Context{World: w, Alpha: alpha, LogicalWidth: 100, LogicalHeight: 100}
 }
 
@@ -79,39 +79,39 @@ func spawnTextureSprite(t *testing.T, w *World, texture asset.ID, prev, curr geo
 	return e
 }
 
-// Without a primary camera there is no world scene to draw: empty
+// Without a primary camera the collector has nothing to draw: empty
 // Items, no error — overlays still run. The unresolvable sprite proves
 // sprite resolution never happens on this path.
-func TestCollectWithoutPrimaryCameraReturnsEmptyScene(t *testing.T) {
-	w := newSceneWorld(t)
+func TestCollectWithoutPrimaryCameraReturnsEmptyList(t *testing.T) {
+	w := newCollectorWorld(t)
 	spawnTextureSprite(t, w, "missing.png", geom.Vector2{}, geom.Vector2{}, Sprite{Visible: true})
 
-	scene, err := NewCollector(w).Collect(sceneContext(w, 0.5))
+	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
 	if err != nil {
 		t.Fatalf("Collect without primary camera: %v", err)
 	}
-	if len(scene.Items) != 0 {
-		t.Errorf("Items = %d, want 0", len(scene.Items))
+	if len(list.Items) != 0 {
+		t.Errorf("Items = %d, want 0", len(list.Items))
 	}
 }
 
 func TestCollectIgnoresNonPrimaryCameras(t *testing.T) {
-	w := newSceneWorld(t)
+	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, false)
 
-	scene, err := NewCollector(w).Collect(sceneContext(w, 0.5))
+	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
 	if err != nil {
 		t.Fatalf("Collect with non-primary camera: %v", err)
 	}
-	if len(scene.Items) != 0 {
-		t.Errorf("Items = %d, want 0", len(scene.Items))
+	if len(list.Items) != 0 {
+		t.Errorf("Items = %d, want 0", len(list.Items))
 	}
 }
 
 // The camera position interpolates from PrevTransform to Transform by
 // alpha; the zoom comes straight from the camera component.
 func TestCollectInterpolatesCamera(t *testing.T) {
-	w := newSceneWorld(t)
+	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{X: 10, Y: 4}, 2, true)
 
 	collector := NewCollector(w)
@@ -123,32 +123,32 @@ func TestCollectInterpolatesCamera(t *testing.T) {
 		{0.5, geom.Vector2{X: 5, Y: 2}},
 		{1, geom.Vector2{X: 10, Y: 4}},
 	} {
-		scene, err := collector.Collect(sceneContext(w, tc.alpha))
+		list, err := collector.Collect(drawContext(w, tc.alpha))
 		if err != nil {
 			t.Fatalf("Collect at alpha %v: %v", tc.alpha, err)
 		}
-		if !scene.Camera.Position.AlmostEqual(tc.want, 1e-9) {
-			t.Errorf("alpha %v: camera position = %v, want %v", tc.alpha, scene.Camera.Position, tc.want)
+		if !list.Camera.Position.AlmostEqual(tc.want, 1e-9) {
+			t.Errorf("alpha %v: camera position = %v, want %v", tc.alpha, list.Camera.Position, tc.want)
 		}
-		if scene.Camera.Zoom != 2 {
-			t.Errorf("alpha %v: camera zoom = %v, want 2", tc.alpha, scene.Camera.Zoom)
+		if list.Camera.Zoom != 2 {
+			t.Errorf("alpha %v: camera zoom = %v, want 2", tc.alpha, list.Camera.Zoom)
 		}
 	}
 }
 
 // Several primary cameras: the first in deterministic query order wins.
 func TestCollectFirstPrimaryCameraWins(t *testing.T) {
-	w := newSceneWorld(t)
+	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{X: 10, Y: 0}, 1, true)
 	spawnCamera(t, w, geom.Vector2{X: 100, Y: 0}, geom.Vector2{X: 200, Y: 0}, 1, true)
 
-	scene, err := NewCollector(w).Collect(sceneContext(w, 0.5))
+	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
 	if err != nil {
 		t.Fatalf("Collect with two primary cameras: %v", err)
 	}
 	want := geom.Vector2{X: 5, Y: 0}
-	if !scene.Camera.Position.AlmostEqual(want, 1e-9) {
-		t.Errorf("camera position = %v, want %v from the first primary", scene.Camera.Position, want)
+	if !list.Camera.Position.AlmostEqual(want, 1e-9) {
+		t.Errorf("camera position = %v, want %v from the first primary", list.Camera.Position, want)
 	}
 }
 
@@ -156,7 +156,7 @@ func TestCollectFirstPrimaryCameraWins(t *testing.T) {
 // current transform. A texture sprite carries an empty Rect — the blit
 // draws the whole texture.
 func TestCollectInterpolatesTextureSprites(t *testing.T) {
-	w := newSceneWorld(t)
+	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnTextureSprite(t, w, "tex.png",
 		geom.Vector2{}, geom.Vector2{X: 10, Y: 20},
@@ -171,14 +171,14 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 		{0.5, geom.Vector2{X: 5, Y: 10}},
 		{1, geom.Vector2{X: 10, Y: 20}},
 	} {
-		scene, err := collector.Collect(sceneContext(w, tc.alpha))
+		list, err := collector.Collect(drawContext(w, tc.alpha))
 		if err != nil {
 			t.Fatalf("Collect at alpha %v: %v", tc.alpha, err)
 		}
-		if len(scene.Items) != 1 {
-			t.Fatalf("alpha %v: Items = %d, want 1", tc.alpha, len(scene.Items))
+		if len(list.Items) != 1 {
+			t.Fatalf("alpha %v: Items = %d, want 1", tc.alpha, len(list.Items))
 		}
-		item := scene.Items[0]
+		item := list.Items[0]
 		if !item.Position.AlmostEqual(tc.want, 1e-9) {
 			t.Errorf("alpha %v: position = %v, want %v", tc.alpha, item.Position, tc.want)
 		}
@@ -197,7 +197,7 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 // An atlas sprite resolves to its atlas texture and region rect at
 // collection, and culls against the region's dimensions.
 func TestCollectResolvesAtlasSprites(t *testing.T) {
-	w := newSceneWorld(t)
+	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	for name := range map[string]image.Rectangle{
 		"player": image.Rect(0, 0, 2, 2),
@@ -223,15 +223,15 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 		}
 	}
 
-	scene, err := NewCollector(w).Collect(sceneContext(w, 0))
+	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {
 		t.Fatalf("Collect with atlas sprites: %v", err)
 	}
-	if len(scene.Items) != 2 {
-		t.Fatalf("Items = %d, want 2 (one per region; the off-screen copies culled)", len(scene.Items))
+	if len(list.Items) != 2 {
+		t.Fatalf("Items = %d, want 2 (one per region; the off-screen copies culled)", len(list.Items))
 	}
 	rects := map[image.Rectangle]bool{}
-	for _, item := range scene.Items {
+	for _, item := range list.Items {
 		if item.Texture != "tex.png" {
 			t.Errorf("texture = %q, want the atlas texture tex.png", item.Texture)
 		}
@@ -242,7 +242,7 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 		"enemy":  image.Rect(2, 2, 4, 4),
 	} {
 		if !rects[rect] {
-			t.Errorf("region %q: rect %v missing from the scene", name, rect)
+			t.Errorf("region %q: rect %v missing from the list", name, rect)
 		}
 	}
 }
@@ -251,7 +251,7 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 // world space, centered on the interpolated camera. Sprites whose
 // scaled bounds touch the viewport survive.
 func TestCollectCullsAgainstViewport(t *testing.T) {
-	w := newSceneWorld(t)
+	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{}, geom.Vector2{}, Sprite{Visible: true})           // dead center: kept
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 48}, geom.Vector2{X: 48}, Sprite{Visible: true}) // 4x4 bounds touch +50: kept
@@ -268,30 +268,30 @@ func TestCollectCullsAgainstViewport(t *testing.T) {
 		t.Fatalf("spawn scaled sprite: %v", err)
 	}
 
-	scene, err := NewCollector(w).Collect(sceneContext(w, 0))
+	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {
 		t.Fatalf("Collect with culling: %v", err)
 	}
-	if len(scene.Items) != 3 {
-		t.Fatalf("Items = %d, want 3 (center, touching, and scaled; two culled)", len(scene.Items))
+	if len(list.Items) != 3 {
+		t.Fatalf("Items = %d, want 3 (center, touching, and scaled; two culled)", len(list.Items))
 	}
-	for _, item := range scene.Items {
+	for _, item := range list.Items {
 		if item.Position.X > 60 {
-			t.Errorf("culled sprite leaked into the scene at %v", item.Position)
+			t.Errorf("culled sprite leaked into the list at %v", item.Position)
 		}
 	}
 
 	// Zoom halves the world-space viewport: the x=48 sprite, whose
 	// bounds touch +50, now falls outside the +25 edge.
-	zoomed := newSceneWorld(t)
+	zoomed := newCollectorWorld(t)
 	spawnCamera(t, zoomed, geom.Vector2{}, geom.Vector2{}, 2, true)
 	spawnTextureSprite(t, zoomed, "tex.png", geom.Vector2{X: 48}, geom.Vector2{X: 48}, Sprite{Visible: true})
-	scene, err = NewCollector(zoomed).Collect(sceneContext(zoomed, 0))
+	list, err = NewCollector(zoomed).Collect(drawContext(zoomed, 0))
 	if err != nil {
 		t.Fatalf("Collect with zoom: %v", err)
 	}
-	if len(scene.Items) != 0 {
-		t.Errorf("Items = %d, want 0 under 2x zoom", len(scene.Items))
+	if len(list.Items) != 0 {
+		t.Errorf("Items = %d, want 0 under 2x zoom", len(list.Items))
 	}
 }
 
@@ -329,11 +329,11 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			w := newSceneWorld(t)
+			w := newCollectorWorld(t)
 			spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 			tc.sprite(t, w)
 
-			scene, err := NewCollector(w).Collect(sceneContext(w, 0))
+			list, err := NewCollector(w).Collect(drawContext(w, 0))
 			if err == nil {
 				t.Fatalf("Collect should fail fast on %s", tc.name)
 			}
@@ -342,8 +342,8 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 					t.Errorf("error %q should name %q", err, handle)
 				}
 			}
-			if len(scene.Items) != 0 {
-				t.Errorf("failed Collect returned %d items, want 0", len(scene.Items))
+			if len(list.Items) != 0 {
+				t.Errorf("failed Collect returned %d items, want 0", len(list.Items))
 			}
 		})
 	}
@@ -352,7 +352,7 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 // Ordering: layer first, then SortOrder, then the interpolated world Y
 // — higher Y draws later, on top. Full ties keep spawn order.
 func TestCollectSortsLayerThenOrderThenY(t *testing.T) {
-	w := newSceneWorld(t)
+	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	at := func(texture asset.ID, y float64, sprite Sprite) {
 		spawnTextureSprite(t, w, texture, geom.Vector2{Y: y}, geom.Vector2{Y: y}, sprite)
@@ -376,31 +376,31 @@ func TestCollectSortsLayerThenOrderThenY(t *testing.T) {
 		"tex2.png", // tie 2
 	}
 
-	scene, err := NewCollector(w).Collect(sceneContext(w, 0))
+	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {
 		t.Fatalf("Collect with ordering: %v", err)
 	}
-	if len(scene.Items) != len(want) {
-		t.Fatalf("Items = %d, want %d", len(scene.Items), len(want))
+	if len(list.Items) != len(want) {
+		t.Fatalf("Items = %d, want %d", len(list.Items), len(want))
 	}
-	for i, item := range scene.Items {
+	for i, item := range list.Items {
 		if item.Texture != want[i] {
 			t.Errorf("Items[%d].Texture = %q, want %q", i, item.Texture, want[i])
 		}
 	}
 }
 
-// Scene.Items views the collector's reused buffers: the next collect
-// overwrites that buffer underneath a retained scene, which is the
+// DrawList.Items views the collector's reused buffers: the next collect
+// overwrites that buffer underneath a retained list, which is the
 // do-not-retain contract.
 func TestCollectReusesBuffers(t *testing.T) {
-	w := newSceneWorld(t)
+	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	firstSprite := spawnTextureSprite(t, w, "tex.png", geom.Vector2{}, geom.Vector2{}, Sprite{Visible: true})
 	spawnTextureSprite(t, w, "tex2.png", geom.Vector2{}, geom.Vector2{}, Sprite{Visible: true})
 
 	collector := NewCollector(w)
-	first, err := collector.Collect(sceneContext(w, 0))
+	first, err := collector.Collect(drawContext(w, 0))
 	if err != nil {
 		t.Fatalf("first Collect: %v", err)
 	}
@@ -411,7 +411,7 @@ func TestCollectReusesBuffers(t *testing.T) {
 	if err := w.DestroyEntity(firstSprite); err != nil {
 		t.Fatalf("destroy first sprite: %v", err)
 	}
-	second, err := collector.Collect(sceneContext(w, 0))
+	second, err := collector.Collect(drawContext(w, 0))
 	if err != nil {
 		t.Fatalf("second Collect: %v", err)
 	}
@@ -421,11 +421,11 @@ func TestCollectReusesBuffers(t *testing.T) {
 	if second.Items[0].Texture != "tex2.png" {
 		t.Errorf("second Collect: Items[0].Texture = %q, want tex2.png", second.Items[0].Texture)
 	}
-	// The retained scene views the same buffer: the second collect
-	// overwrote its first item. A stale length is exactly why Scenes
+	// The retained list views the same buffer: the second collect
+	// overwrote its first item. A stale length is exactly why DrawLists
 	// must not be retained across frames.
 	if first.Items[0].Texture != "tex2.png" {
-		t.Errorf("retained scene Items[0].Texture = %q, want tex2.png — the buffer was reused underneath it",
+		t.Errorf("retained list Items[0].Texture = %q, want tex2.png — the buffer was reused underneath it",
 			first.Items[0].Texture)
 	}
 }
