@@ -7,25 +7,28 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// Primitive is the shared style of a shape primitive — the shape
-// counterpart of Sprite. Pair it with exactly one geometry variant
-// (RectPrimitive, CirclePrimitive, or LinePrimitive), a Transform,
-// and a PrevTransform, and the collector resolves it into a DrawItem
-// carrying a Shape.
+// Primitive is a shape primitive: one drawable component carrying
+// both the style and the geometry. Pair it with a Transform and a
+// PrevTransform, and the collector resolves it into a DrawItem
+// carrying the same Shape.
 //
-// The zero value is the shown, opaque, filled shape: a declared
-// primitive draws unless told otherwise. Hide it with Hidden; see
-// through it with Transparency; outline it with Outline.
+// The style's zero value is the shown, opaque, filled shape: a
+// declared primitive draws unless told otherwise. The geometry is
+// never zero — Validate rejects a nil Shape and degenerate geometry
+// at spawn.
 type Primitive struct {
 	// Layer orders the shape against every other drawable, 0-31,
 	// back to front.
 	Layer uint8
-	// SortOrder orders within the layer: higher draws on top, with the
-	// world-Y fallback below that.
+	// SortOrder orders within the layer: higher draws on top, with
+	// the world-Y fallback below that.
 	SortOrder int8
 	// Hidden skips collection entirely. false — the zero value —
 	// means shown.
 	Hidden bool
+	// Shape is the geometry to draw: RectShape, CircleShape, or
+	// LineShape. Required — a nil Shape fails Validate at spawn.
+	Shape Shape
 	// Color is the fill or stroke color. nil — the zero value — draws
 	// black.
 	Color color.Color
@@ -54,74 +57,53 @@ func (p Primitive) Validate() error {
 	if p.Transparency < 0 || p.Transparency > 1 {
 		return fmt.Errorf("transparency must be between 0 and 1")
 	}
-	return nil
-}
-
-// RectPrimitive is the rectangle geometry variant: Size is the full
-// extent in world units, centered on the transform position and
-// scaled by the transform's scale.
-type RectPrimitive struct {
-	Size geom.Vector2
-}
-
-func (r RectPrimitive) Validate() error {
-	if r.Size.X <= 0 || r.Size.Y <= 0 {
-		return fmt.Errorf("size must be positive")
+	switch shape := p.Shape.(type) {
+	case nil:
+		return fmt.Errorf("shape is required")
+	case RectShape:
+		if shape.Size.X <= 0 || shape.Size.Y <= 0 {
+			return fmt.Errorf("rect size must be positive")
+		}
+	case CircleShape:
+		if shape.Radius <= 0 {
+			return fmt.Errorf("circle radius must be positive")
+		}
+	case LineShape:
+		if shape.To.IsZero() {
+			return fmt.Errorf("line endpoint must not be zero")
+		}
+	default:
+		return fmt.Errorf("unknown shape %T", p.Shape)
 	}
 	return nil
 }
 
-// CirclePrimitive is the circle geometry variant: Radius in world
-// units before transform scale.
-type CirclePrimitive struct {
-	Radius float64
-}
-
-func (c CirclePrimitive) Validate() error {
-	if c.Radius <= 0 {
-		return fmt.Errorf("radius must be positive")
-	}
-	return nil
-}
-
-// LinePrimitive is the line-segment geometry variant: To is the
-// second endpoint relative to the transform position, so the whole
-// line moves rigidly and interpolates for free — no second
-// prev-state to manage.
-type LinePrimitive struct {
-	To geom.Vector2
-}
-
-func (l LinePrimitive) Validate() error {
-	if l.To.IsZero() {
-		return fmt.Errorf("endpoint must not be zero")
-	}
-	return nil
-}
-
-// Shape is a primitive's geometry on a DrawItem — the collector-facing
-// mirror of the geometry variants. It is a sealed sum: the only
-// implementations are RectShape, CircleShape, and LineShape, and the
-// geometry variants map one-to-one onto them. nil on a DrawItem means
-// the item is a texture sprite.
+// Shape is a primitive's geometry, carried on a Primitive or a
+// DrawItem. It is a sealed sum: the only implementations are
+// RectShape, CircleShape, and LineShape, and Validate checks each
+// one's geometry at spawn. Carrying the sum on the component (rather
+// than splitting geometry across variant components) keeps one
+// collector query for every shape and makes exactly-one-geometry a
+// construction guarantee instead of a convention.
 type Shape interface {
 	isShape()
 }
 
 // RectShape draws a filled or outlined rectangle of Size world units,
-// centered on the item's position and scaled by its scale.
+// centered on the position and scaled by the scale.
 type RectShape struct {
 	Size geom.Vector2
 }
 
-// CircleShape draws a filled or outlined circle of Radius world units,
-// centered on the item's position and scaled by its scale.
+// CircleShape draws a filled or outlined circle of Radius world
+// units, centered on the position and scaled by the scale.
 type CircleShape struct {
 	Radius float64
 }
 
-// LineShape draws a segment from the item's position to
-// position+To, scaled by the item's scale.
+// LineShape draws a segment from the position to position+To, scaled
+// by the scale. To is relative, so the whole line moves rigidly and
+// interpolates for free.
 type LineShape struct {
 	To geom.Vector2
 }

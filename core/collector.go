@@ -79,7 +79,7 @@ type workingItem struct {
 }
 
 // Collector assembles each frame's draw list: it owns the camera,
-// sprite, and shape queries, resolves sprite sources through the
+// sprite, and primitive queries, resolves sprite sources through the
 // asset server, culls against the camera viewport, and sorts by
 // layer, sort order, then world Y. Reused across frames - construct
 // once per game; the runner's engine draw calls Collect every frame.
@@ -87,9 +87,7 @@ type Collector struct {
 	camera,
 	textureSprites,
 	atlasSprites,
-	rectPrimitives,
-	circlePrimitives,
-	linePrimitives *Query
+	primitives *Query
 	// working is the pre-sort buffer; SortedItems the post-sort
 	// output. Both are reused across frames: steady-state collection
 	// is zero-alloc.
@@ -100,14 +98,14 @@ type Collector struct {
 }
 
 // NewCollector builds a Collector over world: one primary-camera
-// query, the two sprite-source queries, and the three shape-geometry
-// queries, each predicate-filtered (Primary; drawables not Hidden).
-// The first primary camera in deterministic query order frames the
-// world; sprites must pair Sprite with a source variant
-// (TextureSprite or AtlasSprite), shapes must pair Primitive with a
-// geometry variant (RectPrimitive, CirclePrimitive, or
-// LinePrimitive), and both pair with a Transform and a PrevTransform
-// to match.
+// query, one query per sprite source variant, and one primitives
+// query — every shape geometry flows through the same query, because
+// Primitive carries its Shape as data rather than as a component
+// variant. Each is predicate-filtered (Primary; drawables not
+// Hidden). The first primary camera in deterministic query order
+// frames the world; sprites must pair Sprite with a source variant
+// (TextureSprite or AtlasSprite), primitives pair with a Transform
+// and a PrevTransform to match.
 func NewCollector(world *World) *Collector {
 	camera := NewQuery(world).
 		With(Camera{}, Transform{}, PrevTransform{}).
@@ -139,28 +137,8 @@ func NewCollector(world *World) *Collector {
 			return !s.Hidden
 		})
 
-	rectPrimitives := NewQuery(world).
-		With(RectPrimitive{}, Primitive{}, Transform{}, PrevTransform{}).
-		Where(func(e Entry) bool {
-			p, ok := e.Component[Primitive]()
-			if !ok {
-				return false
-			}
-			return !p.Hidden
-		})
-
-	circlePrimitives := NewQuery(world).
-		With(CirclePrimitive{}, Primitive{}, Transform{}, PrevTransform{}).
-		Where(func(e Entry) bool {
-			p, ok := e.Component[Primitive]()
-			if !ok {
-				return false
-			}
-			return !p.Hidden
-		})
-
-	linePrimitives := NewQuery(world).
-		With(LinePrimitive{}, Primitive{}, Transform{}, PrevTransform{}).
+	primitives := NewQuery(world).
+		With(Primitive{}, Transform{}, PrevTransform{}).
 		Where(func(e Entry) bool {
 			p, ok := e.Component[Primitive]()
 			if !ok {
@@ -170,14 +148,12 @@ func NewCollector(world *World) *Collector {
 		})
 
 	return &Collector{
-		camera:           camera,
-		textureSprites:   textureSprites,
-		atlasSprites:     atlasSprites,
-		rectPrimitives:   rectPrimitives,
-		circlePrimitives: circlePrimitives,
-		linePrimitives:   linePrimitives,
-		working:          make([]workingItem, 0),
-		SortedItems:      make([]DrawItem, 0),
+		camera:         camera,
+		textureSprites: textureSprites,
+		atlasSprites:   atlasSprites,
+		primitives:     primitives,
+		working:        make([]workingItem, 0),
+		SortedItems:    make([]DrawItem, 0),
 	}
 }
 
@@ -282,58 +258,45 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 			})
 	}
 
-	// Shape primitives resolve to geometry alone. A nil color draws
+	// Shape primitives resolve to geometry alone — no assets, no
+	// fail-fast: there is nothing to look up. A nil color draws
 	// black, applied here so shape items always carry a concrete
-	// color.
-	for e := range c.rectPrimitives.Execute() {
-		geo, _ := e.Component[RectPrimitive]()
+	// color. Bounds come from the geometry, scaled; a segment's
+	// bounds center halfway along the segment, not on the position.
+	for e := range c.primitives.Execute() {
 		prim, _ := e.Component[Primitive]()
 		transform, _ := e.Component[Transform]()
 		prev, _ := e.Component[PrevTransform]()
-		c.stage(viewport, ctx.Alpha, prim.Layer, prim.SortOrder,
-			prev.Position, transform.Position,
-			geom.Vector2{}, // rects are centered on the position
-			geom.Vector2{
-				X: geo.Size.X * transform.Scale.X,
-				Y: geo.Size.Y * transform.Scale.Y,
-			},
-			shapeItem(prim, transform, RectShape{Size: geo.Size}))
-	}
 
-	for e := range c.circlePrimitives.Execute() {
-		geo, _ := e.Component[CirclePrimitive]()
-		prim, _ := e.Component[Primitive]()
-		transform, _ := e.Component[Transform]()
-		prev, _ := e.Component[PrevTransform]()
-		diameter := 2 * geo.Radius
-		c.stage(viewport, ctx.Alpha, prim.Layer, prim.SortOrder,
-			prev.Position, transform.Position,
-			geom.Vector2{}, // circles are centered on the position
-			geom.Vector2{
+		var offset, size geom.Vector2
+		switch shape := prim.Shape.(type) {
+		case RectShape:
+			size = geom.Vector2{
+				X: shape.Size.X * transform.Scale.X,
+				Y: shape.Size.Y * transform.Scale.Y,
+			}
+		case CircleShape:
+			diameter := 2 * shape.Radius
+			size = geom.Vector2{
 				X: diameter * transform.Scale.X,
 				Y: diameter * transform.Scale.Y,
-			},
-			shapeItem(prim, transform, CircleShape{Radius: geo.Radius}))
-	}
-
-	for e := range c.linePrimitives.Execute() {
-		geo, _ := e.Component[LinePrimitive]()
-		prim, _ := e.Component[Primitive]()
-		transform, _ := e.Component[Transform]()
-		prev, _ := e.Component[PrevTransform]()
-		// A segment spans position to position+To, so its bounds
-		// center halfway along the segment, not on the position.
+			}
+		case LineShape:
+			offset = geom.Vector2{
+				X: shape.To.X * transform.Scale.X / 2,
+				Y: shape.To.Y * transform.Scale.Y / 2,
+			}
+			size = geom.Vector2{
+				X: math.Abs(shape.To.X * transform.Scale.X),
+				Y: math.Abs(shape.To.Y * transform.Scale.Y),
+			}
+		default:
+			// Unreachable: Validate seals the sum at spawn.
+			continue
+		}
 		c.stage(viewport, ctx.Alpha, prim.Layer, prim.SortOrder,
-			prev.Position, transform.Position,
-			geom.Vector2{
-				X: geo.To.X * transform.Scale.X / 2,
-				Y: geo.To.Y * transform.Scale.Y / 2,
-			},
-			geom.Vector2{
-				X: math.Abs(geo.To.X * transform.Scale.X),
-				Y: math.Abs(geo.To.Y * transform.Scale.Y),
-			},
-			shapeItem(prim, transform, LineShape{To: geo.To}))
+			prev.Position, transform.Position, offset, size,
+			shapeItem(prim, transform))
 	}
 
 	slices.SortStableFunc(c.working, func(a, b workingItem) int {
@@ -375,16 +338,17 @@ func (c *Collector) stage(viewport geom.Rect, alpha float64, layer uint8, sortOr
 	})
 }
 
-// shapeItem assembles a shape primitive's DrawItem: geometry, snapped
-// rotation and scale, and style. A nil color draws black, so shape
-// items always carry a concrete color.
-func shapeItem(prim Primitive, transform Transform, shape Shape) DrawItem {
+// shapeItem assembles a shape primitive's DrawItem: the component's
+// Shape carried straight through, snapped rotation and scale, and
+// style. A nil color draws black, so shape items always carry a
+// concrete color.
+func shapeItem(prim Primitive, transform Transform) DrawItem {
 	fill := prim.Color
 	if fill == nil {
 		fill = color.Black
 	}
 	return DrawItem{
-		Shape:        shape,
+		Shape:        prim.Shape,
 		Rotation:     transform.Rotation,
 		Scale:        transform.Scale,
 		Tint:         fill,

@@ -451,59 +451,34 @@ func TestCollectReusesBuffers(t *testing.T) {
 	}
 }
 
-func spawnRectPrimitive(t *testing.T, w *World, size geom.Vector2, prev, curr geom.Vector2, prim Primitive) {
+func spawnPrimitive(t *testing.T, w *World, shape Shape, prev, curr geom.Vector2, prim Primitive, transform Transform) {
 	t.Helper()
-	if _, err := w.NewEntity(
-		RectPrimitive{Size: size},
-		prim,
-		Transform{Position: curr, Scale: unitScale},
-		PrevTransform{Position: prev},
-	); err != nil {
-		t.Fatalf("spawn rect primitive: %v", err)
-	}
-}
-
-func spawnCirclePrimitive(t *testing.T, w *World, radius float64, prev, curr geom.Vector2, prim Primitive, transform Transform) {
-	t.Helper()
+	prim.Shape = shape
 	transform.Position = curr
 	if transform.Scale == (geom.Vector2{}) {
 		transform.Scale = unitScale
 	}
-	if _, err := w.NewEntity(
-		CirclePrimitive{Radius: radius},
-		prim,
-		transform,
-		PrevTransform{Position: prev},
-	); err != nil {
-		t.Fatalf("spawn circle primitive: %v", err)
+	if _, err := w.NewEntity(prim, transform, PrevTransform{Position: prev}); err != nil {
+		t.Fatalf("spawn primitive: %v", err)
 	}
 }
 
-func spawnLinePrimitive(t *testing.T, w *World, to geom.Vector2, prev, curr geom.Vector2, prim Primitive) {
-	t.Helper()
-	if _, err := w.NewEntity(
-		LinePrimitive{To: to},
-		prim,
-		Transform{Position: curr, Scale: unitScale},
-		PrevTransform{Position: prev},
-	); err != nil {
-		t.Fatalf("spawn line primitive: %v", err)
-	}
-}
-
-// All three geometry variants stage: variant geometry becomes the
-// Shape, style flows (nil color defaults to black), rotation and scale
-// snap from the transform, and positions interpolate like sprites.
+// All three geometries stage: the component's Shape carries straight
+// through to the item, style flows (nil color defaults to black),
+// rotation and scale snap from the transform, and positions
+// interpolate like sprites.
 func TestCollectStagesShapePrimitives(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-	spawnRectPrimitive(t, w, geom.Vector2{X: 10, Y: 20},
+	spawnPrimitive(t, w, RectShape{Size: geom.Vector2{X: 10, Y: 20}},
 		geom.Vector2{}, geom.Vector2{X: 10, Y: 0},
-		Primitive{Layer: 1, Transparency: 0.5})
-	spawnCirclePrimitive(t, w, 5, geom.Vector2{}, geom.Vector2{},
+		Primitive{Layer: 1, Transparency: 0.5}, Transform{})
+	spawnPrimitive(t, w, CircleShape{Radius: 5},
+		geom.Vector2{}, geom.Vector2{},
 		Primitive{Color: color.RGBA{R: 255, A: 255}},
 		Transform{Rotation: 0.5, Scale: geom.Vector2{X: 2, Y: 2}})
-	spawnLinePrimitive(t, w, geom.Vector2{X: 30, Y: 0}, geom.Vector2{}, geom.Vector2{}, Primitive{})
+	spawnPrimitive(t, w, LineShape{To: geom.Vector2{X: 30, Y: 0}},
+		geom.Vector2{}, geom.Vector2{}, Primitive{}, Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
 	if err != nil {
@@ -515,10 +490,10 @@ func TestCollectStagesShapePrimitives(t *testing.T) {
 
 	shapes := map[string]DrawItem{}
 	for _, item := range list.Items {
-		switch shape := item.Shape.(type) {
+		switch item.Shape.(type) {
 		case RectShape:
-			if shape.Size != (geom.Vector2{X: 10, Y: 20}) {
-				t.Errorf("rect shape size = %v, want (10, 20)", shape.Size)
+			if item.Shape != Shape(RectShape{Size: geom.Vector2{X: 10, Y: 20}}) {
+				t.Errorf("rect shape = %v, want (10, 20)", item.Shape)
 			}
 			if !item.Position.AlmostEqual(geom.Vector2{X: 5, Y: 0}, 1e-9) {
 				t.Errorf("rect position = %v, want interpolated (5, 0)", item.Position)
@@ -531,8 +506,8 @@ func TestCollectStagesShapePrimitives(t *testing.T) {
 			}
 			shapes["rect"] = item
 		case CircleShape:
-			if shape.Radius != 5 {
-				t.Errorf("circle shape radius = %v, want 5", shape.Radius)
+			if item.Shape != Shape(CircleShape{Radius: 5}) {
+				t.Errorf("circle shape = %v, want radius 5", item.Shape)
 			}
 			if item.Rotation != 0.5 || item.Scale != (geom.Vector2{X: 2, Y: 2}) {
 				t.Errorf("circle rotation/scale = %v/%v, want snapped 0.5/(2, 2)", item.Rotation, item.Scale)
@@ -542,8 +517,8 @@ func TestCollectStagesShapePrimitives(t *testing.T) {
 			}
 			shapes["circle"] = item
 		case LineShape:
-			if shape.To != (geom.Vector2{X: 30, Y: 0}) {
-				t.Errorf("line shape To = %v, want (30, 0)", shape.To)
+			if item.Shape != Shape(LineShape{To: geom.Vector2{X: 30, Y: 0}}) {
+				t.Errorf("line shape = %v, want To (30, 0)", item.Shape)
 			}
 			shapes["line"] = item
 		default:
@@ -557,14 +532,17 @@ func TestCollectStagesShapePrimitives(t *testing.T) {
 
 // Shapes and sprites sort together in one list: same layer → sort
 // order → world Y, with full ties keeping pass order (sprites before
-// shapes).
+// primitives).
 func TestCollectOrdersShapesWithSprites(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{Y: 10}, geom.Vector2{Y: 10}, Sprite{Layer: 1})
-	spawnRectPrimitive(t, w, geom.Vector2{X: 4, Y: 4}, geom.Vector2{Y: -10}, geom.Vector2{Y: -10}, Primitive{}) // layer 0
-	spawnCirclePrimitive(t, w, 2, geom.Vector2{Y: -10}, geom.Vector2{Y: -10}, Primitive{Layer: 1}, Transform{})
-	spawnLinePrimitive(t, w, geom.Vector2{X: 8, Y: 0}, geom.Vector2{Y: 10}, geom.Vector2{Y: 10}, Primitive{Layer: 1})
+	spawnPrimitive(t, w, RectShape{Size: geom.Vector2{X: 4, Y: 4}},
+		geom.Vector2{Y: -10}, geom.Vector2{Y: -10}, Primitive{}, Transform{}) // layer 0
+	spawnPrimitive(t, w, CircleShape{Radius: 2},
+		geom.Vector2{Y: -10}, geom.Vector2{Y: -10}, Primitive{Layer: 1}, Transform{})
+	spawnPrimitive(t, w, LineShape{To: geom.Vector2{X: 8, Y: 0}},
+		geom.Vector2{Y: 10}, geom.Vector2{Y: 10}, Primitive{Layer: 1}, Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {
@@ -575,8 +553,8 @@ func TestCollectOrdersShapesWithSprites(t *testing.T) {
 	}
 
 	// Layer 0 rect first; layer 1: circle (y -10), then the y-10 tie
-	// resolved by pass order - the sprite pass runs before the line
-	// pass.
+	// resolved by pass order - the sprite pass runs before the
+	// primitive pass.
 	want := []struct {
 		texture asset.ID
 		shape   Shape
@@ -611,14 +589,19 @@ func TestCollectCullsShapes(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	// Viewport is [-50, 50]^2 at zoom 1.
-	spawnRectPrimitive(t, w, geom.Vector2{X: 10, Y: 10}, geom.Vector2{X: 40}, geom.Vector2{X: 40}, Primitive{}) // kept
-	spawnRectPrimitive(t, w, geom.Vector2{X: 10, Y: 10}, geom.Vector2{X: 56}, geom.Vector2{X: 56}, Primitive{}) // bounds [51,61]: culled
-	spawnCirclePrimitive(t, w, 10, geom.Vector2{X: 61}, geom.Vector2{X: 61}, Primitive{}, Transform{})          // bounds [51,71]: culled
+	spawnPrimitive(t, w, RectShape{Size: geom.Vector2{X: 10, Y: 10}},
+		geom.Vector2{X: 40}, geom.Vector2{X: 40}, Primitive{}, Transform{}) // kept
+	spawnPrimitive(t, w, RectShape{Size: geom.Vector2{X: 10, Y: 10}},
+		geom.Vector2{X: 56}, geom.Vector2{X: 56}, Primitive{}, Transform{}) // bounds [51,61]: culled
+	spawnPrimitive(t, w, CircleShape{Radius: 10},
+		geom.Vector2{X: 61}, geom.Vector2{X: 61}, Primitive{}, Transform{}) // bounds [51,71]: culled
 	// The offset proof: position (75, 0) is outside the viewport, but
 	// the segment reaches back to (45, 0) - its bounds are [45, 75],
 	// which overlaps. Centered bounds [60, 90] would have culled it.
-	spawnLinePrimitive(t, w, geom.Vector2{X: -30, Y: 0}, geom.Vector2{X: 75}, geom.Vector2{X: 75}, Primitive{})
-	spawnLinePrimitive(t, w, geom.Vector2{X: 20, Y: 0}, geom.Vector2{X: 60}, geom.Vector2{X: 60}, Primitive{}) // bounds [60,80]: culled
+	spawnPrimitive(t, w, LineShape{To: geom.Vector2{X: -30, Y: 0}},
+		geom.Vector2{X: 75}, geom.Vector2{X: 75}, Primitive{}, Transform{})
+	spawnPrimitive(t, w, LineShape{To: geom.Vector2{X: 20, Y: 0}},
+		geom.Vector2{X: 60}, geom.Vector2{X: 60}, Primitive{}, Transform{}) // bounds [60,80]: culled
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {
@@ -646,8 +629,10 @@ func TestCollectCullsShapes(t *testing.T) {
 func TestCollectSkipsHiddenShapes(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-	spawnRectPrimitive(t, w, geom.Vector2{X: 10, Y: 10}, geom.Vector2{}, geom.Vector2{}, Primitive{})
-	spawnCirclePrimitive(t, w, 5, geom.Vector2{}, geom.Vector2{}, Primitive{Hidden: true}, Transform{})
+	spawnPrimitive(t, w, RectShape{Size: geom.Vector2{X: 10, Y: 10}},
+		geom.Vector2{}, geom.Vector2{}, Primitive{}, Transform{})
+	spawnPrimitive(t, w, CircleShape{Radius: 5},
+		geom.Vector2{}, geom.Vector2{}, Primitive{Hidden: true}, Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {
