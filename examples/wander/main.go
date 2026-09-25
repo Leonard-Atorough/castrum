@@ -121,7 +121,7 @@ func run() error {
 	// User draws run after the engine-rendered world, so this lands on
 	// the world.
 	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrint(screen, "castrum wander — engine world below, this overlay above")
+		ebitenutil.DebugPrint(screen, "castrum wander - engine world below, this overlay above")
 		return nil
 	})
 
