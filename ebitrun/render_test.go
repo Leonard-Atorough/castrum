@@ -86,6 +86,22 @@ func TestWorldToScreen(t *testing.T) {
 			width:  200, height: 100,
 			want: geom.Vector2{X: 100, Y: 50},
 		},
+		// Fractional world positions snap to whole pixels: the
+		// pixel-grid policy against nearest-filter shimmer.
+		{
+			name:   "fractional position rounds to whole pixels",
+			world:  geom.Vector2{X: 10.4, Y: 20.4},
+			camera: core.CameraView{Zoom: 1, Position: geom.Vector2{X: 0, Y: 0}},
+			width:  100, height: 100,
+			want: geom.Vector2{X: 60, Y: 70},
+		},
+		{
+			name:   "halves round away from zero",
+			world:  geom.Vector2{X: 10.5, Y: -0.5},
+			camera: core.CameraView{Zoom: 1, Position: geom.Vector2{X: 0, Y: 0}},
+			width:  100, height: 100,
+			want: geom.Vector2{X: 61, Y: 50},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := worldToScreen(tc.world, tc.camera, tc.width, tc.height)

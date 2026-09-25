@@ -1,15 +1,6 @@
 // Package ebitrun is the default castrum Runner, backed by Ebitengine.
 // It owns the window, the draw surface, and input; the core Game owns
 // configuration, schedules, and the fixed loop.
-//
-// The package name is ebitrun so no import alias is needed alongside
-// Ebitengine itself:
-//
-//	import (
-//		"github.com/Leonard-Atorough/castrum"
-//		"github.com/Leonard-Atorough/castrum/ebiten"
-//		"github.com/hajimehoshi/ebiten/v2"
-//	)
 package ebitrun
 
 import (

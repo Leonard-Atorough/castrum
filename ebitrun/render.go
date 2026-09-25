@@ -1,6 +1,8 @@
 package ebitrun
 
 import (
+	"math"
+
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -66,12 +68,17 @@ func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider) Dra
 	})
 }
 
-// worldToScreen projects a world-space point onto the render target:
-// (world − camera) × zoom, centered at the target's midpoint. It is
-// the projection seam - pure, with no ebiten types, so the camera math
-// is testable headless.
+// worldToScreen projects a world-space point onto the render target
+// and snaps it to whole pixels: (world − camera) × zoom, centered at
+// the target's midpoint, then rounded. The snap is the pixel-grid
+// policy: interpolated positions are fractional, and fractional screen
+// positions make nearest-filtered texel edges wobble frame to frame
+// (the pixel-art shimmer); whole-pixel motion quantizes to 1px steps -
+// invisible at display rate - and keeps the texel grid stable whenever
+// zoom × scale is an integer. It is the projection seam - pure, with
+// no ebiten types, so the camera math is testable headless.
 func worldToScreen(world geom.Vector2, camera core.CameraView, screenWidth, screenHeight int) geom.Vector2 {
-	screenX := (world.X-camera.Position.X)*camera.Zoom + float64(screenWidth)/2
-	screenY := (world.Y-camera.Position.Y)*camera.Zoom + float64(screenHeight)/2
+	screenX := math.Round((world.X-camera.Position.X)*camera.Zoom + float64(screenWidth)/2)
+	screenY := math.Round((world.Y-camera.Position.Y)*camera.Zoom + float64(screenHeight)/2)
 	return geom.Vector2{X: screenX, Y: screenY}
 }
