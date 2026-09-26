@@ -464,7 +464,7 @@ func TestCollectStagesShapeSprites(t *testing.T) {
 		Sprite{Drawable: CircleShape{Radius: 5}, Tint: color.RGBA{R: 255, A: 255}},
 		Transform{Rotation: 0.5, Scale: geom.Vector2{X: 2, Y: 2}})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
-		Sprite{Drawable: LineShape{To: geom.Vector2{X: 30, Y: 0}}}, Transform{})
+		Sprite{Drawable: LineShape{From: geom.Vector2{X: -10, Y: 0}, To: geom.Vector2{X: 30, Y: 0}}}, Transform{})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Outline: true, StrokeWidth: 2},
 		Transform{})
@@ -516,8 +516,8 @@ func TestCollectStagesShapeSprites(t *testing.T) {
 			}
 			shapes["circle"] = item
 		case LineShape:
-			if item.Shape != Shape(LineShape{To: geom.Vector2{X: 30, Y: 0}}) {
-				t.Errorf("line shape = %v, want To (30, 0)", item.Shape)
+			if item.Shape != Shape(LineShape{From: geom.Vector2{X: -10, Y: 0}, To: geom.Vector2{X: 30, Y: 0}}) {
+				t.Errorf("line shape = %v, want From (-10, 0) To (30, 0)", item.Shape)
 			}
 			shapes["line"] = item
 		default:
@@ -600,6 +600,12 @@ func TestCollectCullsShapes(t *testing.T) {
 		Sprite{Drawable: LineShape{To: geom.Vector2{X: -30, Y: 0}}}, Transform{})
 	spawnSprite(t, w, geom.Vector2{X: 60}, geom.Vector2{X: 60},
 		Sprite{Drawable: LineShape{To: geom.Vector2{X: 20, Y: 0}}}, Transform{}) // bounds [60,80]: culled
+	// The inverse proof: this line's position is dead center, but its
+	// segment spans (80, 0) to (110, 0), entirely outside - the AABB
+	// bounds cull it despite the visible position.
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+		Sprite{Drawable: LineShape{From: geom.Vector2{X: 80, Y: 0}, To: geom.Vector2{X: 110, Y: 0}}},
+		Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {

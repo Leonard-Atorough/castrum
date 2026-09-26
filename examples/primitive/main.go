@@ -1,5 +1,5 @@
 // Command primitive demonstrates the shape drawables: a filled circle,
-// an outlined rect, and a stroked line — three tints, spinning at
+// an outlined rect, and a stroked line - three tints, spinning at
 // fixed ticks. Shapes are pure geometry: no assets are loaded.
 //
 // Run from the repository root:
@@ -54,7 +54,7 @@ func run() error {
 	}
 
 	// Three shapes, three tints, three styles: the circle fills, the
-	// rect outlines, the line strokes — a line is drawn by its stroke
+	// rect outlines, the line strokes - a line is drawn by its stroke
 	// width, so it carries one.
 	shapes := []core.Sprite{
 		{
@@ -62,8 +62,8 @@ func run() error {
 			Tint:     color.RGBA{R: 220, A: 255},
 		},
 		{
-			Drawable: core.CircleShape{Radius: 50},
-			Tint:     color.RGBA{R: 220, A: 255},
+			Drawable:    core.CircleShape{Radius: 50},
+			Tint:        color.RGBA{R: 220, A: 255},
 			Outline:     true,
 			StrokeWidth: 3,
 		},
@@ -78,8 +78,10 @@ func run() error {
 			Outline:     true,
 			StrokeWidth: 3,
 		},
+		// Symmetric endpoints: the segment spins around its own
+		// middle, at the position.
 		{
-			Drawable:    core.LineShape{To: geom.Vector2{X: 100, Y: 100}},
+			Drawable:    core.LineShape{From: geom.Vector2{X: -40, Y: -40}, To: geom.Vector2{X: 40, Y: 40}},
 			Tint:        color.RGBA{B: 220, A: 255},
 			Outline:     true,
 			StrokeWidth: 4,
@@ -135,7 +137,7 @@ func run() error {
 	// User draws run after the engine-rendered world, so this lands
 	// on top of the shapes.
 	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrint(screen, "castrum primitives — filled circle, outlined rect, stroked line")
+		ebitenutil.DebugPrint(screen, "castrum primitives - filled circle, outlined circle, filled rect, outlined rect, stroked line")
 		return nil
 	})
 

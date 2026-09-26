@@ -130,8 +130,9 @@ func drawShape(screen *ebiten.Image, item core.DrawItem, camera core.CameraView)
 		vector.FillCircle(screen, float32(center.X), float32(center.Y), float32(radius), clr, true)
 	case core.LineShape:
 		start := worldToScreen(item.Position, camera, width, height)
-		end := lineEnd(start, shape.To, item.Scale, camera.Zoom, item.Rotation)
-		vector.StrokeLine(screen, float32(start.X), float32(start.Y), float32(end.X), float32(end.Y),
+		from := offsetPoint(start, shape.From, item.Scale, camera.Zoom, item.Rotation)
+		to := offsetPoint(start, shape.To, item.Scale, camera.Zoom, item.Rotation)
+		vector.StrokeLine(screen, float32(from.X), float32(from.Y), float32(to.X), float32(to.Y),
 			float32(item.StrokeWidth*camera.Zoom), clr, true)
 	}
 }
@@ -159,15 +160,15 @@ func rectCorners(center, size, scale geom.Vector2, zoom, rotation float64) [4]ge
 	return corners
 }
 
-// lineEnd computes a line's second endpoint in screen space, rigidly
-// from the snapped start: the relative endpoint scaled, rotated, and
-// zoomed. Pure.
-func lineEnd(start, to, scale geom.Vector2, zoom, rotation float64) geom.Vector2 {
-	offset := geom.Vector2{
-		X: to.X * scale.X * zoom,
-		Y: to.Y * scale.Y * zoom,
-	}.Rotate(rotation)
-	return start.Add(offset)
+// offsetPoint maps a drawable-relative offset to screen space,
+// rigidly from the snapped position: the offset scaled, zoomed, and
+// rotated. A line's two endpoints both map through it. Pure.
+func offsetPoint(start, offset, scale geom.Vector2, zoom, rotation float64) geom.Vector2 {
+	scaled := geom.Vector2{
+		X: offset.X * scale.X * zoom,
+		Y: offset.Y * scale.Y * zoom,
+	}
+	return start.Add(scaled.Rotate(rotation))
 }
 
 // circleRadius scales a circle to screen space. Non-uniform Y scale is

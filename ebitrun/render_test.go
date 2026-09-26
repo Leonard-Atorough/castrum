@@ -239,22 +239,28 @@ func TestRectCorners(t *testing.T) {
 	}
 }
 
-func TestLineEnd(t *testing.T) {
+func TestOffsetPoint(t *testing.T) {
 	start := geom.Vector2{X: 10, Y: 10}
 	unit := geom.Vector2{X: 1, Y: 1}
 
-	end := lineEnd(start, geom.Vector2{X: 30, Y: 0}, unit, 1, 0)
+	end := offsetPoint(start, geom.Vector2{X: 30, Y: 0}, unit, 1, 0)
 	if end != (geom.Vector2{X: 40, Y: 10}) {
-		t.Errorf("line end = %v, want (40, 10)", end)
+		t.Errorf("offset point = %v, want (40, 10)", end)
 	}
-	// A quarter turn points the segment down: screen Y grows.
-	rotated := lineEnd(start, geom.Vector2{X: 30, Y: 0}, unit, 1, math.Pi/2)
+	// A quarter turn points the offset down: screen Y grows.
+	rotated := offsetPoint(start, geom.Vector2{X: 30, Y: 0}, unit, 1, math.Pi/2)
 	if !rotated.AlmostEqual(geom.Vector2{X: 10, Y: 40}, 1e-9) {
-		t.Errorf("rotated line end = %v, want (10, 40)", rotated)
+		t.Errorf("rotated offset point = %v, want (10, 40)", rotated)
 	}
-	scaled := lineEnd(start, geom.Vector2{X: 30, Y: 0}, geom.Vector2{X: 2, Y: 2}, 1, 0)
+	scaled := offsetPoint(start, geom.Vector2{X: 30, Y: 0}, geom.Vector2{X: 2, Y: 2}, 1, 0)
 	if scaled != (geom.Vector2{X: 70, Y: 10}) {
-		t.Errorf("scaled line end = %v, want (70, 10)", scaled)
+		t.Errorf("scaled offset point = %v, want (70, 10)", scaled)
+	}
+	// A line's From maps symmetrically: both endpoints route through
+	// the same projection from one snapped position.
+	from := offsetPoint(start, geom.Vector2{X: -30, Y: 0}, unit, 1, 0)
+	if from != (geom.Vector2{X: -20, Y: 10}) {
+		t.Errorf("negative offset point = %v, want (-20, 10)", from)
 	}
 }
 

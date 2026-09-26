@@ -45,7 +45,8 @@ func TestSpriteValidate(t *testing.T) {
 		"rect negative size":     {Drawable: RectShape{Size: geom.Vector2{X: -1, Y: 10}}},
 		"circle zero radius":     {Drawable: CircleShape{}},
 		"circle negative radius": {Drawable: CircleShape{Radius: -5}},
-		"line zero endpoint":     {Drawable: LineShape{}},
+		"line zero endpoints":    {Drawable: LineShape{}},
+		"line same endpoints":    {Drawable: LineShape{From: geom.Vector2{X: 1, Y: 1}, To: geom.Vector2{X: 1, Y: 1}}},
 	} {
 		if err := sprite.Validate(); err == nil {
 			t.Errorf("Sprite with %s should fail validation", name)

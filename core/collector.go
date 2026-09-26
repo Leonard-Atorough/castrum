@@ -255,14 +255,20 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 				},
 				shapeItem(sprite, transform, drawable))
 		case LineShape:
-			// The segment spans position to position+To, so its
+			// The segment spans the two relative endpoints, so its
 			// culling bounds are the segment's own AABB, offset from
 			// the position by its center.
-			end := geom.Vector2{
-				X: drawable.To.X * transform.Scale.X,
-				Y: drawable.To.Y * transform.Scale.Y,
+			segment := geom.Segment{
+				Start: geom.Vector2{
+					X: drawable.From.X * transform.Scale.X,
+					Y: drawable.From.Y * transform.Scale.Y,
+				},
+				End: geom.Vector2{
+					X: drawable.To.X * transform.Scale.X,
+					Y: drawable.To.Y * transform.Scale.Y,
+				},
 			}
-			bounds := geom.Segment{End: end}.BoundingBox()
+			bounds := segment.BoundingBox()
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position, bounds.Center(), bounds.Size(),
 				shapeItem(sprite, transform, drawable))

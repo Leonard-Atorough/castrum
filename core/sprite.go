@@ -87,8 +87,8 @@ func (s Sprite) Validate() error {
 			return fmt.Errorf("circle radius must be positive")
 		}
 	case LineShape:
-		if d.To.IsZero() {
-			return fmt.Errorf("line endpoint must not be zero")
+		if d.From == d.To {
+			return fmt.Errorf("line endpoints must be distinct")
 		}
 	default:
 		return fmt.Errorf("unknown drawable %T", s.Drawable)
@@ -137,11 +137,13 @@ type CircleShape struct {
 	Radius float64
 }
 
-// LineShape draws a segment from the position to position+To, scaled
-// by the scale. To is relative, so the whole line moves rigidly and
-// interpolates for free.
+// LineShape draws a segment between From and To, both relative to
+// the position, scaled by the scale. A zero From anchors the segment
+// at the position itself; either way the whole segment moves rigidly
+// and interpolates for free.
 type LineShape struct {
-	To geom.Vector2
+	From geom.Vector2
+	To   geom.Vector2
 }
 
 func (AtlasSource) isDrawable()   {}
