@@ -60,7 +60,7 @@ jobs:
             {
               echo '### Benchmark comparison'
               echo '```text'
-              echo 'No baseline yet — comparison skipped (first main run bootstraps it).'
+              echo 'No baseline yet - comparison skipped (first main run bootstraps it).'
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0

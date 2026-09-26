@@ -12,7 +12,7 @@ import (
 type EntityID = ecs.EntityID
 
 // Entity is a lightweight handle to an entity's ID. It exists for
-// spawn-time ergonomics — creation code keeps the handle for a few
+// spawn-time ergonomics - creation code keeps the handle for a few
 // follow-up calls before dropping down to the ID-keyed world methods.
 // The handle carries no engine state beyond its liveness flag, and
 // liveness here reflects the handle, not the storage: it reports false
@@ -25,7 +25,7 @@ type Entity struct {
 
 // NewEntity creates a handle for the entity with the given ID. Use
 // [World.NewEntity] to spawn an entity and receive its handle; for an ID
-// already in a world — collected from a query, for example — minting a
+// already in a world - collected from a query, for example - minting a
 // handle with NewEntity is the way to turn the ID back into a working
 // Entity whose methods perform component operations.
 func NewEntity(id EntityID) *Entity {

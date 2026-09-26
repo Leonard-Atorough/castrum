@@ -121,7 +121,7 @@ if _, err := game.World().NewEntity(
 }
 ```
 
-`core.TextureSource{Texture: "sky.png"}` draws a standalone image whole, and the shapes — `core.RectShape{Size: ...}`, `core.CircleShape{Radius: ...}`, `core.LineShape{To: ...}` — draw geometry with the same component, styled by `Tint` and outlined with `Outline` + `StrokeWidth`. One `Drawable` per sprite, enforced by the sum: a sprite cannot declare two pictures.
+`core.TextureSource{Texture: "sky.png"}` draws a standalone image whole, and the shapes — `core.RectShape{Size: ...}`, `core.CircleShape{Radius: ...}`, `core.LineShape{From, To}` — draw geometry with the same component, styled by `Tint` and outlined with `Outline` + `StrokeWidth`. One `Drawable` per sprite, enforced by the sum: a sprite cannot declare two pictures.
 
 Shapes need no assets at all — pure geometry, styled inline:
 
@@ -134,7 +134,7 @@ core.Sprite{
 }
 ```
 
-A line is drawn by its stroke, so a line sprite carries a `StrokeWidth`. A runnable shape demo — three shapes in varying tints, spinning slowly — lives in the repository at `examples/primitive`:
+A line spans two endpoints, both relative to the position — a zero `From` anchors the line at the position itself — and is drawn by its stroke, so a line sprite carries a `StrokeWidth`. A runnable shape demo — three shapes in varying tints, spinning slowly — lives in the repository at `examples/primitive`:
 
 ```sh
 go run ./examples/primitive

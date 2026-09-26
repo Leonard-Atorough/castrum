@@ -149,7 +149,7 @@ func (w *World) NewEntity(components ...any) (*Entity, error) {
 			return nil, fmt.Errorf("castrum: NewEntity: component at index %d is nil", i)
 		}
 		// Validate before the ID is allocated so a failed spawn burns
-		// nothing. The storage service re-checks at entry — every
+		// nothing. The storage service re-checks at entry - every
 		// component path is enforced, this one just protects ordering.
 		if v, ok := c.(Validatable); ok {
 			if err := v.Validate(); err != nil {
@@ -166,8 +166,8 @@ func (w *World) NewEntity(components ...any) (*Entity, error) {
 	copy(values, components)
 
 	entity := NewEntity(id)
-	// Cannot fail here — input validated above, IDs unique by
-	// construction — but the check stays honest against the service
+	// Cannot fail here - input validated above, IDs unique by
+	// construction - but the check stays honest against the service
 	// growing new failure modes.
 	if err := w.archetypes.Create(entity.id, types, values); err != nil {
 		return nil, err

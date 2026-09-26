@@ -35,7 +35,7 @@ func TestNewRegistersDefaultDecoders(t *testing.T) {
 func TestDefaultDecodersAnswerToUserRegistration(t *testing.T) {
 	a := New(nil)
 
-	// A user duplicating a default gets an error — the Must-panic is
+	// A user duplicating a default gets an error - the Must-panic is
 	// reserved for the engine's own static table.
 	if err := a.RegisterDecoder(FormatPNG, decodeTexture, false); err == nil {
 		t.Error("duplicate registration of a default should error")
