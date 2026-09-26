@@ -123,6 +123,23 @@ if _, err := game.World().NewEntity(
 
 `core.TextureSource{Texture: "sky.png"}` draws a standalone image whole, and the shapes — `core.RectShape{Size: ...}`, `core.CircleShape{Radius: ...}`, `core.LineShape{To: ...}` — draw geometry with the same component, styled by `Tint` and outlined with `Outline` + `StrokeWidth`. One `Drawable` per sprite, enforced by the sum: a sprite cannot declare two pictures.
 
+Shapes need no assets at all — pure geometry, styled inline:
+
+```go
+core.Sprite{
+	Drawable:    core.RectShape{Size: geom.Vector2{X: 100, Y: 50}},
+	Tint:        color.RGBA{G: 200, A: 255},
+	Outline:     true,
+	StrokeWidth: 3,
+}
+```
+
+A line is drawn by its stroke, so a line sprite carries a `StrokeWidth`. A runnable shape demo — three shapes in varying tints, spinning slowly — lives in the repository at `examples/primitive`:
+
+```sh
+go run ./examples/primitive
+```
+
 Now move it in a fixed system, by writing `Transform` each tick:
 
 ```go
