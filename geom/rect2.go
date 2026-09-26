@@ -85,12 +85,6 @@ func (r Rect) Contains(point Vector2) bool {
 		point.Y >= r.Min.Y && point.Y <= r.Max.Y
 }
 
-// // Intersects reports whether two rectangles overlap with positive area.
-// // Rectangles that only touch at an edge or corner do not intersect.
-// func (r Rect) Intersects(other Rect) bool {
-// 	return RectsIntersect(r, other)
-// }
-
 // OverlapsOrTouches reports whether two rectangles overlap or share any boundary point.
 func (r Rect) OverlapsOrTouches(other Rect) bool {
 	if !r.IsValid() || !other.IsValid() {
@@ -127,18 +121,6 @@ func (r Rect) Union(other Rect) Rect {
 		Max: r.Max.Max(other.Max),
 	}
 }
-
-// // Intersection returns the positive-area overlap of r and other.
-// // The second result is false when the rectangles do not overlap positively.
-// func (r Rect) Intersection(other Rect) (Rect, bool) {
-// 	if !r.Intersects(other) {
-// 		return Rect{}, false
-// 	}
-// 	return Rect{
-// 		Min: r.Min.Max(other.Min),
-// 		Max: r.Max.Min(other.Max),
-// 	}, true
-// }
 
 // Expand grows r outward by amount on every side.
 // Negative amounts shrink the rectangle and clamp each extent at zero.

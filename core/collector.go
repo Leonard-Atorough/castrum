@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"math"
 	"slices"
 
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -256,18 +255,16 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 				},
 				shapeItem(sprite, transform, drawable))
 		case LineShape:
-			// A segment spans position to position+To, so its bounds
-			// center halfway along the segment, not on the position.
+			// The segment spans position to position+To, so its
+			// culling bounds are the segment's own AABB, offset from
+			// the position by its center.
+			end := geom.Vector2{
+				X: drawable.To.X * transform.Scale.X,
+				Y: drawable.To.Y * transform.Scale.Y,
+			}
+			bounds := geom.Segment{End: end}.BoundingBox()
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
-				prev.Position, transform.Position,
-				geom.Vector2{
-					X: drawable.To.X * transform.Scale.X / 2,
-					Y: drawable.To.Y * transform.Scale.Y / 2,
-				},
-				geom.Vector2{
-					X: math.Abs(drawable.To.X * transform.Scale.X),
-					Y: math.Abs(drawable.To.Y * transform.Scale.Y),
-				},
+				prev.Position, transform.Position, bounds.Center(), bounds.Size(),
 				shapeItem(sprite, transform, drawable))
 		default:
 			// Unreachable: the sum is sealed and Validate covers it.
