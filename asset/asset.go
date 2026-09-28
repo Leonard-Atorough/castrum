@@ -1,7 +1,7 @@
 // Package asset loads, decodes, and caches game assets from a filesystem.
 //
-// Assets are identified by fs.FS paths — slash-separated and relative to
-// the filesystem root — and by the Go type they decode into. The package
+// Assets are identified by fs.FS paths - slash-separated and relative to
+// the filesystem root - and by the Go type they decode into. The package
 // is backend-free: images decode to image.Image, never a GPU texture;
 // backend-specific conversion belongs to a runner.
 package asset
@@ -23,7 +23,7 @@ import (
 
 // ID is the cache identity of an asset. It defaults to the cleaned asset
 // path; [WithID] overrides it. The decode cache keys on ID, type, and
-// format together, so one ID may hold several types or formats — but two
+// format together, so one ID may hold several types or formats - but two
 // different files loaded under one ID, type, and format collide: the
 // first load wins.
 type ID string
@@ -51,8 +51,8 @@ const (
 type Decoder[T any] func(reader io.Reader) (T, error)
 
 // Server loads and caches decoded assets from a filesystem. It is the
-// single owner of the load flow — cache check, deduplication, open,
-// decode, cache put — and the pieces of that flow are not callable
+// single owner of the load flow - cache check, deduplication, open,
+// decode, cache put - and the pieces of that flow are not callable
 // separately. It also hosts the atlas registry; see [Server.Store].
 type Server struct {
 	fs         fs.FS
@@ -180,7 +180,7 @@ func (a *Server) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 // This is the only way into the codec registry: the wrapper boxes the
 // decoded value as T, so the type assertions in [Server.Load] and
 // [Server.LoadReader] are safe by construction. A panic from either means
-// a registration bypassed this wrapper — an engine-internal invariant
+// a registration bypassed this wrapper - an engine-internal invariant
 // breach, not user error.
 func (a *Server) RegisterDecoder[T any](format Format, d Decoder[T], override bool) error {
 	if d == nil {

@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"image"
+	"image/color"
 	"image/png"
 	"strings"
 	"testing"
@@ -65,18 +66,23 @@ func spawnCamera(t *testing.T, w *World, prev, curr geom.Vector2, zoom float64, 
 	}
 }
 
-func spawnTextureSprite(t *testing.T, w *World, texture asset.ID, prev, curr geom.Vector2, sprite Sprite) *Entity {
+func spawnSprite(t *testing.T, w *World, prev, curr geom.Vector2, sprite Sprite, transform Transform) *Entity {
 	t.Helper()
-	e, err := w.NewEntity(
-		TextureSprite{Texture: texture},
-		sprite,
-		Transform{Position: curr, Scale: unitScale},
-		PrevTransform{Position: prev},
-	)
+	transform.Position = curr
+	if transform.Scale == (geom.Vector2{}) {
+		transform.Scale = unitScale
+	}
+	e, err := w.NewEntity(sprite, transform, PrevTransform{Position: prev})
 	if err != nil {
-		t.Fatalf("spawn texture sprite: %v", err)
+		t.Fatalf("spawn sprite: %v", err)
 	}
 	return e
+}
+
+func spawnTextureSprite(t *testing.T, w *World, texture asset.ID, prev, curr geom.Vector2, sprite Sprite) *Entity {
+	t.Helper()
+	sprite.Drawable = TextureSource{Texture: texture}
+	return spawnSprite(t, w, prev, curr, sprite, Transform{})
 }
 
 // Without a primary camera the collector has nothing to draw: empty
@@ -180,7 +186,7 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnTextureSprite(t, w, "tex.png",
 		geom.Vector2{}, geom.Vector2{X: 10, Y: 20},
-		Sprite{FlipH: true, Transparency: 0.5})
+		Sprite{FlipH: true, Color: color.NRGBA{R: 255, A: 128}})
 
 	collector := NewCollector(w)
 	for _, tc := range []struct {
@@ -208,8 +214,10 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 		if item.Rect != (image.Rectangle{}) {
 			t.Errorf("rect = %v, want empty for a whole-texture sprite", item.Rect)
 		}
-		if !item.FlipH || item.Transparency != 0.5 {
-			t.Errorf("flip/transparency = %v/%v, want true/0.5", item.FlipH, item.Transparency)
+		// The half-alpha color flows whole: its alpha channel is the
+		// sprite's opacity, so the item carries the color as declared.
+		if !item.FlipH || item.Color != color.Color(color.NRGBA{R: 255, A: 128}) {
+			t.Errorf("flip/color = %v/%v, want true/(255, 128-alpha)", item.FlipH, item.Color)
 		}
 	}
 }
@@ -224,8 +232,7 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 		"enemy":  image.Rect(2, 2, 4, 4),
 	} {
 		if _, err := w.NewEntity(
-			AtlasSprite{Atlas: "sprites", Region: name},
-			Sprite{},
+			Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: name}},
 			Transform{Position: geom.Vector2{}, Scale: unitScale},
 			PrevTransform{},
 		); err != nil {
@@ -234,8 +241,7 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 		// A second sprite off-screen: the region is 2x2, so at x=60 its
 		// bounds end at 61, well outside the 100x100 viewport's +50.
 		if _, err := w.NewEntity(
-			AtlasSprite{Atlas: "sprites", Region: name},
-			Sprite{},
+			Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: name}},
 			Transform{Position: geom.Vector2{X: 60}, Scale: unitScale},
 			PrevTransform{Position: geom.Vector2{X: 60}},
 		); err != nil {
@@ -280,8 +286,7 @@ func TestCollectCullsAgainstViewport(t *testing.T) {
 
 	// Scale grows bounds: the same off-screen position survives at 10x.
 	if _, err := w.NewEntity(
-		TextureSprite{Texture: "tex.png"},
-		Sprite{},
+		Sprite{Drawable: TextureSource{Texture: "tex.png"}},
 		Transform{Position: geom.Vector2{X: 60}, Scale: geom.Vector2{X: 10, Y: 10}},
 		PrevTransform{Position: geom.Vector2{X: 60}},
 	); err != nil {
@@ -315,8 +320,8 @@ func TestCollectCullsAgainstViewport(t *testing.T) {
 	}
 }
 
-// Fail-fast: any unresolvable sprite source errors the frame naming the
-// handles, whichever variant it came from.
+// Fail-fast: an unresolvable texture source errors the frame naming
+// the handles, whichever source kind it came from.
 func TestCollectFailsFastNamingHandles(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -328,8 +333,7 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 		}, []string{"missing.png"}},
 		{"unregistered atlas", func(t *testing.T, w *World) {
 			if _, err := w.NewEntity(
-				AtlasSprite{Atlas: "ghost", Region: "player"},
-				Sprite{},
+				Sprite{Drawable: AtlasSource{Atlas: "ghost", Region: "player"}},
 				Transform{Position: geom.Vector2{}, Scale: unitScale},
 				PrevTransform{},
 			); err != nil {
@@ -338,8 +342,7 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 		}, []string{"ghost"}},
 		{"unknown region", func(t *testing.T, w *World) {
 			if _, err := w.NewEntity(
-				AtlasSprite{Atlas: "sprites", Region: "boss"},
-				Sprite{},
+				Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: "boss"}},
 				Transform{Position: geom.Vector2{}, Scale: unitScale},
 				PrevTransform{},
 			); err != nil {
@@ -447,5 +450,222 @@ func TestCollectReusesBuffers(t *testing.T) {
 	if first.Items[0].Texture != "tex2.png" {
 		t.Errorf("retained list Items[0].Texture = %q, want tex2.png — the buffer was reused underneath it",
 			first.Items[0].Texture)
+	}
+}
+
+// All three shape geometries stage through the same sprite query: the
+// Drawable carries straight through to the item's Shape, style flows
+// (nil color defaults to black), rotation and scale snap from the
+// transform, and positions interpolate like texture sprites.
+func TestCollectStagesShapeSprites(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{X: 10, Y: 0},
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 20}}, Layer: 1}, Transform{})
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Color: color.RGBA{R: 255, A: 255}},
+		Transform{Rotation: 0.5, Scale: geom.Vector2{X: 2, Y: 2}})
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+		Sprite{Drawable: LineShape{From: geom.Vector2{X: -10, Y: 0}, To: geom.Vector2{X: 30, Y: 0}}}, Transform{})
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Outline: true, StrokeWidth: 2},
+		Transform{})
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
+	if err != nil {
+		t.Fatalf("Collect with shapes: %v", err)
+	}
+	if len(list.Items) != 4 {
+		t.Fatalf("Items = %d, want 4", len(list.Items))
+	}
+
+	shapes := map[string]DrawItem{}
+	for _, item := range list.Items {
+		switch item.Shape.(type) {
+		case RectShape:
+			if item.Shape == Shape(RectShape{Size: geom.Vector2{X: 10, Y: 20}}) {
+				if !item.Position.AlmostEqual(geom.Vector2{X: 5, Y: 0}, 1e-9) {
+					t.Errorf("rect position = %v, want interpolated (5, 0)", item.Position)
+				}
+				if item.Color != color.Black {
+					t.Errorf("rect color = %v, want the black default for a nil color", item.Color)
+				}
+				if item.Outline || item.StrokeWidth != 0 {
+					t.Errorf("filled rect outline/width = %v/%v, want false/0",
+						item.Outline, item.StrokeWidth)
+				}
+			} else {
+				// The outlined rect: outline style must flow to the
+				// item for the blit to know fill from stroke.
+				if !item.Outline || item.StrokeWidth != 2 {
+					t.Errorf("outlined rect outline/width = %v/%v, want true/2",
+						item.Outline, item.StrokeWidth)
+				}
+			}
+			shapes["rect"] = item
+		case CircleShape:
+			if item.Shape != Shape(CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}) {
+				t.Errorf("circle shape = %v, want radii (5, 5)", item.Shape)
+			}
+			if item.Rotation != 0.5 || item.Scale != (geom.Vector2{X: 2, Y: 2}) {
+				t.Errorf("circle rotation/scale = %v/%v, want snapped 0.5/(2, 2)", item.Rotation, item.Scale)
+			}
+			if item.Color != color.Color(color.RGBA{R: 255, A: 255}) {
+				t.Errorf("circle color = %v, want the declared color", item.Color)
+			}
+			shapes["circle"] = item
+		case LineShape:
+			if item.Shape != Shape(LineShape{From: geom.Vector2{X: -10, Y: 0}, To: geom.Vector2{X: 30, Y: 0}}) {
+				t.Errorf("line shape = %v, want From (-10, 0) To (30, 0)", item.Shape)
+			}
+			shapes["line"] = item
+		default:
+			t.Errorf("unexpected shape %T in the draw list", item.Shape)
+		}
+	}
+	if len(shapes) != 3 {
+		t.Fatalf("collected shapes = %v, want one of each kind", shapes)
+	}
+}
+
+// Shape sprites and texture sprites sort together in one list: same
+// layer → sort order → world Y, with full ties keeping query order —
+// the atlas sprite spawned first stays first.
+func TestCollectOrdersShapesWithSprites(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	spawnTextureSprite(t, w, "tex.png", geom.Vector2{Y: 10}, geom.Vector2{Y: 10}, Sprite{Layer: 1})
+	spawnSprite(t, w, geom.Vector2{Y: -10}, geom.Vector2{Y: -10},
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 4}}}, Transform{}) // layer 0
+	spawnSprite(t, w, geom.Vector2{Y: -10}, geom.Vector2{Y: -10},
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}, Layer: 1}, Transform{})
+	spawnSprite(t, w, geom.Vector2{Y: 10}, geom.Vector2{Y: 10},
+		Sprite{Drawable: LineShape{To: geom.Vector2{X: 8, Y: 0}}, Layer: 1}, Transform{})
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0))
+	if err != nil {
+		t.Fatalf("Collect with mixed drawables: %v", err)
+	}
+	if len(list.Items) != 4 {
+		t.Fatalf("Items = %d, want 4", len(list.Items))
+	}
+
+	// Layer 0 rect first; layer 1: circle (y -10), then the y-10 tie
+	// resolved by storage order — the texture sprite spawned first.
+	want := []struct {
+		texture asset.ID
+		shape   Shape
+	}{
+		{"", RectShape{Size: geom.Vector2{X: 4, Y: 4}}},    // rect, layer 0
+		{"", CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}}, // circle, layer 1, y -10
+		{"tex.png", nil}, // texture sprite, layer 1, y 10
+		{"", LineShape{To: geom.Vector2{X: 8, Y: 0}}}, // line, layer 1, y 10
+	}
+	for i := range list.Items {
+		if list.Items[i].Texture != want[i].texture {
+			t.Errorf("Items[%d].Texture = %q, want %q", i, list.Items[i].Texture, want[i].texture)
+		}
+		switch {
+		case want[i].shape == nil:
+			if list.Items[i].Shape != nil {
+				t.Errorf("Items[%d].Shape = %T, want a texture sprite", i, list.Items[i].Shape)
+			}
+		default:
+			if list.Items[i].Shape != want[i].shape {
+				t.Errorf("Items[%d].Shape = %v, want %v", i, list.Items[i].Shape, want[i].shape)
+			}
+		}
+	}
+}
+
+// Per-shape culling, including the line's offset bounds: a segment
+// whose position is outside the viewport survives because its bounds
+// center halfway along the segment - the case a centered-bounds
+// assumption would get wrong.
+func TestCollectCullsShapes(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	// Viewport is [-50, 50]^2 at zoom 1.
+	spawnSprite(t, w, geom.Vector2{X: 40}, geom.Vector2{X: 40},
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, Transform{}) // kept
+	spawnSprite(t, w, geom.Vector2{X: 56}, geom.Vector2{X: 56},
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, Transform{}) // bounds [51,61]: culled
+	spawnSprite(t, w, geom.Vector2{X: 61}, geom.Vector2{X: 61},
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 10, Y: 10}}}, Transform{}) // bounds [51,71]: culled
+	// The offset proof: position (75, 0) is outside the viewport, but
+	// the segment reaches back to (45, 0) - its bounds are [45, 75],
+	// which overlaps. Centered bounds [60, 90] would have culled it.
+	spawnSprite(t, w, geom.Vector2{X: 75}, geom.Vector2{X: 75},
+		Sprite{Drawable: LineShape{To: geom.Vector2{X: -30, Y: 0}}}, Transform{})
+	spawnSprite(t, w, geom.Vector2{X: 60}, geom.Vector2{X: 60},
+		Sprite{Drawable: LineShape{To: geom.Vector2{X: 20, Y: 0}}}, Transform{}) // bounds [60,80]: culled
+	// The inverse proof: this line's position is dead center, but its
+	// segment spans (80, 0) to (110, 0), entirely outside - the AABB
+	// bounds cull it despite the visible position.
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+		Sprite{Drawable: LineShape{From: geom.Vector2{X: 80, Y: 0}, To: geom.Vector2{X: 110, Y: 0}}},
+		Transform{})
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0))
+	if err != nil {
+		t.Fatalf("Collect with culled shapes: %v", err)
+	}
+	if len(list.Items) != 2 {
+		t.Fatalf("Items = %d, want 2 (the near rect and the reaching line)", len(list.Items))
+	}
+	var gotRect, gotLine bool
+	for _, item := range list.Items {
+		switch item.Shape.(type) {
+		case RectShape:
+			gotRect = true
+		case LineShape:
+			gotLine = true
+		}
+	}
+	if !gotRect || !gotLine {
+		t.Fatalf("survivors = rect:%v line:%v, want both", gotRect, gotLine)
+	}
+}
+
+// A nil Drawable is style without a picture: legal, collected by no
+// path, drawn as nothing.
+func TestCollectSkipsNilDrawable(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{}, Sprite{Layer: 3}, Transform{})
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, Transform{})
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0))
+	if err != nil {
+		t.Fatalf("Collect with nil drawable: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("Items = %d, want 1 - the style-only sprite must not draw", len(list.Items))
+	}
+	if _, ok := list.Items[0].Shape.(RectShape); !ok {
+		t.Errorf("Items[0].Shape = %T, want RectShape", list.Items[0].Shape)
+	}
+}
+
+// The zero value shows; Hidden opts out for shapes exactly as for
+// texture sprites.
+func TestCollectSkipsHiddenShapes(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, Transform{})
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Hidden: true}, Transform{})
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0))
+	if err != nil {
+		t.Fatalf("Collect with hidden shape: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("Items = %d, want 1 - the hidden circle must not collect", len(list.Items))
+	}
+	if _, ok := list.Items[0].Shape.(RectShape); !ok {
+		t.Errorf("Items[0].Shape = %T, want RectShape", list.Items[0].Shape)
 	}
 }

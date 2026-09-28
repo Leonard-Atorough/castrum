@@ -115,7 +115,7 @@ func TestLoadWithIDOverridesCacheIdentity(t *testing.T) {
 	}))
 	mustRegisterJSONDecoder(t, a)
 
-	// Same ID, different files: the collision rule — first load wins.
+	// Same ID, different files: the collision rule - first load wins.
 	if _, err := a.Load[spriteMeta]("a.json", WithID("shared")); err != nil {
 		t.Fatalf("first Load: %v", err)
 	}

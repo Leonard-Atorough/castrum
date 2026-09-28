@@ -17,7 +17,7 @@ import (
 // Get reads are the query's shared prefetch scratch, reused for every
 // archetype the iteration visits: a retained entry keeps a stale row
 // index into whichever archetype the iteration is on now, so a later Get
-// reads the wrong data. Keep the ID instead — [Entry.ID] is a copy, safe to
+// reads the wrong data. Keep the ID instead - [Entry.ID] is a copy, safe to
 // hold and resolve through the world's ID-keyed methods after iteration.
 type Entry struct {
 	entityID EntityID
@@ -33,7 +33,7 @@ func (e Entry) ID() EntityID {
 
 // SetComponent overwrites the visited entity's component of type T in place,
 // through the prefetched column. Only the types listed in [Query.With]
-// are available — the same contract as [Entry.Component]. Value writes are
+// are available - the same contract as [Entry.Component]. Value writes are
 // safe during iteration: they mutate the entity's slot without moving
 // rows. Structural changes (spawning, destroying, adding or removing
 // components) remain invalid during a pass.
@@ -89,7 +89,7 @@ func NewQuery(world *World) *Query {
 }
 
 // With adds component types that must be present for an entity to match
-// the query. Pass zero values of the component types — the values are
+// the query. Pass zero values of the component types - the values are
 // markers, only their types are used. A nil or a pointer value panics:
 // both are build-time mistakes, and a pointer would otherwise silently
 // match no component at all.
@@ -112,7 +112,7 @@ func (q *Query) With(components ...any) *Query {
 }
 
 // Without adds component types that must be absent for an entity to match
-// the query. Pass zero values of the component types — the values are
+// the query. Pass zero values of the component types - the values are
 // markers, only their types are used. A nil or a pointer value panics.
 func (q *Query) Without(components ...any) *Query {
 	for _, c := range components {
@@ -149,8 +149,8 @@ func (q *Query) Where(predicate func(e Entry) bool) *Query {
 // range stops iteration cleanly, and the query can be executed again
 // immediately.
 //
-// Structural mutation — spawning, destroying, or adding and removing
-// components — during iteration is not supported: it moves rows under the
+// Structural mutation - spawning, destroying, or adding and removing
+// components - during iteration is not supported: it moves rows under the
 // iterator and corrupts the pass. Perform structural changes before
 // iterating or between passes.
 func (q *Query) Execute() iter.Seq[Entry] {

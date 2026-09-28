@@ -41,7 +41,7 @@ type AtlasRegion struct {
 	X, Y, W, H int
 }
 
-// Rect returns the region as a pixel rectangle — the value a runner
+// Rect returns the region as a pixel rectangle - the value a runner
 // feeds to its sub-image call.
 func (r AtlasRegion) Rect() image.Rectangle {
 	return image.Rect(r.X, r.Y, r.X+r.W, r.Y+r.H)

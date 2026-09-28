@@ -47,4 +47,4 @@ release:
 	@if [ -z "$(BUMP)" ]; then echo "Error: BUMP not specified. Usage: make release BUMP=[auto|patch|minor|major]"; exit 1; fi
 	@NEXT=$$(bash scripts/bump.sh $(BUMP)) && \
 	  git tag -a $$NEXT -m "Release $$NEXT" && \
-	  echo "Tagged $$NEXT — push with: git push origin $$NEXT"
+	  echo "Tagged $$NEXT - push with: git push origin $$NEXT"
