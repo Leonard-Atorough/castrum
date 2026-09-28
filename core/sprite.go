@@ -16,8 +16,8 @@ import (
 //
 // The zero value is the shown, opaque sprite. With a nil Drawable it
 // declares style but no picture and simply does not draw until a
-// Drawable is set. Hide it with Hidden; see through it with
-// Transparency; outline shapes with Outline.
+// Drawable is set. Hide it with Hidden; see through it with Color's
+// alpha; outline shapes with Outline.
 type Sprite struct {
 	// Layer orders the sprite against every other drawable, 0-31,
 	// back to front.
@@ -42,21 +42,21 @@ type Sprite struct {
 	// StrokeWidth is the outline's width in world units. Applies when
 	// Drawable is a shape and Outline is set.
 	StrokeWidth float64
-	// Transparency fades the sprite: 0.0 — the zero value — is fully
-	// opaque, 1.0 fully see-through.
-	Transparency float32
-	// Tint is the color to multiply a texture's pixels by, or a
-	// shape's fill and stroke color. nil means no tint on a texture
-	// source; shapes default it to black at collection.
-	Tint color.Color
+	// Color is the color to multiply a texture's pixels by, or a
+	// shape's fill and stroke color. Its alpha channel is the
+	// drawable's opacity: a half-alpha color draws half-faded, so
+	// fading is expressing a color, not a separate field —
+	// color.NRGBA{R: 255, G: 255, B: 255, A: 128} fades an uncolored
+	// sprite to half.
+	//
+	// nil means no color on a texture source (fully
+	// opaque); shapes default a nil color to black at collection.
+	Color color.Color
 }
 
 func (s Sprite) Validate() error {
 	if s.Layer > 31 {
 		return fmt.Errorf("layer must be between 0 and 31")
-	}
-	if s.Transparency < 0 || s.Transparency > 1 {
-		return fmt.Errorf("transparency must be between 0 and 1")
 	}
 	if s.Outline && s.StrokeWidth <= 0 {
 		return fmt.Errorf("outline requires a positive stroke width")
@@ -83,8 +83,8 @@ func (s Sprite) Validate() error {
 			return fmt.Errorf("rect size must be positive")
 		}
 	case CircleShape:
-		if d.Radius <= 0 {
-			return fmt.Errorf("circle radius must be positive")
+		if d.Radii.X <= 0 || d.Radii.Y <= 0 {
+			return fmt.Errorf("circle radii must be positive")
 		}
 	case LineShape:
 		if d.From == d.To {
@@ -131,10 +131,12 @@ type RectShape struct {
 	Size geom.Vector2
 }
 
-// CircleShape draws a filled or outlined circle of Radius world
-// units, centered on the position and scaled by the scale.
+// CircleShape draws a filled or outlined circle — an ellipse whenever
+// the radii differ — of Radii world units, centered on the position
+// and scaled by the scale. The transform's scale still applies on top,
+// so non-uniform scale widens any radii just as it stretches a rect.
 type CircleShape struct {
-	Radius float64
+	Radii geom.Vector2
 }
 
 // LineShape draws a segment between From and To, both relative to

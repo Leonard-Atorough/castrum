@@ -109,7 +109,7 @@ if err := game.AddSystem(core.PhaseStartup, "register-atlas", core.SystemFunc(fu
 }
 ```
 
-A sprite is an entity with one component: the style plus what to draw. The `Drawable` sum carries the picture — an atlas region or a standalone texture — or a shape. `Sprite`'s zero-value style is shown and opaque: set `Hidden` to stop showing it, `Transparency` to fade it, `Layer`/`SortOrder` to order it against other sprites.
+A sprite is an entity with one component: the style plus what to draw. The `Drawable` sum carries the picture — an atlas region or a standalone texture — or a shape. `Sprite`'s zero-value style is shown and opaque: set `Hidden` to stop showing it, `Color`'s alpha to fade it (`Color: color.NRGBA{R: 255, G: 255, B: 255, A: 128}` draws at half opacity), `Layer`/`SortOrder` to order it against other sprites.
 
 ```go
 if _, err := game.World().NewEntity(
@@ -121,20 +121,20 @@ if _, err := game.World().NewEntity(
 }
 ```
 
-`core.TextureSource{Texture: "sky.png"}` draws a standalone image whole, and the shapes — `core.RectShape{Size: ...}`, `core.CircleShape{Radius: ...}`, `core.LineShape{From, To}` — draw geometry with the same component, styled by `Tint` and outlined with `Outline` + `StrokeWidth`. One `Drawable` per sprite, enforced by the sum: a sprite cannot declare two pictures.
+`core.TextureSource{Texture: "sky.png"}` draws a standalone image whole, and the shapes — `core.RectShape{Size: ...}`, `core.CircleShape{Radii: ...}` (equal radii draw a circle, unequal an ellipse), `core.LineShape{From, To}` — draw geometry with the same component, styled by `Color` and outlined with `Outline` + `StrokeWidth`. One `Drawable` per sprite, enforced by the sum: a sprite cannot declare two pictures.
 
 Shapes need no assets at all — pure geometry, styled inline:
 
 ```go
 core.Sprite{
 	Drawable:    core.RectShape{Size: geom.Vector2{X: 100, Y: 50}},
-	Tint:        color.RGBA{G: 200, A: 255},
+	Color:       color.NRGBA{G: 200, A: 255},
 	Outline:     true,
 	StrokeWidth: 3,
 }
 ```
 
-A line spans two endpoints, both relative to the position — a zero `From` anchors the line at the position itself — and is drawn by its stroke, so a line sprite carries a `StrokeWidth`. A runnable shape demo — three shapes in varying tints, spinning slowly — lives in the repository at `examples/primitive`:
+A line spans two endpoints, both relative to the position — a zero `From` anchors the line at the position itself — and is drawn by its stroke, so a line sprite carries a `StrokeWidth`. A runnable shape demo — three shapes in varying colors, spinning slowly — lives in the repository at `examples/primitive`:
 
 ```sh
 go run ./examples/primitive

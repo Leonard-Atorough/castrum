@@ -1,7 +1,6 @@
 package ebitrun
 
 import (
-	"image/color"
 	"math"
 	"strings"
 	"testing"
@@ -264,30 +263,60 @@ func TestOffsetPoint(t *testing.T) {
 	}
 }
 
-func TestCircleRadius(t *testing.T) {
-	if r := circleRadius(5, geom.Vector2{}.X, 1); r != 0 {
-		t.Errorf("zero scale radius = %v, want 0", r)
-	}
-	if r := circleRadius(5, 2, 1); r != 10 {
-		t.Errorf("scaled radius = %v, want 10", r)
-	}
-	if r := circleRadius(5, -2, 1); r != 10 {
-		t.Errorf("mirrored scale radius = %v, want 10 (mirroring is not a size)", r)
-	}
-}
+func TestEllipsePoints(t *testing.T) {
+	center := geom.Vector2{X: 50, Y: 50}
+	unit := geom.Vector2{X: 1, Y: 1}
+	circle := geom.Vector2{X: 10, Y: 10}
+	k := 4 * (math.Sqrt(2) - 1) / 3
 
-func TestShapeColor(t *testing.T) {
-	black := shapeColor(color.Black, 0)
-	if black != (color.RGBA{R: 0, G: 0, B: 0, A: 255}) {
-		t.Errorf("black shape color = %v, want opaque black", black)
+	// Equal radii, uniform scale: the anchors sit on the axes at the
+	// radius, the first controls at the kappa offsets.
+	got := ellipsePoints(center, circle, unit, 1, 0)
+	anchors := [4]geom.Vector2{{X: 60, Y: 50}, {X: 50, Y: 60}, {X: 40, Y: 50}, {X: 50, Y: 40}}
+	for i, want := range anchors {
+		if !got[3*i].AlmostEqual(want, 1e-9) {
+			t.Errorf("anchor %d = %v, want %v", i, got[3*i], want)
+		}
 	}
-	red := shapeColor(color.RGBA{R: 255, A: 255}, 0.5)
-	if red != (color.RGBA{R: 255, G: 0, B: 0, A: 127}) {
-		t.Errorf("half-transparent red = %v, want alpha 127", red)
+	if !got[1].AlmostEqual(geom.Vector2{X: 60, Y: 50 + 10*k}, 1e-9) {
+		t.Errorf("first control = %v, want (60, %v)", got[1], 50+10*k)
 	}
-	// A fully transparent tint carries no hue: invisible.
-	if empty := shapeColor(color.RGBA{}, 0); empty != (color.RGBA{}) {
-		t.Errorf("transparent tint = %v, want the zero color", empty)
+
+	// Unequal radii draw an ellipse: each axis anchor carries its own
+	// radius - the geometry the shape declares.
+	widened := ellipsePoints(center, geom.Vector2{X: 20, Y: 10}, unit, 1, 0)
+	if !widened[0].AlmostEqual(geom.Vector2{X: 70, Y: 50}, 1e-9) {
+		t.Errorf("wide X anchor = %v, want (70, 50)", widened[0])
+	}
+	if !widened[3].AlmostEqual(geom.Vector2{X: 50, Y: 60}, 1e-9) {
+		t.Errorf("narrow Y anchor = %v, want (50, 60)", widened[3])
+	}
+
+	// The transform's scale composes with the radii per axis.
+	scaled := ellipsePoints(center, circle, geom.Vector2{X: 2, Y: 1}, 1, 0)
+	if !scaled[0].AlmostEqual(geom.Vector2{X: 70, Y: 50}, 1e-9) {
+		t.Errorf("scaled X anchor = %v, want (70, 50)", scaled[0])
+	}
+
+	// Mirrored scale is not a size: the extents stay positive.
+	mirrored := ellipsePoints(center, geom.Vector2{X: 20, Y: 10}, geom.Vector2{X: -2, Y: 1}, 1, 0)
+	if !mirrored[0].AlmostEqual(geom.Vector2{X: 90, Y: 50}, 1e-9) {
+		t.Errorf("mirrored X anchor = %v, want (90, 50)", mirrored[0])
+	}
+
+	// A quarter turn swaps the axes rigidly around the center.
+	rotated := ellipsePoints(center, circle, unit, 1, math.Pi/2)
+	if !rotated[0].AlmostEqual(geom.Vector2{X: 50, Y: 60}, 1e-9) {
+		t.Errorf("rotated X anchor = %v, want (50, 60)", rotated[0])
+	}
+	if !rotated[3].AlmostEqual(geom.Vector2{X: 40, Y: 50}, 1e-9) {
+		t.Errorf("rotated Y anchor = %v, want (40, 50)", rotated[3])
+	}
+
+	// Zoom scales the extents from the snapped center.
+	zoomed := ellipsePoints(center, circle, unit, 2, 0)
+	if !zoomed[0].AlmostEqual(geom.Vector2{X: 70, Y: 50}, 1e-9) {
+		t.Errorf("zoomed X anchor = %v, want (70, 50)", zoomed[0])
 	}
 }
 
@@ -299,8 +328,8 @@ func TestEngineDrawShapeSmoke(t *testing.T) {
 	spawns := []core.Sprite{
 		{Drawable: core.RectShape{Size: geom.Vector2{X: 10, Y: 20}}},
 		{Drawable: core.RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Outline: true, StrokeWidth: 2},
-		{Drawable: core.CircleShape{Radius: 5}},
-		{Drawable: core.CircleShape{Radius: 5}, Outline: true, StrokeWidth: 1},
+		{Drawable: core.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}},
+		{Drawable: core.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Outline: true, StrokeWidth: 1},
 		{Drawable: core.LineShape{To: geom.Vector2{X: 30, Y: 0}}, Outline: true, StrokeWidth: 2},
 	}
 	for i, sprite := range spawns {
@@ -315,6 +344,22 @@ func TestEngineDrawShapeSmoke(t *testing.T) {
 		); err != nil {
 			t.Fatalf("spawn shape %d: %v", i, err)
 		}
+	}
+
+	// A rotated ellipse declares its own unequal radii and rides the
+	// Béziers.
+	if _, err := g.World().NewEntity(
+		core.Sprite{
+			Drawable: core.CircleShape{Radii: geom.Vector2{X: 15, Y: 5}}, Outline: true, StrokeWidth: 1, Layer: 5,
+		},
+		core.Transform{
+			Position: geom.Vector2{X: 50, Y: 50},
+			Scale:    spriteScale,
+			Rotation: math.Pi / 4,
+		},
+		core.PrevTransform{Position: geom.Vector2{X: 50, Y: 50}},
+	); err != nil {
+		t.Fatalf("spawn rotated ellipse: %v", err)
 	}
 
 	if err := r.engine(g.Context(), ebiten.NewImage(100, 100)); err != nil {

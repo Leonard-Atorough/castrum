@@ -10,16 +10,15 @@ import (
 
 func TestSpriteValidate(t *testing.T) {
 	valid := Sprite{
-		Drawable:     AtlasSource{Atlas: "sprites", Region: "player"},
-		Layer:        31,
-		Tint:         color.White,
-		Transparency: 0.5,
+		Drawable: AtlasSource{Atlas: "sprites", Region: "player"},
+		Layer:    31,
+		Color:    color.White,
 	}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid Sprite rejected: %v", err)
 	}
 	outlined := Sprite{
-		Drawable:    CircleShape{Radius: 5},
+		Drawable:    CircleShape{Radii: geom.Vector2{X: 5, Y: 5}},
 		Outline:     true,
 		StrokeWidth: 2,
 	}
@@ -32,21 +31,20 @@ func TestSpriteValidate(t *testing.T) {
 	}
 
 	for name, sprite := range map[string]Sprite{
-		"layer over 31":          {Layer: 32},
-		"transparency over one":  {Transparency: 1.1},
-		"negative transparency":  {Transparency: -0.1},
-		"negative stroke width":  {StrokeWidth: -1},
-		"outline without width":  {Outline: true},
-		"atlas without ID":       {Drawable: AtlasSource{Region: "player"}},
-		"atlas without region":   {Drawable: AtlasSource{Atlas: "sprites"}},
-		"texture without ID":     {Drawable: TextureSource{}},
-		"rect zero size":         {Drawable: RectShape{}},
-		"rect zero width":        {Drawable: RectShape{Size: geom.Vector2{X: 10}}},
-		"rect negative size":     {Drawable: RectShape{Size: geom.Vector2{X: -1, Y: 10}}},
-		"circle zero radius":     {Drawable: CircleShape{}},
-		"circle negative radius": {Drawable: CircleShape{Radius: -5}},
-		"line zero endpoints":    {Drawable: LineShape{}},
-		"line same endpoints":    {Drawable: LineShape{From: geom.Vector2{X: 1, Y: 1}, To: geom.Vector2{X: 1, Y: 1}}},
+		"layer over 31":         {Layer: 32},
+		"negative stroke width": {StrokeWidth: -1},
+		"outline without width": {Outline: true},
+		"atlas without ID":      {Drawable: AtlasSource{Region: "player"}},
+		"atlas without region":  {Drawable: AtlasSource{Atlas: "sprites"}},
+		"texture without ID":    {Drawable: TextureSource{}},
+		"rect zero size":        {Drawable: RectShape{}},
+		"rect zero width":       {Drawable: RectShape{Size: geom.Vector2{X: 10}}},
+		"rect negative size":    {Drawable: RectShape{Size: geom.Vector2{X: -1, Y: 10}}},
+		"circle zero radii":     {Drawable: CircleShape{}},
+		"circle zero Y radius":  {Drawable: CircleShape{Radii: geom.Vector2{X: 10}}},
+		"circle negative radii": {Drawable: CircleShape{Radii: geom.Vector2{X: -5, Y: 5}}},
+		"line zero endpoints":   {Drawable: LineShape{}},
+		"line same endpoints":   {Drawable: LineShape{From: geom.Vector2{X: 1, Y: 1}, To: geom.Vector2{X: 1, Y: 1}}},
 	} {
 		if err := sprite.Validate(); err == nil {
 			t.Errorf("Sprite with %s should fail validation", name)
@@ -61,10 +59,10 @@ func TestComponentValidationAtSpawn(t *testing.T) {
 	w := NewWorld()
 
 	if _, err := w.NewEntity(
-		Sprite{Transparency: 2},
+		Sprite{Layer: 32},
 		Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	); err == nil || !strings.Contains(err.Error(), "Sprite") {
-		t.Errorf("invalid transparency at spawn = %v, want an error naming Sprite", err)
+		t.Errorf("invalid layer at spawn = %v, want an error naming Sprite", err)
 	}
 	if _, err := w.NewEntity(
 		Sprite{Drawable: TextureSource{}},

@@ -186,7 +186,7 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnTextureSprite(t, w, "tex.png",
 		geom.Vector2{}, geom.Vector2{X: 10, Y: 20},
-		Sprite{FlipH: true, Transparency: 0.5})
+		Sprite{FlipH: true, Color: color.NRGBA{R: 255, A: 128}})
 
 	collector := NewCollector(w)
 	for _, tc := range []struct {
@@ -214,8 +214,10 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 		if item.Rect != (image.Rectangle{}) {
 			t.Errorf("rect = %v, want empty for a whole-texture sprite", item.Rect)
 		}
-		if !item.FlipH || item.Transparency != 0.5 {
-			t.Errorf("flip/transparency = %v/%v, want true/0.5", item.FlipH, item.Transparency)
+		// The half-alpha color flows whole: its alpha channel is the
+		// sprite's opacity, so the item carries the color as declared.
+		if !item.FlipH || item.Color != color.Color(color.NRGBA{R: 255, A: 128}) {
+			t.Errorf("flip/color = %v/%v, want true/(255, 128-alpha)", item.FlipH, item.Color)
 		}
 	}
 }
@@ -453,15 +455,15 @@ func TestCollectReusesBuffers(t *testing.T) {
 
 // All three shape geometries stage through the same sprite query: the
 // Drawable carries straight through to the item's Shape, style flows
-// (nil tint defaults to black), rotation and scale snap from the
+// (nil color defaults to black), rotation and scale snap from the
 // transform, and positions interpolate like texture sprites.
 func TestCollectStagesShapeSprites(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{X: 10, Y: 0},
-		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 20}}, Layer: 1, Transparency: 0.5}, Transform{})
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 20}}, Layer: 1}, Transform{})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
-		Sprite{Drawable: CircleShape{Radius: 5}, Tint: color.RGBA{R: 255, A: 255}},
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Color: color.RGBA{R: 255, A: 255}},
 		Transform{Rotation: 0.5, Scale: geom.Vector2{X: 2, Y: 2}})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 		Sprite{Drawable: LineShape{From: geom.Vector2{X: -10, Y: 0}, To: geom.Vector2{X: 30, Y: 0}}}, Transform{})
@@ -485,11 +487,8 @@ func TestCollectStagesShapeSprites(t *testing.T) {
 				if !item.Position.AlmostEqual(geom.Vector2{X: 5, Y: 0}, 1e-9) {
 					t.Errorf("rect position = %v, want interpolated (5, 0)", item.Position)
 				}
-				if item.Tint != color.Black {
-					t.Errorf("rect tint = %v, want the black default for a nil tint", item.Tint)
-				}
-				if item.Transparency != 0.5 {
-					t.Errorf("rect transparency = %v, want 0.5", item.Transparency)
+				if item.Color != color.Black {
+					t.Errorf("rect color = %v, want the black default for a nil color", item.Color)
 				}
 				if item.Outline || item.StrokeWidth != 0 {
 					t.Errorf("filled rect outline/width = %v/%v, want false/0",
@@ -505,14 +504,14 @@ func TestCollectStagesShapeSprites(t *testing.T) {
 			}
 			shapes["rect"] = item
 		case CircleShape:
-			if item.Shape != Shape(CircleShape{Radius: 5}) {
-				t.Errorf("circle shape = %v, want radius 5", item.Shape)
+			if item.Shape != Shape(CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}) {
+				t.Errorf("circle shape = %v, want radii (5, 5)", item.Shape)
 			}
 			if item.Rotation != 0.5 || item.Scale != (geom.Vector2{X: 2, Y: 2}) {
 				t.Errorf("circle rotation/scale = %v/%v, want snapped 0.5/(2, 2)", item.Rotation, item.Scale)
 			}
-			if item.Tint != color.Color(color.RGBA{R: 255, A: 255}) {
-				t.Errorf("circle tint = %v, want the declared tint", item.Tint)
+			if item.Color != color.Color(color.RGBA{R: 255, A: 255}) {
+				t.Errorf("circle color = %v, want the declared color", item.Color)
 			}
 			shapes["circle"] = item
 		case LineShape:
@@ -539,7 +538,7 @@ func TestCollectOrdersShapesWithSprites(t *testing.T) {
 	spawnSprite(t, w, geom.Vector2{Y: -10}, geom.Vector2{Y: -10},
 		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 4}}}, Transform{}) // layer 0
 	spawnSprite(t, w, geom.Vector2{Y: -10}, geom.Vector2{Y: -10},
-		Sprite{Drawable: CircleShape{Radius: 2}, Layer: 1}, Transform{})
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}, Layer: 1}, Transform{})
 	spawnSprite(t, w, geom.Vector2{Y: 10}, geom.Vector2{Y: 10},
 		Sprite{Drawable: LineShape{To: geom.Vector2{X: 8, Y: 0}}, Layer: 1}, Transform{})
 
@@ -557,10 +556,10 @@ func TestCollectOrdersShapesWithSprites(t *testing.T) {
 		texture asset.ID
 		shape   Shape
 	}{
-		{"", RectShape{Size: geom.Vector2{X: 4, Y: 4}}}, // rect, layer 0
-		{"", CircleShape{Radius: 2}},                    // circle, layer 1, y -10
-		{"tex.png", nil},                                // texture sprite, layer 1, y 10
-		{"", LineShape{To: geom.Vector2{X: 8, Y: 0}}},   // line, layer 1, y 10
+		{"", RectShape{Size: geom.Vector2{X: 4, Y: 4}}},    // rect, layer 0
+		{"", CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}}, // circle, layer 1, y -10
+		{"tex.png", nil}, // texture sprite, layer 1, y 10
+		{"", LineShape{To: geom.Vector2{X: 8, Y: 0}}}, // line, layer 1, y 10
 	}
 	for i := range list.Items {
 		if list.Items[i].Texture != want[i].texture {
@@ -592,7 +591,7 @@ func TestCollectCullsShapes(t *testing.T) {
 	spawnSprite(t, w, geom.Vector2{X: 56}, geom.Vector2{X: 56},
 		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, Transform{}) // bounds [51,61]: culled
 	spawnSprite(t, w, geom.Vector2{X: 61}, geom.Vector2{X: 61},
-		Sprite{Drawable: CircleShape{Radius: 10}}, Transform{}) // bounds [51,71]: culled
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 10, Y: 10}}}, Transform{}) // bounds [51,71]: culled
 	// The offset proof: position (75, 0) is outside the viewport, but
 	// the segment reaches back to (45, 0) - its bounds are [45, 75],
 	// which overlaps. Centered bounds [60, 90] would have culled it.
@@ -657,7 +656,7 @@ func TestCollectSkipsHiddenShapes(t *testing.T) {
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, Transform{})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
-		Sprite{Drawable: CircleShape{Radius: 5}, Hidden: true}, Transform{})
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Hidden: true}, Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {

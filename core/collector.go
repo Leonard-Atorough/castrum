@@ -28,8 +28,8 @@ type DrawItem struct {
 	Rect image.Rectangle
 	// Shape is the primitive to draw instead of a texture. nil means
 	// this item is a texture sprite and Texture and Rect apply. When
-	// non-nil, Tint is the shape's color and is never nil: the
-	// collector defaults a nil Primitive.Color to black.
+	// non-nil, Color is the shape's color and is never nil: the
+	// collector defaults a nil Sprite.Color to black.
 	Shape Shape
 	// Position is the interpolated position of the drawable in world
 	// space.
@@ -42,13 +42,11 @@ type DrawItem struct {
 	// FlipH and FlipV mirror the sprite horizontally and vertically.
 	// Applies when Shape is nil; shapes have no flip.
 	FlipH, FlipV bool
-	// Tint is the color to multiply the sprite's pixels by, or the
-	// shape's fill and stroke color. nil means no tint on a sprite;
-	// shape items always carry a concrete color.
-	Tint color.Color
-	// Transparency fades the item: 0.0 - the zero value - is fully
-	// opaque, 1.0 is fully see-through.
-	Transparency float32
+	// Color is the color to multiply the sprite's pixels by, or the
+	// shape's fill and stroke color; its alpha channel is the
+	// drawable's opacity. nil means no color on a sprite; shape
+	// items always carry a concrete color.
+	Color color.Color
 	// Outline strokes the shape's border instead of filling it.
 	// Applies when Shape is non-nil.
 	Outline bool
@@ -204,14 +202,13 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 					Y: float64(region.H) * transform.Scale.Y,
 				},
 				DrawItem{
-					Texture:      atlas.TexturePath(),
-					Rect:         region.Rect(),
-					Rotation:     transform.Rotation,
-					Scale:        transform.Scale,
-					FlipH:        sprite.FlipH,
-					FlipV:        sprite.FlipV,
-					Tint:         sprite.Tint,
-					Transparency: sprite.Transparency,
+					Texture:  atlas.TexturePath(),
+					Rect:     region.Rect(),
+					Rotation: transform.Rotation,
+					Scale:    transform.Scale,
+					FlipH:    sprite.FlipH,
+					FlipV:    sprite.FlipV,
+					Color:    sprite.Color,
 				})
 		case TextureSource:
 			data, err := server.Load[asset.TextureData](string(drawable.Texture))
@@ -226,14 +223,13 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 					Y: float64(data.Height) * transform.Scale.Y,
 				},
 				DrawItem{
-					Texture:      drawable.Texture,
-					Rect:         image.Rectangle{},
-					Rotation:     transform.Rotation,
-					Scale:        transform.Scale,
-					FlipH:        sprite.FlipH,
-					FlipV:        sprite.FlipV,
-					Tint:         sprite.Tint,
-					Transparency: sprite.Transparency,
+					Texture:  drawable.Texture,
+					Rect:     image.Rectangle{},
+					Rotation: transform.Rotation,
+					Scale:    transform.Scale,
+					FlipH:    sprite.FlipH,
+					FlipV:    sprite.FlipV,
+					Color:    sprite.Color,
 				})
 		case RectShape:
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
@@ -245,13 +241,12 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 				},
 				shapeItem(sprite, transform, drawable))
 		case CircleShape:
-			diameter := 2 * drawable.Radius
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
 				geom.Vector2{}, // circles are centered on the position
 				geom.Vector2{
-					X: diameter * transform.Scale.X,
-					Y: diameter * transform.Scale.Y,
+					X: 2 * drawable.Radii.X * transform.Scale.X,
+					Y: 2 * drawable.Radii.Y * transform.Scale.Y,
 				},
 				shapeItem(sprite, transform, drawable))
 		case LineShape:
@@ -319,20 +314,19 @@ func (c *Collector) stage(viewport geom.Rect, alpha float64, layer uint8, sortOr
 
 // shapeItem assembles a shape sprite's DrawItem: the geometry carried
 // straight through as the item's Shape, snapped rotation and scale,
-// and style. A nil tint draws black, so shape items always carry a
+// and style. A nil color draws black, so shape items always carry a
 // concrete color.
 func shapeItem(sprite Sprite, transform Transform, shape Shape) DrawItem {
-	fill := sprite.Tint
+	fill := sprite.Color
 	if fill == nil {
 		fill = color.Black
 	}
 	return DrawItem{
-		Shape:        shape,
-		Rotation:     transform.Rotation,
-		Scale:        transform.Scale,
-		Tint:         fill,
-		Transparency: sprite.Transparency,
-		Outline:      sprite.Outline,
-		StrokeWidth:  sprite.StrokeWidth,
+		Shape:       shape,
+		Rotation:    transform.Rotation,
+		Scale:       transform.Scale,
+		Color:       fill,
+		Outline:     sprite.Outline,
+		StrokeWidth: sprite.StrokeWidth,
 	}
 }
