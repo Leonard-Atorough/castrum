@@ -32,17 +32,27 @@ body:
       label: Alternatives Considered
       description: Other approaches or workarounds, if any
   - type: dropdown
+    id: design
+    attributes:
+      label: Design status
+      description: "The engine designs before coding: features land from settled designs. Where is this one?"
+      options:
+        - Already designed (link or describe the settled design)
+        - Needs a design pass first
+        - Small enough to skip a formal design
+    validations:
+      required: true
+  - type: dropdown
     id: category
     attributes:
-      label: Category
+      label: Domain
       options:
         - ECS
         - Rendering
         - Input
-        - Scene
-        - Physics
+        - Assets
         - Animation
-        - Tooling
+        - Build/Tooling
         - Documentation
         - Performance
         - Other
