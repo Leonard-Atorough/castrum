@@ -669,3 +669,42 @@ func TestCollectSkipsHiddenShapes(t *testing.T) {
 		t.Errorf("Items[0].Shape = %T, want RectShape", list.Items[0].Shape)
 	}
 }
+
+// The camera preference rule: a user-spawned primary wins, the
+// engine camera (SpawnEngineCamera) is the fallback, and no camera at
+// all still yields an empty list.
+func TestEngineCameraPreference(t *testing.T) {
+	w := newCollectorWorld(t)
+	ctx := drawContext(w, 0)
+
+	// No camera: the empty list, overlays still run.
+	list, err := NewCollector(w).Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect without camera: %v", err)
+	}
+	if len(list.Items) != 0 || list.Camera != (CameraView{}) {
+		t.Fatalf("no-camera list = %+v, want empty", list)
+	}
+
+	// The engine camera alone: it frames the world at the origin.
+	if _, err := SpawnEngineCamera(w); err != nil {
+		t.Fatalf("spawn engine camera: %v", err)
+	}
+	list, err = NewCollector(w).Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect with engine camera: %v", err)
+	}
+	if list.Camera.Position != (geom.Vector2{}) || list.Camera.Zoom != 1 {
+		t.Fatalf("engine camera view = %+v, want origin zoom 1", list.Camera)
+	}
+
+	// A user primary takes precedence over the engine camera.
+	spawnCamera(t, w, geom.Vector2{X: 30, Y: 30}, geom.Vector2{X: 30, Y: 30}, 2, true)
+	list, err = NewCollector(w).Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect with user camera: %v", err)
+	}
+	if list.Camera.Position != (geom.Vector2{X: 30, Y: 30}) || list.Camera.Zoom != 2 {
+		t.Fatalf("user camera should win: view = %+v, want (30, 30) zoom 2", list.Camera)
+	}
+}

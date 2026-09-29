@@ -80,7 +80,8 @@ type workingItem struct {
 // then world Y. Reused across frames - construct once per game; the
 // runner's engine draw calls Collect every frame.
 type Collector struct {
-	camera,
+	userCamera,
+	engineCamera,
 	sprites *Query
 	// working is the pre-sort buffer; SortedItems the post-sort
 	// output. Both are reused across frames: steady-state collection
@@ -91,16 +92,29 @@ type Collector struct {
 	SortedItems []DrawItem
 }
 
-// NewCollector builds a Collector over world: one primary-camera
-// query and one sprite query — every Drawable kind flows through the
+// NewCollector builds a Collector over world: two camera queries
+// (user-spawned primaries first, the engine camera as fallback) and
+// one sprite query — every Drawable kind flows through the
 // same query, because Sprite carries its Drawable as data rather than
 // as component variants. Each is predicate-filtered (Primary; sprites
 // not Hidden). The first primary camera in deterministic query order
 // frames the world; sprites pair with a Transform and a PrevTransform
 // to match.
 func NewCollector(world *World) *Collector {
-	camera := NewQuery(world).
+	// User-spawned primaries are preferred; the engine camera
+	// (SpawnEngineCamera) is the fallback when none exists.
+	userCamera := NewQuery(world).
 		With(Camera{}, Transform{}, PrevTransform{}).
+		Without(engineCamera{}).
+		Where(func(e Entry) bool {
+			cam, ok := e.Component[Camera]()
+			if !ok {
+				return false
+			}
+			return cam.Primary
+		})
+	engineCamera := NewQuery(world).
+		With(Camera{}, Transform{}, PrevTransform{}, engineCamera{}).
 		Where(func(e Entry) bool {
 			cam, ok := e.Component[Camera]()
 			if !ok {
@@ -120,10 +134,11 @@ func NewCollector(world *World) *Collector {
 		})
 
 	return &Collector{
-		camera:      camera,
-		sprites:     sprites,
-		working:     make([]workingItem, 0),
-		SortedItems: make([]DrawItem, 0),
+		userCamera:   userCamera,
+		engineCamera: engineCamera,
+		sprites:      sprites,
+		working:      make([]workingItem, 0),
+		SortedItems:  make([]DrawItem, 0),
 	}
 }
 
@@ -141,8 +156,12 @@ func NewCollector(world *World) *Collector {
 // handles: registration problems surface at the first rendered frame.
 // Shapes cannot fail: there is nothing to resolve.
 func (c *Collector) Collect(ctx *Context) (DrawList, error) {
-	// First primary wins; query iteration order is deterministic.
-	entry, ok := c.camera.First()
+	// A user-spawned primary wins; the engine camera is the
+	// fallback. Query iteration order is deterministic within each.
+	entry, ok := c.userCamera.First()
+	if !ok {
+		entry, ok = c.engineCamera.First()
+	}
 	if !ok {
 		return DrawList{}, nil
 	}

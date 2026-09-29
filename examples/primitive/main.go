@@ -59,17 +59,15 @@ func run() error {
 		return err
 	}
 
-	// The camera frames the screen: at the center of the logical
-	// resolution with zoom 1, world coordinates are screen
-	// coordinates.
-	if _, err := g.World().NewEntity(
-		core.Camera{Zoom: 1, Primary: true},
-		core.Transform{
-			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
-			Scale:    geom.Vector2{X: 1, Y: 1},
-		},
-	); err != nil {
-		return err
+	camera := g.MainCamera()
+	camTransform, ok := camera.Component[core.Transform](g.World())
+	if !ok {
+		return fmt.Errorf("main camera missing Transform component")
+	}
+	camTransform.Position = geom.Vector2{X: screenW / 2, Y: screenH / 2}
+	camTransform.Scale = geom.Vector2{X: 1, Y: 1}
+	if err := camera.SetComponent(g.World(), camTransform); err != nil {
+		return fmt.Errorf("failed to update main camera Transform component: %w", err)
 	}
 
 	unit := geom.Vector2{X: 1, Y: 1}

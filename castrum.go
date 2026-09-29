@@ -50,6 +50,8 @@ type Game struct {
 	ctx       core.Context
 	schedules map[core.Phase]*runtime.Schedule[core.System]
 
+	mainCamera *core.Entity
+
 	acc     time.Duration
 	started atomic.Bool
 	startup atomic.Bool
@@ -100,6 +102,14 @@ func New(opts ...option) (*Game, error) {
 	if err := g.AddSystem(core.PhaseFixed, "engine.prev-transform", core.NewPrevTransformCapture()); err != nil {
 		return nil, err
 	}
+	// The engine.s default camera: every game gets a working
+	// viewport without wiring. It yields to any user-spawned
+	// primary - the collector prefers user cameras.
+	camera, err := core.SpawnEngineCamera(g.world)
+	if err != nil {
+		return nil, fmt.Errorf("castrum: spawn main camera: %w", err)
+	}
+	g.mainCamera = camera
 	if options.InputBindings != nil {
 		if err := g.wireInput(options.InputBindings); err != nil {
 			return nil, err
@@ -157,6 +167,14 @@ func (g *Game) Options() Options {
 // World returns the game's world: entities and resources live there.
 func (g *Game) World() *core.World {
 	return g.world
+}
+
+// MainCamera returns the engine.s default camera entity: zoom 1 at
+// the world origin, spawned by New. Move it by writing its
+// Transform. Spawning your own Camera with Primary set replaces the
+// view entirely - the collector prefers user-spawned primaries.
+func (g *Game) MainCamera() *core.Entity {
+	return g.mainCamera
 }
 
 // AddSystem binds systems to a schedule under a name. Systems run in
