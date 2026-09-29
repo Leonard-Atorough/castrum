@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 )
 
@@ -24,6 +25,14 @@ type Options struct {
 	FixedTPS         int
 	MaxFrameTime     time.Duration
 	MaxTicksPerFrame int
+
+	// InputBindings is the mapping from user actions to physical inputs.
+	// It provides an engine-native way to map raw inputs to high-level actions.
+	//
+	// When provided, the bindings can be accessed on the Context through [core.Context.Actions].
+	//
+	// If nil, no engine-owned ActionMap is created, and input must be polled manually through [core.Context.Input].
+	InputBindings input.Bindings
 
 	// fixedDT is derived from FixedTPS in New; no option sets it.
 	fixedDT time.Duration
@@ -91,7 +100,35 @@ func New(opts ...option) (*Game, error) {
 	if err := g.AddSystem(core.PhaseFixed, "engine.prev-transform", core.NewPrevTransformCapture()); err != nil {
 		return nil, err
 	}
+	if options.InputBindings != nil {
+		if err := g.wireInput(options.InputBindings); err != nil {
+			return nil, err
+		}
+	}
 	return g, nil
+}
+
+// wireInput resolves input bindings into an engine-owned action map,
+// provides it as a resource in the world, and schedules its update and
+// tick systems.
+func (g *Game) wireInput(bindings input.Bindings) error {
+	am, err := input.New(bindings, 0)
+	if err != nil {
+		return fmt.Errorf("castrum: input bindings: %w", err)
+	}
+
+	if err := g.world.Provide(func(*core.World) (*input.ActionMap, error) {
+		return am, nil
+	}); err != nil {
+		return fmt.Errorf("castrum: provide action map: %w", err)
+	}
+
+	if err := g.AddSystem(core.PhaseFrame, "engine.input-update", newInputUpdateSystem(am)); err != nil {
+		return err
+	}
+
+	g.Context().Actions = am
+	return g.AddSystem(core.PhaseFixed, "engine.input-tick", newInputTickSystem(am))
 }
 
 func (o *Options) finalize() error {
@@ -250,4 +287,11 @@ func WithMaxFrameTime(d time.Duration) option {
 // Invalid values are reported by [New].
 func WithMaxTicksPerFrame(n int) option {
 	return optionFunc(func(o *Options) { o.MaxTicksPerFrame = n })
+}
+
+// WithBindings sets the input bindings for the game. These bindings are
+// used to create an engine-owned ActionMap, which is provided as a resource
+// in the world and drives input handling automatically.
+func WithBindings(bindings input.Bindings) option {
+	return optionFunc(func(o *Options) { o.InputBindings = bindings })
 }

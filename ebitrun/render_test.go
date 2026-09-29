@@ -16,7 +16,7 @@ import (
 // DrawImage run without a running game, but pixel reads panic
 // ("ReadPixels cannot be called before the game starts"). So the blit
 // is smoke-testable and error-path testable, never pixel-assertable;
-// worldToScreen is where the camera math is proven.
+// the camera projection math lives in core and is proven there.
 
 var spriteScale = geom.Vector2{X: 1, Y: 1}
 
@@ -44,78 +44,6 @@ func newSpriteGame(t *testing.T) (*castrum.Game, *Runner) {
 	return g, r
 }
 
-func TestWorldToScreen(t *testing.T) {
-	for _, tc := range []struct {
-		name          string
-		world         geom.Vector2
-		camera        core.CameraView
-		width, height int
-		want          geom.Vector2
-	}{
-		{
-			name:   "camera at origin",
-			world:  geom.Vector2{X: 0, Y: 0},
-			camera: core.CameraView{Zoom: 1, Position: geom.Vector2{X: 0, Y: 0}},
-			width:  100, height: 100,
-			want: geom.Vector2{X: 50, Y: 50},
-		},
-		{
-			name:   "camera offset",
-			world:  geom.Vector2{X: 0, Y: 0},
-			camera: core.CameraView{Zoom: 1, Position: geom.Vector2{X: 10, Y: 20}},
-			width:  100, height: 100,
-			want: geom.Vector2{X: 40, Y: 30},
-		},
-		{
-			name:   "camera offset with zoom",
-			world:  geom.Vector2{X: 0, Y: 0},
-			camera: core.CameraView{Zoom: 2, Position: geom.Vector2{X: 10, Y: 20}},
-			width:  100, height: 100,
-			want: geom.Vector2{X: 30, Y: 10},
-		},
-		{
-			name:   "world equals camera",
-			world:  geom.Vector2{X: 10, Y: 20},
-			camera: core.CameraView{Zoom: 3, Position: geom.Vector2{X: 10, Y: 20}},
-			width:  100, height: 100,
-			want: geom.Vector2{X: 50, Y: 50},
-		},
-		{
-			name:   "non-square target",
-			world:  geom.Vector2{X: 0, Y: 0},
-			camera: core.CameraView{Zoom: 1, Position: geom.Vector2{X: 0, Y: 0}},
-			width:  200, height: 100,
-			want: geom.Vector2{X: 100, Y: 50},
-		},
-		// Fractional world positions snap to whole pixels: the
-		// pixel-grid policy against nearest-filter shimmer.
-		{
-			name:   "fractional position rounds to whole pixels",
-			world:  geom.Vector2{X: 10.4, Y: 20.4},
-			camera: core.CameraView{Zoom: 1, Position: geom.Vector2{X: 0, Y: 0}},
-			width:  100, height: 100,
-			want: geom.Vector2{X: 60, Y: 70},
-		},
-		{
-			name:   "halves round away from zero",
-			world:  geom.Vector2{X: 10.5, Y: -0.5},
-			camera: core.CameraView{Zoom: 1, Position: geom.Vector2{X: 0, Y: 0}},
-			width:  100, height: 100,
-			want: geom.Vector2{X: 61, Y: 50},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got := worldToScreen(tc.world, tc.camera, tc.width, tc.height)
-			if !got.AlmostEqual(tc.want, 1e-9) {
-				t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
-			}
-		})
-	}
-}
-
-// Fail-fast propagates: a sprite whose texture will not load makes
-// Collect error before the first DrawImage, so the engine draw func
-// returns the error without ever touching the screen.
 func TestEngineDrawFailsFast(t *testing.T) {
 	g, r := newSpriteGame(t)
 	if _, err := g.World().NewEntity(

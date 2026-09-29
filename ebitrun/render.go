@@ -40,7 +40,7 @@ func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider) Dra
 				return err
 			}
 
-			screenPos := worldToScreen(item.Position, camera, screen.Bounds().Dx(), screen.Bounds().Dy())
+			screenPos := camera.WorldToScreen(item.Position, screen.Bounds().Dx(), screen.Bounds().Dy())
 			scaleX := item.Scale.X * camera.Zoom
 			scaleY := item.Scale.Y * camera.Zoom
 			if item.FlipH {
@@ -71,20 +71,6 @@ func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider) Dra
 	})
 }
 
-// worldToScreen projects a world-space point onto the render target
-// and snaps it to whole pixels: (world - camera) × zoom, centered at
-// the target's midpoint, then rounded. The snap is the pixel-grid
-// policy: interpolated positions are fractional, and fractional screen
-// positions make nearest-filtered texel edges wobble frame to frame
-// (the pixel-art shimmer); whole-pixel motion quantizes to 1px steps -
-// invisible at display rate - and keeps the texel grid stable whenever
-// zoom × scale is an integer. It is the projection seam - pure, with
-func worldToScreen(world geom.Vector2, camera core.CameraView, screenWidth, screenHeight int) geom.Vector2 {
-	screenX := math.Round((world.X-camera.Position.X)*camera.Zoom + float64(screenWidth)/2)
-	screenY := math.Round((world.Y-camera.Position.Y)*camera.Zoom + float64(screenHeight)/2)
-	return geom.Vector2{X: screenX, Y: screenY}
-}
-
 // drawShape blits one shape item: geometry through the pure projection
 // helpers, filled or outlined by the item's style, into the vector
 // package. Pixel reads are impossible headless, so the helpers carry
@@ -100,7 +86,7 @@ func drawShape(screen *ebiten.Image, item core.DrawItem, camera core.CameraView)
 
 	switch shape := item.Shape.(type) {
 	case core.RectShape:
-		center := worldToScreen(item.Position, camera, width, height)
+		center := camera.WorldToScreen(item.Position, width, height)
 		corners := rectCorners(center, shape.Size, item.Scale, camera.Zoom, item.Rotation)
 		var path vector.Path
 		path.MoveTo(float32(corners[0].X), float32(corners[0].Y))
@@ -110,7 +96,7 @@ func drawShape(screen *ebiten.Image, item core.DrawItem, camera core.CameraView)
 		path.Close()
 		fillOrStrokePath(screen, &path, item.Color, item, camera.Zoom)
 	case core.CircleShape:
-		center := worldToScreen(item.Position, camera, width, height)
+		center := camera.WorldToScreen(item.Position, width, height)
 		points := ellipsePoints(center, shape.Radii, item.Scale, camera.Zoom, item.Rotation)
 		var path vector.Path
 		path.MoveTo(float32(points[0].X), float32(points[0].Y))
@@ -124,7 +110,7 @@ func drawShape(screen *ebiten.Image, item core.DrawItem, camera core.CameraView)
 		path.Close()
 		fillOrStrokePath(screen, &path, item.Color, item, camera.Zoom)
 	case core.LineShape:
-		start := worldToScreen(item.Position, camera, width, height)
+		start := camera.WorldToScreen(item.Position, width, height)
 		from := offsetPoint(start, shape.From, item.Scale, camera.Zoom, item.Rotation)
 		to := offsetPoint(start, shape.To, item.Scale, camera.Zoom, item.Rotation)
 		vector.StrokeLine(screen, float32(from.X), float32(from.Y), float32(to.X), float32(to.Y),

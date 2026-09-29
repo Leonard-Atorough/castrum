@@ -56,14 +56,6 @@ type DrawItem struct {
 	StrokeWidth float64
 }
 
-// CameraView is the resolved render camera: the interpolated position
-// (previous → current by the collect alpha) and the current zoom -
-// everything the blit needs to project world space to the screen.
-type CameraView struct {
-	Position geom.Vector2
-	Zoom     float64
-}
-
 // DrawList is one collected frame: the resolved camera and the sorted
 // draw items. Items views the collector's reused buffer; do not modify
 // it or retain the list beyond the frame it was collected for.

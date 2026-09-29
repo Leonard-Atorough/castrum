@@ -3,6 +3,8 @@ package core
 import (
 	"fmt"
 	"time"
+
+	"github.com/Leonard-Atorough/castrum/input"
 )
 
 // Phase identifies when a system runs.
@@ -33,6 +35,10 @@ func (s Phase) String() string {
 	}
 }
 
+// Context is the state systems run with: the world, the clocks, and
+// the input the engine published this frame. The engine and the
+// runner write these fields; game systems read them. Treat the
+// context as read-only inside systems.
 type Context struct {
 	// World represents the current world instance.
 	World *World
@@ -47,12 +53,26 @@ type Context struct {
 	// interpolating between the last two ticks. Only a runner sets it,
 	// when running its draw systems.
 	Alpha float64
-	// LogicalWidth and LogicalHeight are the render target's internal
-	// resolution in pixels. Static per game: a runner sets them at
-	// construction from its options, and they never change. Culling
-	// and camera projection read them.
-	LogicalWidth  int
+	// LogicalWidth is the render target's internal width in pixels.
+	// Read along with LogicalHeight to determine the render target's
+	// internal resolution.
+	LogicalWidth int
+	// LogicalHeight is the render target's internal height in pixels.
+	// Read along with LogicalWidth to determine the render target's
+	// internal resolution.
 	LogicalHeight int
+	// Input is the current snapshot of all input devices, published
+	// by the runner each frame. nil means no runner published input -
+	// the headless case - and every read on a nil snapshot returns
+	// zero.
+	Input *input.Snapshot
+	// Actions is the game's action map, published by the engine when
+	// WithBindings configures one. It is the same instance the
+	// ActionMap resource resolves: mutating through either handle
+	// affects the one map. Queries on a nil Actions read zero, so
+	// headless games and systems running without bindings need no
+	// guards.
+	Actions *input.ActionMap
 }
 
 // System is a unit of game logic. It runs during a specific phase
