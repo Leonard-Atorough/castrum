@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/Leonard-Atorough/castrum/geom"
 )
 
 type atlas struct{ name string }
@@ -410,5 +412,49 @@ func TestNewEntityNilComponentErrors(t *testing.T) {
 	// NewEntities propagates the error without partial results.
 	if entities, err := w.NewEntities(2, queryPos{X: 3, Y: 3}, nil); err == nil || entities != nil {
 		t.Fatal("NewEntities with a nil component should return an error and no entities")
+	}
+}
+
+func TestNewEntityAutoPrevTransform(t *testing.T) {
+	w := NewWorld()
+
+	auto, err := w.NewEntity(Transform{Position: geom.Vector2{X: 10, Y: 20}, Scale: geom.Vector2{X: 1, Y: 1}})
+	if err != nil {
+		t.Fatalf("spawn bare Transform: %v", err)
+	}
+	prev, ok := auto.Component[PrevTransform](w)
+	if !ok || prev.Position != (geom.Vector2{X: 10, Y: 20}) {
+		t.Errorf("auto prev = %v, ok %v, want the spawn position (10, 20)", prev, ok)
+	}
+
+	explicit, err := w.NewEntity(
+		Transform{Position: geom.Vector2{X: 5, Y: 5}, Scale: geom.Vector2{X: 1, Y: 1}},
+		PrevTransform{Position: geom.Vector2{X: 1, Y: 2}},
+	)
+	if err != nil {
+		t.Fatalf("spawn explicit prev: %v", err)
+	}
+	prev, ok = explicit.Component[PrevTransform](w)
+	if !ok || prev.Position != (geom.Vector2{X: 1, Y: 2}) {
+		t.Errorf("explicit prev = %v, ok %v, want it untouched at (1, 2)", prev, ok)
+	}
+
+	bare, err := w.NewEntity(Sprite{Drawable: RectShape{Size: geom.Vector2{X: 1, Y: 1}}})
+	if err != nil {
+		t.Fatalf("spawn without Transform: %v", err)
+	}
+	if bare.HasComponent[PrevTransform](w) {
+		t.Error("a spawn without a Transform should not gain a PrevTransform")
+	}
+
+	entities, err := w.NewEntities(3, Transform{Position: geom.Vector2{X: 7, Y: 8}, Scale: geom.Vector2{X: 1, Y: 1}})
+	if err != nil {
+		t.Fatalf("spawn batch: %v", err)
+	}
+	for i, e := range entities {
+		prev, ok := e.Component[PrevTransform](w)
+		if !ok || prev.Position != (geom.Vector2{X: 7, Y: 8}) {
+			t.Errorf("batch entity %d prev = %v, ok %v, want (7, 8)", i, prev, ok)
+		}
 	}
 }

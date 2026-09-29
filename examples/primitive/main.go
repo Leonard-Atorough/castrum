@@ -68,7 +68,6 @@ func run() error {
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		core.PrevTransform{Position: geom.Vector2{X: screenW / 2, Y: screenH / 2}},
 	); err != nil {
 		return err
 	}
@@ -141,7 +140,6 @@ func run() error {
 			sprite, err := g.World().NewEntity(
 				variant.sprite,
 				core.Transform{Position: position, Scale: scale},
-				core.PrevTransform{Position: position},
 			)
 			if err != nil {
 				return err

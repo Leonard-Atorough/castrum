@@ -75,7 +75,6 @@ func run() error {
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		core.PrevTransform{Position: geom.Vector2{X: screenW / 2, Y: screenH / 2}},
 	)
 	if err != nil {
 		return err
@@ -90,7 +89,6 @@ func run() error {
 			Drawable: core.RectShape{Size: geom.Vector2{X: 32, Y: 64}},
 			Color:    color.RGBA{G: 255},
 		},
-		core.PrevTransform{Position: geom.Vector2{X: screenW / 2, Y: screenH / 2}},
 	)
 	if err != nil {
 		return err
@@ -111,7 +109,6 @@ func run() error {
 					Drawable: core.CircleShape{Radii: geom.Vector2{X: circleRadii, Y: circleRadii}},
 					Color:    color.RGBA{R: 255},
 				},
-				core.PrevTransform{Position: pos},
 			); err != nil {
 				return err
 			}

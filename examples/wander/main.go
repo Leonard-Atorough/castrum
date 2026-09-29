@@ -69,7 +69,6 @@ func run() error {
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		core.PrevTransform{Position: geom.Vector2{X: screenW / 2, Y: screenH / 2}},
 	); err != nil {
 		return err
 	}
@@ -82,7 +81,6 @@ func run() error {
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 			Scale:    geom.Vector2{X: 4, Y: 4}, // 16px tiles read better at 64px
 		},
-		core.PrevTransform{Position: geom.Vector2{X: screenW / 2, Y: screenH / 2}},
 	)
 	if err != nil {
 		return err

@@ -207,17 +207,24 @@ func TestEngineRegistersPrevTransformCapture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
+	prev, ok := entity.Component[core.PrevTransform](g.World())
+	if !ok || prev.Position != (geom.Vector2{X: 7, Y: 7}) {
+		t.Fatalf("spawn prev = %v, ok %v, want the spawn position (7, 7)", prev, ok)
+	}
 
-	// One full tick advances the fixed phase: the engine's registered
-	// prev-capture system materializes the snapshot.
+	transform, _ := entity.Component[core.Transform](g.World())
+	transform.Position = geom.Vector2{X: 9, Y: 9}
+	if err := entity.SetComponent(g.World(), transform); err != nil {
+		t.Fatalf("move: %v", err)
+	}
+
+	// One full tick advances the fixed phase: the capture snapshots
+	// the tick-start position into prev.
 	if err := g.Advance(time.Second / 60); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	prev, ok := entity.Component[core.PrevTransform](g.World())
-	if !ok {
-		t.Fatal("engine prev-capture did not run during the fixed phase")
-	}
-	if prev.Position.X != 7 {
-		t.Fatalf("prev = %+v, want the spawn position", prev)
+	prev, ok = entity.Component[core.PrevTransform](g.World())
+	if !ok || prev.Position != (geom.Vector2{X: 9, Y: 9}) {
+		t.Fatalf("after tick prev = %v, ok %v, want the moved position (9, 9) - the capture ran", prev, ok)
 	}
 }

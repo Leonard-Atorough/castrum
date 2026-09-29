@@ -144,6 +144,7 @@ func (w *World) resolve(key reflect.Type) error {
 // directly. It returns an error if any component is nil or fails its
 // Validate; a failed spawn consumes no ID and leaves no state behind.
 func (w *World) NewEntity(components ...any) (*Entity, error) {
+	components = createPreviousTransformComponents(components)
 	for i, c := range components {
 		if c == nil {
 			return nil, fmt.Errorf("castrum: NewEntity: component at index %d is nil", i)
@@ -162,6 +163,7 @@ func (w *World) NewEntity(components ...any) (*Entity, error) {
 	for i, c := range components {
 		types[i] = reflect.TypeOf(c)
 	}
+
 	values := make([]any, len(components))
 	copy(values, components)
 
@@ -182,6 +184,7 @@ func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
 	entities := make([]*Entity, count)
 	for i := range entities {
 		var err error
+		components = createPreviousTransformComponents(components)
 		entities[i], err = w.NewEntity(components...)
 		if err != nil {
 			return nil, err
@@ -218,4 +221,22 @@ func (w *World) getNextID() EntityID {
 	id := w.nextEntityID
 	w.nextEntityID++
 	return id
+}
+
+func createPreviousTransformComponents(components []any) []any {
+	var transform Transform
+	hasTransform, hasPrev := false, false
+	for _, c := range components {
+		if t, ok := c.(Transform); ok {
+			transform = t
+			hasTransform = true
+		}
+		if _, ok := c.(PrevTransform); ok {
+			hasPrev = true
+		}
+	}
+	if hasTransform && !hasPrev {
+		components = append(components, PrevTransform{Position: transform.Position})
+	}
+	return components
 }
