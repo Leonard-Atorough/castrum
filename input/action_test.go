@@ -319,3 +319,60 @@ func TestNilSnapshotResolvesOff(t *testing.T) {
 		t.Error("never-updated action should read false after Tick")
 	}
 }
+
+// A nil ActionMap reads zero on every query: the context publishes
+// nil when no bindings were configured, and systems run without
+// guards either way.
+func TestNilActionMapReadsZero(t *testing.T) {
+	var am *ActionMap
+	if am.JustPressed("jump") || am.JustReleased("jump") || am.Held("jump") ||
+		am.Pressed("jump") || am.Released("jump") ||
+		am.Duration("jump") != 0 || am.Axis("move_x") != 0 {
+		t.Error("a nil ActionMap should read zero on every query")
+	}
+}
+
+// Direction-gated axis bindings: stick-up and stick-down drive
+// different actions bound to the same axis, one per half, with the
+// crossing edges following each action's own half.
+func TestAxisDirectionGates(t *testing.T) {
+	am := mustMap(t, Bindings{
+		"forward":  []Input{PadAxisInput{Axis: PadLeftStickY, Direction: -1}},
+		"backward": []Input{PadAxisInput{Axis: PadLeftStickY, Direction: 1}},
+	}, 0)
+
+	s := &Snapshot{}
+	s.Pads[0] = PadSnapshot{Connected: true}
+	s.Pads[0].Axes[PadLeftStickY] = -0.8 // screen-up
+	am.Update(s, 0.016)
+	if !am.Held("forward") || am.Held("backward") {
+		t.Errorf("stick up: forward/backward held = %v/%v, want true/false",
+			am.Held("forward"), am.Held("backward"))
+	}
+	if am.Axis("forward") != -0.8 {
+		t.Errorf("forward axis = %v, want -0.8", am.Axis("forward"))
+	}
+
+	// Flipping the stick across the halves releases forward and
+	// presses backward - each action's composite is its own half.
+	s.Pads[0].Axes[PadLeftStickY] = 0.8
+	am.Update(s, 0.016)
+	if !am.JustReleased("forward") || am.Held("forward") {
+		t.Errorf("flip to down: forward just released/held = %v/%v, want true/false",
+			am.JustReleased("forward"), am.Held("forward"))
+	}
+	if !am.JustPressed("backward") || !am.Held("backward") {
+		t.Errorf("flip to down: backward just pressed/held = %v/%v, want true/true",
+			am.JustPressed("backward"), am.Held("backward"))
+	}
+
+	// A zero Direction takes either direction: both actions fire on
+	// any deflection, the ungated default.
+	ungated := mustMap(t, Bindings{
+		"either": []Input{PadAxisInput{Axis: PadLeftStickY}},
+	}, 0)
+	ungated.Update(s, 0.016)
+	if !ungated.Held("either") {
+		t.Error("ungated axis binding should fire on any deflection")
+	}
+}

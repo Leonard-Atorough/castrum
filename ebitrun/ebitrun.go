@@ -60,6 +60,7 @@ type Runner struct {
 	opts    Options
 	draws   []DrawFunc
 	engine  DrawFunc
+	input   poller
 	last    time.Time
 	drawErr error
 }
@@ -156,6 +157,12 @@ func (r *Runner) Update() error {
 	now := time.Now()
 	elapsed := now.Sub(r.last)
 	r.last = now
+
+	// Poll before Advance: PhaseFrame systems read this frame's
+	// device state through the published snapshot.
+	r.input.poll()
+	r.g.Context().Input = r.input.snapshotPtr()
+
 	if err := r.g.Advance(elapsed); err != nil {
 		return err
 	}

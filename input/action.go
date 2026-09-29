@@ -60,8 +60,12 @@ type actionState struct {
 // state. Update resolves one frame, Tick delivers one tick, and the
 // query methods report the results. Deadzone is the pad axis
 // deadzone, defaulting to DefaultDeadzone.
+//
+// A nil ActionMap reads zero on every query, so the context can
+// publish nil when no bindings were configured. The mutators
+// (Update, Tick, SetBindings) require a real map.
 type ActionMap struct {
-	Deadzone float64
+	deadzone float64
 	bindings Bindings
 	states   map[Action]*actionState
 }
@@ -81,7 +85,7 @@ func New(bindings Bindings, deadzone float64) (*ActionMap, error) {
 		deadzone = DefaultDeadzone
 	}
 	am := &ActionMap{
-		Deadzone: deadzone,
+		deadzone: deadzone,
 		bindings: cloneBindings(bindings),
 		states:   make(map[Action]*actionState),
 	}
@@ -115,11 +119,6 @@ func (am *ActionMap) Update(s *Snapshot, dt float64) {
 			am.states[action] = st
 		}
 
-		// Fold phase: every bound input contributes to one view of
-		// the action for this frame. A multi-input binding is an OR:
-		// the action presses when any of its inputs presses. Buttons
-		// fold into the tri-state; axis inputs compete for the axis
-		// value - the greatest magnitude wins, never a sum.
 		var frame State
 		var axis float64
 		for _, bound := range inputs {
@@ -153,7 +152,7 @@ func (am *ActionMap) Update(s *Snapshot, dt float64) {
 				frame.Held = frame.Held || ps.Held
 				frame.Released = frame.Released || ps.Released
 			case PadAxisInput:
-				val := am.padAxisValue(s, src.Pad, src.Axis)
+				val := am.padAxisValue(s, src.Pad, src.Axis, src.Direction)
 				if math.Abs(val) > math.Abs(axis) {
 					axis = val
 				}
@@ -171,13 +170,8 @@ func (am *ActionMap) Update(s *Snapshot, dt float64) {
 			}
 		}
 
-		// Finish phase. The axis crossing the deadzone contributes to
-		// the same tri-state the buttons folded into: entering past the
-		// deadzone is a press, leaving is a release, past it is held.
-		// Then publish the frame view, latch the two edges for the
-		// next Tick to deliver, and advance duration while held.
-		active := math.Abs(axis) >= am.Deadzone
-		wasActive := math.Abs(st.previousAxis) >= am.Deadzone
+		active := math.Abs(axis) >= am.deadzone
+		wasActive := math.Abs(st.previousAxis) >= am.deadzone
 		frame.Held = frame.Held || active
 		frame.Pressed = frame.Pressed || active && !wasActive
 		frame.Released = frame.Released || !active && wasActive
@@ -218,6 +212,9 @@ func (am *ActionMap) Tick() {
 // JustPressed reports whether the action was pressed in the current
 // frame.
 func (am *ActionMap) JustPressed(action Action) bool {
+	if am == nil {
+		return false
+	}
 	st := am.states[action]
 	if st == nil {
 		return false
@@ -227,6 +224,9 @@ func (am *ActionMap) JustPressed(action Action) bool {
 
 // JustReleased reports whether the action was released in the current frame.
 func (am *ActionMap) JustReleased(action Action) bool {
+	if am == nil {
+		return false
+	}
 	st := am.states[action]
 	if st == nil {
 		return false
@@ -236,6 +236,9 @@ func (am *ActionMap) JustReleased(action Action) bool {
 
 // Held reports whether the action is held in the current frame.
 func (am *ActionMap) Held(action Action) bool {
+	if am == nil {
+		return false
+	}
 	st := am.states[action]
 	if st == nil {
 		return false
@@ -247,6 +250,9 @@ func (am *ActionMap) Held(action Action) bool {
 // It reports true for every read in the tick that consumed the
 // press. Frame-rate code wants JustPressed instead.
 func (am *ActionMap) Pressed(action Action) bool {
+	if am == nil {
+		return false
+	}
 	st := am.states[action]
 	if st == nil {
 		return false
@@ -258,6 +264,9 @@ func (am *ActionMap) Pressed(action Action) bool {
 // tick. It reports true for every read in the tick that consumed
 // the release. Frame-rate code wants JustReleased instead.
 func (am *ActionMap) Released(action Action) bool {
+	if am == nil {
+		return false
+	}
 	st := am.states[action]
 	if st == nil {
 		return false
@@ -267,6 +276,9 @@ func (am *ActionMap) Released(action Action) bool {
 
 // Duration reports how long the action has been held, in seconds.
 func (am *ActionMap) Duration(action Action) float64 {
+	if am == nil {
+		return 0
+	}
 	st := am.states[action]
 	if st == nil {
 		return 0
@@ -276,6 +288,9 @@ func (am *ActionMap) Duration(action Action) float64 {
 
 // Axis reports the current axis value for the action.
 func (am *ActionMap) Axis(action Action) float64 {
+	if am == nil {
+		return 0
+	}
 	st := am.states[action]
 	if st == nil {
 		return 0
@@ -337,8 +352,10 @@ func padState(s *Snapshot, pad int, button PadButton) State {
 // padAxisValue returns the strongest axis value among the pads a
 // binding's Pad address selects - Pad 0 is any connected pad, a player
 // number addresses one pad. Values below the deadzone read as zero,
-// so an idle stick contributes nothing.
-func (am *ActionMap) padAxisValue(s *Snapshot, pad int, axis PadAxis) float64 {
+// and Direction gates the halves: a gated-away deflection reads as
+// zero per pad, before the strongest wins, so a wrong-direction pad
+// cannot beat a right-direction one.
+func (am *ActionMap) padAxisValue(s *Snapshot, pad int, axis PadAxis, direction int) float64 {
 	best := 0.0
 	for padIndex := range MaxPads {
 		if pad != 0 && padIndex != pad-1 {
@@ -348,7 +365,10 @@ func (am *ActionMap) padAxisValue(s *Snapshot, pad int, axis PadAxis) float64 {
 			continue
 		}
 		val := s.PadAxis(padIndex, axis)
-		if math.Abs(val) < am.Deadzone {
+		if math.Abs(val) < am.deadzone {
+			val = 0
+		}
+		if (direction < 0 && val > 0) || (direction > 0 && val < 0) {
 			val = 0
 		}
 		if math.Abs(val) > math.Abs(best) {

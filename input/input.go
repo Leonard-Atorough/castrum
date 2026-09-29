@@ -176,7 +176,7 @@ func (b MouseButton) String() string {
 // PadButton identifies a gamepad button by the standard layout's
 // position names - south/east/west/north, not vendor glyphs (A/B/X/Y)
 // - so bindings survive whatever controller is plugged in. The
-// triggers are axes, not buttons (see PadAxis).
+// triggers are axes, not buttons (see [PadAxis]).
 type PadButton int
 
 const (
@@ -216,7 +216,7 @@ func (b PadButton) String() string {
 // PadAxis identifies a gamepad axis: sticks span -1..1 with Y
 // positive downward - the screen convention - and triggers span 0..1.
 // The poller normalizes backend values to this contract in its
-// device table; resolution code never re-checks signs.
+// device table.
 type PadAxis int
 
 const (
@@ -247,46 +247,48 @@ func (a PadAxis) String() string {
 // duration is an action-level accumulation, not stored here.
 type State struct{ Pressed, Held, Released bool }
 
-// Input is one bindable physical input - the sealed sum Bindings
-// carry, the Drawable pattern: sealed construction, one type-switch
-// in the resolver. The only implementations are the ones in this
-// package.
+// Input is the interface implemented by all bindable physical inputs.
+// Every type that can be bound to an action implements this interface.
 type Input interface{ isInput() }
 
-// KeyInput binds an action to a keyboard key, optionally gated on
-// modifier keys: the action fires only while every listed modifier is
-// held. Ctrl+S is KeyInput{Key: KeyS, Modifiers: [3]Key{KeyControlLeft}}.
-//
-// The gate is all-or-nothing at the moment of the key's edge: Pressed
-// and Released mirror the key while all modifiers are held, and Held
-// requires them too. A modifier dropped mid-hold stops the level
-// without firing a release. Modifier slots left as KeyNone read as
-// empty, so the zero value binds the plain key with no gating - and a
-// KeyInput with Key itself set to KeyNone never fires. A modifier
-// equal to the key gates nothing: the key is held on its own press
-// frame.
+// KeyInput binds an action to a keyboard key, with optional modifier
+// keys that must be held. Ctrl+S is
+// KeyInput{Key: KeyS, Modifiers: [3]Key{KeyControlLeft}}.
 type KeyInput struct {
-	Key       Key
+	// Key is the trigger: Pressed, Held, and Released follow this key
+	// while every modifier is held. A Key of KeyNone never fires.
+	Key Key
+	// Modifiers lists keys that must be held for Key to count.
+	// Empty slots (KeyNone) are ignored, so the zero value binds the
+	// plain key. A modifier dropped mid-hold stops the action without
+	// a release edge. A modifier equal to Key suppresses the release
+	// edge: the key is no longer held on its own release frame.
 	Modifiers [3]Key
 }
 
-// MouseButtonInput represents a mouse button input.
+// MouseButtonInput binds an action to a mouse button.
 type MouseButtonInput struct{ Button MouseButton }
 
-// PadButtonInput binds an action to a gamepad button. Pad is the
-// player number: 0 - the zero value - means any connected pad, 1 the
-// first pad, 2 the second.
+// PadButtonInput binds an action to a gamepad button.
 type PadButtonInput struct {
-	Pad    int
+	// Pad is the player number: 0 - the zero value - means any
+	// connected pad, 1 the first pad, 2 the second.
+	Pad int
+	// Button is the gamepad button that triggers the action.
 	Button PadButton
 }
 
-// PadAxisInput binds an action to a gamepad axis. Pad is the player
-// number: 0 - the zero value - means any connected pad, 1 the first
-// pad, 2 the second.
+// PadAxisInput binds an action to a gamepad axis.
 type PadAxisInput struct {
-	Pad  int
+	// Pad is the player number: 0 - the zero value - means any
+	// connected pad, 1 the first pad, 2 the second.
+	Pad int
+	// Axis is the gamepad axis that triggers the action.
 	Axis PadAxis
+	// Direction gates which deflection drives the binding: 0 -
+	// the zero value - either direction, -1 only the negative half
+	// (screen-up for a Y axis), +1 only the positive half.
+	Direction int
 }
 
 // KeyPairInput binds an axis from two keyboard keys,
