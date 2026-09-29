@@ -13,6 +13,9 @@ import (
 // their Transform, and interpolated rendering covers them the same as
 // any other entity.
 //
+// Game.New spawns a default primary camera and hands it out through
+// Game.MainCamera; a user-spawned primary takes precedence over it.
+//
 // The render target's dimensions are not part of the Camera: the runner
 // owns the logical resolution. Keeping a camera inside level bounds is
 // a game-system concern, not component data.
@@ -28,6 +31,25 @@ func (c Camera) Validate() error {
 		return fmt.Errorf("zoom must be positive")
 	}
 	return nil
+}
+
+// engineCamera marks the engine's default camera, distinguishing it
+// from user-spawned primaries: the collector prefers a user primary
+// and falls back to this one. Unexported so only the engine attaches
+// it - SpawnEngineCamera is the constructor.
+type engineCamera struct{}
+
+// SpawnEngineCamera creates the engine's default primary camera:
+// zoom 1 at the world origin, marked as the engine's. The collector
+// prefers any user-spawned primary camera over it. Game.New spawns it
+// and hands it out through MainCamera; games never spawn it
+// themselves.
+func SpawnEngineCamera(w *World) (*Entity, error) {
+	return w.NewEntity(
+		Camera{Zoom: 1, Primary: true},
+		Transform{Position: geom.Vector2{}, Scale: geom.Vector2{X: 1, Y: 1}},
+		engineCamera{},
+	)
 }
 
 // CameraView is the resolved render camera: the interpolated position

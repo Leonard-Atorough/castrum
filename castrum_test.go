@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 )
 
@@ -154,5 +156,28 @@ func TestNoBindingsNoActionMap(t *testing.T) {
 	if g.Context().Actions.Pressed("jump") || g.Context().Actions.Held("jump") ||
 		g.Context().Actions.Axis("move_x") != 0 {
 		t.Error("queries on the nil Actions should read zero")
+	}
+}
+
+// MainCamera: New spawns the default camera - primary, zoom 1 at
+// the origin - and the accessor hands it out for follow systems.
+// The preference rule (user primaries win) is proven in core's
+// TestEngineCameraPreference.
+func TestMainCamera(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	camera := g.MainCamera()
+	if camera == nil {
+		t.Fatal("MainCamera should return the engine camera")
+	}
+	cam, ok := camera.Component[core.Camera](g.World())
+	if !ok || !cam.Primary || cam.Zoom != 1 {
+		t.Fatalf("engine camera = %+v, ok %v, want primary zoom 1", cam, ok)
+	}
+	transform, _ := camera.Component[core.Transform](g.World())
+	if transform.Position != (geom.Vector2{}) {
+		t.Fatalf("engine camera position = %v, want the origin", transform.Position)
 	}
 }
