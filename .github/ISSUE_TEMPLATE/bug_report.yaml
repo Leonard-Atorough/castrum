@@ -33,26 +33,41 @@ body:
     validations:
       required: true
   - type: dropdown
-    id: phase
+    id: domain
     attributes:
-      label: Which component is affected?
+      label: Which domain is affected?
       options:
-        - ECS (entities/components/systems)
-        - Rendering
-        - Input
-        - Scene Management
-        - Camera
-        - Physics/Collision
+        - ECS (entities, components, systems, queries, world)
+        - Input (bindings, actions, device polling)
+        - Rendering (sprites, shapes, cameras, projection)
+        - Assets (textures, atlases, loading)
         - Animation
         - Build/Configuration
-        - Other
+        - Other (describe in the report)
+    validations:
+      required: true
+  - type: dropdown
+    id: reprocontext
+    attributes:
+      label: Where does it reproduce?
+      description: The engine is headless-first: table tests prove backend-free logic, and some behavior is only observable against a real window.
+      options:
+        - Headless (go test / plain construction)
+        - Only against a real window (example or game)
+        - Both
     validations:
       required: true
   - type: input
     id: environment
     attributes:
       label: Environment (Go version, OS)
-      placeholder: "Go 1.21, Windows 11"
+      placeholder: "Go 1.27, Windows 11"
+  - type: input
+    id: devices
+    attributes:
+      label: Input devices and software in play, if input-related
+      description: Controller model/mode, Steam Input or other remapping software, mouse
+      placeholder: "Xbox Series X controller (XInput), Steam running, no remapping"
   - type: textarea
     id: logs
     attributes:
