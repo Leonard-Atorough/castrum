@@ -37,7 +37,6 @@ func newSpriteGame(t *testing.T) (*castrum.Game, *Runner) {
 	if _, err := g.World().NewEntity(
 		core.Camera{Zoom: 1, Primary: true},
 		core.Transform{Position: geom.Vector2{}, Scale: spriteScale},
-		core.PrevTransform{},
 	); err != nil {
 		t.Fatalf("spawn camera: %v", err)
 	}
@@ -49,7 +48,6 @@ func TestEngineDrawFailsFast(t *testing.T) {
 	if _, err := g.World().NewEntity(
 		core.Sprite{Drawable: core.TextureSource{Texture: "missing.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
-		core.PrevTransform{Position: geom.Vector2{X: 0, Y: 0}},
 	); err != nil {
 		t.Fatalf("spawn sprite: %v", err)
 	}
@@ -80,14 +78,12 @@ func TestEngineDrawSmoke(t *testing.T) {
 	if _, err := g.World().NewEntity(
 		core.Sprite{Drawable: core.TextureSource{Texture: "tex.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
-		core.PrevTransform{Position: geom.Vector2{X: 0, Y: 0}},
 	); err != nil {
 		t.Fatalf("spawn texture sprite: %v", err)
 	}
 	if _, err := g.World().NewEntity(
 		core.Sprite{Drawable: core.AtlasSource{Atlas: "sprites", Region: "player"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
-		core.PrevTransform{Position: geom.Vector2{X: 0, Y: 0}},
 	); err != nil {
 		t.Fatalf("spawn atlas sprite: %v", err)
 	}
@@ -106,7 +102,6 @@ func TestDrawEngineErrorPrefixedAndUserDrawsRun(t *testing.T) {
 	if _, err := g.World().NewEntity(
 		core.Sprite{Drawable: core.TextureSource{Texture: "missing.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
-		core.PrevTransform{Position: geom.Vector2{X: 0, Y: 0}},
 	); err != nil {
 		t.Fatalf("spawn sprite: %v", err)
 	}
@@ -268,7 +263,6 @@ func TestEngineDrawShapeSmoke(t *testing.T) {
 				Position: geom.Vector2{X: 50, Y: 50},
 				Scale:    spriteScale,
 			},
-			core.PrevTransform{Position: geom.Vector2{X: 50, Y: 50}},
 		); err != nil {
 			t.Fatalf("spawn shape %d: %v", i, err)
 		}
@@ -285,7 +279,6 @@ func TestEngineDrawShapeSmoke(t *testing.T) {
 			Scale:    spriteScale,
 			Rotation: math.Pi / 4,
 		},
-		core.PrevTransform{Position: geom.Vector2{X: 50, Y: 50}},
 	); err != nil {
 		t.Fatalf("spawn rotated ellipse: %v", err)
 	}
