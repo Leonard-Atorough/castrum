@@ -1,11 +1,24 @@
 package main
 
+// Command animate demonstrates the animation slice: a torch flickers
+// through a grid-atlas clip at a fixed frame rate, driven entirely by
+// engine wiring - the game only registers the atlas, the clip, and the
+// entity.
+//
+// Assets resolve against the default filesystem: the game's working
+// directory, so paths may point anywhere relative to it. Run from the
+// repository root:
+//
+//	go run ./examples/animate
+//
+// wander demonstrates the embed.FS alternative for single-binary
+// distribution, passed via castrum.WithFilesystem.
+
 import (
 	"fmt"
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/animation"
-	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -37,19 +50,11 @@ func run() error {
 		return err
 	}
 
-	server, err := g.World().Resource[*asset.Server]()
-	if err != nil {
+	if err := g.AssetServer().RegisterGridAtlas(AssetTorchLight, "examples/animate/torch_light.png", 16, 28, "torch_light"); err != nil {
 		return err
 	}
 
-	if err := server.RegisterGridAtlas(AssetTorchLight, "./torch_light.png", 16, 28, "torch_light"); err != nil {
-		return err
-	}
-
-	clipStore, err := g.World().Resource[*animation.ClipStore]()
-	if err != nil {
-		return err
-	}
+	clipStore := g.Clips()
 
 	if err := clipStore.Add(ClipFlickeringTorch, animation.AnimationClip{
 		Source: AssetTorchLight,

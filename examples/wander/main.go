@@ -3,6 +3,10 @@
 // interpolated between ticks, and a user DrawFunc draws an overlay
 // above the engine-rendered world.
 //
+// Assets load from an embedded filesystem - the single-binary
+// alternative to the default working-directory filesystem that
+// animate demonstrates - passed via castrum.WithFilesystem.
+//
 // Run from the repository root:
 //
 //	go run ./examples/wander
@@ -10,14 +14,12 @@ package main
 
 import (
 	"embed"
-	"fmt"
 	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 
 	"github.com/Leonard-Atorough/castrum"
-	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -40,7 +42,7 @@ const (
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Println("wander:", err)
+		panic(err)
 	}
 }
 
@@ -50,26 +52,18 @@ func run() error {
 		return err
 	}
 
-	// Register the atlas at startup, before the window opens: a bad
-	// path or uneven tile division fails the launch, not the first
-	// frame.
-	if err := g.AddSystem(core.PhaseStartup, "register-atlas", core.SystemFunc(func(ctx *core.Context) error {
-		server, err := ctx.World.Resource[*asset.Server]()
-		if err != nil {
-			return err
-		}
-		return server.RegisterGridAtlas("characters", "Dungeon_Character_2.png", 16, 16, "char")
-	})); err != nil {
+	// Register the atlas at setup, before the window opens: a bad path
+	// or uneven tile division fails the launch, not the first frame.
+	// The engine provides the server at New.
+	if err := g.AssetServer().RegisterGridAtlas("characters", "Dungeon_Character_2.png", 16, 16, "char"); err != nil {
 		return err
 	}
 
-	if _, err := g.World().NewEntity(
-		core.Camera{Zoom: 1, Primary: true},
-		core.Transform{
-			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
-			Scale:    geom.Vector2{X: 1, Y: 1},
-		},
-	); err != nil {
+	// The engine camera frames the world from the screen's center.
+	camera := g.MainCamera()
+	if err := camera.Update(g.World(), func(t *core.Transform) {
+		t.Position = geom.Vector2{X: screenW / 2, Y: screenH / 2}
+	}); err != nil {
 		return err
 	}
 
@@ -92,20 +86,17 @@ func run() error {
 	// motion smooth without any per-frame work here.
 	target := randomPoint()
 	if err := g.AddSystem(core.PhaseFixed, "wander", core.SystemFunc(func(ctx *core.Context) error {
-		transform, ok := sprite.Component[core.Transform](ctx.World)
-		if !ok {
-			return nil
-		}
-		delta := target.Sub(transform.Position)
-		distance := delta.Length()
-		step := speed * ctx.DeltaTime.Seconds()
-		if distance <= step {
-			transform.Position = target
-			target = randomPoint()
-		} else {
-			transform.Position = transform.Position.Add(delta.Mul(step / distance))
-		}
-		return sprite.SetComponent(ctx.World, transform)
+		return sprite.Update(ctx.World, func(t *core.Transform) {
+			delta := target.Sub(t.Position)
+			distance := delta.Length()
+			step := speed * ctx.DeltaTime.Seconds()
+			if distance <= step {
+				t.Position = target
+				target = randomPoint()
+			} else {
+				t.Position = t.Position.Add(delta.Mul(step / distance))
+			}
+		})
 	})); err != nil {
 		return err
 	}
