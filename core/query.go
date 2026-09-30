@@ -46,6 +46,19 @@ func (e Entry) SetComponent[T any](value T) {
 	column[e.index] = value
 }
 
+// Update applies fn to the visited entity's component of type T and
+// writes the result back through the prefetched column. Only the
+// types listed in [Query.With] are available; an unlisted type
+// panics - the same contract as [Entry.SetComponent].
+func (e Entry) Update[T any](fn func(*T)) {
+	value, ok := e.Component[T]()
+	if !ok {
+		panic(fmt.Sprintf("castrum: Entry.Update: type %v was not listed in With", reflect.TypeFor[T]()))
+	}
+	fn(&value)
+	e.SetComponent(value)
+}
+
 // Component retrieves the component value of type T for the entity associated with this entry.
 // It returns the value and a boolean indicating whether the component was found.
 // Only the component types listed in [Query.With] are available: the
