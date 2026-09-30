@@ -3,9 +3,12 @@ package castrum
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"sync/atomic"
 	"time"
 
+	"github.com/Leonard-Atorough/castrum/animation"
+	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
@@ -20,6 +23,12 @@ import (
 type Options struct {
 	// Title is the game's identity; the runner displays it.
 	Title string
+
+	// Filesystem is the fs.FS asset paths resolve against: embed.FS
+	// for single-binary distribution, os.DirFS for development
+	// layouts. nil - the zero value - is the game's working
+	// directory.
+	Filesystem fs.FS
 
 	// Simulation contract: developer decisions, not player preferences.
 	FixedTPS         int
@@ -50,7 +59,9 @@ type Game struct {
 	ctx       core.Context
 	schedules map[core.Phase]*runtime.Schedule[core.System]
 
-	mainCamera *core.Entity
+	mainCamera  *core.Entity
+	assetServer *asset.Server
+	clips       *animation.ClipStore
 
 	acc     time.Duration
 	started atomic.Bool
@@ -95,11 +106,36 @@ func New(opts ...option) (*Game, error) {
 		schedules: map[core.Phase]*runtime.Schedule[core.System]{},
 	}
 	g.ctx.World = g.world
+	// The asset server: the engine provides it over the configured
+	// filesystem, so games register atlases and clips immediately,
+	// before any runner exists. The runner wires its backend
+	// providers into this server.
+	g.assetServer = asset.New(options.Filesystem)
+	if err := g.world.Provide(func(*core.World) (*asset.Server, error) {
+		return g.assetServer, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide asset server: %w", err)
+	}
 	// The engine's own systems, registered before any user system can.
 	// Prev-capture must run first in the fixed phase: see
 	// [core.NewPrevTransformCapture]. The AddSystem check stays honest
 	// against signature changes, though the name is never empty.
 	if err := g.AddSystem(core.PhaseFixed, "engine.prev-transform", core.NewPrevTransformCapture()); err != nil {
+		return nil, err
+	}
+	// The animation store: the engine provides it as the world's
+	// clip resource and the advancer holds it; games Add clips
+	// before Startup so registration errors precede the window.
+	clips := animation.NewClipStore()
+	g.clips = clips
+	if err := g.world.Provide(func(*core.World) (*animation.ClipStore, error) {
+		return clips, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide clip store: %w", err)
+	}
+	// The advancer costs an empty query in games without Animation
+	// entities.
+	if err := g.AddSystem(core.PhaseFixed, "engine.animation", animation.NewAnimationSystem(clips)); err != nil {
 		return nil, err
 	}
 	// The engine.s default camera: every game gets a working
@@ -175,6 +211,21 @@ func (g *Game) World() *core.World {
 // view entirely - the collector prefers user-spawned primaries.
 func (g *Game) MainCamera() *core.Entity {
 	return g.mainCamera
+}
+
+// AssetServer returns the game's asset server: the engine provides it
+// at New over the configured filesystem, so atlas registration works
+// before any runner exists. Systems access the same server through
+// the world's resource locator.
+func (g *Game) AssetServer() *asset.Server {
+	return g.assetServer
+}
+
+// Clips returns the game's animation clip store: the engine provides
+// it at New, so games Add clips at setup time. Systems access the
+// same store through the world's resource locator.
+func (g *Game) Clips() *animation.ClipStore {
+	return g.clips
 }
 
 // AddSystem binds systems to a schedule under a name. Systems run in
@@ -285,6 +336,12 @@ func (g *Game) run(s core.Phase) error {
 // WithTitle sets the game title. The active runner displays it.
 func WithTitle(title string) option {
 	return optionFunc(func(o *Options) { o.Title = title })
+}
+
+// WithFilesystem sets the fs.FS asset paths resolve against. The
+// default is the game's working directory.
+func WithFilesystem(filesystem fs.FS) option {
+	return optionFunc(func(o *Options) { o.Filesystem = filesystem })
 }
 
 // WithFixedTPS sets the fixed simulation rate in ticks per second.

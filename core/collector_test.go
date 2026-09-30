@@ -273,9 +273,33 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 	}
 }
 
-// Culling: the viewport is the logical resolution divided by zoom in
-// world space, centered on the interpolated camera. Sprites whose
-// scaled bounds touch the viewport survive.
+func TestCollectZeroScaleReadsAsUnit(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	if _, err := w.NewEntity(
+		Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: "player"}},
+		Transform{Position: geom.Vector2{}}, // zero scale: the zero value
+		PrevTransform{},
+	); err != nil {
+		t.Fatalf("spawn zero-scale sprite: %v", err)
+	}
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0))
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("Items = %d, want 1", len(list.Items))
+	}
+	item := list.Items[0]
+	if item.Scale != unitScale {
+		t.Errorf("Scale = %v, want the zero scale to read as unit", item.Scale)
+	}
+	if item.Rect != image.Rect(0, 0, 2, 2) {
+		t.Errorf("Rect = %v, want the player region", item.Rect)
+	}
+}
+
 func TestCollectCullsAgainstViewport(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
@@ -320,8 +344,6 @@ func TestCollectCullsAgainstViewport(t *testing.T) {
 	}
 }
 
-// Fail-fast: an unresolvable texture source errors the frame naming
-// the handles, whichever source kind it came from.
 func TestCollectFailsFastNamingHandles(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -372,8 +394,6 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 	}
 }
 
-// Ordering: layer first, then SortOrder, then the interpolated world Y
-// — higher Y draws later, on top. Full ties keep spawn order.
 func TestCollectSortsLayerThenOrderThenY(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)

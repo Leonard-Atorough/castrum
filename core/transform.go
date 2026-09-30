@@ -1,8 +1,6 @@
 package core
 
 import (
-	"fmt"
-
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
@@ -12,15 +10,10 @@ type Transform struct {
 	Position geom.Vector2
 	// Rotation represents the rotation of the transform in radians.
 	Rotation float64
-	// Scale represents the scale of the transform in 2D space.
+	// Scale represents the scale of the transform in 2D space. A zero
+	// axis - the zero value - reads as unscaled: collection treats it
+	// as 1.
 	Scale geom.Vector2
 	// Offset represents the offset of the transform relative to its position.
 	Offset geom.Vector2
-}
-
-func (t Transform) Validate() error {
-	if t.Scale.X == 0 || t.Scale.Y == 0 {
-		return fmt.Errorf("scale components must be non-zero")
-	}
-	return nil
 }

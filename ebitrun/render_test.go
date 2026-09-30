@@ -26,11 +26,11 @@ var spriteScale = geom.Vector2{X: 1, Y: 1}
 // the origin. Sprite spawning is left to each test.
 func newSpriteGame(t *testing.T) (*castrum.Game, *Runner) {
 	t.Helper()
-	g, err := castrum.New()
+	g, err := castrum.New(castrum.WithFilesystem(newAssetTestFS(t)))
 	if err != nil {
 		t.Fatalf("castrum.New: %v", err)
 	}
-	r, err := New(g, WithFilesystem(newAssetTestFS(t)))
+	r, err := New(g)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

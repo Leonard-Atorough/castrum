@@ -45,7 +45,7 @@ func main() {
 }
 
 func run() error {
-	g, err := castrum.New(castrum.WithTitle("castrum — wander"))
+	g, err := castrum.New(castrum.WithTitle("castrum — wander"), castrum.WithFilesystem(files))
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g, ebitrun.WithFilesystem(files))
+	runner, err := ebitrun.New(g)
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,6 @@ import (
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/asset"
-	"github.com/Leonard-Atorough/castrum/core"
 )
 
 func newAssetTestFS(t *testing.T) fstest.MapFS {
@@ -30,7 +29,7 @@ func TestNewWiresAssetPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("castrum.New: %v", err)
 	}
-	r, err := New(g, WithFilesystem(newAssetTestFS(t)))
+	r, err := New(g)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -57,9 +56,9 @@ func TestNewWiresAssetPipeline(t *testing.T) {
 }
 
 func TestNewWiresConfiguredFilesystem(t *testing.T) {
-	g, _ := castrum.New()
 	fs := newAssetTestFS(t)
-	if _, err := New(g, WithFilesystem(fs)); err != nil {
+	g, _ := castrum.New(castrum.WithFilesystem(fs))
+	if _, err := New(g); err != nil {
 		t.Fatalf("New: %v", err)
 	}
 
@@ -77,21 +76,9 @@ func TestNewWiresConfiguredFilesystem(t *testing.T) {
 	}
 }
 
-func TestNewRejectsPreprovidedServer(t *testing.T) {
-	g, _ := castrum.New()
-	if err := g.World().Provide(func(*core.World) (*asset.Server, error) {
-		return asset.New(nil), nil
-	}); err != nil {
-		t.Fatalf("pre-provide: %v", err)
-	}
-	if _, err := New(g); err == nil {
-		t.Fatal("New should return the conflict when a server is already provided")
-	}
-}
-
 func TestSubImageResolvesAndCaches(t *testing.T) {
-	g, _ := castrum.New()
-	if _, err := New(g, WithFilesystem(newAssetTestFS(t))); err != nil {
+	g, _ := castrum.New(castrum.WithFilesystem(newAssetTestFS(t)))
+	if _, err := New(g); err != nil {
 		t.Fatalf("New: %v", err)
 	}
 
@@ -148,8 +135,8 @@ func TestSubImageResolvesAndCaches(t *testing.T) {
 // Texture is the whole-texture half of the blit: convert once per path,
 // repeat calls are the same image, misses error naming the path.
 func TestTextureResolvesAndCaches(t *testing.T) {
-	g, _ := castrum.New()
-	if _, err := New(g, WithFilesystem(newAssetTestFS(t))); err != nil {
+	g, _ := castrum.New(castrum.WithFilesystem(newAssetTestFS(t)))
+	if _, err := New(g); err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	provider, err := g.World().Resource[*TextureProvider]()
@@ -183,8 +170,8 @@ func TestTextureResolvesAndCaches(t *testing.T) {
 // and rect, shared with the atlas-named path, with user-supplied rects
 // validated against the texture.
 func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
-	g, _ := castrum.New()
-	if _, err := New(g, WithFilesystem(newAssetTestFS(t))); err != nil {
+	g, _ := castrum.New(castrum.WithFilesystem(newAssetTestFS(t)))
+	if _, err := New(g); err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	server, err := g.World().Resource[*asset.Server]()
