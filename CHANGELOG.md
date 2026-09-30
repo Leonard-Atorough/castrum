@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Draw primitive shapes through a newly unified sprite component (#14)
+- Implement animation system with ClipStore and AnimationClip support (#35)
+- Implement main camera spawning and preference handling (#22)
+- Auto-attach PrevTransform at spawn when Transform is present (#21)
+- Add bindings-driven input for keyboard, mouse, and gamepad (#15)
+
+### Internal
+- Update issue templates for bug reports and feature requests (#20)
 
 
