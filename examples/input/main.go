@@ -21,16 +21,18 @@ const (
 	fieldGap    = 150
 	circleRadii = 32
 
-	moveSpeed = 300
-	turnSpeed = 3
-	zoomSpeed = 1.5
-	zoomMin   = 0.25
-	zoomMax   = 8
+	moveSpeed   = 300
+	turnSpeed   = 3
+	barrelLen   = 56
+	barrelWidth = 12
+	zoomSpeed   = 1.5
+	zoomMin     = 0.25
+	zoomMax     = 8
 )
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Println("input: ", err)
+		panic(err)
 	}
 }
 
@@ -69,25 +71,39 @@ func run() error {
 		return err
 	}
 
-	camera, err := g.World().NewEntity(
-		core.Camera{Zoom: 1, Primary: true},
+	// The engine camera frames the world; a follow system moves it.
+	camera := g.MainCamera()
+	if err := camera.Update(g.World(), func(t *core.Transform) {
+		t.Position = geom.Vector2{X: screenW / 2, Y: screenH / 2}
+	}); err != nil {
+		return err
+	}
+
+	// The tank: a hull the bindings drive, and a turret barrel that
+	// aims at the mouse. A zero scale reads as unscaled. The barrel is
+	// a line shape anchored at the position - zero From pivots it on
+	// the hull's center.
+	body, err := g.World().NewEntity(
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
-			Scale:    geom.Vector2{X: 1, Y: 1},
+		},
+		core.Sprite{
+			Drawable: core.RectShape{Size: geom.Vector2{X: 64, Y: 96}},
+			Color:    color.RGBA{G: 200},
 		},
 	)
 	if err != nil {
 		return err
 	}
-	// spawn character entity
-	character, err := g.World().NewEntity(
+	turret, err := g.World().NewEntity(
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
-			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
 		core.Sprite{
-			Drawable: core.RectShape{Size: geom.Vector2{X: 32, Y: 64}},
-			Color:    color.RGBA{G: 255},
+			Drawable:    core.LineShape{To: geom.Vector2{X: 0, Y: -barrelLen}},
+			Outline:     true,
+			StrokeWidth: barrelWidth,
+			Color:       color.RGBA{R: 120, A: 255},
 		},
 	)
 	if err != nil {
@@ -103,7 +119,6 @@ func run() error {
 			if _, err := g.World().NewEntity(
 				core.Transform{
 					Position: pos,
-					Scale:    geom.Vector2{X: 1, Y: 1},
 				},
 				core.Sprite{
 					Drawable: core.CircleShape{Radii: geom.Vector2{X: circleRadii, Y: circleRadii}},
@@ -116,10 +131,13 @@ func run() error {
 	}
 
 	// system for camera movement and zoom
-	if err := g.AddSystem(core.PhaseFixed, "input.character_move", characterMovementSystem(character)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "input.tank_body", tankBodySystem(body)); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFixed, "input.camera", cameraSystem(camera, character)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "input.turret", turretSystem(turret, body, camera)); err != nil {
+		return err
+	}
+	if err := g.AddSystem(core.PhaseFixed, "input.camera", cameraSystem(camera, body)); err != nil {
 		return err
 	}
 
@@ -129,74 +147,80 @@ func run() error {
 	}
 
 	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrint(screen, "castrum input - use WASD or arrow keys to move, QE to zoom\nFPS: "+fmt.Sprintf("%.2f", ebiten.ActualFPS()))
+		ebitenutil.DebugPrint(screen, "castrum input - WASD or arrows or stick to drive, mouse aims the turret, QE zooms\nFPS: "+fmt.Sprintf("%.2f", ebiten.ActualFPS()))
 		return nil
 	})
 
 	return runner.Run()
 }
 
-func cameraSystem(camera *core.Entity, character *core.Entity) core.System {
+func cameraSystem(camera *core.Entity, body *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		cam, ok := camera.Component[core.Camera](ctx.World)
-		if !ok {
-			return fmt.Errorf("camera entity missing Camera component")
-		}
-		if !cam.Primary {
-			return fmt.Errorf("camera entity is not primary")
-		}
-		camTransform, ok := camera.Component[core.Transform](ctx.World)
-		if !ok {
-			return fmt.Errorf("camera entity missing Transform component")
-		}
+		hull, _ := body.Component[core.Transform](ctx.World)
 
-		char, ok := character.Component[core.Transform](ctx.World)
-		if !ok {
-			return fmt.Errorf("character entity missing Transform component")
-		}
-		// Make the camera follow the character
-		camTransform.Position = char.Position
-
-		if ctx.Actions.Held("zoom") {
-			cam.Zoom += ctx.Actions.Axis("zoom") * zoomSpeed * ctx.DeltaTime.Seconds()
-			cam.Zoom = math.Max(zoomMin, math.Min(zoomMax, cam.Zoom))
-		}
-
-		// Both mutated components are value copies: write them back
-		// or the follow and the zoom are lost.
-		if err := camera.SetComponent(ctx.World, camTransform); err != nil {
+		// The camera follows the hull.
+		if err := camera.Update(ctx.World, func(t *core.Transform) {
+			t.Position = hull.Position
+		}); err != nil {
 			return err
 		}
-		return camera.SetComponent(ctx.World, cam)
+
+		if ctx.Actions.Held("zoom") {
+			if err := camera.Update(ctx.World, func(c *core.Camera) {
+				c.Zoom += ctx.Actions.Axis("zoom") * zoomSpeed * ctx.DeltaTime.Seconds()
+				c.Zoom = math.Max(zoomMin, math.Min(zoomMax, c.Zoom))
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
-func characterMovementSystem(character *core.Entity) core.System {
+// tankBodySystem drives the hull like a tank: the bindings move it
+// along its facing and turn it in place, independent of where the
+// turret aims.
+func tankBodySystem(body *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		transform, ok := character.Component[core.Transform](ctx.World)
-		if !ok {
-			return fmt.Errorf("character entity missing Transform component")
-		}
-		// Forward is screen-up (negative Y in this world), rotated
-		// by the character's rotation.
-		facing := geom.Vector2{X: 0, Y: -1}.Rotate(transform.Rotation)
+		return body.Update(ctx.World, func(t *core.Transform) {
+			// Forward is screen-up (negative Y in this world), rotated
+			// by the hull's rotation.
+			facing := geom.Vector2{X: 0, Y: -1}.Rotate(t.Rotation)
 
-		if ctx.Actions.Held("move_forward") {
-			transform.Position.X += facing.X * moveSpeed * ctx.DeltaTime.Seconds()
-			transform.Position.Y += facing.Y * moveSpeed * ctx.DeltaTime.Seconds()
-		}
-		if ctx.Actions.Held("move_backward") {
-			transform.Position.X -= facing.X * moveSpeed * ctx.DeltaTime.Seconds()
-			transform.Position.Y -= facing.Y * moveSpeed * ctx.DeltaTime.Seconds()
-		}
-		if ctx.Actions.Held("turn_left") {
-			transform.Rotation -= turnSpeed * ctx.DeltaTime.Seconds()
-		}
-		if ctx.Actions.Held("turn_right") {
-			transform.Rotation += turnSpeed * ctx.DeltaTime.Seconds()
-		}
+			if ctx.Actions.Held("move_forward") {
+				t.Position = t.Position.Add(facing.Mul(moveSpeed * ctx.DeltaTime.Seconds()))
+			}
+			if ctx.Actions.Held("move_backward") {
+				t.Position = t.Position.Sub(facing.Mul(moveSpeed * ctx.DeltaTime.Seconds()))
+			}
+			if ctx.Actions.Held("turn_left") {
+				t.Rotation -= turnSpeed * ctx.DeltaTime.Seconds()
+			}
+			if ctx.Actions.Held("turn_right") {
+				t.Rotation += turnSpeed * ctx.DeltaTime.Seconds()
+			}
+		})
+	})
+}
 
-		character.SetComponent(ctx.World, transform)
-		return nil
+// turretSystem mounts the barrel on the hull and aims it at the
+// mouse. The cursor is raw input - read straight from the snapshot,
+// not through bindings - and projects to world space through the same
+// camera view the renderer frames with. Rotation 0 faces screen-up,
+// so the aim angle is atan2(x, -y) of the direction to the cursor.
+func turretSystem(turret *core.Entity, body *core.Entity, camera *core.Entity) core.System {
+	return core.SystemFunc(func(ctx *core.Context) error {
+		hull, _ := body.Component[core.Transform](ctx.World)
+		cam, _ := camera.Component[core.Camera](ctx.World)
+		camT, _ := camera.Component[core.Transform](ctx.World)
+
+		world := core.CameraView{Position: camT.Position, Zoom: cam.Zoom}.
+			ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		aim := world.Sub(hull.Position)
+
+		return turret.Update(ctx.World, func(t *core.Transform) {
+			t.Position = hull.Position
+			t.Rotation = math.Atan2(aim.X, -aim.Y)
+		})
 	})
 }

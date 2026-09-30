@@ -11,7 +11,6 @@
 package main
 
 import (
-	"fmt"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -49,7 +48,7 @@ type cell struct {
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Println("primitives: ", err)
+		panic(err)
 	}
 }
 
@@ -60,17 +59,12 @@ func run() error {
 	}
 
 	camera := g.MainCamera()
-	camTransform, ok := camera.Component[core.Transform](g.World())
-	if !ok {
-		return fmt.Errorf("main camera missing Transform component")
-	}
-	camTransform.Position = geom.Vector2{X: screenW / 2, Y: screenH / 2}
-	camTransform.Scale = geom.Vector2{X: 1, Y: 1}
-	if err := camera.SetComponent(g.World(), camTransform); err != nil {
-		return fmt.Errorf("failed to update main camera Transform component: %w", err)
+	if err := camera.Update(g.World(), func(t *core.Transform) {
+		t.Position = geom.Vector2{X: screenW / 2, Y: screenH / 2}
+	}); err != nil {
+		return err
 	}
 
-	unit := geom.Vector2{X: 1, Y: 1}
 	stretch := geom.Vector2{X: 0.5, Y: 1.5}
 
 	spectrum := []struct {
@@ -130,14 +124,12 @@ func run() error {
 			if variant.sprite.Color == nil {
 				variant.sprite.Color = row.color
 			}
+			// A zero scale reads as unscaled; only the stretched
+			// variants declare one.
 			position := geom.Vector2{X: float64(cellX0 + c*cellDX), Y: float64(rowY0 + r*rowDY)}
-			scale := variant.scale
-			if scale == (geom.Vector2{}) {
-				scale = unit
-			}
 			sprite, err := g.World().NewEntity(
 				variant.sprite,
-				core.Transform{Position: position, Scale: scale},
+				core.Transform{Position: position, Scale: variant.scale},
 			)
 			if err != nil {
 				return err
@@ -154,12 +146,7 @@ func run() error {
 	// per-frame work here.
 	if err := g.AddSystem(core.PhaseFixed, "spin", core.SystemFunc(func(ctx *core.Context) error {
 		for _, sprite := range spinners {
-			transform, ok := sprite.Component[core.Transform](ctx.World)
-			if !ok {
-				continue
-			}
-			transform.Rotation += rotationSpeed
-			if err := sprite.SetComponent(ctx.World, transform); err != nil {
+			if err := sprite.Update(ctx.World, func(t *core.Transform) { t.Rotation += rotationSpeed }); err != nil {
 				return err
 			}
 		}
