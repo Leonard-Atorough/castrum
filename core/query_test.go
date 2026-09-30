@@ -243,3 +243,38 @@ func TestWithoutPointerMarkerPanics(t *testing.T) {
 	}()
 	NewQuery(w).Without(&queryPos{})
 }
+
+func TestEntryUpdateMutates(t *testing.T) {
+	w := NewWorld()
+	e, err := w.NewEntity(queryPos{X: 1, Y: 2})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	visits := 0
+	for entry := range NewQuery(w).With(queryPos{}).Execute() {
+		entry.Update(func(p *queryPos) { p.X += 10 })
+		visits++
+	}
+	if visits != 1 {
+		t.Fatalf("visits = %d, want 1", visits)
+	}
+	got, ok := e.Component[queryPos](w)
+	if !ok || got.X != 11 {
+		t.Fatalf("position = %v, ok %v, want X 11", got, ok)
+	}
+}
+
+func TestEntryUpdateUnprefetchedPanics(t *testing.T) {
+	w := NewWorld()
+	if _, err := w.NewEntity(queryPos{}, queryVel{}); err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Fatal("Update on a type not listed in With should panic")
+		}
+	}()
+	for entry := range NewQuery(w).With(queryPos{}).Execute() {
+		entry.Update(func(v *queryVel) { v.X = 1 })
+	}
+}

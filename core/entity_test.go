@@ -64,3 +64,41 @@ func TestSetComponent(t *testing.T) {
 		t.Error("SetComponent for a missing component should error")
 	}
 }
+
+func TestEntityUpdateMutates(t *testing.T) {
+	w := NewWorld()
+	e, err := w.NewEntity(position{x: 1, y: 2})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	if err := e.Update(w, func(p *position) { p.x += 5 }); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	got, ok := e.Component[position](w)
+	if !ok || got.x != 6 {
+		t.Fatalf("position = %v, ok %v, want x 6", got, ok)
+	}
+}
+
+func TestEntityUpdateMissingComponent(t *testing.T) {
+	w := NewWorld()
+	e, err := w.NewEntity(position{})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	if err := e.Update(w, func(v *velocity) { v.dx = 1 }); err == nil {
+		t.Fatal("Update on a missing component should error")
+	}
+}
+
+func TestEntityUpdateValidatesOnWrite(t *testing.T) {
+	w := NewWorld()
+	e, err := w.NewEntity(Sprite{})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	err = e.Update(w, func(s *Sprite) { s.Layer = 99 })
+	if err == nil {
+		t.Fatal("Update writing an invalid value should error")
+	}
+}

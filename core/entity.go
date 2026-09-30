@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/Leonard-Atorough/castrum/internal/ecs"
@@ -78,6 +79,19 @@ func (e *Entity) HasComponent[T any](w *World) bool {
 // that type.
 func (e *Entity) SetComponent[T any](w *World, value T) error {
 	return w.archetypes.SetComponent(e.id, reflect.TypeFor[T](), value)
+}
+
+// Update reads the entity's component of type T, applies fn to the
+// copy, and writes it back. It returns an error if the entity does not
+// exist or has no component of that type; the write validates like
+// SetComponent.
+func (e *Entity) Update[T any](w *World, fn func(*T)) error {
+	value, ok := e.Component[T](w)
+	if !ok {
+		return fmt.Errorf("castrum: entity %d has no component %v", e.id, reflect.TypeFor[T]())
+	}
+	fn(&value)
+	return e.SetComponent(w, value)
 }
 
 // AddComponent attaches a component of type T to the entity, migrating it

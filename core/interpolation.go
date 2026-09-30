@@ -45,11 +45,8 @@ func NewPrevTransformCapture() System {
 		// Snapshot entities that already carry a previous state:
 		// zero-copy writes through the prefetched columns.
 		for e := range update.Execute() {
-			t, ok := e.Component[Transform]()
-			if !ok {
-				continue
-			}
-			e.SetComponent(PrevTransform{Position: t.Position})
+			t, _ := e.Component[Transform]()
+			e.Update(func(p *PrevTransform) { p.Position = t.Position })
 		}
 
 		// Entities spawned during the previous tick have no snapshot.
