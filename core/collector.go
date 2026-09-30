@@ -192,6 +192,13 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 		transform, _ := e.Component[Transform]()
 		prev, _ := e.Component[PrevTransform]()
 
+		if transform.Scale.X == 0 {
+			transform.Scale.X = 1
+		}
+		if transform.Scale.Y == 0 {
+			transform.Scale.Y = 1
+		}
+
 		switch drawable := sprite.Drawable.(type) {
 		case nil:
 			// Style without a picture: legal, not drawn.
@@ -199,11 +206,11 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 		case AtlasSource:
 			atlas, err := server.Store().Atlas(drawable.Atlas)
 			if err != nil {
-				return DrawList{}, fmt.Errorf("castrum: collect: atlas %q: %w", drawable.Atlas, err)
+				return DrawList{}, fmt.Errorf("castrum: collect: %w", err)
 			}
 			region, err := atlas.Region(drawable.Region)
 			if err != nil {
-				return DrawList{}, fmt.Errorf("castrum: collect: atlas %q: %w", drawable.Atlas, err)
+				return DrawList{}, fmt.Errorf("castrum: collect: %w", err)
 			}
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,

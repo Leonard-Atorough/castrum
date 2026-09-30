@@ -5,7 +5,6 @@ package ebitrun
 
 import (
 	"fmt"
-	"io/fs"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -29,11 +28,10 @@ type DrawFunc func(ctx *core.Context, screen *ebiten.Image) error
 // Options holds the runner's launch settings: window, vsync, and the
 // internal render resolution.
 type Options struct {
-	Window     Size
-	Resizable  bool
-	VSync      bool
-	Logical    Size
-	Filesystem fs.FS
+	Window    Size
+	Resizable bool
+	VSync     bool
+	Logical   Size
 }
 
 type option interface {
@@ -67,10 +65,8 @@ type Runner struct {
 
 // New creates the Runner for g, applying opts over defaults. The option
 // constructors never fail; all validation happens here in a single pass.
-// New also wires the asset pipeline into g's world: an [asset.Server]
-// over the configured filesystem, provided as a resource, and the
-// runner's [TextureProvider], provided eagerly. A game that already
-// provided its own server owns the conflict; New returns the error.
+// g must come from [castrum.New], which provides the game's [asset.Server];
+// New wires the runner's [TextureProvider] over it, provided eagerly.
 func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	options := defaultOptions()
 	for _, o := range opts {
@@ -80,11 +76,9 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, err
 	}
 
-	server := asset.New(options.Filesystem)
-	if err := g.World().Provide(func(*core.World) (*asset.Server, error) {
-		return server, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: provide asset server: %w", err)
+	server, err := g.World().Resource[*asset.Server]()
+	if err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: asset server: %w", err)
 	}
 	provider := newTextureProvider(server)
 	if err := g.World().ProvideEager(func(*core.World) (*TextureProvider, error) {
@@ -220,12 +214,4 @@ func WithResizable() option {
 // WithoutVSync disables vsync. Default is on.
 func WithoutVSync() option {
 	return optionFunc(func(o *Options) { o.VSync = false })
-}
-
-// WithFilesystem sets the filesystem asset paths resolve against. Any
-// fs.FS works: embed.FS for single-binary distribution, os.DirFS for
-// development layouts, fstest.MapFS for tests. Default is the game's
-// working directory.
-func WithFilesystem(fs fs.FS) option {
-	return optionFunc(func(o *Options) { o.Filesystem = fs })
 }

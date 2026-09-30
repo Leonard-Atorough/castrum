@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Leonard-Atorough/castrum/animation"
+	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
@@ -179,5 +181,43 @@ func TestMainCamera(t *testing.T) {
 	transform, _ := camera.Component[core.Transform](g.World())
 	if transform.Position != (geom.Vector2{}) {
 		t.Fatalf("engine camera position = %v, want the origin", transform.Position)
+	}
+}
+
+// The asset server is provided by New, before any runner exists, so
+// games register atlases at setup time.
+func TestNewProvidesAssetServer(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if g.AssetServer() == nil {
+		t.Fatal("AssetServer should return the engine-provided server")
+	}
+	server, err := g.World().Resource[*asset.Server]()
+	if err != nil {
+		t.Fatalf("Resource[*asset.Server] right after New: %v", err)
+	}
+	if g.AssetServer() != server {
+		t.Fatal("AssetServer and the resource must be the same instance")
+	}
+}
+
+// The clip store is provided by New, before any runner exists, so
+// games Add clips at setup time.
+func TestNewProvidesClipStore(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if g.Clips() == nil {
+		t.Fatal("Clips should return the engine-provided store")
+	}
+	store, err := g.World().Resource[*animation.ClipStore]()
+	if err != nil {
+		t.Fatalf("Resource[*animation.ClipStore] right after New: %v", err)
+	}
+	if g.Clips() != store {
+		t.Fatal("Clips and the resource must be the same instance")
 	}
 }
