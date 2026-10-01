@@ -6,6 +6,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
@@ -219,5 +220,22 @@ func TestNewProvidesClipStore(t *testing.T) {
 	}
 	if g.Clips() != store {
 		t.Fatal("Clips and the resource must be the same instance")
+	}
+}
+
+func TestNewProvidesAudioMixer(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if g.Mixer() == nil {
+		t.Fatal("Mixer should return the engine-provided mixer")
+	}
+	mixer, err := g.World().Resource[*audio.Mixer]()
+	if err != nil {
+		t.Fatalf("Resource[*audio.Mixer] right after New: %v", err)
+	}
+	if g.Mixer() != mixer {
+		t.Fatal("Mixer and the resource must be the same instance")
 	}
 }
