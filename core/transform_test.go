@@ -21,7 +21,7 @@ func TestPrevCaptureSnapshotsTickStartState(t *testing.T) {
 	}
 	capture := NewPrevTransformCapture()
 
-	// Tick 1: the newborn is materialized with its spawn position.
+	// Tick 1: the pair exists by construction; the capture snapshots it.
 	runCapture(t, capture, w)
 
 	// Gameplay moves the entity, then tick 2's capture runs FIRST:
@@ -50,25 +50,54 @@ func TestPrevCaptureSnapshotsTickStartState(t *testing.T) {
 	}
 }
 
-func TestPrevCaptureMaterializesNewbornsOnce(t *testing.T) {
+func TestAddComponentTransformCompletesPair(t *testing.T) {
 	w := NewWorld()
-	entity, err := w.NewEntity(Transform{Position: geom.Vector2{X: 5, Y: 5}, Scale: geom.Vector2{X: 1, Y: 1}})
+	entity, err := w.NewEntity(Camera{Zoom: 1})
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
-	capture := NewPrevTransformCapture()
 
-	runCapture(t, capture, w)
+	// A mid-game Transform attach also attaches the pair's prev, at
+	// the attach position: the entity interpolates from where it
+	// gained its Transform, on its first rendered frame.
+	pos := geom.Vector2{X: 7, Y: 9}
+	if err := entity.AddComponent(w, Transform{Position: pos, Scale: geom.Vector2{X: 1, Y: 1}}); err != nil {
+		t.Fatalf("AddComponent(Transform): %v", err)
+	}
 	prev, ok := entity.Component[PrevTransform](w)
-	if !ok || prev.Position.X != 5 {
-		t.Fatalf("newborn prev = %+v ok=%v, want spawn position", prev, ok)
+	if !ok {
+		t.Fatal("AddComponent(Transform) must attach the pair's PrevTransform")
+	}
+	if prev.Position != pos {
+		t.Fatalf("prev = %v, want the attach position %v", prev.Position, pos)
 	}
 
-	// The second run takes the update path, not a duplicate add.
-	runCapture(t, capture, w)
+	// The capture then snapshots like any other entity.
+	runCapture(t, NewPrevTransformCapture(), w)
+	if err := entity.SetComponent(w, Transform{Position: geom.Vector2{X: 20, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}}); err != nil {
+		t.Fatalf("move: %v", err)
+	}
+	runCapture(t, NewPrevTransformCapture(), w)
 	prev, _ = entity.Component[PrevTransform](w)
-	if prev.Position.X != 5 {
-		t.Fatalf("second capture changed prev to %v, want 5", prev.Position)
+	if prev.Position.X != 20 {
+		t.Fatalf("prev after second capture = %v, want the tick-start position", prev.Position)
+	}
+}
+
+func TestAddComponentTransformKeepsExistingPrev(t *testing.T) {
+	w := NewWorld()
+	// An explicit prev is authoritative: a later Transform attach
+	// must not overwrite it.
+	entity, err := w.NewEntity(PrevTransform{Position: geom.Vector2{X: 1, Y: 2}})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	if err := entity.AddComponent(w, Transform{Position: geom.Vector2{X: 8, Y: 8}, Scale: geom.Vector2{X: 1, Y: 1}}); err != nil {
+		t.Fatalf("AddComponent(Transform): %v", err)
+	}
+	prev, _ := entity.Component[PrevTransform](w)
+	if prev.Position.X != 1 || prev.Position.Y != 2 {
+		t.Fatalf("prev = %v, want the explicit (1, 2) preserved", prev.Position)
 	}
 }
 
