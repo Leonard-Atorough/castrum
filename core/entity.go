@@ -98,6 +98,14 @@ func (e *Entity) Update[T any](w *World, fn func(*T)) error {
 // to the archetype for its new component set. Existing components are
 // preserved.
 func (e *Entity) AddComponent[T any](w *World, value T) error {
+	if reflect.TypeFor[T]() == reflect.TypeFor[Transform]() && !e.HasComponent[PrevTransform](w) {
+		transform := any(value).(Transform)
+		res := w.archetypes.AddComponents(e.id,
+			[]reflect.Type{reflect.TypeFor[Transform](), reflect.TypeFor[PrevTransform]()},
+			[]any{value, PrevTransform{Position: transform.Position}},
+		)
+		return res.Error
+	}
 	res := w.archetypes.AddComponents(e.id, []reflect.Type{reflect.TypeFor[T]()}, []any{value})
 	return res.Error
 }

@@ -5,6 +5,12 @@ import (
 )
 
 // Transform represents the 2d spatial state of an entity.
+// Transform is an entity's placement in the world: position,
+// rotation, and scale, relative to a position offset.
+//
+// A Transform always comes paired with a [PrevTransform]: spawn and
+// AddComponent attach one automatically, snapshotting the position
+// so the renderer can interpolate motion between fixed ticks.
 type Transform struct {
 	// Position represents the position of the transform in 2D space.
 	Position geom.Vector2

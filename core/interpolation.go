@@ -4,42 +4,31 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// PrevTransform is the engine-managed snapshot of an entity's position
-// as it stood at the start of the current fixed tick — the end of the
-// previous tick. Renderers interpolate between PrevTransform and
-// Transform by alpha to display smooth motion between fixed ticks.
+// PrevTransform is the engine-managed snapshot of an entity's
+// position at the start of each fixed tick. Renderers interpolate
+// between PrevTransform and the Transform by an alpha value to 
+// display smooth motion between ticks.
 //
-// The engine's capture system writes it; game code may read it but must
-// never write it.
+// The capture system writes it: game code reads it but never writes
+// or removes it. A Transform without a PrevTransform never renders.
 type PrevTransform struct {
 	Position geom.Vector2
 }
 
-// NewPrevTransformCapture returns the engine system that snapshots every
-// entity's Transform position into PrevTransform.
+// NewPrevTransformCapture returns the engine system that snapshots
+// every entity's Transform into its PrevTransform, keeping the
+// previous tick's state available so renderers can interpolate
+// motion between fixed ticks.
 //
-// It must run FIRST in the fixed phase — before gameplay systems move
-// anything. The snapshot at tick start is the previous tick's end state;
-// gameplay then advances Transform. The render pair is therefore
-// (previous tick, current tick), which alpha interpolates between.
-// Registering the capture last would snapshot the already-advanced
-// Transform, making prev and curr identical and silently disabling
-// interpolation.
-//
-// Entities spawned during a tick have no snapshot; the capture
-// materializes their spawn position at the next tick start, so they
-// first render at the beginning of the next tick. Game.New registers
-// this system; games never register it themselves.
+// It must run first in the fixed phase, before any gameplay system
+// moves an entity - registered later, it snapshots the moved state
+// and interpolation silently stops. Game.New registers this
+// system; games never register it themselves.
 func NewPrevTransformCapture() System {
-	var update, newborns *Query
-	var pending []EntityID
+	var update *Query
 	return SystemFunc(func(ctx *Context) error {
 		if update == nil {
-			update = NewQuery(ctx.World).
-				With(Transform{}, PrevTransform{})
-			newborns = NewQuery(ctx.World).
-				With(Transform{}).
-				Without(PrevTransform{})
+			update = NewQuery(ctx.World).With(Transform{}, PrevTransform{})
 		}
 
 		// Snapshot entities that already carry a previous state:
@@ -47,26 +36,6 @@ func NewPrevTransformCapture() System {
 		for e := range update.Execute() {
 			t, _ := e.Component[Transform]()
 			e.Update(func(p *PrevTransform) { p.Position = t.Position })
-		}
-
-		// Entities spawned during the previous tick have no snapshot.
-		// Collect their IDs, then attach PrevTransform after iteration —
-		// structural changes are invalid during a pass. Their first
-		// snapshot is their spawn position, so their first rendered
-		// frame interpolates from where they spawned.
-		pending = pending[:0]
-		for e := range newborns.Execute() {
-			pending = append(pending, e.ID())
-		}
-		for _, id := range pending {
-			entity := NewEntity(id)
-			t, ok := entity.Component[Transform](ctx.World)
-			if !ok {
-				continue
-			}
-			if err := entity.AddComponent(ctx.World, PrevTransform{Position: t.Position}); err != nil {
-				return err
-			}
 		}
 		return nil
 	})
