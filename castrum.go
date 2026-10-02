@@ -9,6 +9,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
@@ -62,6 +63,7 @@ type Game struct {
 	mainCamera  *core.Entity
 	assetServer *asset.Server
 	clips       *animation.ClipStore
+	mixer       *audio.Mixer
 
 	acc     time.Duration
 	started atomic.Bool
@@ -106,26 +108,18 @@ func New(opts ...option) (*Game, error) {
 		schedules: map[core.Phase]*runtime.Schedule[core.System]{},
 	}
 	g.ctx.World = g.world
-	// The asset server: the engine provides it over the configured
-	// filesystem, so games register atlases and clips immediately,
-	// before any runner exists. The runner wires its backend
-	// providers into this server.
+
 	g.assetServer = asset.New(options.Filesystem)
 	if err := g.world.Provide(func(*core.World) (*asset.Server, error) {
 		return g.assetServer, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide asset server: %w", err)
 	}
-	// The engine's own systems, registered before any user system can.
-	// Prev-capture must run first in the fixed phase: see
-	// [core.NewPrevTransformCapture]. The AddSystem check stays honest
-	// against signature changes, though the name is never empty.
+
 	if err := g.AddSystem(core.PhaseFixed, "engine.prev-transform", core.NewPrevTransformCapture()); err != nil {
 		return nil, err
 	}
-	// The animation store: the engine provides it as the world's
-	// clip resource and the advancer holds it; games Add clips
-	// before Startup so registration errors precede the window.
+
 	clips := animation.NewClipStore()
 	g.clips = clips
 	if err := g.world.Provide(func(*core.World) (*animation.ClipStore, error) {
@@ -133,11 +127,21 @@ func New(opts ...option) (*Game, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide clip store: %w", err)
 	}
+
 	// The advancer costs an empty query in games without Animation
 	// entities.
 	if err := g.AddSystem(core.PhaseFixed, "engine.animation", animation.NewAnimationSystem(clips)); err != nil {
 		return nil, err
 	}
+
+	mixer := audio.NewMixer()
+	g.mixer = mixer
+	if err := g.world.Provide(func(*core.World) (*audio.Mixer, error) {
+		return mixer, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide audio mixer: %w", err)
+	}
+
 	// The engine.s default camera: every game gets a working
 	// viewport without wiring. It yields to any user-spawned
 	// primary - the collector prefers user cameras.
@@ -226,6 +230,14 @@ func (g *Game) AssetServer() *asset.Server {
 // same store through the world's resource locator.
 func (g *Game) Clips() *animation.ClipStore {
 	return g.clips
+}
+
+// Mixer returns the game's audio mixer: the engine provides it at New.
+// Volume levels and the global pause are set through it; a runner
+// applies them to its players. Systems access the same mixer through
+// the world's resource locator.
+func (g *Game) Mixer() *audio.Mixer {
+	return g.mixer
 }
 
 // AddSystem binds systems to a schedule under a name. Systems run in

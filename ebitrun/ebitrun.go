@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	ebitaudio "github.com/hajimehoshi/ebiten/v2/audio"
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
@@ -32,6 +34,8 @@ type Options struct {
 	Resizable bool
 	VSync     bool
 	Logical   Size
+	// SampleRate is the audio context's mixing rate in Hz.
+	SampleRate int
 }
 
 type option interface {
@@ -46,13 +50,17 @@ func (f optionFunc) apply(opts *Options) {
 
 func defaultOptions() Options {
 	return Options{
-		Window:  Size{Width: 1280, Height: 720},
-		Logical: Size{Width: 1280, Height: 720},
-		VSync:   true,
+		Window:     Size{Width: 1280, Height: 720},
+		Logical:    Size{Width: 1280, Height: 720},
+		VSync:      true,
+		SampleRate: 44100,
 	}
 }
 
 // Runner drives a castrum.Game over Ebitengine.
+//
+// It implements [castrum.Runner]; start the game through
+// [castrum.Game.Run].
 type Runner struct {
 	g       *castrum.Game
 	opts    Options
@@ -63,10 +71,13 @@ type Runner struct {
 	drawErr error
 }
 
+var _ castrum.Runner = (*Runner)(nil)
+
 // New creates the Runner for g, applying opts over defaults. The option
 // constructors never fail; all validation happens here in a single pass.
 // g must come from [castrum.New], which provides the game's [asset.Server];
-// New wires the runner's [TextureProvider] over it, provided eagerly.
+// New wires the runner's [TextureProvider] and audio provider over it,
+// both provided eagerly, and registers the engine.audio reconciler.
 func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	options := defaultOptions()
 	for _, o := range opts {
@@ -87,9 +98,21 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, fmt.Errorf("castrum/ebiten: provide texture provider: %w", err)
 	}
 
-	// The logical resolution is static per game: publish it to the
-	// context at construction, where culling and camera projection
-	// read it. (Alpha is per-frame and set in Draw.)
+	audioCtx := ebitaudio.CurrentContext()
+	if audioCtx == nil {
+		audioCtx = ebitaudio.NewContext(options.SampleRate)
+	}
+	audioProvider := newAudioProvider(audioCtx, server)
+	if err := g.World().ProvideEager(func(*core.World) (audio.Controller, error) {
+		return audioProvider, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: provide audio provider: %w", err)
+	}
+
+	if err := g.AddSystem(core.PhaseFrame, "engine.audio", audio.NewAudioSystem(audioProvider, g.Mixer())); err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: register engine.audio: %w", err)
+	}
+
 	g.Context().LogicalWidth = options.Logical.Width
 	g.Context().LogicalHeight = options.Logical.Height
 
@@ -99,14 +122,15 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	return &Runner{g: g, opts: options, last: time.Now(), engine: engineDraw}, nil
 }
 
-// validate checks the converged options. It is the single owner of
-// validation: the option constructors are dumb setters.
 func (o *Options) validate() error {
 	if o.Window.Width <= 0 || o.Window.Height <= 0 {
 		return fmt.Errorf("castrum/ebiten: window size %dx%d is not positive", o.Window.Width, o.Window.Height)
 	}
 	if o.Logical.Width <= 0 || o.Logical.Height <= 0 {
 		return fmt.Errorf("castrum/ebiten: logical size %dx%d is not positive", o.Logical.Width, o.Logical.Height)
+	}
+	if o.SampleRate <= 0 {
+		return fmt.Errorf("castrum/ebiten: audio sample rate %d is not positive", o.SampleRate)
 	}
 	return nil
 }
@@ -214,4 +238,12 @@ func WithResizable() option {
 // WithoutVSync disables vsync. Default is on.
 func WithoutVSync() option {
 	return optionFunc(func(o *Options) { o.VSync = false })
+}
+
+// WithAudioSampleRate sets the audio context's sample rate in Hz.
+// Sources are resampled to it at decode time; a source already at
+// this rate never resamples. Default is 44100. Invalid values are
+// reported by [New].
+func WithAudioSampleRate(sampleRate int) option {
+	return optionFunc(func(o *Options) { o.SampleRate = sampleRate })
 }

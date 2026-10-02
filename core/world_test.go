@@ -350,14 +350,14 @@ func TestEntityMintedFromIDResolvesComponents(t *testing.T) {
 		t.Fatal("HasComponent should be false for a type the entity lacks")
 	}
 
-	if err := e.AddComponent[queryVel](w, queryVel{X: 5, Y: 6}); err != nil {
+	if err := e.AddComponent(w, queryVel{X: 5, Y: 6}); err != nil {
 		t.Fatalf("AddComponent: %v", err)
 	}
 	if !e.HasComponent[queryVel](w) {
 		t.Fatal("HasComponent should be true after AddComponent")
 	}
 
-	if err := e.SetComponent[queryPos](w, queryPos{X: 9, Y: 9}); err != nil {
+	if err := e.SetComponent(w, queryPos{X: 9, Y: 9}); err != nil {
 		t.Fatalf("SetComponent: %v", err)
 	}
 	if pos, _ := e.Component[queryPos](w); pos.X != 9 {
@@ -386,11 +386,11 @@ func TestEntitySetComponentMissingErrors(t *testing.T) {
 	w := NewWorld()
 	e, _ := w.NewEntity(queryPos{X: 1, Y: 1})
 
-	if err := e.SetComponent[queryVel](w, queryVel{X: 2, Y: 2}); err == nil {
+	if err := e.SetComponent(w, queryVel{X: 2, Y: 2}); err == nil {
 		t.Fatal("SetComponent for a type the entity lacks should error")
 	}
 	ghost := NewEntity(9999)
-	if err := ghost.SetComponent[queryPos](w, queryPos{}); err == nil {
+	if err := ghost.SetComponent(w, queryPos{}); err == nil {
 		t.Fatal("SetComponent for a nonexistent entity should error")
 	}
 }

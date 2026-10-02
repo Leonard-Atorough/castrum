@@ -172,5 +172,7 @@ func run() error {
 		return nil
 	})
 
-	return runner.Run()
+	// g.Run is the canonical entry: the guard against a second run
+	// lives on the game, not the runner.
+	return g.Run(runner)
 }
