@@ -126,7 +126,7 @@ func (a *Server) Load[T any](fpath string, opts ...loadOption) (T, error) {
 		a.mu.RUnlock()
 		if !ok {
 			return nil, &AssetError{Op: "Load", ID: ID(fpath),
-				Err: fmt.Errorf("no decoder registered for type %v and format %q", typ, lo.format)}
+				Err: fmt.Errorf("no decoder registered for type %v and format %q; decoders register at engine or runner construction - loading audio before the runner exists is the common cause", typ, lo.format)}
 		}
 
 		value, err := decoder(file)
@@ -145,6 +145,29 @@ func (a *Server) Load[T any](fpath string, opts ...loadOption) (T, error) {
 	return value.(T), nil // safe: same construction as the cache-hit assertion
 }
 
+// Open opens the asset at name as a raw file, without decoding or
+// caching: the streaming counterpart to [Server.Load]. The resolved
+// format comes with it — the server owns the format vocabulary, the
+// caller picks its decoder. The caller owns the file and must close
+// it.
+//
+// A streaming consumer needs a seek-capable file (loop wrapping and
+// position resets seek); os.DirFS and embed.FS qualify. Verify and
+// fail fast rather than panic inside a backend.
+func (a *Server) Open(fpath string) (fs.File, Format, error) {
+	if fpath == "" {
+		return nil, "", &AssetError{Op: "Open", ID: ID(fpath),
+			Err: fmt.Errorf("asset path must not be empty")}
+	}
+	fpath = normalizeAssetPath(fpath)
+	format := resolveFormat(fpath)
+	file, err := a.fs.Open(fpath)
+	if err != nil {
+		return nil, "", &AssetError{Op: "Open", ID: ID(fpath), Err: err}
+	}
+	return file, format, nil
+}
+
 // LoadReader decodes a value of type T from the given reader using the
 // registered decoder for format. A reader has no extension to infer the
 // format from, so it must be given explicitly.
@@ -160,7 +183,7 @@ func (a *Server) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 	decoder, ok := a.decoders[codecKey{typ: typ, format: format}]
 	a.mu.RUnlock()
 	if !ok {
-		return zero, fmt.Errorf("no decoder registered for type %v and format %q", typ, format)
+		return zero, fmt.Errorf("no decoder registered for type %v and format %q; decoders register at engine or runner construction - loading audio before the runner exists is the common cause", typ, format)
 	}
 
 	value, err := decoder(reader)
@@ -226,7 +249,7 @@ func WithFormat(format Format) loadOption {
 // AssetError wraps a failure that occurred while loading or decoding an
 // asset, naming the operation and the asset involved.
 type AssetError struct {
-	// Op is the failing operation: "Load" or "Decode".
+	// Op is the failing operation: "Load", "Open", or "Decode".
 	Op string
 	// ID is the asset's cache identity, if one applies.
 	ID ID

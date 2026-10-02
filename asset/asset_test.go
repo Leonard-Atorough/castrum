@@ -348,3 +348,34 @@ func TestCacheConcurrentAccess(t *testing.T) {
 		t.Fatal("cache entry lost after concurrent access")
 	}
 }
+
+func TestOpenReturnsFileAndFormat(t *testing.T) {
+	mapFS := fstest.MapFS{"sfx/tone.wav": &fstest.MapFile{Data: []byte("RIFF-data")}}
+	a := New(mapFS)
+
+	file, format, err := a.Open("sfx/tone.wav")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer file.Close()
+	if format != FormatWAV {
+		t.Fatalf("format = %q, want wav", format)
+	}
+	buf := make([]byte, 4)
+	if _, err := io.ReadFull(file, buf); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if string(buf) != "RIFF" {
+		t.Fatalf("read %q, want RIFF", buf)
+	}
+}
+
+func TestOpenErrors(t *testing.T) {
+	a := New(fstest.MapFS{})
+	if _, _, err := a.Open(""); err == nil {
+		t.Error("empty path: want error")
+	}
+	if _, _, err := a.Open("missing.wav"); err == nil {
+		t.Error("missing file: want error")
+	}
+}
