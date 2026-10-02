@@ -12,12 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Implement animation system with ClipStore and AnimationClip support (#35)
-- Implement main camera spawning and preference handling (#22)
-- Auto-attach PrevTransform at spawn when Transform is present (#21)
-- Add bindings-driven input for keyboard, mouse, and gamepad (#15)
+- Add audio playback with eager and streaming sources (#40)
+- Add Update[T] get-mutate-set sugar to Entity and Entry (#36)
 
 ### Internal
-- Update issue templates for bug reports and feature requests (#20)
+- Sweep examples to current engine conventions (#38)
 
 
