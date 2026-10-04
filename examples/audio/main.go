@@ -1,3 +1,14 @@
+// Command audio demonstrates audio playback end to end: SPACE plays
+// a sound effect (eager, decoded once and shared), a music track
+// loops from the file (streamed, never fully in memory), the arrow
+// keys sweep the master and music volumes, and ENTER toggles the
+// global pause - the music holds while the effect plays through,
+// because each play states its own pause behavior.
+//
+// Assets resolve against the default filesystem: the game's working
+// directory. Run from the repository root:
+//
+//	go run ./examples/audio
 package main
 
 import (

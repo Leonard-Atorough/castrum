@@ -1,3 +1,11 @@
+// Command input demonstrates bindings-driven input: WASD, arrows, or
+// a stick drive a tank, the mouse aims the turret, QE zooms. The
+// ActionMap (named bindings, axis actions) and raw snapshot polling
+// run side by side, so both input styles are visible in one program.
+//
+// Run from the repository root:
+//
+//	go run ./examples/input
 package main
 
 import (

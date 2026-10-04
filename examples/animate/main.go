@@ -1,18 +1,15 @@
-package main
-
-// Command animate demonstrates the animation slice: a torch flickers
+// Command animate demonstrates frame animation: a torch flickers
 // through a grid-atlas clip at a fixed frame rate, driven entirely by
-// engine wiring - the game only registers the atlas, the clip, and the
-// entity.
+// engine wiring - the game only registers the atlas, the clip, and
+// the entity; the renderer stays animation-blind.
 //
 // Assets resolve against the default filesystem: the game's working
-// directory, so paths may point anywhere relative to it. Run from the
-// repository root:
+// directory. wander demonstrates the embed.FS alternative for
+// single-binary distribution, passed via castrum.WithFilesystem.
+// Run from the repository root:
 //
 //	go run ./examples/animate
-//
-// wander demonstrates the embed.FS alternative for single-binary
-// distribution, passed via castrum.WithFilesystem.
+package main
 
 import (
 	"fmt"
