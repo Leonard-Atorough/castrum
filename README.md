@@ -42,14 +42,14 @@ Planned, in rough order: timers, text, and UI; screen state (fullscreen, window 
 Three tiers, by what you came for:
 
 **[Getting started](docs/getting-started/intro.md)** - learn.
-- [Introduction](docs/getting-started/intro.md) - what castrum is and where to read next.
+- [Introduction](docs/getting-started/intro.md) - the engine's charter: design goals, planned features, intentional limits, and principles.
 - [Key concepts](docs/getting-started/concepts.md) - entities and components, systems and phases, the fixed timestep, and resources.
 - [Your first game](docs/getting-started/your-first-game.md) - the step-by-step tutorial.
 - [Cheat sheet](docs/getting-started/cheat-sheet.md) - recall, once the basics are read.
 
 **[Guides](docs/guides/rendering.md)** - build, one feature per guide.
 - [Rendering](docs/guides/rendering.md), [Input](docs/guides/input.md), [Animation](docs/guides/animation.md), [Audio](docs/guides/audio.md)
-- [Conventions](docs/guides/conventions.md), [Performance](docs/guides/performance.md), [Publishing your game](docs/guides/publishing-your-game.md)
+- [The ECS in depth](docs/guides/ecs.md), [Conventions](docs/guides/conventions.md), [Performance](docs/guides/performance.md), [Publishing your game](docs/guides/publishing-your-game.md)
 
 **Reference** - dig, for the curious. Most games never need this tier.
 - [Core principles](docs/reference/core-principles.md), [Engine design](docs/reference/engine-design.md), [The runner separation](docs/reference/runner-separation.md)
