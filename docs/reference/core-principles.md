@@ -1,41 +1,42 @@
 # Core principles
 
-The reference tier exists for one reader: the developer who wants to know why castrum is shaped this way before trusting it with a game, or before extending the engine itself. Everything here is optional knowledge - the [getting-started tier](../getting-started/concepts.md) and the [guides](../guides/conventions.md) cover usage.
+The engine-details tier is for readers who need to reason about Castrum's behavior, not just call its API. The [guides](../guides/conventions.md) teach game authors what to do; the generated [Go API reference](https://pkg.go.dev/github.com/Leonard-Atorough/castrum) lists exported names and signatures. These pages explain the contracts and design choices between those two layers.
 
-Three pages. This one records the rules that generated the API. [Engine design](engine-design.md) shows how the packages fit. [The runner separation](runner-separation.md) covers the one boundary that is a promise.
+The reference pages are deliberately optional. Start with [getting started](../getting-started/concepts.md) for the mental model, use the [guides](../guides/index.md) to build features, and come here when scheduling, storage, asset loading, rendering, or runner boundaries need a closer look.
 
 ## The game declares, the engine decides
 
-The game writes state; the engine makes it true. An entity with a `Sprite` renders. An entity with an audio `Source` plays. To steer either, the game writes fields - pause it, retarget it, recolor it - and the engine reconciles the world to match on its own schedule.
+The game writes state; the engine makes it true. An entity with a `Sprite` renders. An entity with an audio `Source` plays. To steer either, the game writes fields, and the engine reconciles the world to match on its own schedule.
 
 This split keeps scheduling where it belongs. Which tick, which frame, drawn interpolated by how much - these are engine decisions, made with the whole frame in view. A game issuing draw calls and play calls would be making them blind.
 
-So the declare-and-reconcile shape is architecture. A sprite appears without drawing code and music starts without a play call because the renderer and the audio system are watching the world, and the convenience of that is a side effect.
+So the declare-and-reconcile shape is architecture, and the convenience is a side effect: a sprite appears without drawing code because the renderer is watching the world. The [runner boundary](runner-separation.md) supplies platform services, while the [scheduler](the-scheduler.md) decides when reconciliation happens.
 
 ## The zero value is a contract
 
-Every component sits in one of two states: valid in its zero value, or rejected loudly at the moment it enters the world. A zero `Transform.Scale` reads as unscaled. An `audio.Source` missing its volume fails at spawn, with a message that states the range.
+Every component sits in one of two states: valid in its zero value, or rejected loudly at the moment it enters the world. That two-state rule is what makes struct-literal spawning safe - write the fields you care about, leave the rest at zero, and trust the result.
 
-The two-state rule is what makes struct-literal spawning safe. Write the fields you care about, leave the rest at zero, and trust the result. A field with a sensible zero says so in its doc comment; a field without one gets a constructor, like `audio.NewSource`, or a spawn error that tells you the range.
+The reasoning is simple: silent misbehavior is the most expensive failure an engine can hand a game. A component that produces wrong pixels fails far from its cause, in a shipped game. A component that fails at spawn fails at the author's desk, with the error naming the rule that was broken.
 
-The reasoning is simple: silent misbehavior is the most expensive failure an engine can hand a game. A component that produces wrong pixels fails far from its cause, in a shipped game. A component that fails at spawn fails at the author's desk, with the error naming the rule that was broken. The [conventions guide](../guides/conventions.md) carries this as day-to-day rules; this page is the why.
+The three classes a field can fall into - valid zero, no valid zero, zero-as-default - and the test for telling them apart are the [conventions guide's](../guides/conventions.md) to teach.
 
-## Errors are values; state is single-threaded
+## Errors are values; state has one owner
 
-Engine APIs return errors. The one panic in a well-formed castrum program lives in `main`, because a game that failed to construct has nothing left to recover into. Everywhere else, errors travel up as values, pick up context on the way, and surface from `g.Run`.
+Engine APIs return errors, and everything runs on the loop's thread. Both rules exist for one reason: castrum games should fail debuggably. A returned error naming the failing system beats a panic three frames later. One thread beats a race report.
 
-Everything runs on the loop's thread - systems, draws, setup. One thread is what lets the engine protect its own state cheaply, and it keeps game code reading like a plain program instead of a locking exercise.
+The day-to-day rules - the error template, where the one accepted panic lives, and what the loop ownership boundary asks of game code - are in the [conventions guide](../guides/conventions.md). The [world and storage](world-and-storage.md) page explains the public ownership model in more detail.
 
-The two rules share a motivation: castrum games should fail debuggably. A returned error naming the failing system beats a panic three frames later. One thread beats a race report.
+## Keep the public seams small
 
-## Earned API surface
+Castrum's stable vocabulary is the `Game`, `World`, components, systems, queries, resources, and `Runner`. The internal storage and scheduling packages implement those concepts but are not extension points. A feature that needs backend access belongs at the runner boundary; a feature that describes game state belongs in components or resources.
 
-Every public API earns its place. A feature arrives when a second real consumer exists. An abstraction arrives when a second implementation does. That is why castrum ships one runner, waits for a real alternative part before building a plugin mechanism, and grows features on demand rather than on a roadmap's guess.
+This separation keeps the public API understandable and lets internal storage or scheduling change without changing how a game declares state. When extending the engine, begin with the public seam a feature needs rather than exposing an internal package merely because it is convenient.
 
-For the reader, the consequence is a small API on purpose. When something you need seems missing, the gap is usually deliberate, and the design notes are the paper trail showing how each surface earned its place. The path to closing it is an issue describing the use case - the second consumer that earns the feature.
+## Reference map
 
-<!-- MAINTENANCE NOTE: this page is the public distillation of the
-     internal design ledgers (.internal/design and .internal/decisions).
-     Keep every claim rewriteable from a ledger entry. The
-     single-threaded contract has its own documentation effort
-     tracked in issue #30 - align wording when it lands. -->
+- [Engine design](engine-design.md) - package ownership and dependency direction.
+- [Runner separation](runner-separation.md) - the platform boundary and default runner.
+- [World and storage](world-and-storage.md) - entity, component, query, and resource behavior.
+- [The scheduler](the-scheduler.md) - phases, fixed ticks, interpolation alpha, and ordering.
+- [The asset pipeline](asset-pipeline.md) - filesystem resolution, decoders, caching, and streaming.
+- [The coordinate system](coordinate-system.md) - world space, projection, logical size, and interpolation.
