@@ -72,7 +72,10 @@ func spawnSprite(t *testing.T, w *World, prev, curr geom.Vector2, sprite Sprite,
 	if transform.Scale == (geom.Vector2{}) {
 		transform.Scale = unitScale
 	}
-	e, err := w.NewEntity(sprite, transform, PrevTransform{Position: prev})
+	// The sprite moved between ticks but did not rotate or rescale:
+	// the pair rule would snapshot the same rotation and scale.
+	e, err := w.NewEntity(sprite, transform,
+		PrevTransform{Position: prev, Rotation: transform.Rotation, Scale: transform.Scale})
 	if err != nil {
 		t.Fatalf("spawn sprite: %v", err)
 	}
@@ -222,6 +225,87 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 	}
 }
 
+// Rotation and scale interpolate from PrevTransform like position:
+// the same alpha drives all three.
+func TestCollectInterpolatesRotationAndScale(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	if _, err := w.NewEntity(
+		Sprite{Drawable: TextureSource{Texture: "tex.png"}},
+		Transform{Rotation: 1, Scale: geom.Vector2{X: 3, Y: 5}},
+		PrevTransform{Scale: unitScale},
+	); err != nil {
+		t.Fatalf("spawn sprite: %v", err)
+	}
+
+	collector := NewCollector(w)
+	for _, tc := range []struct {
+		alpha    float64
+		rotation float64
+		scale    geom.Vector2
+	}{
+		{0, 0, geom.Vector2{X: 1, Y: 1}},
+		{0.5, 0.5, geom.Vector2{X: 2, Y: 3}},
+		{1, 1, geom.Vector2{X: 3, Y: 5}},
+	} {
+		list, err := collector.Collect(drawContext(w, tc.alpha))
+		if err != nil {
+			t.Fatalf("Collect at alpha %v: %v", tc.alpha, err)
+		}
+		if len(list.Items) != 1 {
+			t.Fatalf("alpha %v: Items = %d, want 1", tc.alpha, len(list.Items))
+		}
+		item := list.Items[0]
+		if item.Rotation != tc.rotation {
+			t.Errorf("alpha %v: rotation = %v, want %v", tc.alpha, item.Rotation, tc.rotation)
+		}
+		if !item.Scale.AlmostEqual(tc.scale, 1e-9) {
+			t.Errorf("alpha %v: scale = %v, want %v", tc.alpha, item.Scale, tc.scale)
+		}
+	}
+}
+
+// Culling bounds use the interpolated scale: a sprite shrinking
+// between ticks is kept at half alpha, when the grown bounds still
+// reach the viewport, and culled at full alpha.
+func TestCollectCullsByInterpolatedScale(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	// Static position at x=54: the 4x4 texture's scale-1 bounds
+	// [52, 56] sit outside the viewport's +50 edge.
+	if _, err := w.NewEntity(
+		Sprite{Drawable: TextureSource{Texture: "tex.png"}},
+		Transform{Position: geom.Vector2{X: 54}},
+		PrevTransform{Position: geom.Vector2{X: 54}, Scale: geom.Vector2{X: 10, Y: 10}},
+	); err != nil {
+		t.Fatalf("spawn sprite: %v", err)
+	}
+
+	collector := NewCollector(w)
+
+	// Alpha 0.5 interpolates the scale to 5.5: bounds [43, 65]
+	// overlap the viewport, so the sprite is kept.
+	list, err := collector.Collect(drawContext(w, 0.5))
+	if err != nil {
+		t.Fatalf("Collect at alpha 0.5: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("alpha 0.5: Items = %d, want 1 (the interpolated scale keeps it)", len(list.Items))
+	}
+	if !list.Items[0].Scale.AlmostEqual(geom.Vector2{X: 5.5, Y: 5.5}, 1e-9) {
+		t.Errorf("alpha 0.5: scale = %v, want 5.5", list.Items[0].Scale)
+	}
+
+	// Alpha 1 reaches the current scale: bounds [52, 56] are culled.
+	list, err = collector.Collect(drawContext(w, 1))
+	if err != nil {
+		t.Fatalf("Collect at alpha 1: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Fatalf("alpha 1: Items = %d, want 0 (the current scale culls it)", len(list.Items))
+	}
+}
+
 // An atlas sprite resolves to its atlas texture and region rect at
 // collection, and culls against the region's dimensions.
 func TestCollectResolvesAtlasSprites(t *testing.T) {
@@ -234,7 +318,6 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 		if _, err := w.NewEntity(
 			Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: name}},
 			Transform{Position: geom.Vector2{}, Scale: unitScale},
-			PrevTransform{},
 		); err != nil {
 			t.Fatalf("spawn atlas sprite %q: %v", name, err)
 		}
@@ -243,7 +326,6 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 		if _, err := w.NewEntity(
 			Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: name}},
 			Transform{Position: geom.Vector2{X: 60}, Scale: unitScale},
-			PrevTransform{Position: geom.Vector2{X: 60}},
 		); err != nil {
 			t.Fatalf("spawn culled atlas sprite %q: %v", name, err)
 		}
@@ -276,10 +358,11 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 func TestCollectZeroScaleReadsAsUnit(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	// No explicit prev: the pair rule snapshots the zero scale as
+	// unit at spawn, so both ends of the interpolation read unscaled.
 	if _, err := w.NewEntity(
 		Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: "player"}},
 		Transform{Position: geom.Vector2{}}, // zero scale: the zero value
-		PrevTransform{},
 	); err != nil {
 		t.Fatalf("spawn zero-scale sprite: %v", err)
 	}
@@ -308,11 +391,11 @@ func TestCollectCullsAgainstViewport(t *testing.T) {
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 54}, geom.Vector2{X: 54}, Sprite{}) // bounds [52,56]: culled
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 60}, geom.Vector2{X: 60}, Sprite{}) // far out: culled
 
-	// Scale grows bounds: the same off-screen position survives at 10x.
+	// Scale grows bounds: the same off-screen position survives at
+	// 10x. The pair rule snapshots the scale with the spawn.
 	if _, err := w.NewEntity(
 		Sprite{Drawable: TextureSource{Texture: "tex.png"}},
 		Transform{Position: geom.Vector2{X: 60}, Scale: geom.Vector2{X: 10, Y: 10}},
-		PrevTransform{Position: geom.Vector2{X: 60}},
 	); err != nil {
 		t.Fatalf("spawn scaled sprite: %v", err)
 	}
@@ -528,7 +611,7 @@ func TestCollectStagesShapeSprites(t *testing.T) {
 				t.Errorf("circle shape = %v, want radii (5, 5)", item.Shape)
 			}
 			if item.Rotation != 0.5 || item.Scale != (geom.Vector2{X: 2, Y: 2}) {
-				t.Errorf("circle rotation/scale = %v/%v, want snapped 0.5/(2, 2)", item.Rotation, item.Scale)
+				t.Errorf("circle rotation/scale = %v/%v, want 0.5/(2, 2) (unchanged between ticks)", item.Rotation, item.Scale)
 			}
 			if item.Color != color.Color(color.RGBA{R: 255, A: 255}) {
 				t.Errorf("circle color = %v, want the declared color", item.Color)

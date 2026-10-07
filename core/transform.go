@@ -8,7 +8,7 @@ import (
 // and scale, relative to a position offset.
 //
 // A Transform always comes paired with a [PrevTransform]: spawn and
-// AddComponent attach one automatically, snapshotting the position
+// AddComponent attach one automatically, snapshotting the transform
 // so the renderer can interpolate motion between fixed ticks.
 type Transform struct {
 	// Position represents the position of the transform in 2D space.
@@ -24,14 +24,38 @@ type Transform struct {
 }
 
 // PrevTransform is the engine-managed snapshot of an entity's
-// position at the start of each fixed tick. Renderers interpolate
+// transform at the start of each fixed tick. Renderers interpolate
 // between PrevTransform and the Transform by an alpha value to
 // display smooth motion between ticks.
+//
+// Rotation interpolates as a plain numeric lerp, not shortest-arc:
+// a rotation crossing pi or -pi spins the long way round.
 //
 // The capture system writes it: game code reads it but never writes
 // or removes it. A Transform without a PrevTransform never renders.
 type PrevTransform struct {
+	// Position represents the snapshot position in 2D space.
 	Position geom.Vector2
+	// Rotation represents the snapshot rotation in radians.
+	Rotation float64
+	// Scale represents the snapshot scale in 2D space, with a zero
+	// axis normalized to 1 at snapshot time.
+	Scale geom.Vector2
+}
+
+// snapshot returns t's motion state for a PrevTransform. A zero
+// scale axis normalizes to 1: the snapshot must read the same
+// zero-value rule as the transform, or interpolation lerps from 0
+// and the entity pops at spawn.
+func (t Transform) snapshot() PrevTransform {
+	scale := t.Scale
+	if scale.X == 0 {
+		scale.X = 1
+	}
+	if scale.Y == 0 {
+		scale.Y = 1
+	}
+	return PrevTransform{Position: t.Position, Rotation: t.Rotation, Scale: scale}
 }
 
 // NewPrevTransformCapture returns the engine system that snapshots
@@ -54,7 +78,7 @@ func NewPrevTransformCapture() System {
 		// zero-copy writes through the prefetched columns.
 		for e := range update.Execute() {
 			t, _ := e.Component[Transform]()
-			e.Update(func(p *PrevTransform) { p.Position = t.Position })
+			e.Update(func(p *PrevTransform) { *p = t.snapshot() })
 		}
 		return nil
 	})

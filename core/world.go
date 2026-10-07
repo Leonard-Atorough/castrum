@@ -236,7 +236,7 @@ func createPreviousTransformComponents(components []any) []any {
 		}
 	}
 	if hasTransform && !hasPrev {
-		components = append(components, PrevTransform{Position: transform.Position})
+		components = append(components, transform.snapshot())
 	}
 	return components
 }
