@@ -10,6 +10,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
+	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
@@ -131,6 +132,16 @@ func New(opts ...option) (*Game, error) {
 	// The advancer costs an empty query in games without Animation
 	// entities.
 	if err := g.AddSystem(core.PhaseFixed, "engine.animation", animation.NewAnimationSystem(clips)); err != nil {
+		return nil, err
+	}
+
+	// Collision detection runs for every game: colliders that do not
+	// exist cost three empty queries. It runs ahead of gameplay
+	// systems, so it reads the transforms as of the end of last tick -
+	// a movement this tick is detected next tick, the same cadence
+	// prev-transform snapshots and the renderer's interpolation work
+	// against. Games never register the collision system themselves.
+	if err := g.AddSystem(core.PhaseFixed, "engine.collision", collision.NewSystem()); err != nil {
 		return nil, err
 	}
 

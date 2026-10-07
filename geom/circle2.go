@@ -27,6 +27,25 @@ func (c Circle) Circumference() float64 {
 	return 2 * math.Pi * math.Abs(c.Radius)
 }
 
+// OverlapsOrTouches reports whether the two circles overlap or share
+// any boundary point. Radii are treated by magnitude, matching
+// [Circle.Contains].
+func (c Circle) OverlapsOrTouches(other Circle) bool {
+	radius := math.Abs(c.Radius) + math.Abs(other.Radius)
+	return c.Center.DistanceSquared(other.Center) <= radius*radius
+}
+
+// OverlapsOrTouchesRect reports whether the circle overlaps the
+// rectangle or shares any boundary point with it. An invalid
+// rectangle reports false, matching [Rect.OverlapsOrTouches].
+func (c Circle) OverlapsOrTouchesRect(r Rect) bool {
+	if !r.IsValid() {
+		return false
+	}
+	radius := math.Abs(c.Radius)
+	return r.DistanceSquared(c.Center) <= radius*radius
+}
+
 // BoundingBox returns the smallest axis-aligned rectangle containing
 // the circle.
 func (c Circle) BoundingBox() Rect {
