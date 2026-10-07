@@ -17,7 +17,7 @@ Castrum uses [Ebitengine](https://ebitengine.org) as its underlying rendering an
 | Audio      | Sound effects (decoded and shared) and music (streamed from the file), a master and two group volume buses, per-play pause behavior                                                                            |
 | Structure  | Entities, components, queries over the world, typed resources                                                                                                                                                  |
 
-Planned, in rough order: timers, text, and UI; screen state (fullscreen, window mutations); publishing and packaging; full transform interpolation. Each lands with its guide chapter - the docs are the arrival record.
+See the [roadmap](roadmap/README.md) for the proposed feature sets, known gaps, and longer-term directions. Release targets are planning proposals rather than dated commitments; the guides and API reference describe what the current version actually supports.
 
 ## Start here
 
