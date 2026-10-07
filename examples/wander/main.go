@@ -1,6 +1,6 @@
-// Command wander demonstrates the v0.1.0 renderer: an atlas sprite
-// wanders to random screen points at fixed ticks, the engine renders it
-// interpolated between ticks, and a user DrawFunc draws an overlay
+// Command wander demonstrates the engine renderer: an atlas sprite
+// wanders to random screen points at fixed ticks, the engine renders
+// it interpolated between ticks, and a user DrawFunc draws an overlay
 // above the engine-rendered world.
 //
 // Assets load from an embedded filesystem - the single-binary
