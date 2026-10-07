@@ -102,7 +102,7 @@ func (e *Entity) AddComponent[T any](w *World, value T) error {
 		transform := any(value).(Transform)
 		res := w.archetypes.AddComponents(e.id,
 			[]reflect.Type{reflect.TypeFor[Transform](), reflect.TypeFor[PrevTransform]()},
-			[]any{value, PrevTransform{Position: transform.Position}},
+			[]any{value, transform.snapshot()},
 		)
 		return res.Error
 	}

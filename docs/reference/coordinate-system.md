@@ -6,7 +6,7 @@ Castrum uses a 2D world whose positive X direction points right and positive Y p
 
 `Transform` stores position, rotation in radians, scale, and offset. A zero scale axis is treated as one during collection. Sprite and shape dimensions are expressed in world units, then affected by transform scale and camera zoom.
 
-When a transform enters the world, Castrum adds a matching `PrevTransform` unless one was supplied. The engine captures the current position at the start of each fixed tick. Game code should not write or remove `PrevTransform`; it is the renderer's interpolation state.
+When a transform enters the world, Castrum adds a matching `PrevTransform` unless one was supplied. The engine captures the current transform state - position, rotation, and scale - at the start of each fixed tick. Game code should not write or remove `PrevTransform`; it is the renderer's interpolation state.
 
 ## Camera projection
 
@@ -30,7 +30,7 @@ Rotation is applied around the drawable's centered position. Culling uses the in
 
 ## Interpolation
 
-The collector interpolates transform position between `PrevTransform` and `Transform` using `Context.Alpha`. Rotation, scale, and offset use the current transform. This makes fixed-step movement appear smooth without running gameplay once per display frame.
+The collector interpolates transform position, rotation, and scale between `PrevTransform` and `Transform` using `Context.Alpha`. Rotation interpolates as a plain numeric lerp, so a rotation crossing pi or -pi spins the long way round. Offset uses the current transform. This makes fixed-step movement appear smooth without running gameplay once per display frame.
 
 The previous-transform capture must run before gameplay movement. The [scheduler](the-scheduler.md) documents that ordering; the [rendering guide](../guides/rendering.md) covers the game-facing camera and drawable APIs.
 

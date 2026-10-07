@@ -15,7 +15,11 @@ func runCapture(t *testing.T, capture System, w *World) {
 
 func TestPrevCaptureSnapshotsTickStartState(t *testing.T) {
 	w := NewWorld()
-	entity, err := w.NewEntity(Transform{Position: geom.Vector2{X: 10, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}})
+	entity, err := w.NewEntity(Transform{
+		Position: geom.Vector2{X: 10, Y: 0},
+		Rotation: 0.25,
+		Scale:    geom.Vector2{X: 2, Y: 2},
+	})
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
@@ -25,8 +29,14 @@ func TestPrevCaptureSnapshotsTickStartState(t *testing.T) {
 	runCapture(t, capture, w)
 
 	// Gameplay moves the entity, then tick 2's capture runs FIRST:
-	// prev must hold the tick-start position (10), curr the moved one.
-	if err := entity.SetComponent(w, Transform{Position: geom.Vector2{X: 20, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}}); err != nil {
+	// prev must hold the tick-start state (10, 0.25, (2, 2)), curr the
+	// moved one. The zero Y scale reads as unscaled: the snapshot
+	// normalizes it to 1, or interpolation would lerp from 0.
+	if err := entity.SetComponent(w, Transform{
+		Position: geom.Vector2{X: 20, Y: 0},
+		Rotation: 0.5,
+		Scale:    geom.Vector2{X: 4, Y: 0},
+	}); err != nil {
 		t.Fatalf("move: %v", err)
 	}
 	runCapture(t, capture, w)
@@ -38,15 +48,31 @@ func TestPrevCaptureSnapshotsTickStartState(t *testing.T) {
 	if prev.Position.X != 20 {
 		t.Fatalf("prev position = %v, want 20 (the tick-start state)", prev.Position)
 	}
+	if prev.Rotation != 0.5 {
+		t.Fatalf("prev rotation = %v, want 0.5 (the tick-start state)", prev.Rotation)
+	}
+	if prev.Scale != (geom.Vector2{X: 4, Y: 1}) {
+		t.Fatalf("prev scale = %v, want (4, 1): the tick-start state with the zero axis normalized", prev.Scale)
+	}
 
 	// The next gameplay move advances curr past prev: the render pair.
-	if err := entity.SetComponent(w, Transform{Position: geom.Vector2{X: 30, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}}); err != nil {
+	if err := entity.SetComponent(w, Transform{
+		Position: geom.Vector2{X: 30, Y: 0},
+		Rotation: 0.75,
+		Scale:    geom.Vector2{X: 6, Y: 6},
+	}); err != nil {
 		t.Fatalf("move: %v", err)
 	}
 	curr, _ := entity.Component[Transform](w)
 	prev, _ = entity.Component[PrevTransform](w)
 	if prev.Position.X != 20 || curr.Position.X != 30 {
 		t.Fatalf("render pair = (%v, %v), want (20, 30)", prev.Position, curr.Position)
+	}
+	if prev.Rotation != 0.5 || curr.Rotation != 0.75 {
+		t.Fatalf("render rotation pair = (%v, %v), want (0.5, 0.75)", prev.Rotation, curr.Rotation)
+	}
+	if prev.Scale != (geom.Vector2{X: 4, Y: 1}) || curr.Scale != (geom.Vector2{X: 6, Y: 6}) {
+		t.Fatalf("render scale pair = (%v, %v), want ((4, 1), (6, 6))", prev.Scale, curr.Scale)
 	}
 }
 
@@ -58,10 +84,11 @@ func TestAddComponentTransformCompletesPair(t *testing.T) {
 	}
 
 	// A mid-game Transform attach also attaches the pair's prev, at
-	// the attach position: the entity interpolates from where it
-	// gained its Transform, on its first rendered frame.
+	// the attach state: the entity interpolates from where it gained
+	// its Transform, on its first rendered frame.
 	pos := geom.Vector2{X: 7, Y: 9}
-	if err := entity.AddComponent(w, Transform{Position: pos, Scale: geom.Vector2{X: 1, Y: 1}}); err != nil {
+	attach := Transform{Position: pos, Rotation: 0.25, Scale: geom.Vector2{X: 2, Y: 3}}
+	if err := entity.AddComponent(w, attach); err != nil {
 		t.Fatalf("AddComponent(Transform): %v", err)
 	}
 	prev, ok := entity.Component[PrevTransform](w)
@@ -70,6 +97,9 @@ func TestAddComponentTransformCompletesPair(t *testing.T) {
 	}
 	if prev.Position != pos {
 		t.Fatalf("prev = %v, want the attach position %v", prev.Position, pos)
+	}
+	if prev.Rotation != 0.25 || prev.Scale != (geom.Vector2{X: 2, Y: 3}) {
+		t.Fatalf("prev rotation/scale = %v/%v, want the attach state 0.25/(2, 3)", prev.Rotation, prev.Scale)
 	}
 
 	// The capture then snapshots like any other entity.

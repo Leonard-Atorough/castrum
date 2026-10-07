@@ -145,7 +145,8 @@ func NewCollector(world *World) *Collector {
 // Collect resolves the primary camera, collects every sprite — the
 // Drawable sum picks the path: texture sources resolve through the
 // asset server, shapes carry geometry alone, nil is style without a
-// picture and skips — interpolates positions from PrevTransform by
+// picture and skips — interpolates position, rotation, and scale
+// from PrevTransform by
 // ctx.Alpha, culls against the camera viewport, and sorts by layer →
 // SortOrder → world Y. It returns a DrawList viewing the collector's
 // buffers; do not retain it across frames.
@@ -199,6 +200,11 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 			transform.Scale.Y = 1
 		}
 
+		// Rotation and scale interpolate alongside position; size
+		// and culling below use the interpolated scale.
+		scale := prev.Scale.Lerp(transform.Scale, ctx.Alpha)
+		rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*ctx.Alpha
+
 		switch drawable := sprite.Drawable.(type) {
 		case nil:
 			// Style without a picture: legal, not drawn.
@@ -216,14 +222,14 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 				prev.Position, transform.Position,
 				geom.Vector2{}, // sprites are centered on the position
 				geom.Vector2{
-					X: float64(region.W) * transform.Scale.X,
-					Y: float64(region.H) * transform.Scale.Y,
+					X: float64(region.W) * scale.X,
+					Y: float64(region.H) * scale.Y,
 				},
 				DrawItem{
 					Texture:  atlas.TexturePath(),
 					Rect:     region.Rect(),
-					Rotation: transform.Rotation,
-					Scale:    transform.Scale,
+					Rotation: rotation,
+					Scale:    scale,
 					FlipH:    sprite.FlipH,
 					FlipV:    sprite.FlipV,
 					Color:    sprite.Color,
@@ -237,14 +243,14 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 				prev.Position, transform.Position,
 				geom.Vector2{}, // sprites are centered on the position
 				geom.Vector2{
-					X: float64(data.Width) * transform.Scale.X,
-					Y: float64(data.Height) * transform.Scale.Y,
+					X: float64(data.Width) * scale.X,
+					Y: float64(data.Height) * scale.Y,
 				},
 				DrawItem{
 					Texture:  drawable.Texture,
 					Rect:     image.Rectangle{},
-					Rotation: transform.Rotation,
-					Scale:    transform.Scale,
+					Rotation: rotation,
+					Scale:    scale,
 					FlipH:    sprite.FlipH,
 					FlipV:    sprite.FlipV,
 					Color:    sprite.Color,
@@ -254,37 +260,37 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 				prev.Position, transform.Position,
 				geom.Vector2{}, // rects are centered on the position
 				geom.Vector2{
-					X: drawable.Size.X * transform.Scale.X,
-					Y: drawable.Size.Y * transform.Scale.Y,
+					X: drawable.Size.X * scale.X,
+					Y: drawable.Size.Y * scale.Y,
 				},
-				shapeItem(sprite, transform, drawable))
+				shapeItem(sprite, rotation, scale, drawable))
 		case CircleShape:
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
 				geom.Vector2{}, // circles are centered on the position
 				geom.Vector2{
-					X: 2 * drawable.Radii.X * transform.Scale.X,
-					Y: 2 * drawable.Radii.Y * transform.Scale.Y,
+					X: 2 * drawable.Radii.X * scale.X,
+					Y: 2 * drawable.Radii.Y * scale.Y,
 				},
-				shapeItem(sprite, transform, drawable))
+				shapeItem(sprite, rotation, scale, drawable))
 		case LineShape:
 			// The segment spans the two relative endpoints, so its
 			// culling bounds are the segment's own AABB, offset from
 			// the position by its center.
 			segment := geom.Segment{
 				Start: geom.Vector2{
-					X: drawable.From.X * transform.Scale.X,
-					Y: drawable.From.Y * transform.Scale.Y,
+					X: drawable.From.X * scale.X,
+					Y: drawable.From.Y * scale.Y,
 				},
 				End: geom.Vector2{
-					X: drawable.To.X * transform.Scale.X,
-					Y: drawable.To.Y * transform.Scale.Y,
+					X: drawable.To.X * scale.X,
+					Y: drawable.To.Y * scale.Y,
 				},
 			}
 			bounds := segment.BoundingBox()
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position, bounds.Center(), bounds.Size(),
-				shapeItem(sprite, transform, drawable))
+				shapeItem(sprite, rotation, scale, drawable))
 		default:
 			// Unreachable: the sum is sealed and Validate covers it.
 			continue
@@ -331,18 +337,18 @@ func (c *Collector) stage(viewport geom.Rect, alpha float64, layer uint8, sortOr
 }
 
 // shapeItem assembles a shape sprite's DrawItem: the geometry carried
-// straight through as the item's Shape, snapped rotation and scale,
-// and style. A nil color draws black, so shape items always carry a
-// concrete color.
-func shapeItem(sprite Sprite, transform Transform, shape Shape) DrawItem {
+// straight through as the item's Shape, interpolated rotation and
+// scale, and style. A nil color draws black, so shape items always
+// carry a concrete color.
+func shapeItem(sprite Sprite, rotation float64, scale geom.Vector2, shape Shape) DrawItem {
 	fill := sprite.Color
 	if fill == nil {
 		fill = color.Black
 	}
 	return DrawItem{
 		Shape:       shape,
-		Rotation:    transform.Rotation,
-		Scale:       transform.Scale,
+		Rotation:    rotation,
+		Scale:       scale,
 		Color:       fill,
 		Outline:     sprite.Outline,
 		StrokeWidth: sprite.StrokeWidth,

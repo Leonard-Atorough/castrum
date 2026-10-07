@@ -418,13 +418,31 @@ func TestNewEntityNilComponentErrors(t *testing.T) {
 func TestNewEntityAutoPrevTransform(t *testing.T) {
 	w := NewWorld()
 
-	auto, err := w.NewEntity(Transform{Position: geom.Vector2{X: 10, Y: 20}, Scale: geom.Vector2{X: 1, Y: 1}})
+	auto, err := w.NewEntity(Transform{
+		Position: geom.Vector2{X: 10, Y: 20},
+		Rotation: 0.5,
+		Scale:    geom.Vector2{X: 2, Y: 3},
+	})
 	if err != nil {
 		t.Fatalf("spawn bare Transform: %v", err)
 	}
 	prev, ok := auto.Component[PrevTransform](w)
 	if !ok || prev.Position != (geom.Vector2{X: 10, Y: 20}) {
 		t.Errorf("auto prev = %v, ok %v, want the spawn position (10, 20)", prev, ok)
+	}
+	if !ok || prev.Rotation != 0.5 || prev.Scale != (geom.Vector2{X: 2, Y: 3}) {
+		t.Errorf("auto prev rotation/scale = %v/%v, want the spawn state 0.5/(2, 3)", prev.Rotation, prev.Scale)
+	}
+
+	// A zero scale axis is the unscaled zero value: the snapshot
+	// normalizes it, or interpolation would lerp from 0 at spawn.
+	zeroScale, err := w.NewEntity(Transform{Position: geom.Vector2{X: 1, Y: 1}})
+	if err != nil {
+		t.Fatalf("spawn zero-scale Transform: %v", err)
+	}
+	prev, ok = zeroScale.Component[PrevTransform](w)
+	if !ok || prev.Scale != (geom.Vector2{X: 1, Y: 1}) {
+		t.Errorf("zero-scale prev = %v, ok %v, want the zero axis snapshotted as 1", prev, ok)
 	}
 
 	explicit, err := w.NewEntity(
@@ -447,7 +465,11 @@ func TestNewEntityAutoPrevTransform(t *testing.T) {
 		t.Error("a spawn without a Transform should not gain a PrevTransform")
 	}
 
-	entities, err := w.NewEntities(3, Transform{Position: geom.Vector2{X: 7, Y: 8}, Scale: geom.Vector2{X: 1, Y: 1}})
+	entities, err := w.NewEntities(3, Transform{
+		Position: geom.Vector2{X: 7, Y: 8},
+		Rotation: 0.5,
+		Scale:    geom.Vector2{X: 2, Y: 3},
+	})
 	if err != nil {
 		t.Fatalf("spawn batch: %v", err)
 	}
@@ -455,6 +477,9 @@ func TestNewEntityAutoPrevTransform(t *testing.T) {
 		prev, ok := e.Component[PrevTransform](w)
 		if !ok || prev.Position != (geom.Vector2{X: 7, Y: 8}) {
 			t.Errorf("batch entity %d prev = %v, ok %v, want (7, 8)", i, prev, ok)
+		}
+		if !ok || prev.Rotation != 0.5 || prev.Scale != (geom.Vector2{X: 2, Y: 3}) {
+			t.Errorf("batch entity %d prev rotation/scale = %v/%v, want 0.5/(2, 3)", i, prev.Rotation, prev.Scale)
 		}
 	}
 }
