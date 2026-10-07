@@ -112,6 +112,18 @@ jobs:
             echo "- Commits since ${LATEST:-beginning}: ${COUNT}"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Package tutorial assets
+        if: ${{ !inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          archive="dist/castrum-tutorial-assets-${VERSION}.zip"
+          (cd examples/your-first-game && zip -qr "../../${archive}" audio sprites)
+          unzip -t "${archive}"
+          unzip -Z1 "${archive}" | grep -q '^audio/'
+          unzip -Z1 "${archive}" | grep -q '^sprites/'
+
       - name: Generate CHANGELOG.md
         run: git-cliff --skip-tags 'v0\.0\.' --output CHANGELOG.md
 
@@ -147,4 +159,4 @@ jobs:
           body_path: RELEASE_BODY.md
           prerelease: ${{ steps.version.outputs.prerelease }}
           make_latest: ${{ steps.version.outputs.make_latest }}
-          # files: dist/*     # <- enable when the build matrix ships binaries
+          files: dist/castrum-tutorial-assets-*.zip

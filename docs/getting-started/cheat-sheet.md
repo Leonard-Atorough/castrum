@@ -12,41 +12,41 @@ err = g.Run(runner)                                  // canonical entry; blocks 
 
 ## Options
 
-Game options - the simulation's identity; all validation happens once, in `New`:
+Common game options:
 
-| Option | Sets |
-|---|---|
-| `castrum.WithTitle` | the game's title |
-| `castrum.WithFilesystem` | the `fs.FS` asset paths resolve against ([publishing](../guides/publishing-your-game.md)) |
-| `castrum.WithFixedTPS` | simulation ticks per second (default 60) |
-| `castrum.WithMaxFrameTime` / `WithMaxTicksPerFrame` | the slow-frame guards ([concepts](concepts.md)) |
-| `castrum.WithBindings` | the input actions map ([input](../guides/input.md)) |
+| Option                                              | Sets                                                                                      |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `castrum.WithTitle`                                 | the game's title                                                                          |
+| `castrum.WithFilesystem`                            | the `fs.FS` used to resolve asset paths ([publishing](../guides/publishing-your-game.md)) |
+| `castrum.WithFixedTPS`                              | simulation ticks per second (default 60)                                                  |
+| `castrum.WithMaxFrameTime` / `WithMaxTicksPerFrame` | the slow-frame guards ([concepts](concepts.md))                                           |
+| `castrum.WithBindings`                              | the input actions map ([input](../guides/input.md))                                       |
 
-Runner options - the platform; a different runner might have no window at all:
+Common runner options:
 
-| Option | Sets |
-|---|---|
-| `ebitrun.WithWindowSize` | the OS window size |
-| `ebitrun.WithLogicalSize` | the internal render resolution |
-| `ebitrun.WithResizable` | whether the window can be resized |
-| `ebitrun.WithoutVSync` | disables vsync |
+| Option                        | Sets                                  |
+| ----------------------------- | ------------------------------------- |
+| `ebitrun.WithWindowSize`      | the OS window size                    |
+| `ebitrun.WithLogicalSize`     | the internal render resolution        |
+| `ebitrun.WithResizable`       | whether the window can be resized     |
+| `ebitrun.WithoutVSync`        | disables vsync                        |
 | `ebitrun.WithAudioSampleRate` | the audio mixing rate (default 44100) |
 
 ## Spawning
 
 ```go
-e, err := g.World().NewEntity(componentA, componentB, ...)  // literals, validated
-err = e.Update(ctx.World, func(t *core.Transform) { ... })   // get-mutate-set
-err = e.AddComponent(ctx.World, extraComponent)             // mid-game attach
+e, err := g.World().NewEntity(componentA, componentB, ...)
+err = e.Update(ctx.World, func(t *core.Transform) { ... })
+err = e.AddComponent(ctx.World, extraComponent)
 ```
 
 ## Systems and phases
 
-| Phase | Runs | Use for |
-|---|---|---|
+| Phase               | Runs                         | Use for              |
+| ------------------- | ---------------------------- | -------------------- |
 | `core.PhaseStartup` | once, before the first frame | loading, world setup |
-| `core.PhaseFrame` | once per display frame | reading input, UI |
-| `core.PhaseFixed` | once per tick (default 60/s) | simulation, movement |
+| `core.PhaseFrame`   | once per display frame       | reading input, UI    |
+| `core.PhaseFixed`   | once per tick (default 60/s) | simulation, movement |
 
 ```go
 g.AddSystem(core.PhaseFixed, "name", core.SystemFunc(func(ctx *core.Context) error {
@@ -58,7 +58,7 @@ g.AddSystem(core.PhaseFixed, "name", core.SystemFunc(func(ctx *core.Context) err
 
 ```go
 q := core.NewQuery(world).With(A{}).Without(B{}).Where(func(e core.Entry) bool { return true })
-for e := range q.Execute() { ... }   // build once; no spawning/despawning inside the pass
+for e := range q.Execute() { ... }
 ```
 
 ## Resources
@@ -76,14 +76,24 @@ ctx.Input.KeyPressed(input.KeySpace)   // raw snapshot
 ctx.Input.KeyHeld(input.KeyArrowUp)
 ```
 
+| Binding                  | Use                                         |
+| ------------------------ | ------------------------------------------- |
+| `input.KeyInput`         | one keyboard key, optionally with modifiers |
+| `input.KeyPairInput`     | two keys as a signed axis                   |
+| `input.MouseButtonInput` | a mouse button                              |
+| `input.PadButtonInput`   | a gamepad button                            |
+| `input.PadAxisInput`     | a gamepad axis                              |
+
+See the [input guide](../guides/input.md) for action state and binding examples.
+
 ## Audio
 
 ```go
-shot := audio.NewSource(id)            // valid defaults; Volume must be in (0,1]
+shot := audio.NewSource(id)
 _, err := audio.OneShot(ctx.World, shot)
 ```
 
-Eager audio preloads go after `ebitrun.New` - decoders are runner-registered.
+See the [audio guide](../guides/audio.md) for persistent sources, loading, and mixer controls.
 
 ## Quitting
 
@@ -91,18 +101,3 @@ Eager audio preloads go after `ebitrun.New` - decoders are runner-registered.
 g.Quit()          // from any system; Run returns
 g.Quitting()      // poll from other systems
 ```
-
-## Zero-value rules
-
-Zero values are valid and sensible unless the row says otherwise - the full rules live in [conventions](../guides/conventions.md).
-
-| Value | Zero means |
-|---|---|
-| `Transform.Scale` | a zero axis reads as unscaled |
-| `Sprite` | visible, filled, fully opaque, layer 0 |
-| `animation.LoopMode` | `LoopNone` - play once, hold the last frame |
-| `Animation.PlaybackMultiplier` | normal rate (0 is not paused) |
-| `audio.Source.Volume` | invalid at zero - spawn via `audio.NewSource` |
-| `AnimationClip.FPS` | invalid at zero - rejected at `Add` |
-| `audio.LoopMode` / `audio.PauseMode` | `LoopNone` / `PauseHolds` |
-| `audio.Group` / `audio.LoadMode` | `GroupSFX` / `LoadEager` |

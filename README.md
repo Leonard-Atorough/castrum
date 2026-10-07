@@ -48,11 +48,13 @@ Three tiers, by what you came for:
 - [Cheat sheet](docs/getting-started/cheat-sheet.md) - recall, once the basics are read.
 
 **[Guides](docs/guides/rendering.md)** - build, one feature per guide.
-- [Rendering](docs/guides/rendering.md), [Input](docs/guides/input.md), [Animation](docs/guides/animation.md), [Audio](docs/guides/audio.md)
-- [The ECS in depth](docs/guides/ecs.md), [Conventions](docs/guides/conventions.md), [Performance](docs/guides/performance.md), [Publishing your game](docs/guides/publishing-your-game.md)
+- [The ECS in depth](docs/guides/ecs.md), [Assets](docs/guides/assets.md), [Rendering](docs/guides/rendering.md), [Input](docs/guides/input.md), [Animation](docs/guides/animation.md), [Audio](docs/guides/audio.md)
+- [Conventions](docs/guides/conventions.md), [Performance](docs/guides/performance.md), [Publishing your game](docs/guides/publishing-your-game.md)
 
-**Reference** - dig, for the curious. Most games never need this tier.
+**Reference** - dig, for the curious. Engine details most games never need; the 5% building complex games will.
 - [Core principles](docs/reference/core-principles.md), [Engine design](docs/reference/engine-design.md), [The runner separation](docs/reference/runner-separation.md)
+- [The coordinate system](docs/reference/coordinate-system.md), [The scheduler and the fixed loop](docs/reference/the-scheduler.md)
+- [The world and storage](docs/reference/world-and-storage.md), [The asset pipeline](docs/reference/asset-pipeline.md)
 
 The full API reference lives on [pkg.go.dev](https://pkg.go.dev/github.com/Leonard-Atorough/castrum).
 

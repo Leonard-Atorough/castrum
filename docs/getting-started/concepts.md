@@ -1,6 +1,6 @@
 # Key concepts
 
-Every castrum game is built from five ideas (_well **six** but lets say five logical **idea groups**_): **entities** and **components**, **systems**, **queries**, the **fixed timestep**, and **resources**. This chapter starts with the two objects a game is made of - the game and the world - then covers each idea and ends with a square moving under your control. A [glossary](#glossary) collects the terms at the end.
+Every Castrum game is built from a small set of ideas: the **game** and **world**, **entities** and **components**, **systems**, **queries**, the **fixed timestep**, and **resources**. This chapter introduces each one and ends with a square moving under your control. A [glossary](#glossary) collects the terms at the end.
 
 ## The game and the world
 
@@ -29,11 +29,11 @@ _, err := g.World().NewEntity(
 
 The same components can be combined freely: a `Transform` with no `Sprite` is a thing that exists but is not drawn; a `Sprite` on a different entity is a second drawable that shares nothing with the first.
 
-Validation happens at spawn, not on first access. `NewEntity` checks every component's constraints before the entity exists, and returns an error naming the component if one is violated. Bad data is rejected at the earliest moment, not discovered misbehaving mid-game. When writing custom components, implementing the `validatable` interface ensures that your component's constraints are checked automatically during entity creation.
+Validation happens at the world boundary, not on first access. `NewEntity` checks every component's constraints before the entity exists, and component writes validate again before changing stored data. Bad data is rejected at the earliest moment, not discovered misbehaving mid-game. When writing custom components, implementing the `core.Validatable` interface opts the component into those checks.
 
 Components can have dependencies; dependencies are sometimes automatic: a `Transform` is always attached together with `PrevTransform`, the engine's snapshot the renderer interpolates from. You never write or remove it.
 
-> _'If there is no behavior in components, where does behavior live?'_ **I hear you ask?** Well in systems, of course. Systems are where you implement the logic that acts on the data described by components. They read and modify components according to the game's rules, effectively giving behavior to the otherwise passive entities.
+Components hold data; systems provide behavior. Systems read and modify components according to the game's rules, giving behavior to otherwise passive entities.
 
 ## Systems
 
@@ -57,7 +57,7 @@ There are three phases:
 | `core.PhaseFrame`   | once per display frame       | reading input, UI    |
 | `core.PhaseFixed`   | once per simulation tick     | gameplay, movement   |
 
-Simulation belongs in `PhaseFixed` - the section after next explains why - and reading input belongs in `PhaseFrame`.
+Use `PhaseFixed` for simulation and `PhaseFrame` for work that belongs to the display frame, such as reading raw input or updating UI.
 
 Here is a complete system, the payoff of this chapter. It moves a square left and right:
 
@@ -81,13 +81,13 @@ Three pieces are worth naming:
 
 - The closure captures the entity handle, so the system touches one square. Systems that touch many entities use a query - the [next section](#queries) covers them.
 - `Update` is get-mutate-set sugar: it fetches the component, hands it to your function, and stores it back.
-- `dt` makes the speed independent of how often the system runs. Why that works is the section after next.
+- `dt` makes the speed independent of the display rate. The [fixed timestep](#the-fixed-timestep) section explains why.
 
 The `move_right` and `move_left` strings are _actions_ - named inputs the player triggered. They come from bindings registered with `WithBindings`; the [input guide](../guides/input.md) covers them in full.
 
 ## Queries
 
-The move system captured one entity handle. Most systems should not: a game has many enemies, many pickups, many of everything, and holding a handle to each is bookkeeping the engine already does. A **query** is a filter over the world that matches entities by their components - the third pillar of the model. Systems declare what they operate on; queries bring the entities.
+The move system captured one entity handle. Most systems should not: a game has many enemies, many pickups, many of everything, and holding a handle to each is bookkeeping the engine already does. A **query** is a filter over the world that matches entities by their components. Systems declare what they operate on; queries bring the entities.
 
 ```go
 func tagSystem() core.System {
@@ -113,7 +113,7 @@ Two rules of use:
 - Build the query once, not per tick. The `if query == nil` in the closure is the idiom.
 - Do not spawn or destroy entities inside the loop - a structural change during iteration is invalid. Collect the handles you need to act on, then act after the pass.
 
-The [ECS guide](../guides/ecs.md) carries the rest of the query surface - `First`, predicates, the Entry vocabulary - plus the fine print on everything in this chapter.
+The [ECS guide](../guides/ecs.md) covers the rest of the query surface, including `First`, predicates, and the `Entry` vocabulary.
 
 ## The fixed timestep
 
@@ -143,9 +143,7 @@ cfg, err := w.Resource[*GameConfig]()
 
 `Resource` returns an error for a type nobody provided. Provide before the startup phase so systems can rely on finding it.
 
-The engine provides resources of its own - the asset server, the clip store, the audio mixer - which the guides reach through the game's accessors, like `g.AssetServer()`.
-
-> Note: World convenience accessors are highly likely to change and should not be relied upon for long-term code stability. Use `w.Resource[*Type]()` to access resources directly instead.
+The engine provides resources of its own - the asset server, the clip store, and the audio mixer. The guides reach them through game accessors such as `g.AssetServer()`.
 
 ## Glossary
 
@@ -166,5 +164,5 @@ The engine provides resources of its own - the asset server, the clip store, the
 ## Where to go next
 
 - [Your first game](your-first-game.md) - every concept in this chapter, assembled into one program step by step.
-- [The ECS in depth](../guides/ecs.md) - this chapter's fine print: the full entity vocabulary, authoring components with validation, the Context contract, and query discipline.
+- [The ECS in depth](../guides/ecs.md) - the full entity vocabulary, component validation, the Context contract, and query discipline.
 - [Input](../guides/input.md) - the actions this chapter used, in full.

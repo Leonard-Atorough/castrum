@@ -3,15 +3,15 @@
 // engine wiring - the game only registers the atlas, the clip, and
 // the entity; the renderer stays animation-blind.
 //
-// Assets resolve against the default filesystem: the game's working
-// directory. wander demonstrates the embed.FS alternative for
-// single-binary distribution, passed via castrum.WithFilesystem.
-// Run from the repository root:
+// Assets are embedded into the binary via //go:embed, passed to the
+// engine with castrum.WithFilesystem. Run from the repository root
+// (or anywhere):
 //
 //	go run ./examples/animate
 package main
 
 import (
+	"embed"
 	"fmt"
 
 	"github.com/Leonard-Atorough/castrum"
@@ -22,6 +22,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
+
+//go:embed torch_light.png
+var files embed.FS
 
 const (
 	TorchLightFPS  = 10
@@ -42,12 +45,13 @@ func main() {
 func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - animate"),
+		castrum.WithFilesystem(files),
 	)
 	if err != nil {
 		return err
 	}
 
-	if err := g.AssetServer().RegisterGridAtlas(AssetTorchLight, "examples/animate/torch_light.png", 16, 28, "torch_light"); err != nil {
+	if err := g.AssetServer().RegisterGridAtlas(AssetTorchLight, "torch_light.png", 16, 28, "torch_light"); err != nil {
 		return err
 	}
 

@@ -5,13 +5,15 @@
 // global pause - the music holds while the effect plays through,
 // because each play states its own pause behavior.
 //
-// Assets resolve against the default filesystem: the game's working
-// directory. Run from the repository root:
+// Assets are embedded into the binary - the self-contained pattern
+// this example doubles as a demo of - passed via castrum.WithFilesystem.
+// Run from the repository root (or anywhere):
 //
 //	go run ./examples/audio
 package main
 
 import (
+	"embed"
 	"fmt"
 
 	"github.com/Leonard-Atorough/castrum"
@@ -23,6 +25,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
+
+//go:embed "Blade Recall Magic 02.wav" arpmedia-retro-arcade-game-music-577821.mp3
+var files embed.FS
 
 // AssetMagic is the sound the spacebar plays. The zero load mode is
 // eager: it decodes once into the asset cache and every press shares
@@ -47,6 +52,7 @@ func main() {
 func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - audio"),
+		castrum.WithFilesystem(files),
 	)
 	if err != nil {
 		return err
@@ -150,6 +156,4 @@ func volumeSystem(mixer *audio.Mixer) core.System {
 	})
 }
 
-// Attribution for the audio assets used in this example:
-// Music by <a href="https://pixabay.com/users/arpmedia-56546950/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=577821">ARPMedia</a> from <a href="https://pixabay.com/music//?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=577821">Pixabay</a>
-// Sound effect by <a href="https://shapeforms.itch.io">ShapeForms</a>
+// The assets' attribution lives in CREDITS.md at the repository root.
