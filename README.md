@@ -6,57 +6,24 @@ You declare what your game contains - an entity with a position and a picture, a
 
 Castrum uses [Ebitengine](https://ebitengine.org) as its underlying rendering and window management library, leveraging its capabilities to handle graphics, input, and other low-level tasks efficiently. To facilitate this, castrum wraps Ebitengine functionality within its own abstractions, providing a more structured and game-focused interface for developers.
 
-## Quick start
+## Why Castrum
 
-```sh
-mkdir mygame && cd mygame
-go mod init mygame
-go get github.com/Leonard-Atorough/castrum
-```
-
-Then read [your first game](docs/getting-started/your-first-game.md) - a step-by-step tutorial from an empty directory to a moving player with music and sound effects.
-
-To see the engine working right away, run an example from a clone of this repository:
-
-```sh
-go run ./examples/wander
-```
-
-Each example's doc header says what it shows; the five cover rendering, shapes, input, animation, and audio.
-
-## What works today
-
-| Area | What works |
-|---|---|
-| Rendering | Sprites and shape primitives from one pipeline: standalone textures and grid atlases, a camera, interpolated motion between ticks, viewport culling, layer/sort-order/Y ordering, overlays on top of the world |
-| Simulation | A fixed-timestep loop (60 ticks per second by default) with slow-frame guards, startup/frame/fixed phases |
-| Input | Named bindings across keyboard, mouse, and gamepad - and raw per-frame polling when a game wants a key, not an action |
-| Animation | Atlas-frame clips with looping, pause, and playback rate, advanced by the engine |
-| Audio | Sound effects (decoded and shared) and music (streamed from the file), a master and two group volume buses, per-play pause behavior |
-| Structure | Entities, components, queries over the world, typed resources |
+| Area       | What works                                                                                                                                                                                                     |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rendering  | Sprites and shape primitives from one pipeline: standalone textures and grid atlases, a camera, interpolated motion between ticks, viewport culling, layer/sort-order/Y ordering, overlays on top of the world |
+| Simulation | A fixed-timestep loop (60 ticks per second by default) with slow-frame guards, startup/frame/fixed phases                                                                                                      |
+| Input      | Named bindings across keyboard, mouse, and gamepad - and raw per-frame polling when a game wants a key, not an action                                                                                          |
+| Animation  | Atlas-frame clips with looping, pause, and playback rate, advanced by the engine                                                                                                                               |
+| Audio      | Sound effects (decoded and shared) and music (streamed from the file), a master and two group volume buses, per-play pause behavior                                                                            |
+| Structure  | Entities, components, queries over the world, typed resources                                                                                                                                                  |
 
 Planned, in rough order: timers, text, and UI; screen state (fullscreen, window mutations); publishing and packaging; full transform interpolation. Each lands with its guide chapter - the docs are the arrival record.
 
-## Documentation
+## Start here
 
-Three tiers, by what you came for:
-
-**[Getting started](docs/getting-started/intro.md)** - learn.
-- [Introduction](docs/getting-started/intro.md) - the engine's charter: design goals, planned features, intentional limits, and principles.
-- [Key concepts](docs/getting-started/concepts.md) - entities and components, systems and phases, the fixed timestep, and resources.
-- [Your first game](docs/getting-started/your-first-game.md) - the step-by-step tutorial.
-- [Cheat sheet](docs/getting-started/cheat-sheet.md) - recall, once the basics are read.
-
-**[Guides](docs/guides/rendering.md)** - build, one feature per guide.
-- [The ECS in depth](docs/guides/ecs.md), [Assets](docs/guides/assets.md), [Rendering](docs/guides/rendering.md), [Input](docs/guides/input.md), [Animation](docs/guides/animation.md), [Audio](docs/guides/audio.md)
-- [Conventions](docs/guides/conventions.md), [Performance](docs/guides/performance.md), [Publishing your game](docs/guides/publishing-your-game.md)
-
-**Reference** - dig, for the curious. Engine details most games never need; the 5% building complex games will.
-- [Core principles](docs/reference/core-principles.md), [Engine design](docs/reference/engine-design.md), [The runner separation](docs/reference/runner-separation.md)
-- [The coordinate system](docs/reference/coordinate-system.md), [The scheduler and the fixed loop](docs/reference/the-scheduler.md)
-- [The world and storage](docs/reference/world-and-storage.md), [The asset pipeline](docs/reference/asset-pipeline.md)
-
-The full API reference lives on [pkg.go.dev](https://pkg.go.dev/github.com/Leonard-Atorough/castrum).
+- [Documentation](docs/getting-started/intro.md) - choose the introduction, concepts, first-game tutorial, or the full guides from there.
+- [Examples](examples) - run complete programs covering rendering, shapes, input, animation, and audio.
+- [API reference](https://pkg.go.dev/github.com/Leonard-Atorough/castrum) - browse exported types and methods.
 
 ## Status
 
@@ -64,4 +31,4 @@ Castrum is pre-1.0 and moving: the API is unstable, the docs evolve with it, and
 
 ## The name
 
-A *castrum* (Latin) was a Roman fortified camp: a garrison built to a standard layout from local materials, quickly, wherever the legions needed to hold ground. The name fits an engine that aims to be the standard-built base your game stands on - small, planned, and hard to knock over.
+A _castrum_ (Latin) was a Roman fortified camp: a garrison built to a standard layout from local materials, quickly, wherever the legions needed to hold ground. The name fits an engine that aims to be the standard-built base your game stands on - small, planned, and hard to knock over.
