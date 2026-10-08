@@ -41,7 +41,10 @@ type Contact struct {
 // no events.
 //
 // The collision system attaches Contacts to every entity that
-// carries a Collider, and it alone writes it.
+// carries a Collider, maintains it while the collider participates,
+// and removes it when the Collider or Transform leaves - it alone
+// writes it. Game code reads it but never writes or removes it, the
+// same ownership rule as [core.PrevTransform].
 type Contacts struct {
 	// Current is this tick's contacts, sorted by Other.
 	Current []Contact

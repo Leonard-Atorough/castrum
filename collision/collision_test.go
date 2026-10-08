@@ -138,3 +138,38 @@ func TestContactBetween_CircleRectNormalPointsFirstToSecond(t *testing.T) {
 		t.Errorf("flipped normal = %v, want (1, 0)", flipped.normal)
 	}
 }
+
+// A circle contained in a rect reports the full depth to separate -
+// boundary distance plus the radius - with the normal pointing at
+// the nearest face, and the exit through that face reads cleanly.
+func TestContactBetween_ContainedCircleDepth(t *testing.T) {
+	rect := transformShape(RectShape{Min: geom.Vector2{X: -2, Y: -2}, Max: geom.Vector2{X: 2, Y: 2}}, geom.Vector2{}, core.Transform{})
+
+	// Center one unit right of the rect's center: the nearest face is
+	// the right wall, one unit away.
+	contained := transformShape(CircleShape{Center: geom.Vector2{X: 1, Y: 0}, Radius: 0.5}, geom.Vector2{}, core.Transform{})
+	hit := contactBetween(contained.shape, rect.shape)
+	if !hit.collided {
+		t.Fatal("contained circle should collide")
+	}
+	if math.Abs(hit.penetration-1.5) > 1e-9 {
+		t.Errorf("penetration = %v, want 1.5 (boundary distance 1 plus radius 0.5)", hit.penetration)
+	}
+	if hit.normal != (geom.Vector2{X: 1, Y: 0}) {
+		t.Errorf("normal = %v, want (1, 0) toward the nearest face", hit.normal)
+	}
+	if hit.point != (geom.Vector2{X: 2, Y: 0}) {
+		t.Errorf("point = %v, want (2, 0) on the nearest face", hit.point)
+	}
+
+	// A center exactly on the boundary is the depth-zero case of the
+	// same rule: the penetration is the radius alone.
+	onEdge := transformShape(CircleShape{Center: geom.Vector2{X: 2, Y: 0}, Radius: 0.5}, geom.Vector2{}, core.Transform{})
+	hit = contactBetween(onEdge.shape, rect.shape)
+	if !hit.collided {
+		t.Fatal("circle centered on the rect's edge should collide")
+	}
+	if math.Abs(hit.penetration-0.5) > 1e-9 {
+		t.Errorf("on-boundary penetration = %v, want 0.5 (the radius)", hit.penetration)
+	}
+}

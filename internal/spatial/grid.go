@@ -70,9 +70,9 @@ func (idx *Grid) Query(bounds geom.Rect) []ecs.EntityID {
 	return idx.QueryInto(bounds, nil)
 }
 
-// QueryInto appends candidates overlapping bounds to ids, reusing ids'
-// backing array when possible. Results are deduplicated when an
-// entity spans cells.
+// QueryInto fills ids with the candidates overlapping bounds,
+// reusing ids' backing array when possible and discarding whatever
+// it held. Results are deduplicated when an entity spans cells.
 func (idx *Grid) QueryInto(bounds geom.Rect, ids []ecs.EntityID) []ecs.EntityID {
 	if !bounds.IsValid() {
 		return ids[:0]

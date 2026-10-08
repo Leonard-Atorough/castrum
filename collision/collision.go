@@ -212,14 +212,26 @@ func circleRectContact(circle worldCircle, rect orientedRect) contact {
 	}
 
 	if dist == 0 {
-		// The closest point is the circle center when it is inside the
-		// rectangle, so there is no unique contact normal. Use a stable
-		// fallback direction.
+		// The circle's center lies inside the rectangle or exactly on
+		// its boundary: the contact is the shortest push out through
+		// the nearest face. Normal points from the center to the
+		// contact point on that face; penetration is the full depth
+		// to separate - the boundary distance plus the radius. A
+		// center on the boundary reads depth zero, so the touch
+		// case keeps its radius.
+		depthX := rect.halfExtents.X - math.Abs(projectionX)
+		depthY := rect.halfExtents.Y - math.Abs(projectionY)
+		var normal, depth = geom.Vector2{}, 0.0
+		if depthX <= depthY {
+			depth, normal = depthX, rect.axes[0].Mul(math.Copysign(1, projectionX))
+		} else {
+			depth, normal = depthY, rect.axes[1].Mul(math.Copysign(1, projectionY))
+		}
 		return contact{
 			collided:    true,
-			penetration: circle.radius,
-			normal:      geom.Vector2{X: 1, Y: 0},
-			point:       circle.center,
+			penetration: depth + circle.radius,
+			normal:      normal,
+			point:       circle.center.Add(normal.Mul(depth)),
 		}
 	}
 

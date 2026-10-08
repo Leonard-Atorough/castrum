@@ -69,9 +69,10 @@ func canonicalPair(x, y core.EntityID) pairKey {
 // broad-phase index and the per-tick scratch; components carry the
 // lifecycle.
 type system struct {
-	ensure *core.Query
-	update *core.Query
-	grid   *spatial.Grid
+	ensure  *core.Query
+	update  *core.Query
+	orphans [2]*core.Query
+	grid    *spatial.Grid
 
 	proxies     map[core.EntityID]proxy
 	dirty       map[core.EntityID]struct{}
@@ -84,13 +85,17 @@ type system struct {
 	attachIDs   []core.EntityID
 }
 
-// Update runs one fixed tick of collision detection: attach missing
-// Contacts, sync the broad-phase index with changed colliders,
-// collect and test candidate pairs, and write each entity's Contacts.
+// Update runs one fixed tick of collision detection: reconcile the
+// Contacts components with who is a collider, sync the broad-phase
+// index with changed colliders, collect and test candidate pairs,
+// and write each entity's Contacts.
 func (s *system) Update(ctx *core.Context) error {
 	if s.ensure == nil {
 		s.ensure = core.NewQuery(ctx.World).With(Collider{}).Without(Contacts{})
 		s.update = core.NewQuery(ctx.World).With(Collider{}, core.Transform{}, Contacts{})
+
+		s.orphans[0] = core.NewQuery(ctx.World).With(Contacts{}, Collider{}).Without(core.Transform{})
+		s.orphans[1] = core.NewQuery(ctx.World).With(Contacts{}).Without(Collider{})
 		grid, err := spatial.NewGrid(cellSize)
 		if err != nil {
 			return fmt.Errorf("collision: create spatial index: %w", err)
@@ -99,7 +104,7 @@ func (s *system) Update(ctx *core.Context) error {
 	}
 	s.resetTick()
 
-	if err := s.attachContacts(ctx.World); err != nil {
+	if err := s.reconcileContacts(ctx.World); err != nil {
 		return err
 	}
 	if err := s.syncProxies(); err != nil {
@@ -119,10 +124,15 @@ func (s *system) resetTick() {
 	s.candidates = s.candidates[:0]
 }
 
-// attachContacts gives every collider entity its Contacts component.
-// The add happens between passes, when no iteration is active, and
-// only the first tick a collider exists costs anything.
-func (s *system) attachContacts(world *core.World) error {
+// reconcileContacts attaches Contacts to every collider entity that
+// lacks one and strips it from entities that stopped being collision
+// participants - a Collider or Transform removed mid-game. Without
+// the strip, the removed side's last contacts would read as a
+// permanent stay; with it, a re-added collider starts from clean
+// state. The structural changes happen between passes, when no
+// iteration is active, and only the first tick a state changes costs
+// anything.
+func (s *system) reconcileContacts(world *core.World) error {
 	s.attachIDs = s.attachIDs[:0]
 	for e := range s.ensure.Execute() {
 		s.attachIDs = append(s.attachIDs, e.ID())
@@ -130,6 +140,18 @@ func (s *system) attachContacts(world *core.World) error {
 	for _, id := range s.attachIDs {
 		if err := core.NewEntity(id).AddComponent(world, Contacts{}); err != nil {
 			return fmt.Errorf("collision: attach contacts to entity %d: %w", id, err)
+		}
+	}
+
+	for _, orphan := range s.orphans {
+		s.attachIDs = s.attachIDs[:0]
+		for e := range orphan.Execute() {
+			s.attachIDs = append(s.attachIDs, e.ID())
+		}
+		for _, id := range s.attachIDs {
+			if err := core.NewEntity(id).RemoveComponent[Contacts](world); err != nil {
+				return fmt.Errorf("collision: detach contacts from entity %d: %w", id, err)
+			}
 		}
 	}
 	return nil

@@ -157,9 +157,13 @@ func run() error {
 		return err
 	}
 
-	// The walls listen only to the player's layer, and so does the
-	// bar below: wall-to-wall and wall-to-pickup pairs never even
-	// reach the narrow phase.
+	// The walls listen only to the player's layer, and so do the bars
+	// and pickups below: wall-to-pickup and wall-to-bar pairs never
+	// even reach the narrow phase. The four walls themselves sit on
+	// the player's layer, so they pair with each other at the screen
+	// corners - same-layer objects test against each other unless a
+	// mask excludes them, which is the normal rule. Static walls
+	// never move, so those corner tests cost nothing.
 	for _, wall := range []struct{ position, min, max geom.Vector2 }{
 		{position: geom.Vector2{X: screenW / 2, Y: 0}, min: geom.Vector2{X: -screenW / 2, Y: 0}, max: geom.Vector2{X: screenW / 2, Y: wallThickness}},
 		{position: geom.Vector2{X: screenW / 2, Y: screenH}, min: geom.Vector2{X: -screenW / 2, Y: -wallThickness}, max: geom.Vector2{X: screenW / 2, Y: 0}},
@@ -237,12 +241,17 @@ func run() error {
 			return err
 		}
 
+		// The tint scans the contacts rather than trusting the first:
+		// a solid contact wins over a trigger, so touching a hazard
+		// and a pickup in the same tick still shows the danger.
 		tint := playerColor
 		if contacts, ok := player.Component[collision.Contacts](ctx.World); ok && len(contacts.Current) > 0 {
-			if contacts.Current[0].Trigger {
-				tint = pickupColor
-			} else {
-				tint = contactColor
+			tint = pickupColor
+			for _, hit := range contacts.Current {
+				if !hit.Trigger {
+					tint = contactColor
+					break
+				}
 			}
 		}
 		return player.SetComponent(ctx.World, core.Sprite{

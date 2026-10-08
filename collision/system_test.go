@@ -288,3 +288,30 @@ func TestSystem_ContactsSortedByOther(t *testing.T) {
 		}
 	}
 }
+
+// A collider removed mid-game does not leave its last contacts
+// behind: the entity loses its Contacts, and the partner observes the
+// exit through its own Current emptying.
+func TestSystem_RemovedColliderClearsContacts(t *testing.T) {
+	world := core.NewWorld()
+	sys := NewSystem()
+	player, wall := playerAndWall(t, world)
+
+	tick(t, world, sys)
+	if len(contactsOf(t, world, player).Current) != 1 {
+		t.Fatal("test setup: pair should be colliding")
+	}
+
+	if err := wall.RemoveComponent[Collider](world); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, world, sys)
+
+	if _, ok := wall.Component[Contacts](world); ok {
+		t.Error("removed collider should have no Contacts left")
+	}
+	playerContacts := contactsOf(t, world, player)
+	if len(playerContacts.Current) != 0 || len(playerContacts.Previous) != 1 {
+		t.Errorf("player contacts = %v / %v, want the exit edge", playerContacts.Current, playerContacts.Previous)
+	}
+}

@@ -136,7 +136,7 @@ func New(opts ...option) (*Game, error) {
 	}
 
 	// Collision detection runs for every game: colliders that do not
-	// exist cost three empty queries. It runs ahead of gameplay
+	// exist cost a few empty queries. It runs ahead of gameplay
 	// systems, so it reads the transforms as of the end of last tick -
 	// a movement this tick is detected next tick, the same cadence
 	// prev-transform snapshots and the renderer's interpolation work
