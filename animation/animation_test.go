@@ -9,7 +9,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
-func newAnimWorld(t *testing.T, anim Animation, clip AnimationClip) (*core.Entity, core.System, *core.Context) {
+func newAnimWorld(t *testing.T, anim Animation, clip Clip) (*core.Entity, core.System, *core.Context) {
 	t.Helper()
 	w := core.NewWorld()
 	store := NewClipStore()
@@ -58,8 +58,8 @@ func region(s core.Sprite) (core.AtlasSource, bool) {
 
 func TestSystemAdvancesAndStamps(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk"},
-		AnimationClip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10, Loop: LoopForever},
+		Animation{Clip: "walk", Loop: LoopForever},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 1)
 
@@ -80,12 +80,10 @@ func TestSystemAdvancesAndStamps(t *testing.T) {
 	}
 }
 
-// A frame slower than the tick rate must accumulate partial time
-// across ticks or the animation never advances at all.
 func TestSystemAccumulatesSubFrameTime(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk"},
-		AnimationClip{Source: "atlas", Frames: []string{"a", "b", "c"}, FPS: 10, Loop: LoopNone},
+		Animation{Clip: "walk", Loop: LoopNone},
+		Clip{Source: "atlas", Frames: []string{"a", "b", "c"}, FPS: 10},
 	)
 	ctx.DeltaTime = 50 * time.Millisecond
 	tick(t, sys, ctx, 1)
@@ -105,12 +103,10 @@ func TestSystemAccumulatesSubFrameTime(t *testing.T) {
 	}
 }
 
-// Any number of frames may cross in one tick; the advance is closed
-// form, not one step per tick.
 func TestSystemAdvancesMultipleFramesPerTick(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk"},
-		AnimationClip{Source: "atlas", Frames: []string{"a", "b", "c"}, FPS: 10, Loop: LoopForever},
+		Animation{Clip: "walk", Loop: LoopForever},
+		Clip{Source: "atlas", Frames: []string{"a", "b", "c"}, FPS: 10},
 	)
 	ctx.DeltaTime = 250 * time.Millisecond // two 100ms frames per tick
 	tick(t, sys, ctx, 1)
@@ -126,8 +122,8 @@ func TestSystemAdvancesMultipleFramesPerTick(t *testing.T) {
 
 func TestLoopNoneHoldsLastFramePaused(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk"},
-		AnimationClip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10, Loop: LoopNone},
+		Animation{Clip: "walk", Loop: LoopNone},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 1)
 	if anim := readAnim(t, entity, ctx); anim.Current != 1 {
@@ -151,12 +147,10 @@ func TestLoopNoneHoldsLastFramePaused(t *testing.T) {
 	}
 }
 
-// The first tick stamps frame 0 before any frame has crossed: a
-// spawned animation is visible immediately.
 func TestFirstTickStampsFrameZero(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk"},
-		AnimationClip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10, Loop: LoopForever},
+		Animation{Clip: "walk", Loop: LoopForever},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
 	)
 	ctx.DeltaTime = 50 * time.Millisecond // below one frame duration
 	tick(t, sys, ctx, 1)
@@ -171,8 +165,6 @@ func TestFirstTickStampsFrameZero(t *testing.T) {
 	}
 }
 
-// A missing clip reference fails the tick naming the clip and the
-// entity.
 func TestMissingClipFailsFast(t *testing.T) {
 	w := core.NewWorld()
 	if _, err := w.NewEntity(Animation{Clip: "nope"}, core.Sprite{}); err != nil {
@@ -191,11 +183,10 @@ func TestMissingClipFailsFast(t *testing.T) {
 	}
 }
 
-// PlaybackMultiplier 0 is the normal rate: the zero value plays.
 func TestPlaybackMultiplierZeroIsNormalRate(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk"},
-		AnimationClip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10, Loop: LoopForever},
+		Animation{Clip: "walk", Loop: LoopForever},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 1)
 	if anim := readAnim(t, entity, ctx); anim.Current != 1 {
@@ -205,8 +196,8 @@ func TestPlaybackMultiplierZeroIsNormalRate(t *testing.T) {
 
 func TestPlaybackMultiplierScalesAdvance(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", PlaybackMultiplier: 2},
-		AnimationClip{Source: "atlas", Frames: []string{"a", "b", "c", "d"}, FPS: 10, Loop: LoopNone},
+		Animation{Clip: "walk", PlaybackMultiplier: 2, Loop: LoopNone},
+		Clip{Source: "atlas", Frames: []string{"a", "b", "c", "d"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 1)
 	if anim := readAnim(t, entity, ctx); anim.Current != 2 {
@@ -216,8 +207,8 @@ func TestPlaybackMultiplierScalesAdvance(t *testing.T) {
 
 func TestPausedAnimationSkips(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", Paused: true},
-		AnimationClip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10, Loop: LoopForever},
+		Animation{Clip: "walk", Paused: true, Loop: LoopForever},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 3)
 	anim := readAnim(t, entity, ctx)
@@ -240,6 +231,7 @@ func TestAnimationValidate(t *testing.T) {
 		{"negative current", Animation{Clip: "walk", Current: -1}, false},
 		{"negative elapsed", Animation{Clip: "walk", Elapsed: -1}, false},
 		{"negative multiplier", Animation{Clip: "walk", PlaybackMultiplier: -1}, false},
+		{"invalid loop mode", Animation{Clip: "walk", Loop: LoopMode(7)}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -257,13 +249,13 @@ func TestAnimationValidate(t *testing.T) {
 func TestAnimationClipValidate(t *testing.T) {
 	cases := []struct {
 		name string
-		clip AnimationClip
+		clip Clip
 		want bool
 	}{
-		{"valid", AnimationClip{Source: "atlas", Frames: []string{"a"}, FPS: 10}, true},
-		{"empty source", AnimationClip{Frames: []string{"a"}, FPS: 10}, false},
-		{"no frames", AnimationClip{Source: "atlas", FPS: 10}, false},
-		{"zero fps", AnimationClip{Source: "atlas", Frames: []string{"a"}}, false},
+		{"valid", Clip{Source: "atlas", Frames: []string{"a"}, FPS: 10}, true},
+		{"empty source", Clip{Frames: []string{"a"}, FPS: 10}, false},
+		{"no frames", Clip{Source: "atlas", FPS: 10}, false},
+		{"zero fps", Clip{Source: "atlas", Frames: []string{"a"}}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -285,26 +277,12 @@ func TestPlaybackMethods(t *testing.T) {
 	if a.Current != 0 || a.Elapsed != 0 || a.Paused {
 		t.Fatalf("Restart: %+v", a)
 	}
-
-	a.Stop()
-	if a.Current != 0 || a.Elapsed != 0 || !a.Paused {
-		t.Fatalf("Stop: %+v", a)
-	}
-
-	a.Resume()
-	if a.Paused {
-		t.Fatal("Resume: still paused")
-	}
-	a.Pause()
-	if !a.Paused {
-		t.Fatal("Pause: not paused")
-	}
 }
 
 func TestClipStoreAddCopiesFrames(t *testing.T) {
 	store := NewClipStore()
 	frames := []string{"a", "b"}
-	if err := store.Add("walk", AnimationClip{Source: "atlas", Frames: frames, FPS: 10}); err != nil {
+	if err := store.Add("walk", Clip{Source: "atlas", Frames: frames, FPS: 10}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
@@ -322,16 +300,16 @@ func TestClipStoreAddCopiesFrames(t *testing.T) {
 
 func TestClipStoreAddErrors(t *testing.T) {
 	store := NewClipStore()
-	if err := store.Add("", AnimationClip{Source: "atlas", Frames: []string{"a"}, FPS: 10}); err == nil {
+	if err := store.Add("", Clip{Source: "atlas", Frames: []string{"a"}, FPS: 10}); err == nil {
 		t.Fatal("empty name accepted")
 	}
-	if err := store.Add("walk", AnimationClip{Source: "atlas", Frames: []string{"a"}, FPS: 10}); err != nil {
+	if err := store.Add("walk", Clip{Source: "atlas", Frames: []string{"a"}, FPS: 10}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	if err := store.Add("walk", AnimationClip{Source: "atlas", Frames: []string{"a"}, FPS: 10}); err == nil {
+	if err := store.Add("walk", Clip{Source: "atlas", Frames: []string{"a"}, FPS: 10}); err == nil {
 		t.Fatal("duplicate accepted")
 	}
-	if err := store.Add("bad", AnimationClip{Source: "atlas", Frames: []string{"a"}}); err == nil {
+	if err := store.Add("bad", Clip{Source: "atlas", Frames: []string{"a"}}); err == nil {
 		t.Fatal("invalid clip accepted")
 	}
 }
@@ -340,5 +318,129 @@ func TestClipStoreGetMissing(t *testing.T) {
 	store := NewClipStore()
 	if _, err := store.Get("nope"); err == nil {
 		t.Fatal("missing clip returned without error")
+	}
+}
+
+// tickAt runs one fixed update stamped with the given tick number,
+// so completion stamps land on known ticks.
+func tickAt(t *testing.T, sys core.System, ctx *core.Context, tick uint64) {
+	t.Helper()
+	ctx.Tick = tick
+	if err := sys.Update(ctx); err != nil {
+		t.Fatalf("update at tick %d: %v", tick, err)
+	}
+}
+
+func TestLoopNoneCompletionStampsAndHolds(t *testing.T) {
+	entity, sys, ctx := newAnimWorld(t,
+		Animation{Clip: "walk", Loop: LoopNone},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+	)
+
+	tickAt(t, sys, ctx, 1) // 100ms tick, 100ms frames: frame 1 shows
+	if anim := readAnim(t, entity, ctx); anim.Current != 1 || anim.CompletedOn != 0 || anim.Paused {
+		t.Fatalf("after tick 1: %+v, want the last frame mid-play, no completion", anim)
+	}
+
+	// Tick 2 advances past the final frame: completion.
+	tickAt(t, sys, ctx, 2)
+	anim := readAnim(t, entity, ctx)
+	if !anim.Paused || anim.Current != 1 || anim.CompletedOn != 2 {
+		t.Fatalf("after tick 2: %+v, want held last frame, paused, stamped tick 2", anim)
+	}
+	if !anim.JustCompleted(2) || !anim.HasCompleted() {
+		t.Fatal("completion tick 2 should read as edge and record")
+	}
+
+	// Later ticks change nothing: the frame holds, the stamp is
+	// frozen, the edge is gone, the record remains.
+	tickAt(t, sys, ctx, 3)
+	anim = readAnim(t, entity, ctx)
+	if !anim.Paused || anim.Current != 1 || anim.CompletedOn != 2 {
+		t.Fatalf("after tick 3: %+v, want the completion frozen", anim)
+	}
+	if anim.JustCompleted(3) || !anim.HasCompleted() {
+		t.Fatal("later ticks should drop the edge and keep the record")
+	}
+}
+
+func TestRestartClearsCompletion(t *testing.T) {
+	entity, sys, ctx := newAnimWorld(t,
+		Animation{Clip: "walk", Loop: LoopNone},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+	)
+
+	tickAt(t, sys, ctx, 1)
+	tickAt(t, sys, ctx, 2)
+	if anim := readAnim(t, entity, ctx); !anim.HasCompleted() {
+		t.Fatal("test setup: animation should have completed on tick 2")
+	}
+
+	if err := entity.Update(ctx.World, func(a *Animation) { a.Restart() }); err != nil {
+		t.Fatal(err)
+	}
+	anim := readAnim(t, entity, ctx)
+	if anim.Current != 0 || anim.Paused || anim.CompletedOn != 0 || anim.HasCompleted() {
+		t.Fatalf("after Restart: %+v, want frame zero, playing, no completion", anim)
+	}
+
+	// The replay completes again with a fresh stamp.
+	tickAt(t, sys, ctx, 3)
+	tickAt(t, sys, ctx, 4)
+	anim = readAnim(t, entity, ctx)
+	if !anim.JustCompleted(4) || !anim.HasCompleted() {
+		t.Fatalf("replay should complete on tick 4, got %+v", anim)
+	}
+}
+
+func TestLoopForeverFiresEdgePerWrap(t *testing.T) {
+	entity, sys, ctx := newAnimWorld(t,
+		Animation{Clip: "walk", Loop: LoopForever},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+	)
+
+	tickAt(t, sys, ctx, 1) // frame 1, no wrap
+	if anim := readAnim(t, entity, ctx); anim.CompletedOn != 0 {
+		t.Fatalf("after tick 1: stamp = %d, want none", anim.CompletedOn)
+	}
+
+	// Tick 2 wraps to frame 0: the first loop edge.
+	tickAt(t, sys, ctx, 2)
+	anim := readAnim(t, entity, ctx)
+	if anim.Current != 0 || !anim.JustCompleted(2) {
+		t.Fatalf("after tick 2: %+v, want wrapped to frame 0 with the edge", anim)
+	}
+	if anim.HasCompleted() {
+		t.Error("a looping animation never reads as completed")
+	}
+
+	// The next wrap fires the edge again, still never completed.
+	tickAt(t, sys, ctx, 3)
+	tickAt(t, sys, ctx, 4)
+	anim = readAnim(t, entity, ctx)
+	if !anim.JustCompleted(4) || anim.HasCompleted() {
+		t.Fatalf("after tick 4: %+v, want the edge on each wrap, never the record", anim)
+	}
+}
+
+func TestUnpausingACompletedAnimationCompletesAgain(t *testing.T) {
+	entity, sys, ctx := newAnimWorld(t,
+		Animation{Clip: "walk", Loop: LoopNone},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+	)
+
+	tickAt(t, sys, ctx, 1)
+	tickAt(t, sys, ctx, 2)
+	if anim := readAnim(t, entity, ctx); !anim.HasCompleted() {
+		t.Fatal("test setup: animation should have completed")
+	}
+
+	if err := entity.Update(ctx.World, func(a *Animation) { a.Paused = false }); err != nil {
+		t.Fatal(err)
+	}
+	tickAt(t, sys, ctx, 3)
+	anim := readAnim(t, entity, ctx)
+	if !anim.Paused || !anim.JustCompleted(3) || anim.Current != 1 {
+		t.Fatalf("after resuming a finished animation: %+v, want re-completed on the last frame", anim)
 	}
 }
