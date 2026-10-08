@@ -96,11 +96,16 @@ func TestSystem_OneShotCompletesOnBoundaryAndFreezes(t *testing.T) {
 		t.Errorf("completed one-shot should be stopped at its duration, got running=%v elapsed=%v", timer.Running, timer.Elapsed)
 	}
 
-	// Later ticks change nothing: the stamp is the record of the fire.
+	// Re-enabling a completed one-shot cannot make it fire again;
+	// Restart is the only way to clear its completed state.
+	if err := entity.Update(world, func(t *Timer) { t.Running = true }); err != nil {
+		t.Fatal(err)
+	}
 	tick(t, world, sys, 3, dt)
 	timer = timerOf(t, world, entity)
-	if timer.CompletedOn != 2 || timer.Elapsed != timer.Duration {
-		t.Errorf("completed one-shot should be frozen, got tick %d elapsed %v", timer.CompletedOn, timer.Elapsed)
+	if timer.Running || timer.CompletedOn != 2 || timer.Elapsed != timer.Duration {
+		t.Errorf("completed one-shot should remain stopped and frozen, got running=%v tick=%d elapsed=%v",
+			timer.Running, timer.CompletedOn, timer.Elapsed)
 	}
 }
 

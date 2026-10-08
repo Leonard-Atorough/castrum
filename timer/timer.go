@@ -127,6 +127,11 @@ func (s *system) Update(ctx *core.Context) error {
 
 	for e := range s.timers.Execute() {
 		e.Update(func(t *Timer) {
+			if t.HasCompleted() {
+				t.Running = false
+				return
+			}
+
 			if t.Running {
 				t.Elapsed += ctx.DeltaTime
 				for t.Elapsed >= t.Duration {
