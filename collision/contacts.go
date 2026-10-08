@@ -5,17 +5,21 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// Contact is one colliding pair from this collider's point of view.
-// The two colliders' records for a pair mirror each other: same
-// point and penetration, normals pointing toward the other side.
+// Contact is one detected overlap from this collider's point of view.
+// The two colliders' records share the point and penetration, while
+// their normals point in opposite directions. Point is the
+// narrow-phase test's representative contact point; it is not a
+// contact manifold.
 type Contact struct {
 	// Other is the entity this contact is with.
 	Other core.EntityID
-	// Point is the pair's contact point.
+	// Point is the representative contact point returned by the
+	// narrow-phase test for this pair.
 	Point geom.Vector2
 	// Normal points from this collider toward Other.
 	Normal geom.Vector2
-	// Penetration is how far the two shapes overlap along the normal.
+	// Penetration is the overlap depth along the normal. Touching
+	// shapes have zero penetration and still produce a contact.
 	Penetration float64
 	// Trigger reports whether either collider in the pair is a
 	// trigger. A game reacting to trigger contacts reads this instead
@@ -37,9 +41,7 @@ type Contact struct {
 // no events.
 //
 // The collision system attaches Contacts to every entity that
-// carries a Collider, and it alone writes it. Game code reads it but
-// never writes or removes it - the same ownership rule as
-// [core.PrevTransform].
+// carries a Collider, and it alone writes it.
 type Contacts struct {
 	// Current is this tick's contacts, sorted by Other.
 	Current []Contact

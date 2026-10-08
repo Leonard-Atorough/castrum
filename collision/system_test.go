@@ -138,10 +138,10 @@ func TestSystem_LayerMaskFiltering(t *testing.T) {
 	sys := NewSystem()
 	player, wall := playerAndWall(t, world)
 
-	// The wall listens only to layer 1; the player lives on layer 0.
-	// One-sided masks do not collide.
+	// The wall sits on layer 1 and listens only to layer 1; the
+	// player lives on layer 0. One-sided masks do not collide.
 	collider, _ := wall.Component[Collider](world)
-	collider.Layer = 1
+	collider.Layers = 1 << 1
 	collider.Mask = 1 << 1
 	if err := wall.SetComponent(world, collider); err != nil {
 		t.Fatal(err)

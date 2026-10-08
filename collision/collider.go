@@ -7,32 +7,41 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// Collider is an entity's collision shape and interaction filter. The
-// collision system reads it each fixed tick, transforms the shape by
-// the entity's Transform - rotation and position, never scale - and
-// records the results as contact state on the entity.
+// Collider defines an entity's collision shape and interaction
+// filter. An entity must also have a Transform to participate in
+// detection. Each fixed tick, the collision system applies the
+// transform's position and rotation, and records detected overlaps
+// in the entity's Contacts.
 //
 // The zero value is not spawnable: it has no shape, and Validate
 // rejects it. Build one with [NewCollider] or a struct literal with
-// a valid shape; every write into storage re-validates.
+// a valid shape.
 type Collider struct {
-	// Shape is the collider's geometry, defined in local space before
-	// the Transform applies.
+	// Shape is the collider's geometry in local space, before the
+	// entity's position and rotation are applied. Supported shapes are
+	// RectShape and CircleShape.
 	Shape ColliderShape
 	// Offset shifts the shape from the entity's local origin, for
-	// hitboxes that are not centered on it - a foot collider below
-	// the sprite, a sword reach in front of it.
+	// hitboxes that are not centered on it.
+	//
+	// e.g. a foot collider belowthe sprite, a sword reach in front of it.
 	Offset geom.Vector2
-	// Layer is the collider's own collision layer, 0-31.
-	Layer uint8
+	// Layers is the bitmask of layers this collider belongs to:
+	// bit i is layer i. A collider may occupy any combination of the
+	// 32 layers. The zero value belongs to no layer, so it collides
+	// with nothing.
+	//
+	// [NewCollider] places it on layer 0, and [Layers] builds the
+	// bitmask from layer numbers.
+	Layers uint32
 	// Mask is the bitmask of layers this collider interacts with:
 	// bit i is layer i. The zero value is an empty mask, which
-	// collides with nothing - a deliberate choice, not a default;
-	// [NewCollider] opens it to every layer.
+	// collides with nothing.
+	//
+	// [NewCollider] opens it to every layer, and [Mask] builds the
+	// bitmask from layer numbers.
 	Mask uint32
-	// Trigger marks a collider that detects contacts without
-	// implying a physical response. Detection does not differ;
-	// response, when the engine grows one, will.
+	// Trigger marks contacts involving this collider as triggers.
 	Trigger bool
 	// Active controls whether the collider participates in collision
 	// detection at all.
@@ -40,9 +49,11 @@ type Collider struct {
 }
 
 // Validate checks that the collider is spawnable: a supported shape
-// with valid geometry, a finite offset, and a layer in range. It
-// rejects rather than repairs - an inverted rect or a negative radius
-// is an authoring error, not input to normalize.
+// with valid geometry and a finite offset. It rejects rather than
+// repairs - an inverted rect or a negative radius is an authoring
+// error, not input to normalize. Layers and Mask accept any bitmask;
+// a collider that belongs to no layer, like one that listens to
+// none, simply collides with nothing.
 func (c Collider) Validate() error {
 	switch shape := c.Shape.(type) {
 	case nil:
@@ -68,23 +79,23 @@ func (c Collider) Validate() error {
 	if !isFinite(c.Offset.X) || !isFinite(c.Offset.Y) {
 		return fmt.Errorf("collider offset must be finite")
 	}
-	if c.Layer > 31 {
-		return fmt.Errorf("layer must be between 0 and 31")
-	}
 	return nil
 }
 
-// NewCollider returns a Collider for shape with usable defaults: it
-// is active and its mask is open to every layer. The remaining fields
-// are plain and settable - assign Layer, Mask, Trigger, or Offset
-// afterwards as needed; writing the result into storage re-validates
-// it.
+// NewCollider returns a ready-to-spawn Collider for shape. It starts
+// active, belongs to layer 0, and listens to every layer. Set Layers,
+// Mask, Trigger, or Offset afterwards to give it the interaction
+// behavior the game needs; [Layers] and [Mask] turn layer numbers
+// into bitmasks.
 //
-// It returns an error when shape is not a valid collider shape, so an
-// authoring mistake surfaces at construction instead of at spawn.
+// NewCollider validates shape immediately, so an authoring mistake is
+// reported while the entity is being built instead of later during a
+// fixed tick. The collider is validated again when written into world
+// storage.
 func NewCollider(shape ColliderShape) (Collider, error) {
 	collider := Collider{
 		Shape:  shape,
+		Layers: 1,
 		Mask:   math.MaxUint32,
 		Active: true,
 	}
@@ -95,31 +106,62 @@ func NewCollider(shape ColliderShape) (Collider, error) {
 }
 
 // CanCollideWith reports whether the layer/mask configuration allows
-// the two colliders to interact: each must carry the other's layer in
-// its mask. A one-sided mask does not collide.
+// the two colliders to interact: each must listen to at least one
+// layer the other sits on. A one-sided mask does not collide.
 func (c Collider) CanCollideWith(other Collider) bool {
-	return c.Mask&(1<<other.Layer) != 0 && other.Mask&(1<<c.Layer) != 0
+	return c.Mask&other.Layers != 0 && other.Mask&c.Layers != 0
+}
+
+// Layers returns the bitmask for the given layer indexes, for a
+// Collider's Layers field: Layers(0, 2) is a collider that belongs
+// to layers 0 and 2. The zero-argument form is the empty bitmask -
+// a collider on no layer collides with nothing.
+//
+// It panics on an index outside 0-31.
+func Layers(layers ...int) uint32 {
+	return layersToMask("Layers", layers)
+}
+
+// Mask returns the bitmask for the given layer indexes, for a
+// Collider's Mask field: Mask(0) listens to layer 0 alone. The
+// zero-argument form is the empty mask - collide with nothing.
+//
+// It panics on an index outside 0-31.
+func Mask(layers ...int) uint32 {
+	return layersToMask("Mask", layers)
+}
+
+func layersToMask(name string, layers []int) uint32 {
+	var mask uint32
+	for _, layer := range layers {
+		if layer < 0 || layer > 31 {
+			panic(fmt.Sprintf("collision: %s: layer %d is outside 0-31", name, layer))
+		}
+		mask |= 1 << layer
+	}
+	return mask
 }
 
 // ColliderShape is a collider's geometry: one of the concrete shapes
-// in this package. It is a sealed sum - the only implementations are
-// in this file - so exactly-one-shape is a construction guarantee,
-// and the narrow phase type-switches one field instead of querying
-// per variant.
+// in this package. It is a sealed sum whose only implementations are
+// in this file, and the narrow phase type-switches one field instead
+// of querying per variant.
 type ColliderShape interface {
 	isColliderShape()
 }
 
-// RectShape is an axis-aligned rectangle in local space. Min must be
-// strictly below Max on both axes; Validate rejects inverted or
-// degenerate rects instead of normalizing them.
+// RectShape is an axis-aligned rectangle in local space. Both corners
+// must be finite, and Min must be strictly below Max on both axes.
+// [Collider.Validate] rejects inverted or degenerate rectangles
+// instead of normalizing them.
 type RectShape struct {
 	Min geom.Vector2
 	Max geom.Vector2
 }
 
-// CircleShape is a circle in local space. Radius must be positive; a
-// zero or negative radius is an authoring error, not a magnitude.
+// CircleShape is a circle in local space. Its center must be finite
+// and its radius must be finite and positive; invalid values are
+// rejected by [Collider.Validate].
 type CircleShape struct {
 	Center geom.Vector2
 	Radius float64

@@ -16,22 +16,20 @@ import (
 // decides.
 const cellSize = 50.0
 
-// NewSystem returns the collision system: broad-phase indexing,
-// narrow-phase testing, and the contact lifecycle written as
-// [Contacts] state. Detection only - there is no response and no
-// event bus; a game derives enter/stay/exit by comparing a
-// collider's Current and Previous contacts.
+// NewSystem returns the collision system, which finds overlapping
+// colliders and records their lifecycle in [Contacts]. It detects
+// contacts but does not resolve collisions or emit events; games
+// derive enter, stay, and exit by comparing Current and Previous.
 //
-// [castrum.New] registers this system; games never register it
-// themselves. It runs early in the fixed phase, ahead of gameplay
-// systems, so it reads the transforms as of the end of last tick -
-// a movement this tick is detected next tick.
+// [castrum.New] registers this system, so games do not need to
+// register it separately. It runs early in the fixed phase, before
+// gameplay systems. As a result, it reads transforms from the end of
+// the previous tick, and movement made during this tick is detected
+// on the next one.
 //
-// The system attaches Contacts to every entity that carries a
-// Collider, transforms active colliders by rotation and position
-// (never scale), and re-tests every changed collider against its
-// surroundings plus every pair that was already colliding, so a pair
-// separating is always observed.
+// The system attaches [Contacts] to entities with a [Collider],
+// transforms active colliders by position and rotation (not scale),
+// and preserves enough state to report when an existing contact ends.
 func NewSystem() core.System {
 	return &system{
 		proxies:     make(map[core.EntityID]proxy),

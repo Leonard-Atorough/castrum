@@ -1,8 +1,16 @@
-// Package collision provides collision detection for entities: the
-// [Collider] component with its sealed [ColliderShape] sum, the
-// rotation-aware narrow phase for shape pairs, and the system that
-// records each tick's results as [Contacts] state on the collider
-// entities.
+// Package collision detects overlaps between entity colliders and
+// records the results as [Contacts] component state. It supports
+// local-space rectangles and circles, applying each entity's position
+// and rotation (not scale).
+//
+// To use it, create a [Collider] with [NewCollider], optionally set
+// its Layers, Mask, Offset, or Trigger fields, and spawn it alongside
+// a [core.Transform]. [castrum.New] registers the collision system
+// for the game. A gameplay system can then read Contacts.Current for
+// this tick's overlaps and compare it with Contacts.Previous to
+// derive enter, stay, and exit behavior. The collision system detects
+// overlaps but does not move entities, resolve collisions, or emit
+// events; gameplay code decides what each contact means.
 package collision
 
 import (
@@ -107,7 +115,6 @@ func transformShape(shape ColliderShape, offset geom.Vector2, transform core.Tra
 	}
 }
 
-// transformPoint applies only rotation and position, ignoring scale.
 func transformPoint(point geom.Vector2, transform core.Transform) geom.Vector2 {
 	return point.Rotate(transform.Rotation).Add(transform.Position)
 }
