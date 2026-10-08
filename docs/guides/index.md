@@ -21,6 +21,7 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 ## Gameplay
 
 - [Collision](collision.md) - colliders, layers and masks, and the Contacts lifecycle.
+- [Timers](timer.md) - one-shot and repeating countdowns as component state.
 
 ## Shipping and performance
 

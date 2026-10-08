@@ -14,6 +14,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
+	"github.com/Leonard-Atorough/castrum/timer"
 )
 
 // Options is the pure-data configuration [New] converges option values into.
@@ -135,13 +136,11 @@ func New(opts ...option) (*Game, error) {
 		return nil, err
 	}
 
-	// Collision detection runs for every game: colliders that do not
-	// exist cost a few empty queries. It runs ahead of gameplay
-	// systems, so it reads the transforms as of the end of last tick -
-	// a movement this tick is detected next tick, the same cadence
-	// prev-transform snapshots and the renderer's interpolation work
-	// against. Games never register the collision system themselves.
 	if err := g.AddSystem(core.PhaseFixed, "engine.collision", collision.NewSystem()); err != nil {
+		return nil, err
+	}
+
+	if err := g.AddSystem(core.PhaseFixed, "engine.timer", timer.NewSystem()); err != nil {
 		return nil, err
 	}
 
@@ -153,9 +152,8 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide audio mixer: %w", err)
 	}
 
-	// The engine.s default camera: every game gets a working
-	// viewport without wiring. It yields to any user-spawned
-	// primary - the collector prefers user cameras.
+	// The engine.s default camera: every game gets a working viewport without wiring.
+	// It yields to any user-spawned primary - the collector prefers user cameras.
 	camera, err := core.SpawnEngineCamera(g.world)
 	if err != nil {
 		return nil, fmt.Errorf("castrum: spawn main camera: %w", err)
