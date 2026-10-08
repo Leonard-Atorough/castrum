@@ -138,7 +138,7 @@ func (s *system) Update(ctx *core.Context) error {
 					t.CompletedOn = ctx.Tick
 
 					if t.Repeating {
-						t.Elapsed -= t.Duration
+						t.Elapsed %= t.Duration
 					} else {
 						t.Elapsed = t.Duration
 						t.Running = false
