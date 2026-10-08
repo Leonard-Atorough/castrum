@@ -161,13 +161,15 @@ func run() error {
 		}
 
 		// The paused timer shows its progress in color: gray while
-		// paused, blue while counting, green once fired.
+		// paused, blue while counting, green once fired. Fired is
+		// checked first: a completed one-shot has Running forced
+		// back false, so nesting the check under Running would
+		// leave it gray forever.
 		heldColor := pendingColor
-		if heldTimer, _ := held.Component[timer.Timer](ctx.World); heldTimer.Running {
+		if heldTimer, _ := held.Component[timer.Timer](ctx.World); heldTimer.HasCompleted() {
+			heldColor = firedColor
+		} else if heldTimer.Running {
 			heldColor = runningColor
-			if heldTimer.CompletedOn != 0 {
-				heldColor = firedColor
-			}
 		}
 		return held.SetComponent(ctx.World, barSprite(heldColor))
 	})); err != nil {
@@ -223,10 +225,10 @@ func barSprite(fill color.Color) core.Sprite {
 // describe renders one timer's state as overlay text.
 func describe(label string, t timer.Timer) string {
 	state := "paused"
-	if t.Running {
-		state = "running"
-	} else if t.CompletedOn != 0 {
+	if t.HasCompleted() {
 		state = "fired"
+	} else if t.Running {
+		state = "running"
 	}
 	return fmt.Sprintf("%s: %.1fs of %.0fs, %s, last fired tick %d",
 		label, t.Elapsed.Seconds(), t.Duration.Seconds(), state, t.CompletedOn)
