@@ -50,3 +50,44 @@ func TestCircle_BoundingBox(t *testing.T) {
 		t.Errorf("BoundingBox() = %v, want %v", got, want)
 	}
 }
+
+func TestCircle_OverlapsOrTouchesCircle(t *testing.T) {
+	c := Circle{Center: Vector2{}, Radius: 5}
+	for _, tc := range []struct {
+		name  string
+		other Circle
+		want  bool
+	}{
+		{"overlapping", Circle{Center: Vector2{X: 8, Y: 0}, Radius: 5}, true},
+		{"touching", Circle{Center: Vector2{X: 10, Y: 0}, Radius: 5}, true},
+		{"separate", Circle{Center: Vector2{X: 11, Y: 0}, Radius: 5}, false},
+		{"contained", Circle{Center: Vector2{}, Radius: 1}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := c.OverlapsOrTouches(tc.other); got != tc.want {
+				t.Errorf("OverlapsOrTouches(%v) = %v, want %v", tc.other, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCircle_OverlapsOrTouchesRect(t *testing.T) {
+	c := Circle{Center: Vector2{X: 5, Y: 5}, Radius: 2}
+	for _, tc := range []struct {
+		name string
+		rect Rect
+		want bool
+	}{
+		{"overlapping", Rect{Min: Vector2{X: 6, Y: 0}, Max: Vector2{X: 10, Y: 10}}, true},
+		{"edge touching", Rect{Min: Vector2{X: 7, Y: 0}, Max: Vector2{X: 10, Y: 10}}, true},
+		{"corner clear", Rect{Min: Vector2{X: 8, Y: 8}, Max: Vector2{X: 10, Y: 10}}, false},
+		{"inside rect", Rect{Min: Vector2{}, Max: Vector2{X: 10, Y: 10}}, true},
+		{"invalid rect", Rect{Min: Vector2{X: 2, Y: 2}, Max: Vector2{X: 1, Y: 1}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := c.OverlapsOrTouchesRect(tc.rect); got != tc.want {
+				t.Errorf("OverlapsOrTouchesRect(%v) = %v, want %v", tc.rect, got, tc.want)
+			}
+		})
+	}
+}

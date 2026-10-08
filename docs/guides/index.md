@@ -18,6 +18,10 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 - [Input](input.md) - action bindings, raw snapshots, and frame versus tick reads.
 - [Audio](audio.md) - one-shots, music, streaming, mixer buses, and playback state.
 
+## Gameplay
+
+- [Collision](collision.md) - colliders, layers and masks, and the Contacts lifecycle.
+
 ## Shipping and performance
 
 - [Performance](performance.md) - frame budgets, query costs, rendering costs, and profiling decisions.
