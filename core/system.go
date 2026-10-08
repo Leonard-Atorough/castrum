@@ -14,10 +14,10 @@ const (
 	// PhaseStartup runs once, before the first frame.
 	PhaseStartup Phase = iota
 	// PhaseFrame runs once per display frame, before fixed ticks.
-	// Timers and input consumption belong here.
+	// Input consumption belongs here.
 	PhaseFrame
-	// PhaseFixed runs at the fixed simulation rate. Movement and
-	// physics belong here.
+	// PhaseFixed runs at the fixed simulation rate. Movement,
+	// physics, and timers belong here.
 	PhaseFixed
 )
 
