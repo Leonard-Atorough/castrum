@@ -1,11 +1,8 @@
-// Package audio defines audio playback: the [Source] component holds
-// an audio file by [asset.ID] plus per-play settings and state, the
-// [Mixer] resource holds the global volume buses and pause state,
-// and the [Controller] seam hands resolved [Playback] state to a
-// runner's players. [OneShot] is the fire-and-forget verb: it plays
-// a Source once on an engine-owned entity and reclaims it when the
-// play finishes. The package is backend-free: a Source references
-// its audio file by asset ID, and the runner decodes and plays it.
+// Package audio defines backend-independent audio playback. [Source]
+// components describe individual plays, [Mixer] holds global volume and
+// pause state, and [NewAudioSystem] reconciles them through a runner's
+// [Controller]. [OneShot] starts a play on an engine-owned entity and reclaims
+// it when playback finishes. Audio files are identified by [asset.ID].
 package audio
 
 import (
@@ -21,7 +18,7 @@ type LoadMode int
 const (
 	// LoadEager decodes the audio once and caches it for all players.
 	LoadEager LoadMode = iota
-	// LoadStream keeps the audio in the original source and streams it to each player.
+	// LoadStream decodes the audio from its asset source for each player.
 	LoadStream
 )
 
@@ -29,7 +26,7 @@ const (
 type Group int
 
 const (
-	// GroupSFX is the sound effects bus; most spawns are effects.
+	// GroupSFX is the sound-effects bus.
 	GroupSFX Group = iota
 	// GroupMusic is the music bus.
 	GroupMusic
@@ -49,27 +46,24 @@ const (
 type PauseMode int
 
 const (
-	// PauseHolds means the play holds its position when the mixer is paused.
+	// PauseHolds holds the play's position during a mixer-wide pause.
 	PauseHolds PauseMode = iota
-	// PauseContinues means the play keeps playing even when the mixer is paused.
+	// PauseContinues excludes the play from mixer-wide pauses.
 	PauseContinues
-	// PauseDucks: reserved — arrives with transition curves
 )
 
-// Source is the per-entity audio component and the playback handle:
-// an audio file reference plus per-play settings and playback state.
-// The reconcile system makes the runner's players match it, so a game
-// plays, pauses, or retargets audio by writing fields.
+// Source describes an audio play attached to a [core.Entity]. The audio system
+// applies its settings to a runner's player.
 //
-// Source has no valid zero value — an empty Audio is a spawn error —
-// so every real spawn states its settings explicitly.
+// The zero value is invalid. Use [NewSource] to create a source at unity
+// volume, and set Audio to a non-empty asset ID.
 type Source struct {
 	// Audio is the asset ID of the audio file to play.
 	Audio asset.ID
 	// Group is the volume bus the play mixes through.
 	Group Group
-	// Volume is the per-play level in (0, 1]; 0 is rejected at
-	// spawn. Muting belongs to the buses, not the play.
+	// Volume is the per-play level. [Source.Validate] rejects values less than
+	// or equal to zero or greater than one; use a bus to mute its plays.
 	Volume float64
 	// Loop is the repeat behavior after the last sample.
 	Loop LoopMode
@@ -77,28 +71,23 @@ type Source struct {
 	Pause PauseMode
 	// Load selects how the audio reaches players.
 	Load LoadMode
-	// PlaybackMultiplier scales the playback rate. 0 — the zero
-	// value — is the normal rate; 2 is double speed.
+	// PlaybackMultiplier scales the playback rate; zero means normal speed.
 	PlaybackMultiplier float64
-	// Paused holds the play's position without losing it; write the
-	// field directly. It composes with the mixer's global pause
-	// inside the reconcile fold, respecting [PauseMode].
+	// Paused holds the play's position. It composes with the mixer's global
+	// pause according to [Source.Pause].
 	Paused bool
-	// Completed reports a finished [LoopNone] play. It is written by
-	// the reconcile system; a restart — an Audio change or a
-	// [Source.Restart] call — is the only thing that clears it.
+	// Completed reports whether a [LoopNone] play has finished. The audio
+	// system owns this field: it sets it on completion and clears it on
+	// restart, including an Audio change.
 	Completed bool
-	// restarts is the retrigger edge: Restart bumps it, and the
-	// system restarts the player when it changes.
 	restarts uint64
-	// syncedRestarts and syncedAudio hold the last edge the system
-	// synced to the provider, so it can detect restarts. Written by
-	// the reconcile system, never by games; they die with the entity.
 	syncedRestarts uint64
 	syncedAudio    asset.ID
 }
 
-// Validate implements the Validatable contract.
+// Validate reports an error if Audio is empty, Volume is less than or equal
+// to zero or greater than one, PlaybackMultiplier is negative, or Group,
+// Loop, Pause, or Load has an unsupported value.
 func (s Source) Validate() error {
 	if s.Audio == "" {
 		return fmt.Errorf("audio: source audio ID must not be empty")
@@ -124,28 +113,23 @@ func (s Source) Validate() error {
 	return nil
 }
 
-// NewSource returns a Source for the audio file, with Volume at
-// unity: the result is a valid play with every other setting at its
-// zero value. Adjust fields for anything beyond the defaults; the
-// spawn-time validation still applies.
+// NewSource creates a source at unity volume with all other settings at their
+// zero values. The audio ID must be non-empty for the source to pass
+// [Source.Validate].
 func NewSource(audio asset.ID) Source {
 	return Source{Audio: audio, Volume: 1}
 }
 
-// Restart rewinds to the beginning and resumes: a finished play
-// becomes a playing one. It clears [Source.Completed] and bumps the
-// retrigger edge the reconcile system diffs. Pausing and resuming are
-// plain [Source.Paused] writes.
+// Restart requests playback from the beginning, clears [Source.Completed],
+// and resumes the source.
 func (s *Source) Restart() {
 	s.Completed = false
 	s.Paused = false
 	s.restarts++
 }
 
-// Mixer is the game's global audio bus state, provided as a world
-// resource by castrum.New. It owns the master and group volume levels
-// and the global pause; a runner applies them to its players. Levels
-// are runtime state with 1 as unity.
+// Mixer holds the master and group volume levels and the global pause state
+// used by [NewAudioSystem].
 type Mixer struct {
 	master float64
 	groups map[Group]float64
@@ -217,19 +201,13 @@ func clamp01(v float64) float64 {
 	return v
 }
 
-// Playback is the resolved desired state for one play: everything
-// the runner needs to make its player match, and nothing it should
-// read from the world itself. The reconcile system folds it from a
-// [Source] and the [Mixer]; the [Controller] consumes it. Playback is
-// a resolved output, not an authored input: its zeros mean what they
-// say (Volume 0 is silence), and games never construct one.
+// Playback is the resolved state that a [Controller] applies to a play.
+// [NewAudioSystem] derives it from a [Source] and a [Mixer].
 type Playback struct {
-	// Playing is whether the play should be audible and advancing.
-	// False holds the position without losing it.
+	// Playing reports whether playback should advance. False holds its position.
 	Playing bool
-	// Restart demands a fresh player from the beginning: an Audio
-	// change or a [Source.Restart] bump. It is true on a play's
-	// first sync and set by the system, never by the fold.
+	// Restart requests a fresh player from the beginning. The audio system
+	// sets it on the first sync, an Audio change, or [Source.Restart].
 	Restart bool
 	// Volume is the final mix — master x group x play — in [0, 1].
 	// Zero is silence: runtime fade targets are safe here.
@@ -242,27 +220,25 @@ type Playback struct {
 	Load LoadMode
 }
 
-// Controller is the seam over a runner's actual players: the engine's
-// audio system drives it, and a runner implements it over its backend
-// and provides the implementation as a world resource.
+// Controller applies resolved [Playback] state to backend players. Runners
+// implement it and pass it to [NewAudioSystem].
 type Controller interface {
-	// Sync makes the playback for entityID match want. live reports
-	// whether the play has not finished — a paused play is held,
-	// not finished, and reports live; a finished [LoopNone] play
-	// reports false and must not implicitly restart: only
-	// want.Restart restarts. The reconciler calls Sync once per run
-	// for each live Source. Errors name the source.
+	// Sync applies want to the player for entityID and source. live reports
+	// whether the play has not finished, not whether it is currently playing:
+	// a paused play is live, while a finished [LoopNone] play is not.
+	//
+	// A finished play must not resume merely because want.Playing is true;
+	// want.Restart requests an explicit restart. The audio system calls Sync
+	// for each [Source] on every run.
 	Sync(entityID core.EntityID, source asset.ID, want Playback) (live bool, err error)
-	// Sweep releases the players of entities not synced this run;
-	// the reconciler calls it after each iteration.
+	// Sweep releases players for entities not passed to Sync since the
+	// previous sweep. The audio system calls it after each reconciliation pass.
 	Sweep() error
 }
 
-// NewAudioSystem returns the engine's audio system: it reconciles
-// the world's [Source] components with the given controller,
-// applying the [Mixer]'s volumes and global pause, and reclaims
-// finished [OneShot] entities. The runner registers it with its own
-// controller; a game without a runner simply has no audio system.
+// NewAudioSystem returns a [core.System] that reconciles [Source] components
+// with controller and mixer, and destroys completed [OneShot] entities.
+// Without an audio system, sources do not play.
 func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 	var sourceQuery, oneshotQuery *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
@@ -319,23 +295,19 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 	})
 }
 
-// oneshot marks an entity spawned by [OneShot]: the reconciler
-// destroys it once its play finishes. It carries the entity's own
-// handle so destruction needs no by-ID lookup.
+// oneshot retains the handle so cleanup destroys only the entity spawned by
+// [OneShot].
 type oneshot struct {
 	self *core.Entity
 }
 
-// OneShot plays src once, fire-and-forget: it spawns an
-// engine-owned entity and returns its handle. The reconciler
-// destroys the entity when the play finishes — the engine destroys
-// only entities spawned here, never Sources attached to game
-// entities. Overlapping plays are separate entities and layer
-// freely; retarget or stop early through the returned handle.
+// OneShot starts src on a new engine-owned entity and returns its handle. The
+// audio system destroys the entity when playback finishes; it never destroys
+// entities that carry ordinary [Source] components.
 //
-// A one-shot must not loop: a [LoopForever] play never finishes, so
-// its entity would never be reclaimed. Use a Source on a game
-// entity for looping audio.
+// The source must not loop: a [LoopForever] play never finishes and its
+// entity would not be reclaimed. Use a regular [Source] for looping audio.
+// OneShot returns an error for a looping or invalid source.
 func OneShot(world *core.World, src Source) (*core.Entity, error) {
 	if src.Loop == LoopForever {
 		return nil, fmt.Errorf("audio: one-shot %q must not loop: use a Source on a game entity", src.Audio)
@@ -350,9 +322,6 @@ func OneShot(world *core.World, src Source) (*core.Entity, error) {
 	return entity, nil
 }
 
-// fold resolves a Source and the mixer's state into the Playback the
-// provider should match. Pure — the headless-tested heart of the
-// engine side. Restart is not folded: the system owns the edge.
 func fold(s Source, mixer *Mixer) Playback {
 	return Playback{
 		Playing: !s.Paused && (!mixer.Paused() || s.Pause == PauseContinues),
@@ -363,8 +332,6 @@ func fold(s Source, mixer *Mixer) Playback {
 	}
 }
 
-// resolveMultiplier maps the authored zero value (0 = normal rate,
-// the Animation pattern) to the resolved 1.
 func resolveMultiplier(multiplier float64) float64 {
 	if multiplier == 0 {
 		return 1

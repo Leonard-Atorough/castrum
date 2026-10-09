@@ -11,34 +11,31 @@ import (
 	"github.com/Leonard-Atorough/castrum/render"
 )
 
-// ClipID identifies an animation clip in a ClipStore.
+// ClipID identifies an animation clip in a [ClipStore].
 type ClipID string
 
-// Animation is a component that plays an AnimationClip on the
-// entity's Sprite.
+// Animation stores the playback state for a [Clip] displayed by an entity's
+// [render.Sprite].
 type Animation struct {
-	// Clip identifies the clip being played.
+	// Clip identifies the animation definition to play.
 	Clip ClipID
-	// Current is the index of the frame being displayed.
+	// Current is the zero-based index of the frame to display.
 	Current int
-	// Elapsed is the time accumulated within the current frame, in
-	// seconds.
+	// Elapsed is the time accumulated toward the next frame, in seconds.
 	Elapsed float64
-	// PlaybackMultiplier scales the clip's rate. 0 - the zero
-	// value - is the normal rate; 1 is identity; 2 is double speed.
+	// PlaybackMultiplier scales the clip's rate; zero means normal speed.
 	PlaybackMultiplier float64
-	// Paused stops playback.
+	// Paused prevents the current frame from advancing.
 	Paused bool
-	// CompletedOn is the tick stamp when the animation last completed.
+	// CompletedOn is the fixed tick when the animation most recently completed.
 	CompletedOn uint64
-	// Loop defines the looping behavior.
+	// Loop selects what happens after the clip's final frame.
 	Loop LoopMode
 }
 
-// Validate reports whether a has valid playback state: a non-empty clip ID,
-// non-negative frame index and elapsed time, a non-negative playback
-// multiplier, and a valid loop mode. A zero playback multiplier means normal
-// speed.
+// Validate reports an error if Clip is empty, Current, Elapsed, or
+// PlaybackMultiplier is negative, or Loop is invalid. A zero
+// PlaybackMultiplier means normal speed.
 func (a Animation) Validate() error {
 	if a.Clip == "" {
 		return fmt.Errorf("animation: animation clip must not be empty")
@@ -58,14 +55,14 @@ func (a Animation) Validate() error {
 	return nil
 }
 
-// LoopMode controls how an animation repeats after its last frame.
+// LoopMode controls what happens after an animation reaches its final frame.
 type LoopMode int
 
 const (
-	// LoopNone plays the clip once, then holds the last frame paused.
-	// It is the zero value: the field named Loop reads truthfully.
+	// LoopNone plays the clip once, then pauses on its final frame. It is the
+	// zero value, so animations play once by default.
 	LoopNone LoopMode = iota
-	// LoopForever wraps from the last frame back to the first.
+	// LoopForever wraps from the final frame back to the first.
 	LoopForever
 )
 
@@ -76,14 +73,14 @@ func (a *Animation) Restart() {
 	a.Paused = false
 }
 
-// JustCompleted reports whether the animation completed on the given
-// fixed tick. Pass the ctx's current tick to check if the animation just
-// completed.
+// JustCompleted reports whether the animation completed on tick. Pass
+// [core.Context.Tick] to check whether it completed during the current update.
 func (a Animation) JustCompleted(tick uint64) bool {
 	return a.CompletedOn == tick
 }
 
-// HasCompleted reports whether a non-looping animation has finished playing.
+// HasCompleted reports whether a non-looping animation has completed since
+// its last [Animation.Restart].
 //
 // For [LoopForever], it always returns false. Use [Animation.JustCompleted]
 // to observe each loop completion.
@@ -102,8 +99,8 @@ type Clip struct {
 	FPS float64
 }
 
-// Validate reports whether c has a source atlas, at least one frame, and a
-// positive frame rate.
+// Validate reports an error if Source or Frames is empty, or FPS is less
+// than or equal to zero.
 func (c Clip) Validate() error {
 	if c.Source == "" {
 		return fmt.Errorf("animation: clip source must not be empty")
@@ -117,8 +114,7 @@ func (c Clip) Validate() error {
 	return nil
 }
 
-// ClipStore is the game's library of named animation clips, provided
-// as a world resource by castrum.New.
+// ClipStore holds named [Clip] definitions for [NewAnimationSystem].
 type ClipStore struct {
 	clips map[ClipID]Clip
 }
@@ -129,8 +125,8 @@ func NewClipStore() *ClipStore {
 }
 
 // Add registers clip under name. It copies clip.Frames so later changes to
-// the caller's slice do not affect the stored clip. It returns an error if
-// name is empty or already registered, or if clip fails validation.
+// the input slice do not affect the registered clip. It returns an error if
+// name is empty, already registered, or clip fails [Clip.Validate].
 func (s *ClipStore) Add(name ClipID, clip Clip) error {
 	if name == "" {
 		return fmt.Errorf("animation: clip name must not be empty")
@@ -146,8 +142,8 @@ func (s *ClipStore) Add(name ClipID, clip Clip) error {
 	return nil
 }
 
-// Get returns the clip registered under name. The returned Clip shares its
-// Frames slice with the store; do not mutate that slice.
+// Get returns the clip registered under name. Its [Clip.Frames] slice is
+// shared with the store and must not be modified.
 func (s *ClipStore) Get(name ClipID) (Clip, error) {
 	clip, ok := s.clips[name]
 	if !ok {
@@ -156,15 +152,18 @@ func (s *ClipStore) Get(name ClipID) (Clip, error) {
 	return clip, nil
 }
 
-// SystemName is the name castrum.New registers the animation system
-// under in the fixed schedule.
+// SystemName is the name used to register the animation system in the fixed
+// schedule.
 const SystemName = "engine.animation"
 
-// NewAnimationSystem returns a system that advances animations during fixed
-// updates. castrum.New registers this system, under [SystemName], when the
-// game is configured with castrum.WithAnimation; games that register it
-// themselves do not need the option. An animation that references an
-// unregistered clip causes the system to return an error.
+// NewAnimationSystem returns a [core.System] that advances [Animation]
+// components on fixed updates using clips from store. Each animated entity
+// must also have a [render.Sprite]. The system returns an error if an
+// animation references a clip that is not registered.
+//
+// Enable the animation option when creating a game to register this system
+// automatically. Otherwise, register it in the fixed schedule under
+// [SystemName].
 func NewAnimationSystem(store *ClipStore) core.System {
 	var animations *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {

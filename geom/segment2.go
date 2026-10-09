@@ -4,8 +4,10 @@ import "math"
 
 // Segment is a finite line segment between Start and End.
 type Segment struct {
+	// Start is one endpoint of the segment.
 	Start Vector2
-	End   Vector2
+	// End is the other endpoint of the segment.
+	End Vector2
 }
 
 // Length returns the distance between the segment's endpoints.
@@ -44,15 +46,14 @@ func (s Segment) ClosestPoint(point Vector2) Vector2 {
 	}
 }
 
-// DistanceToPoint returns the shortest distance from point to the
-// segment. Points inside project to zero.
+// DistanceToPoint returns the shortest distance from point to s. Points on
+// the segment have zero distance.
 func (s Segment) DistanceToPoint(point Vector2) float64 {
 	closest := s.ClosestPoint(point)
 	return point.Distance(closest)
 }
 
-// BoundingBox returns the canonical axis-aligned rectangle containing
-// the segment.
+// BoundingBox returns the canonical axis-aligned [Rect] containing s.
 func (s Segment) BoundingBox() Rect {
 	return Rect{
 		Min: s.Start.Min(s.End),

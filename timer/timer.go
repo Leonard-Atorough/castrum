@@ -1,8 +1,6 @@
-// Package timer provides countdown timers as component state: the
-// [Timer] component, and the reconciler from [NewSystem] that
-// advances running timers each fixed tick and records completions.
-// Nothing is emitted and nothing is removed - a game reads
-// [Timer.CompletedOn] to observe completions.
+// Package timer provides countdowns as [Timer] components. [NewSystem]
+// advances them on fixed ticks and records completions in
+// [Timer.CompletedOn]; it emits no events and does not remove timers.
 package timer
 
 import (
@@ -12,47 +10,32 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
-// Timer tracks a countdown as component state. Create one with
-// [NewTimer]; the reconciler from [NewSystem] advances it on each
-// fixed tick.
+// Timer tracks a countdown on an entity. [NewSystem] advances it on fixed
+// ticks.
 //
-// A one-shot stops when it completes but remains on its entity.
-// [Timer.CompletedOn] records the completion tick until
-// [Timer.Restart] clears it; use [Timer.JustCompleted] to
-// detect the completion for a single tick and [Timer.HasCompleted]
-// to check whether it has finished. A repeating timer starts another
-// interval immediately and carries any overshoot forward.
-//
-// Each entity can hold only one [Timer], because component storage
-// has one slot per component type. To track several timers for one
-// actor, give each timer its own entity.
+// An entity can hold only one [Timer]. Give each timer its own entity to track
+// multiple timers for one actor.
 type Timer struct {
-	// Duration is how long the timer runs before completing. Must
-	// be positive; [Timer.Validate] rejects anything else.
+	// Duration is the length of each interval and must be positive.
 	Duration time.Duration
-	// Elapsed is the time accumulated since the timer last started.
-	// The reconciler advances it; [Timer.Restart] resets it.
+	// Elapsed is the time accumulated in the current interval.
 	Elapsed time.Duration
-	// Repeating reports whether the timer restarts itself after
-	// completing, keeping the overshoot, instead of stopping.
+	// Repeating starts a new interval after each completion and carries over
+	// excess elapsed time. Otherwise, the timer stops at Duration.
 	Repeating bool
-	// Running reports whether the timer is accumulating time.
-	// [NewTimer] starts it running; pause and resume by writing
-	// Running inside an update closure.
+	// Running controls whether elapsed time accumulates. Setting it false
+	// pauses an unfinished timer; restart a completed one-shot with
+	// [Timer.Restart].
 	Running bool
-	// CompletedOn is the fixed tick of the timer's last completion,
-	// zero when it has never completed. Nothing clears it on its
-	// own: compare against the current tick for the
-	// once-per-completion edge, or leave it set to remember that a
-	// one-shot fired.
+	// CompletedOn is the fixed tick of the most recent completion. Zero means
+	// no completion has been recorded because game ticks start at one.
+	// [Timer.Restart] clears it.
 	CompletedOn uint64
 }
 
-// NewTimer returns a running Timer for duration. A repeating timer
-// restarts itself after each completion; otherwise the timer
-// completes once and stops. The duration is validated when the
-// component enters storage, not here - spawn rejects a non-positive
-// one with [Timer.Validate].
+// NewTimer returns a running timer with the given duration and repeat setting.
+// [Timer.Validate] rejects a non-positive duration when the timer enters
+// storage.
 func NewTimer(duration time.Duration, repeating bool) Timer {
 	return Timer{
 		Duration:  duration,
@@ -61,10 +44,8 @@ func NewTimer(duration time.Duration, repeating bool) Timer {
 	}
 }
 
-// Validate checks that the timer is spawnable: a positive duration
-// and non-negative elapsed time. It runs whenever the component
-// enters storage, so a timer mutated through an update closure
-// cannot hold an invalid duration.
+// Validate reports an error if Duration is non-positive or Elapsed is
+// negative.
 func (t Timer) Validate() error {
 	if t.Duration <= 0 {
 		return fmt.Errorf("timer duration must be positive, got %v", t.Duration)
@@ -75,51 +56,37 @@ func (t Timer) Validate() error {
 	return nil
 }
 
-// Restart resets the timer to its beginning: elapsed time resets,
-// the completion stamp clears, and the timer runs again. On a
-// completed one-shot this also resets the "has it fired" answer.
-// Call it inside an update closure - the pointer receiver mutates
-// the copy the closure writes back.
+// Restart clears Elapsed and CompletedOn, then marks the timer as Running.
+// To restart a timer stored on an entity, call it inside [core.Entity.Update].
 func (t *Timer) Restart() {
 	t.Elapsed = 0
 	t.Running = true
 	t.CompletedOn = 0
 }
 
-// JustCompleted reports whether the timer completed on the
-// given fixed tick - the once-per-completion edge. Pass the context
-// tick: the reconciler runs earlier in the same fixed phase, so the
-// completion reads true for exactly one tick.
+// JustCompleted reports whether the timer's most recent completion occurred
+// on tick. Pass [core.Context.Tick] to detect a completion during the current
+// fixed update.
 func (t Timer) JustCompleted(tick uint64) bool {
 	return t.CompletedOn == tick
 }
 
-// HasCompleted reports whether a one-shot timer has completed and
-// now holds its finished state - the record that stays until
-// Restart clears it. A repeating timer never completes: it fires
-// and starts its next interval, so for a repeating timer this read
-// is always false and each fire is observed with
-// [Timer.JustCompleted] instead. The tick counter starts at one,
-// so a stamp of zero always means "never completed".
+// HasCompleted reports whether a one-shot timer has completed. It remains
+// true until [Timer.Restart]. It always returns false for repeating timers;
+// use [Timer.JustCompleted] to observe each completion.
 func (t Timer) HasCompleted() bool {
 	return !t.Repeating && t.CompletedOn != 0
 }
 
-// SystemName is the name castrum.New registers the timer reconciler
-// under in the fixed schedule.
+// SystemName is the name used to register the timer system in the fixed
+// schedule.
 const SystemName = "engine.timer"
 
-// NewSystem returns the timer reconciler: every fixed tick it
-// advances each running [Timer] by the tick interval and stamps
-// [Timer.CompletedOn] when the duration has fully elapsed. A
-// one-shot stops and stays on its entity; a repeating timer
-// restarts itself, keeping the overshoot so its intervals do not
-// drift. Nothing is emitted and no entity is removed - completion
-// is component state a game reads.
+// NewSystem returns the fixed-tick system that advances running [Timer]
+// components and records completions in [Timer.CompletedOn].
 //
-// castrum.New registers this system, under [SystemName], when the
-// game is configured with castrum.WithTimer; games that register it
-// themselves do not need the option.
+// The game constructor registers this system under [SystemName] when
+// `castrum.WithTimer` is enabled. Otherwise, register it yourself.
 func NewSystem() core.System {
 	return &system{}
 }

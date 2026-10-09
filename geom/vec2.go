@@ -1,3 +1,5 @@
+// Package geom provides [Vector2] and the shapes [Circle], [Rect], and
+// [Segment], with methods for common spatial calculations.
 package geom
 
 import (
@@ -5,12 +7,15 @@ import (
 	"math"
 )
 
+// Vector2 is a two-dimensional vector.
 type Vector2 struct {
-	X, Y float64
+	// X is the horizontal component.
+	X float64
+	// Y is the vertical component.
+	Y float64
 }
 
 // Add returns the component-wise sum of v and other.
-// It is useful for positions, offsets, and accumulated motion.
 func (v Vector2) Add(other Vector2) Vector2 {
 	return Vector2{
 		X: v.X + other.X,
@@ -19,7 +24,6 @@ func (v Vector2) Add(other Vector2) Vector2 {
 }
 
 // Sub returns the component-wise difference between v and other.
-// It is useful for displacement and direction calculations.
 func (v Vector2) Sub(other Vector2) Vector2 {
 	return Vector2{
 		X: v.X - other.X,
@@ -28,7 +32,6 @@ func (v Vector2) Sub(other Vector2) Vector2 {
 }
 
 // Mul returns v scaled by scalar.
-// It is useful for changing a vector's magnitude without changing its direction.
 func (v Vector2) Mul(scalar float64) Vector2 {
 	return Vector2{
 		X: v.X * scalar,
@@ -49,7 +52,6 @@ func (v Vector2) Div(scalar float64) Vector2 {
 }
 
 // Neg returns v with both components negated.
-// It is useful for reversing a direction or displacement.
 func (v Vector2) Neg() Vector2 {
 	return Vector2{
 		X: -v.X,
@@ -58,13 +60,11 @@ func (v Vector2) Neg() Vector2 {
 }
 
 // Length returns the Euclidean magnitude of v.
-// It is useful for measuring the size of a vector.
 func (v Vector2) Length() float64 {
 	return math.Sqrt(v.X*v.X + v.Y*v.Y)
 }
 
 // LengthSquared returns the squared Euclidean magnitude of v.
-// It is useful for distance comparisons without the cost of a square root.
 func (v Vector2) LengthSquared() float64 {
 	return v.X*v.X + v.Y*v.Y
 }
@@ -83,7 +83,6 @@ func (v Vector2) Normalize() Vector2 {
 }
 
 // Dot returns the scalar dot product of v and other.
-// It is useful for projections, angles, and checking relative direction.
 func (v Vector2) Dot(other Vector2) float64 {
 	return v.X*other.X + v.Y*other.Y
 }
@@ -103,7 +102,6 @@ func (v Vector2) Angle(other Vector2) float64 {
 }
 
 // AngleDeg returns the signed angle in degrees from v to other.
-// It is useful at APIs that expose angles to designers or other human-facing tools.
 func (v Vector2) AngleDeg(other Vector2) float64 {
 	return v.Angle(other) * (180 / math.Pi)
 }
@@ -115,7 +113,7 @@ func (v Vector2) Distance(other Vector2) float64 {
 }
 
 // DistanceSquared returns the squared Euclidean distance between v and other.
-// It is useful for proximity checks without a square root.
+// It avoids a square root when only comparing distances.
 func (v Vector2) DistanceSquared(other Vector2) float64 {
 	return v.Sub(other).LengthSquared()
 }
