@@ -46,6 +46,55 @@ Measure the workload that is actually slow:
 
 Castrum does not provide a universal sprite, query, or audio threshold. Hardware, asset sizes, world density, and the runner backend all change the answer. A measurement is more useful when it names the phase, system, entity count, and workload that produced it.
 
+## Engine baselines
+
+The engine's own hot paths are benchmarked in the `benchmark/` module, a separate Go module that the engine's test, vet, and coverage runs never compile. Run it from that directory:
+
+```sh
+go test -bench=. -benchmem -benchtime=1s -count=8 -run='^$' ./...
+```
+
+The benchmarks follow the community go-ecs-benchmark and Bevy `bevy_ecs` suites in operation and reporting - populations of 100, 1000, and 10000, reported as ns/op, B/op, and allocs/op - so numbers can be lined up against other libraries. Compare two runs with [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat). A GitHub workflow, `benchmark-regression.yml`, runs the same suite on demand and on pushes to main, comparing against a cached Linux baseline; it reports regressions and never blocks a merge.
+
+The baseline below is one 1s pass on the development machine (Windows, 12 hardware threads, 2026-10-09) - a dated reference for what the engine costs today, not a budget. Draw your own numbers on your own hardware before tuning.
+
+| Benchmark | ns/op | B/op | allocs/op |
+|---|---:|---:|---:|
+| SpawnEntity (one component) | 1,077 | 577 | 8 |
+| SpawnEntity (three components) | 1,610 | 1,010 | 11 |
+| SpawnEntitiesBatch (x100) | 89,547 | 50,054 | 603 |
+| DestroyEntity | 235 | 0 | 0 |
+| ComponentRead (handle) | 54 | 0 | 0 |
+| ComponentAddRemove (migration pair) | 3,860 | 3,056 | 28 |
+| Query1 / 100 entities | 2,476 | 0 | 0 |
+| Query1 / 1,000 | 23,236 | 0 | 0 |
+| Query1 / 10,000 | 258,067 | 0 | 0 |
+| Query2 / 10,000 | 229,313 | 0 | 0 |
+| Query3 / 10,000 | 236,922 | 0 | 0 |
+| QueryWhere / 1,000 | 16,000 | 0 | 0 |
+| QueryConstruct (1,000, cold) | 4,706 | 456 | 5 |
+| AdvanceEmptySystems / 1 system | 391 | 200 | 6 |
+| AdvanceEmptySystems / 50 | 624 | 200 | 6 |
+| AdvanceSimpleSystem / 100 | 31,007 | 29,128 | 508 |
+| AdvanceSimpleSystem / 10,000 | 2,698,766 | 2,880,337 | 50,008 |
+| LoadWarmTexture (cache hit) | 89 | 32 | 1 |
+| LoadWarmFont (cache hit) | 110 | 32 | 1 |
+| LoadColdPNG (256x256 decode) | 753,993 | 314,656 | 28 |
+| LoadColdWAV (small decode) | 3,278 | 3,081 | 24 |
+| FontParse (Go regular face) | 518,748 | 738,148 | 2,825 |
+| RegisterGridAtlas (32x32 tiles) | 201,927 | 260,674 | 2,830 |
+| CollectShapes / 1,000 | 662,374 | 16,842 | 1,000 |
+| CollectShapes / 10,000 | 2,721,193 | 167,907 | 10,000 |
+| CollectTextures / 1,000 | 741,683 | 32,918 | 1,000 |
+| CollectTextures / 10,000 | 3,752,891 | 335,146 | 10,000 |
+| CollectCulled (1,000, 75% off-screen) | 351,171 | 32,137 | 1,000 |
+| CollisionTickMoving / 100 | 183,312 | 25,102 | 503 |
+| CollisionTickMoving / 1,000 | 2,323,260 | 253,406 | 5,028 |
+| CollisionTickMoving / 10,000 | 33,717,397 | 3,365,546 | 53,902 |
+| CollisionTickStatic / 10,000 | 5,620,219 | 1,308,802 | 30,496 |
+
+Two readings worth naming. Query iteration is allocation-free at steady state, so the per-entity cost (~25 ns) is pure matching work. The collision moving tick at 10,000 colliders reindexes every proxy every tick; at 60 TPS that path alone spends most of a tick's budget, which is the number to reach for before blaming rendering.
+
 ## Keep systems within their phase budget
 
 Use the phase that matches the work:

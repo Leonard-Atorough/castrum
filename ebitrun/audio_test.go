@@ -3,17 +3,21 @@ package ebitrun
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
-	ebitaudio "github.com/hajimehoshi/ebiten/v2/audio"
-
+	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+
+	ebitaudio "github.com/hajimehoshi/ebiten/v2/audio"
 )
 
 func TestNewRegistersAudioCodecs(t *testing.T) {
@@ -252,5 +256,157 @@ func TestSweepReleasesUnsyncedSessions(t *testing.T) {
 	}
 	if err := stale.source.Close(); err == nil {
 		t.Fatal("sweep must have closed the swept session's parked file")
+	}
+}
+
+// closeTrackingFS counts file opens and closes over a real directory,
+// so the streaming path's parked file is observable.
+type closeTrackingFS struct {
+	fsys   fs.FS
+	opens  *int
+	closes *int
+}
+
+func (c closeTrackingFS) Open(name string) (fs.File, error) {
+	f, err := c.fsys.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	*c.opens++
+	return &trackingFile{File: f, closes: c.closes}, nil
+}
+
+type trackingFile struct {
+	fs.File
+	closes *int
+}
+
+func (f *trackingFile) Close() error {
+	*f.closes++
+	return f.File.Close()
+}
+
+// Seek forwards to the wrapped file so the streaming path sees the
+// underlying directory file's seekability.
+func (f *trackingFile) Seek(offset int64, whence int) (int64, error) {
+	seeker, ok := f.File.(io.Seeker)
+	if !ok {
+		return 0, fmt.Errorf("trackingFile: wrapped file %T is not seekable", f.File)
+	}
+	return seeker.Seek(offset, whence)
+}
+
+// TestDefaultRunnerAudioPlaybackAndCleanup regression-checks the
+// default runner's audio path end to end: both load modes play
+// through the engine's audio system, a paused play holds, and
+// destroying a playing entity releases its player and closes the
+// streaming file on the next sweep.
+func TestDefaultRunnerAudioPlaybackAndCleanup(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "tone.wav"), testWAV(), 0o644); err != nil {
+		t.Fatalf("write wav: %v", err)
+	}
+	var opens, closes int
+	fsys := closeTrackingFS{fsys: os.DirFS(dir), opens: &opens, closes: &closes}
+
+	g, err := castrum.New(castrum.WithFilesystem(fsys))
+	if err != nil {
+		t.Fatalf("castrum.New: %v", err)
+	}
+	if _, err := New(g); err != nil { // default wiring: codecs, provider, engine.audio
+		t.Fatalf("ebitrun.New: %v", err)
+	}
+	world := g.World()
+
+	// One eager play and one streaming loop, as games build them.
+	shot := audio.NewSource("tone.wav")
+	shot.Load = audio.LoadEager
+	shotEntity, err := world.NewEntity(shot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	music := audio.NewSource("tone.wav")
+	music.Load = audio.LoadStream
+	music.Loop = audio.LoopForever
+	musicEntity, err := world.NewEntity(music)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := g.Startup(); err != nil {
+		t.Fatal(err)
+	}
+	advance := func(frames int) {
+		t.Helper()
+		for range frames {
+			if err := g.Advance(17 * time.Millisecond); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	advance(3)
+
+	controller, err := world.Resource[audio.Controller]()
+	if err != nil {
+		t.Fatalf("audio controller: %v", err)
+	}
+	provider, ok := controller.(*audioProvider)
+	if !ok {
+		t.Fatalf("controller = %T, want the runner's audioProvider", controller)
+	}
+
+	// Both load modes play: the eager session owns no file, the
+	// streaming session parks its open one.
+	shotSession := provider.players[shotEntity.ID()]
+	if shotSession == nil || shotSession.load != audio.LoadEager || shotSession.source != nil {
+		t.Fatalf("eager session = %+v, want live with no open file", shotSession)
+	}
+	if !shotSession.player.IsPlaying() {
+		t.Error("eager play should be playing")
+	}
+	musicSession := provider.players[musicEntity.ID()]
+	if musicSession == nil || musicSession.load != audio.LoadStream || musicSession.source == nil {
+		t.Fatalf("stream session = %+v, want live with its open file", musicSession)
+	}
+	if !musicSession.player.IsPlaying() {
+		t.Error("stream play should be playing")
+	}
+	if open := opens - closes; open != 1 {
+		t.Errorf("open files = %d during playback, want the stream's one", open)
+	}
+
+	// A paused play holds its session.
+	if err := musicEntity.Update(world, func(s *audio.Source) { s.Paused = true }); err != nil {
+		t.Fatal(err)
+	}
+	advance(2)
+	if !musicSession.held {
+		t.Error("a paused play should hold its session")
+	}
+
+	// Destroying the streaming entity cleans up: the session goes
+	// and the parked file closes on the next sweep.
+	if err := world.DestroyEntity(musicEntity); err != nil {
+		t.Fatal(err)
+	}
+	advance(2)
+	if _, still := provider.players[musicEntity.ID()]; still {
+		t.Error("destroyed stream play should release its session")
+	}
+	if open := opens - closes; open != 0 {
+		t.Errorf("open files = %d after destroy, want the stream file closed", open)
+	}
+
+	// The eager play survives the music's death and releases when
+	// its own entity goes.
+	if _, still := provider.players[shotEntity.ID()]; !still {
+		t.Fatal("the eager play should still be live")
+	}
+	if err := world.DestroyEntity(shotEntity); err != nil {
+		t.Fatal(err)
+	}
+	advance(2)
+	if _, still := provider.players[shotEntity.ID()]; still {
+		t.Error("destroyed eager play should release its session")
 	}
 }
