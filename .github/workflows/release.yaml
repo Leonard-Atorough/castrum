@@ -51,6 +51,9 @@ jobs:
     needs: test
     if: ${{ !cancelled() && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
+    # Every publish waits for the release environment's approval, so
+    # a maintainer decides when a version actually goes out.
+    environment: release
     steps:
       - name: Checkout
         uses: actions/checkout@v4
