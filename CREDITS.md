@@ -25,4 +25,4 @@ All sound effects, currently:
 
 ## [The Go Authors](https://go.googlesource.com/go/image/#gofont) (BSD-3-Clause)
 
-- `fonts/GoRegular.ttf` (examples/text)
+- `fonts/GoRegular.ttf` (examples/text, examples/your-first-game)

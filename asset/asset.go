@@ -32,7 +32,7 @@ type ID string
 // It defaults to the lowercased file extension.
 type Format string
 
-// Asset formats with built-in constants. New formats can be  introduced 
+// Asset formats with built-in constants. New formats can be  introduced
 // by using [Server.RegisterDecoder].
 const (
 	FormatJSON Format = "json"
