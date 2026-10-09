@@ -250,7 +250,7 @@ First, preload the sound effect immediately after the existing `ebitrun.New(g)` 
 ```go
 const AssetSFX = "audio/GUNArtl_Rocket Launcher Fire_02.wav"
 
-if _, err := g.AssetServer().Load[asset.AudioData](AssetSFX); err != nil {
+if _, err := g.World().MustResource[*asset.Server]().Load[asset.AudioData](AssetSFX); err != nil {
 	return err
 }
 ```
@@ -388,10 +388,10 @@ Register `player.turret` after `player.hull.move`. The movement system writes th
 Finally, preload both textures before `g.Run(runner)`. This makes missing or invalid image files fail during setup:
 
 ```go
-if _, err := g.AssetServer().Load[asset.TextureData](AssetHull); err != nil {
+if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetHull); err != nil {
 	return err
 }
-if _, err := g.AssetServer().Load[asset.TextureData](AssetTurret); err != nil {
+if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetTurret); err != nil {
 	return err
 }
 ```

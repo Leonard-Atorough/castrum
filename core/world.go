@@ -99,6 +99,21 @@ func (w *World) Resource[T any]() (T, error) {
 	return entry.instance.(T), nil
 }
 
+// MustResource retrieves the resource of the specified type from the
+// world, panicking if it is not registered or fails to resolve. It
+// is licensed for engine-owned static wiring only: a resource the
+// engine provides at construction can be asserted, while
+// runner-provided and user-provided resources belong to
+// [World.Resource], whose absent case is reachable and must be
+// handled.
+func (w *World) MustResource[T any]() T {
+	value, err := w.Resource[T]()
+	if err != nil {
+		panic(fmt.Sprintf("castrum: MustResource[%s]: %v", reflect.TypeFor[T](), err))
+	}
+	return value
+}
+
 // ResolveEager resolves all eager resources registered with the world.
 // It returns an error if any resource fails to resolve.
 func (w *World) ResolveEager() error {

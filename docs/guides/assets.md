@@ -42,7 +42,7 @@ Use `Load[T]` for an asset that should be identified by a path and reused. The s
 Preload assets during setup when a missing file or decode failure should stop the game from starting. You also avoid paying the file and decode cost on the first frame:
 
 ```go
-if _, err := g.AssetServer().Load[asset.TextureData]("assets/sprites/hull.png"); err != nil {
+if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData]("assets/sprites/hull.png"); err != nil {
 	return err
 }
 ```
@@ -72,7 +72,7 @@ An overridden ID is part of correctness, not just an optimization. Two different
 Load decoded audio as `asset.AudioData` after `ebitrun.New` has registered the audio codecs:
 
 ```go
-if _, err := g.AssetServer().Load[asset.AudioData]("assets/audio/confirm.ogg"); err != nil {
+if _, err := g.World().MustResource[*asset.Server]().Load[asset.AudioData]("assets/audio/confirm.ogg"); err != nil {
 	return err
 }
 ```
@@ -84,7 +84,7 @@ For normal playback, prefer the audio component's `Load: audio.LoadEager` for sh
 Load images as `asset.TextureData`. The asset package decodes them into backend-free Go image values; the runner converts them to a renderable texture when it needs to draw them:
 
 ```go
-texture, err := g.AssetServer().Load[asset.TextureData]("assets/sprites/hull.png")
+texture, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData]("assets/sprites/hull.png")
 if err != nil {
 	return err
 }
@@ -133,7 +133,7 @@ func decodeDialogue(reader io.Reader) (Dialogue, error) {
 	return dialogue, err
 }
 
-server := g.AssetServer()
+server := g.World().MustResource[*asset.Server]()
 if err := server.RegisterDecoder(
 	asset.FormatJSON,
 	asset.Decoder[Dialogue](decodeDialogue),
@@ -179,7 +179,7 @@ Treat an atlas as setup for image loading: registration loads the image through 
 For a regular grid, register the image with tile dimensions and a prefix. Regions are named in row-major order as `prefix_0`, `prefix_1`, and so on:
 
 ```go
-if err := g.AssetServer().RegisterGridAtlas(
+if err := g.World().MustResource[*asset.Server]().RegisterGridAtlas(
 	"characters", "assets/sprites/characters.png", 16, 16, "char",
 ); err != nil {
 	return err

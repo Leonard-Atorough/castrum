@@ -75,10 +75,7 @@ type Game struct {
 	ctx       core.Context
 	schedules map[core.Phase]*runtime.Schedule[core.System]
 
-	mainCamera  *core.Entity
-	assetServer *asset.Server
-	clips       *animation.ClipStore
-	mixer       *audio.Mixer
+	mainCamera *core.Entity
 
 	acc     time.Duration
 	started atomic.Bool
@@ -124,9 +121,9 @@ func New(opts ...option) (*Game, error) {
 	}
 	g.ctx.World = g.world
 
-	g.assetServer = asset.New(options.Filesystem)
+	server := asset.New(options.Filesystem)
 	if err := g.world.Provide(func(*core.World) (*asset.Server, error) {
-		return g.assetServer, nil
+		return server, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide asset server: %w", err)
 	}
@@ -136,7 +133,6 @@ func New(opts ...option) (*Game, error) {
 	}
 
 	clips := animation.NewClipStore()
-	g.clips = clips
 	if err := g.world.Provide(func(*core.World) (*animation.ClipStore, error) {
 		return clips, nil
 	}); err != nil {
@@ -164,7 +160,6 @@ func New(opts ...option) (*Game, error) {
 	}
 
 	mixer := audio.NewMixer()
-	g.mixer = mixer
 	if err := g.world.Provide(func(*core.World) (*audio.Mixer, error) {
 		return mixer, nil
 	}); err != nil {
@@ -243,31 +238,6 @@ func (g *Game) World() *core.World {
 // view entirely - the collector prefers user-spawned primaries.
 func (g *Game) MainCamera() *core.Entity {
 	return g.mainCamera
-}
-
-// AssetServer returns the game's asset server: the engine provides it
-// at New over the configured filesystem, so atlas registration works
-// before any runner exists. Systems access the same server through
-// the world's resource locator.
-func (g *Game) AssetServer() *asset.Server {
-	return g.assetServer
-}
-
-// Clips returns the game's animation clip store: the engine provides
-// it at New, so games Add clips at setup time. The animation system
-// that consumes the store is registered by [WithAnimation]; the
-// store itself exists either way. Systems access the same store
-// through the world's resource locator.
-func (g *Game) Clips() *animation.ClipStore {
-	return g.clips
-}
-
-// Mixer returns the game's audio mixer: the engine provides it at New.
-// Volume levels and the global pause are set through it; a runner
-// applies them to its players. Systems access the same mixer through
-// the world's resource locator.
-func (g *Game) Mixer() *audio.Mixer {
-	return g.mixer
 }
 
 // AddSystem binds systems to a schedule under a name. Systems run in

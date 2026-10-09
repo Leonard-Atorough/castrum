@@ -67,7 +67,7 @@ func run() error {
 	// or unreadable file fails before the window opens, and the first
 	// press has no decode latency. The music needs no preload - it
 	// never fully decodes.
-	if _, err := g.AssetServer().Load[asset.AudioData](AssetMagic); err != nil {
+	if _, err := g.World().MustResource[*asset.Server]().Load[asset.AudioData](AssetMagic); err != nil {
 		return err
 	}
 
@@ -85,7 +85,7 @@ func run() error {
 		return err
 	}
 
-	mixer := g.Mixer()
+	mixer := g.World().MustResource[*audio.Mixer]()
 	if err := g.AddSystem(core.PhaseFrame, "audio.spacebar", spacebarSystem()); err != nil {
 		return err
 	}

@@ -16,7 +16,7 @@ func run() error {
 		return err
 	}
 
-	if err := g.AssetServer().RegisterGridAtlas("characters", "characters.png", 16, 16, "char"); err != nil {
+	if err := g.World().MustResource[*asset.Server]().RegisterGridAtlas("characters", "characters.png", 16, 16, "char"); err != nil {
 		return err
 	}
 	player, err := g.World().NewEntity(core.Transform{})

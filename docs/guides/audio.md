@@ -69,7 +69,7 @@ if err != nil {
 	return err
 }
 
-if _, err := g.AssetServer().Load[asset.AudioData]("audio/confirm.ogg"); err != nil {
+if _, err := g.World().MustResource[*asset.Server]().Load[asset.AudioData]("audio/confirm.ogg"); err != nil {
 	return err
 }
 ```
@@ -143,7 +143,7 @@ master volume x group volume x source volume
 Adjust the master or one group without rewriting every source:
 
 ```go
-mixer := g.Mixer()
+mixer := g.World().MustResource[*audio.Mixer]()
 mixer.SetMaster(mixer.Master() - step)
 mixer.SetGroupVolume(
 	audio.GroupMusic,

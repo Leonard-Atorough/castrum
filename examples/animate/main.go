@@ -16,6 +16,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/animation"
+	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -53,11 +54,11 @@ func run() error {
 		return err
 	}
 
-	if err := g.AssetServer().RegisterGridAtlas(AssetTorchLight, "torch_light.png", 16, 28, "torch_light"); err != nil {
+	if err := g.World().MustResource[*asset.Server]().RegisterGridAtlas(AssetTorchLight, "torch_light.png", 16, 28, "torch_light"); err != nil {
 		return err
 	}
 
-	clipStore := g.Clips()
+	clipStore := g.World().MustResource[*animation.ClipStore]()
 
 	if err := clipStore.Add(ClipFlickeringTorch, animation.Clip{
 		Source: AssetTorchLight,

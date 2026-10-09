@@ -195,15 +195,16 @@ func TestNewProvidesAssetServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if g.AssetServer() == nil {
-		t.Fatal("AssetServer should return the engine-provided server")
+	server := g.World().MustResource[*asset.Server]()
+	if server == nil {
+		t.Fatal("MustResource should return the engine-provided server")
 	}
-	server, err := g.World().Resource[*asset.Server]()
+	byErr, err := g.World().Resource[*asset.Server]()
 	if err != nil {
 		t.Fatalf("Resource[*asset.Server] right after New: %v", err)
 	}
-	if g.AssetServer() != server {
-		t.Fatal("AssetServer and the resource must be the same instance")
+	if server != byErr {
+		t.Fatal("MustResource and Resource must be the same instance")
 	}
 }
 
@@ -214,15 +215,16 @@ func TestNewProvidesClipStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if g.Clips() == nil {
-		t.Fatal("Clips should return the engine-provided store")
+	store := g.World().MustResource[*animation.ClipStore]()
+	if store == nil {
+		t.Fatal("MustResource should return the engine-provided store")
 	}
-	store, err := g.World().Resource[*animation.ClipStore]()
+	byErr, err := g.World().Resource[*animation.ClipStore]()
 	if err != nil {
 		t.Fatalf("Resource[*animation.ClipStore] right after New: %v", err)
 	}
-	if g.Clips() != store {
-		t.Fatal("Clips and the resource must be the same instance")
+	if store != byErr {
+		t.Fatal("MustResource and Resource must be the same instance")
 	}
 }
 
@@ -231,15 +233,16 @@ func TestNewProvidesAudioMixer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if g.Mixer() == nil {
-		t.Fatal("Mixer should return the engine-provided mixer")
+	mixer := g.World().MustResource[*audio.Mixer]()
+	if mixer == nil {
+		t.Fatal("MustResource should return the engine-provided mixer")
 	}
-	mixer, err := g.World().Resource[*audio.Mixer]()
+	byErr, err := g.World().Resource[*audio.Mixer]()
 	if err != nil {
 		t.Fatalf("Resource[*audio.Mixer] right after New: %v", err)
 	}
-	if g.Mixer() != mixer {
-		t.Fatal("Mixer and the resource must be the same instance")
+	if mixer != byErr {
+		t.Fatal("MustResource and Resource must be the same instance")
 	}
 }
 
@@ -328,7 +331,7 @@ func TestOptionalCollisionSystem(t *testing.T) {
 
 func TestOptionalAnimationSystem(t *testing.T) {
 	spawnAnimated := func(g *Game) {
-		if err := g.Clips().Add("clip", animation.Clip{
+		if err := g.World().MustResource[*animation.ClipStore]().Add("clip", animation.Clip{
 			Source: "sprites",
 			Frames: []string{"frame_0", "frame_1"},
 			FPS:    60,

@@ -29,7 +29,7 @@ An animation frame is an atlas region. The animation package does not load image
 For a regular spritesheet, use `RegisterGridAtlas`. The tile dimensions must divide the image dimensions evenly, and the generated regions are named in row-major order using the prefix:
 
 ```go
-if err := g.AssetServer().RegisterGridAtlas(
+if err := g.World().MustResource[*asset.Server]().RegisterGridAtlas(
 	"torch_light",
 	"torch_light.png",
 	16, 28,
@@ -48,7 +48,7 @@ Register the atlas during setup, before spawning entities that refer to it. Grid
 A `Clip` names the atlas, lists its regions in playback order, and sets its rate. Add it to the game's clip store with a stable name:
 
 ```go
-if err := g.Clips().Add("flickering_torch", animation.Clip{
+if err := g.World().MustResource[*animation.ClipStore]().Add("flickering_torch", animation.Clip{
 	Source: "torch_light",
 	Frames: []string{
 		"torch_light_0",
@@ -163,7 +163,7 @@ There are no per-frame durations, frame events, blending, reverse playback, or a
 If an animation does not behave as expected, check the layer that owns the problem:
 
 - **The entity fails to spawn:** `Animation.Clip` is empty, the loop mode is invalid, or another component is invalid.
-- **The game loop reports a missing clip:** the component names a clip that was not added to `g.Clips()`.
+- **The game loop reports a missing clip:** the component names a clip that was not added to the clip store.
 - **The sprite cannot resolve a frame:** the clip's atlas or region name does not exist.
 - **The animation appears frozen:** check `Paused`, `FPS`, and `PlaybackMultiplier` - or it may simply have completed; check `HasCompleted`.
 - **A completed animation resumes oddly:** unpausing a finished animation does not replay it; call `Restart`.
