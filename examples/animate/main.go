@@ -57,7 +57,7 @@ func run() error {
 
 	clipStore := g.Clips()
 
-	if err := clipStore.Add(ClipFlickeringTorch, animation.AnimationClip{
+	if err := clipStore.Add(ClipFlickeringTorch, animation.Clip{
 		Source: AssetTorchLight,
 		Frames: []string{
 			"torch_light_0",
@@ -67,8 +67,7 @@ func run() error {
 			"torch_light_4",
 			"torch_light_5",
 		},
-		FPS:  TorchLightFPS,
-		Loop: TorchLightLoop,
+		FPS: TorchLightFPS,
 	}); err != nil {
 		return err
 	}
@@ -80,6 +79,7 @@ func run() error {
 		},
 		animation.Animation{
 			Clip: ClipFlickeringTorch,
+			Loop: TorchLightLoop,
 		},
 	)
 	if err != nil {

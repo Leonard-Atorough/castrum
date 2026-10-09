@@ -11,16 +11,16 @@ The runnable version is [examples/animate](../../examples/animate). It embeds a 
 Animation has three parts:
 
 - An atlas which owns the image and its named regions.
-- An `AnimationClip` which owns the ordered frame names, FPS, and loop mode.
-- An `Animation` component which owns one entity's current clip and playback state.
+- A `Clip` which owns the ordered frame names and FPS.
+- An `Animation` component which owns one entity's playback: the current clip, frame position, speed, pause state, loop mode, and completion state.
 
 The relationship is:
 
 ```text
-atlas regions -> AnimationClip -> Animation component -> Sprite.Drawable
+atlas regions -> Clip -> Animation component -> Sprite.Drawable
 ```
 
-The atlas owns frame geometry, while the clip owns frame order. This keeps one spritesheet useful for several animations, such as `idle`, `walk`, and `attack`, without duplicating the image.
+The atlas owns frame geometry, the clip owns frame order, and the component owns playback. Looping lives on the component, so one clip can play once for one entity and loop for another - clips are loop-agnostic. This keeps one spritesheet useful for several animations, such as `idle`, `walk`, and `attack`, without duplicating the image.
 
 ## Prepare the frames
 
@@ -45,10 +45,10 @@ Register the atlas during setup, before spawning entities that refer to it. Grid
 
 ## Define a clip
 
-An `AnimationClip` names the atlas, lists its regions in playback order, and sets its rate and looping behavior. Add it to the game's clip store with a stable name:
+A `Clip` names the atlas, lists its regions in playback order, and sets its rate. Add it to the game's clip store with a stable name:
 
 ```go
-if err := g.Clips().Add("flickering_torch", animation.AnimationClip{
+if err := g.Clips().Add("flickering_torch", animation.Clip{
 	Source: "torch_light",
 	Frames: []string{
 		"torch_light_0",
@@ -58,8 +58,7 @@ if err := g.Clips().Add("flickering_torch", animation.AnimationClip{
 		"torch_light_4",
 		"torch_light_5",
 	},
-	FPS:  10,
-	Loop: animation.LoopForever,
+	FPS: 10,
 }); err != nil {
 	return err
 }
@@ -71,13 +70,16 @@ The clip store copies the frame slice when you add a clip, so changing the origi
 
 ## Play an animation
 
-Spawn an entity with a `Sprite`, a `Transform`, and an `Animation` component that names the clip:
+Spawn an entity with a `Sprite`, a `Transform`, and an `Animation` component that names the clip and chooses its loop mode:
 
 ```go
 _, err := g.World().NewEntity(
 	core.Transform{Position: geom.Vector2{X: 100, Y: 100}},
 	core.Sprite{},
-	animation.Animation{Clip: "flickering_torch"},
+	animation.Animation{
+		Clip: "flickering_torch",
+		Loop: animation.LoopForever,
+	},
 )
 if err != nil {
 	return err
@@ -86,9 +88,9 @@ if err != nil {
 
 The animation system is registered automatically by `castrum.New`; you do not register it yourself. During fixed updates it advances elapsed time, selects the current frame, and writes a `core.AtlasSource` to `Sprite.Drawable`.
 
-Two entities can share a clip without sharing playback state. Each entity has its own current frame, elapsed time, pause state, and playback speed.
+Two entities can share a clip without sharing playback state. Each entity has its own current frame, elapsed time, pause state, playback speed, and loop mode.
 
-An empty `Animation` is not playable. Its `Clip` field must name the clip to play, and the component is validated when you spawn or update the entity.
+An empty `Animation` is not playable. Its `Clip` field must name the clip to play, and the component is validated when you spawn or update the entity - a loop mode outside `LoopNone` and `LoopForever` is rejected like any other invalid state.
 
 ## Control playback
 
@@ -106,41 +108,49 @@ for e := range torches.Execute() {
 
 The fields you will use most often are:
 
-- `Paused` stops advancement while keeping the current frame.
+- `Paused` stops advancement while keeping the current frame. Setting it back to false resumes from the same frame.
 - `PlaybackMultiplier` scales the clip's rate. `0` is the normal rate, `1` is the authored rate, and `2` plays twice as fast.
+- `Loop` selects `LoopNone` or `LoopForever`.
 
-The component also provides four methods:
-
-- `Pause` pauses at the current frame.
-- `Resume` continues from the current frame.
-- `Restart` rewinds to frame zero and resumes.
-- `Stop` rewinds to frame zero and pauses.
-
-Use `Restart` when an effect should play again from the beginning. Use `Stop` when it should remain at its first frame until something resumes it.
+The component provides one method: `Restart` rewinds to frame zero, resumes playback, and clears the completion state. Use it when an effect should play again from the beginning - the component reads as never finished until it completes once more. Pausing and resuming are `Paused` field writes; a method wrapping a single field write would only duplicate the field.
 
 ## Looping and completion
 
-Looping belongs to the clip rather than the entity:
+Looping belongs to the entity, on the `Animation` component:
 
-- `animation.LoopForever` wraps from the last frame to the first.
-- `animation.LoopNone` plays once, holds the last frame, and sets `Paused`.
+- `animation.LoopNone` plays the clip once, then holds the last frame paused.
+- `animation.LoopForever` wraps from the last frame back to the first.
 
-`LoopNone` is the zero value, so it is the default when you want a one-shot animation. To react to completion, query the component and check `Paused` for a non-looping clip, then remove the entity or trigger the next state.
+`LoopNone` is the zero value, so a spawned animation plays once unless it says otherwise.
+
+Completion is component state, not an event. When playback passes the final frame, the engine records the current tick in `CompletedOn` - zero means never:
+
+```go
+// The edge: true for exactly one tick per completion. React here -
+// play the impact sound, deal the damage, start the next state.
+if anim.JustCompleted(ctx.Tick) { ... }
+
+// The record: true from the completion until the next Restart.
+// A looping animation never finishes, so it always reads false.
+if anim.HasCompleted() { ... }
+```
+
+A completed `LoopNone` animation holds its last frame and stays readable indefinitely - the engine does not remove it. Unpausing a finished animation does not replay it: still on its final frame, it completes again on the next frame crossing and pauses. Replaying is `Restart`'s job.
+
+A `LoopForever` animation never completes - `HasCompleted` always reads false - but it does fire `JustCompleted` on every wrap past the last frame, which is how a game syncs effects to loop boundaries such as footsteps or attack rhythms.
 
 ## Change clips
 
-The current frame and elapsed time belong to the `Animation` component, not the clip. Reset them when switching to a clip whose frame sequence may have a different length or starting pose:
+The current frame and elapsed time belong to the `Animation` component, not the clip. `Restart` when switching to a clip whose frame sequence may have a different length or starting pose:
 
 ```go
 anim, _ := e.Component[animation.Animation]()
 anim.Clip = "run"
-anim.Current = 0
-anim.Elapsed = 0
-anim.Paused = false
+anim.Restart()
 e.SetComponent(anim)
 ```
 
-Resetting is especially important when the previous clip's current frame is outside the new clip's frame list. A clip switch does not automatically reset playback state.
+This matters most when the previous clip's current frame is outside the new clip's frame list. A clip switch does not automatically reset playback state.
 
 ## Timing
 
@@ -152,11 +162,12 @@ There are no per-frame durations, frame events, blending, reverse playback, or a
 
 If an animation does not behave as expected, check the layer that owns the problem:
 
-- **The entity fails to spawn:** `Animation.Clip` is empty or another component is invalid.
+- **The entity fails to spawn:** `Animation.Clip` is empty, the loop mode is invalid, or another component is invalid.
 - **The game loop reports a missing clip:** the component names a clip that was not added to `g.Clips()`.
 - **The sprite cannot resolve a frame:** the clip's atlas or region name does not exist.
-- **The animation appears frozen:** check `Paused`, `FPS`, and `PlaybackMultiplier`.
-- **A switched clip starts at a strange frame:** reset `Current` and `Elapsed` when changing `Clip`.
+- **The animation appears frozen:** check `Paused`, `FPS`, and `PlaybackMultiplier` - or it may simply have completed; check `HasCompleted`.
+- **A completed animation resumes oddly:** unpausing a finished animation does not replay it; call `Restart`.
+- **A switched clip starts at a strange frame:** call `Restart` when changing `Clip`.
 - **A spritesheet registration fails:** check that tile dimensions evenly divide the image and that the generated prefix matches the clip frame names.
 
 ## Where to go next

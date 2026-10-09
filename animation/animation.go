@@ -1,3 +1,5 @@
+// Package animation provides animation components, clip storage, and a system
+// that advances sprite playback on fixed ticks.
 package animation
 
 import (
@@ -26,9 +28,16 @@ type Animation struct {
 	PlaybackMultiplier float64
 	// Paused stops playback.
 	Paused bool
+	// CompletedOn is the tick stamp when the animation last completed.
+	CompletedOn uint64
+	// Loop defines the looping behavior.
+	Loop LoopMode
 }
 
-// Validate implements the Validatable contract.
+// Validate reports whether a has valid playback state: a non-empty clip ID,
+// non-negative frame index and elapsed time, a non-negative playback
+// multiplier, and a valid loop mode. A zero playback multiplier means normal
+// speed.
 func (a Animation) Validate() error {
 	if a.Clip == "" {
 		return fmt.Errorf("animation: animation clip must not be empty")
@@ -41,6 +50,9 @@ func (a Animation) Validate() error {
 	}
 	if a.PlaybackMultiplier < 0 {
 		return fmt.Errorf("animation: playback multiplier must not be negative (0 is the normal rate), got %v", a.PlaybackMultiplier)
+	}
+	if a.Loop != LoopNone && a.Loop != LoopForever {
+		return fmt.Errorf("animation: invalid loop mode %v", a.Loop)
 	}
 	return nil
 }
@@ -56,44 +68,42 @@ const (
 	LoopForever
 )
 
-// Pause stops the animation from advancing.
-func (a *Animation) Pause() {
-	a.Paused = true
-}
-
-// Resume unpauses the animation.
-func (a *Animation) Resume() {
-	a.Paused = false
-}
-
 // Restart rewinds to the first frame and resumes playback.
 func (a *Animation) Restart() {
 	a.Current, a.Elapsed = 0, 0
-	a.Resume()
+	a.CompletedOn = 0
+	a.Paused = false
 }
 
-// Stop rewinds to the first frame and pauses: the animation resumes
-// from the beginning, not where it stopped.
-func (a *Animation) Stop() {
-	a.Current, a.Elapsed = 0, 0
-	a.Paused = true
+// JustCompleted reports whether the animation completed on the given
+// fixed tick. Pass the ctx's current tick to check if the animation just
+// completed.
+func (a Animation) JustCompleted(tick uint64) bool {
+	return a.CompletedOn == tick
 }
 
-// AnimationClip is an animation definition: named atlas regions
-// played in order at a fixed rate, with a looping behavior.
-type AnimationClip struct {
+// HasCompleted reports whether a non-looping animation has finished playing.
+//
+// For [LoopForever], it always returns false. Use [Animation.JustCompleted]
+// to observe each loop completion.
+func (a Animation) HasCompleted() bool {
+	return a.Loop == LoopNone && a.CompletedOn != 0
+}
+
+// Clip is a reusable definition of an animation sequence. It specifies the
+// source atlas, frame names in playback order, and playback rate.
+type Clip struct {
 	// Source is the atlas holding the frames.
 	Source asset.AtlasID
 	// Frames holds the frame region names, in playback order.
 	Frames []string
 	// FPS is the playback rate in frames per second.
 	FPS float64
-	// Loop defines the looping behavior.
-	Loop LoopMode
 }
 
-// Validate implements the Validatable contract.
-func (c AnimationClip) Validate() error {
+// Validate reports whether c has a source atlas, at least one frame, and a
+// positive frame rate.
+func (c Clip) Validate() error {
 	if c.Source == "" {
 		return fmt.Errorf("animation: clip source must not be empty")
 	}
@@ -109,18 +119,18 @@ func (c AnimationClip) Validate() error {
 // ClipStore is the game's library of named animation clips, provided
 // as a world resource by castrum.New.
 type ClipStore struct {
-	clips map[ClipID]AnimationClip
+	clips map[ClipID]Clip
 }
 
 // NewClipStore returns an empty clip store.
 func NewClipStore() *ClipStore {
-	return &ClipStore{clips: make(map[ClipID]AnimationClip)}
+	return &ClipStore{clips: make(map[ClipID]Clip)}
 }
 
-// Add registers clip under name. Frames is copied, so the store owns
-// its slice. Errors on an empty or duplicate name, or on a clip
-// failing Validate.
-func (s *ClipStore) Add(name ClipID, clip AnimationClip) error {
+// Add registers clip under name. It copies clip.Frames so later changes to
+// the caller's slice do not affect the stored clip. It returns an error if
+// name is empty or already registered, or if clip fails validation.
+func (s *ClipStore) Add(name ClipID, clip Clip) error {
 	if name == "" {
 		return fmt.Errorf("animation: clip name must not be empty")
 	}
@@ -135,18 +145,19 @@ func (s *ClipStore) Add(name ClipID, clip AnimationClip) error {
 	return nil
 }
 
-// Get returns the clip registered under name. The returned value
-// shares the store's Frames slice: do not mutate it in place.
-func (s *ClipStore) Get(name ClipID) (AnimationClip, error) {
+// Get returns the clip registered under name. The returned Clip shares its
+// Frames slice with the store; do not mutate that slice.
+func (s *ClipStore) Get(name ClipID) (Clip, error) {
 	clip, ok := s.clips[name]
 	if !ok {
-		return AnimationClip{}, fmt.Errorf("animation: clip %q not found", name)
+		return Clip{}, fmt.Errorf("animation: clip %q not found", name)
 	}
 	return clip, nil
 }
 
-// NewAnimationSystem returns the engine's animation advancer,
-// registered in the fixed phase by castrum.New.
+// NewAnimationSystem returns a system that advances animations during fixed
+// updates. castrum.New registers this system automatically. An animation
+// that references an unregistered clip causes the system to return an error.
 func NewAnimationSystem(store *ClipStore) core.System {
 	var animations *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
@@ -176,12 +187,15 @@ func NewAnimationSystem(store *ClipStore) core.System {
 				crossed := int(anim.Elapsed / frameDuration)
 				anim.Elapsed -= float64(crossed) * frameDuration
 				anim.Current += crossed
-				switch {
-				case clip.Loop == LoopForever:
-					anim.Current %= len(clip.Frames)
-				case anim.Current >= len(clip.Frames):
-					anim.Current = len(clip.Frames) - 1
-					anim.Paused = true
+				if anim.Current > len(clip.Frames)-1 {
+					anim.CompletedOn = ctx.Tick
+
+					if anim.Loop == LoopForever {
+						anim.Current %= len(clip.Frames)
+					} else {
+						anim.Current = len(clip.Frames) - 1
+						anim.Paused = true
+					}
 				}
 				e.SetComponent(anim)
 			}
