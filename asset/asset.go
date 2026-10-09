@@ -32,9 +32,8 @@ type ID string
 // It defaults to the lowercased file extension.
 type Format string
 
-// Asset formats with built-in constants. Decoders for them are not
-// registered by default; the engine or runner registers the set it
-// supports. New formats are introduced by [Server.RegisterDecoder].
+// Asset formats with built-in constants. New formats can be  introduced 
+// by using [Server.RegisterDecoder].
 const (
 	FormatJSON Format = "json"
 	FormatYAML Format = "yaml"

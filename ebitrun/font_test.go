@@ -48,9 +48,6 @@ func TestFontProviderMissingFontNamesIt(t *testing.T) {
 	}
 }
 
-// The engine measures text with its own shaper and draws through
-// ebitextext; this is the pin that the two agree. If the metrics
-// ever diverge, culled bounds and drawn positions drift with them.
 func TestMeasureAgreesWithDrawingMetrics(t *testing.T) {
 	server := newFontServer()
 	provider := newFontProvider(server)
