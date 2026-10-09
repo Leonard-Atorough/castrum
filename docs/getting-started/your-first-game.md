@@ -866,8 +866,14 @@ First, replace the collision-layer constants from the gun section and add the sc
 Add the run state and create one entity to hold it:
 
 ```go
+// game is the run's state: the kill count and the finished flags.
+// One entity carries it, and systems read and write it like any
+// other component.
 type game struct {
+	// Score counts enemy tanks destroyed by bullets.
 	Score int
+	// Won and Lost end the run: gameplay gates on them, and the
+	// end banner reads them.
 	Won  bool
 	Lost bool
 }

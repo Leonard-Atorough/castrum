@@ -37,6 +37,7 @@ import (
 
 // Unlike the tutorial, this example embeds its assets instead of reading a
 // downloaded bundle from the working directory; see docs/guides/assets.md.
+//
 //go:embed sprites audio fonts
 var files embed.FS
 
