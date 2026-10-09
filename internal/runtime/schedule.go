@@ -1,3 +1,4 @@
+// Package runtime provides ordered execution of systems for a core phase.
 package runtime
 
 import (
@@ -6,26 +7,28 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
-// systemsInitialCapacity defines the initial capacity for the systems slice in a schedule.
 const systemsInitialCapacity = 10
 
-// Entry pairs a system with its registration name. The name identifies
-// the registration in error messages and serves as the handle for
-// future ordering constraints.
+// Entry associates a system with its registration name.
 type Entry[T any] struct {
-	Name   string
+	// Name identifies the registration in execution errors.
+	Name string
+	// System is the value passed to the schedule's invocation function.
 	System T
 }
 
-// Schedule represents a collection of systems to be executed in a specific order.
-// T is typically a type that implements [core.System].
+// Schedule runs registered systems in order for one [core.Phase].
 type Schedule[T any] struct {
+	// systems holds entries in execution order.
 	systems []Entry[T]
-	invoke  func(T, *core.Context) error
-	phase   core.Phase
+	// invoke executes one system with the current context.
+	invoke func(T, *core.Context) error
+	// phase labels execution errors.
+	phase core.Phase
 }
 
-// NewSchedule creates a new schedule for the given phase and invocation function.
+// NewSchedule returns an empty schedule for phase. invoke executes each system
+// with the context passed to [Schedule.Run].
 func NewSchedule[T any](phase core.Phase, invoke func(T, *core.Context) error) *Schedule[T] {
 	return &Schedule[T]{
 		systems: make([]Entry[T], 0, systemsInitialCapacity),
@@ -34,14 +37,13 @@ func NewSchedule[T any](phase core.Phase, invoke func(T, *core.Context) error) *
 	}
 }
 
-// Add adds entries to the schedule. Entries are appended to the
-// existing list of systems in the schedule.
+// Add appends entries to the schedule in the order provided.
 func (s *Schedule[T]) Add(entries ...Entry[T]) {
 	s.systems = append(s.systems, entries...)
 }
 
-// Run executes all systems in the schedule in the order they were added.
-// If any system returns an error, Run stops execution and returns that error.
+// Run executes each system in registration order. It stops at the first error
+// and returns it with the schedule phase and entry name.
 func (s *Schedule[T]) Run(ctx *core.Context) error {
 	for _, e := range s.systems {
 		if err := s.invoke(e.System, ctx); err != nil {
