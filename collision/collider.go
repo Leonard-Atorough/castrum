@@ -19,7 +19,7 @@ import (
 type Collider struct {
 	// Shape is the collider's geometry in local space, before the
 	// entity's position and rotation are applied. Supported shapes are
-	// RectShape and CircleShape.
+	// Box and Circle.
 	Shape ColliderShape
 	// Offset shifts the shape from the entity's local origin, for
 	// hitboxes that are not centered on it.
@@ -58,7 +58,7 @@ func (c Collider) Validate() error {
 	switch shape := c.Shape.(type) {
 	case nil:
 		return fmt.Errorf("collider shape is nil")
-	case RectShape:
+	case Box:
 		rect := geom.Rect{Min: shape.Min, Max: shape.Max}
 		if !rect.IsValid() {
 			return fmt.Errorf("rect shape must have finite, canonical bounds")
@@ -66,7 +66,7 @@ func (c Collider) Validate() error {
 		if rect.Width() <= 0 || rect.Height() <= 0 {
 			return fmt.Errorf("rect shape must have positive width and height")
 		}
-	case CircleShape:
+	case Circle:
 		if !isFinite(shape.Center.X) || !isFinite(shape.Center.Y) {
 			return fmt.Errorf("circle shape must have a finite center")
 		}
@@ -150,25 +150,25 @@ type ColliderShape interface {
 	isColliderShape()
 }
 
-// RectShape is an axis-aligned rectangle in local space. Both corners
+// Box is an axis-aligned rectangle in local space. Both corners
 // must be finite, and Min must be strictly below Max on both axes.
 // [Collider.Validate] rejects inverted or degenerate rectangles
 // instead of normalizing them.
-type RectShape struct {
+type Box struct {
 	Min geom.Vector2
 	Max geom.Vector2
 }
 
-// CircleShape is a circle in local space. Its center must be finite
+// Circle is a circle in local space. Its center must be finite
 // and its radius must be finite and positive; invalid values are
 // rejected by [Collider.Validate].
-type CircleShape struct {
+type Circle struct {
 	Center geom.Vector2
 	Radius float64
 }
 
-func (RectShape) isColliderShape()   {}
-func (CircleShape) isColliderShape() {}
+func (Box) isColliderShape()    {}
+func (Circle) isColliderShape() {}
 
 func isFinite(value float64) bool {
 	return !math.IsNaN(value) && !math.IsInf(value, 0)

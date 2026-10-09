@@ -9,6 +9,16 @@ import (
 // Below the value, input axes are considered inactive, i.e., treated as zero.
 const DefaultDeadzone = 0.15
 
+// FrameSystemName is the name castrum.New registers the frame input
+// system under: the system that resolves one display frame of input
+// into the frame view by calling [ActionMap.Update].
+const FrameSystemName = "engine.input-update"
+
+// TickSystemName is the name castrum.New registers the fixed input
+// system under: the system that delivers the press and release edges
+// accumulated since the previous tick by calling [ActionMap.Tick].
+const TickSystemName = "engine.input-tick"
+
 // Action is a human-readable alias for a game-level input role, such as "jump" or "move_x".
 // It is used as the key in the Bindings map to associate actions with physical inputs.
 type Action string

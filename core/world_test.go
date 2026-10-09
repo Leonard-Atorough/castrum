@@ -457,7 +457,7 @@ func TestNewEntityAutoPrevTransform(t *testing.T) {
 		t.Errorf("explicit prev = %v, ok %v, want it untouched at (1, 2)", prev, ok)
 	}
 
-	bare, err := w.NewEntity(Sprite{Drawable: RectShape{Size: geom.Vector2{X: 1, Y: 1}}})
+	bare, err := w.NewEntity(depA{})
 	if err != nil {
 		t.Fatalf("spawn without Transform: %v", err)
 	}

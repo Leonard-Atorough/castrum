@@ -20,6 +20,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/render"
 )
 
 const (
@@ -41,7 +42,7 @@ const (
 // transform's scale it renders with (zero means uniform), and whether
 // the spin system advances its rotation.
 type cell struct {
-	sprite core.Sprite
+	sprite render.Sprite
 	scale  geom.Vector2
 	spin   bool
 }
@@ -76,26 +77,26 @@ func run() error {
 			label: "rect",
 			color: color.RGBA{G: 200, A: 255},
 			cells: []cell{
-				{sprite: core.Sprite{Drawable: core.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}},
-				{sprite: core.Sprite{Drawable: core.RectShape{Size: geom.Vector2{X: 100, Y: 50}}, Outline: true, StrokeWidth: 3}},
-				{sprite: core.Sprite{Drawable: core.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}, spin: true},
-				{sprite: core.Sprite{Drawable: core.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}, scale: stretch},
-				{sprite: core.Sprite{Drawable: core.RectShape{Size: geom.Vector2{X: 100, Y: 50}}, Color: color.NRGBA{G: 200, A: 128}}},
+				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}},
+				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}, Outline: true, StrokeWidth: 3}},
+				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}, spin: true},
+				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}, scale: stretch},
+				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}, Color: color.NRGBA{G: 200, A: 128}}},
 			},
 		},
 		{
 			label: "circle",
 			color: color.RGBA{R: 220, A: 255},
 			cells: []cell{
-				{sprite: core.Sprite{Drawable: core.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}}},
-				{sprite: core.Sprite{Drawable: core.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}, Outline: true, StrokeWidth: 3}},
+				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}}},
+				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}, Outline: true, StrokeWidth: 3}},
 				// Unequal radii declare the ellipse in the shape
 				// itself; the spin shows rotation is meaningful.
-				{sprite: core.Sprite{Drawable: core.CircleShape{Radii: geom.Vector2{X: 80, Y: 50}}}, spin: true},
+				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 80, Y: 50}}}, spin: true},
 				// Equal radii stretched by the transform: the other
 				// road to an ellipse, composed per axis.
-				{sprite: core.Sprite{Drawable: core.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}}, scale: stretch},
-				{sprite: core.Sprite{Drawable: core.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}, Color: color.NRGBA{R: 220, A: 128}}},
+				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}}, scale: stretch},
+				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}, Color: color.NRGBA{R: 220, A: 128}}},
 			},
 		},
 		{
@@ -103,14 +104,14 @@ func run() error {
 			color: color.RGBA{B: 220, A: 255},
 			cells: []cell{
 				// A zero From anchors the segment at the position.
-				{sprite: core.Sprite{Drawable: core.LineShape{To: geom.Vector2{X: 80, Y: 0}}, Outline: true, StrokeWidth: 4}},
+				{sprite: render.Sprite{Drawable: render.LineShape{To: geom.Vector2{X: 80, Y: 0}}, Outline: true, StrokeWidth: 4}},
 				// Symmetric endpoints pivot at the segment's middle.
-				{sprite: core.Sprite{Drawable: core.LineShape{From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}}, Outline: true, StrokeWidth: 4}},
+				{sprite: render.Sprite{Drawable: render.LineShape{From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}}, Outline: true, StrokeWidth: 4}},
 				// The anchored line spins around its endpoint.
-				{sprite: core.Sprite{Drawable: core.LineShape{To: geom.Vector2{X: 80, Y: 0}}, Outline: true, StrokeWidth: 4}, spin: true},
+				{sprite: render.Sprite{Drawable: render.LineShape{To: geom.Vector2{X: 80, Y: 0}}, Outline: true, StrokeWidth: 4}, spin: true},
 				// Scale tilts a diagonal segment into a new slope.
-				{sprite: core.Sprite{Drawable: core.LineShape{From: geom.Vector2{X: -40, Y: -40}, To: geom.Vector2{X: 40, Y: 40}}, Outline: true, StrokeWidth: 4}, scale: stretch},
-				{sprite: core.Sprite{Drawable: core.LineShape{From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}}, Outline: true, StrokeWidth: 4, Color: color.NRGBA{B: 220, A: 128}}},
+				{sprite: render.Sprite{Drawable: render.LineShape{From: geom.Vector2{X: -40, Y: -40}, To: geom.Vector2{X: 40, Y: 40}}, Outline: true, StrokeWidth: 4}, scale: stretch},
+				{sprite: render.Sprite{Drawable: render.LineShape{From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}}, Outline: true, StrokeWidth: 4, Color: color.NRGBA{B: 220, A: 128}}},
 			},
 		},
 	}

@@ -17,7 +17,7 @@ Every rendered entity needs a `Transform` and a `Sprite`. A `Transform` supplies
 ```go
 _, err := g.World().NewEntity(
 	core.Transform{Position: geom.Vector2{X: 100, Y: 100}},
-	core.Sprite{Drawable: core.TextureSource{Texture: "sprites/hull.png"}},
+	render.Sprite{Drawable: render.TextureSource{Texture: "sprites/hull.png"}},
 )
 if err != nil {
 	return err
@@ -51,7 +51,7 @@ if err := server.RegisterGridAtlas("characters", "char.png", 16, 16, "char"); er
 
 _, err := g.World().NewEntity(
 	core.Transform{Position: geom.Vector2{X: 100, Y: 100}},
-	core.Sprite{Drawable: core.AtlasSource{
+	render.Sprite{Drawable: render.AtlasSource{
 		Atlas:  "characters",
 		Region: "char_0",
 	}},
@@ -68,7 +68,7 @@ An `AtlasSource` stores names, not image data. The collector resolves the atlas 
 Use `TextureSource` when the entity should draw the entire image rather than a named atlas region:
 
 ```go
-core.Sprite{Drawable: core.TextureSource{Texture: "sprites/player.png"}}
+render.Sprite{Drawable: render.TextureSource{Texture: "sprites/player.png"}}
 ```
 
 The texture is loaded through the asset server when the collector resolves it. Preload it during setup if a missing or malformed image should prevent the game from starting:
@@ -84,8 +84,8 @@ if _, err := g.AssetServer().Load[asset.TextureData]("sprites/player.png"); err 
 Shapes do not use assets:
 
 ```go
-core.Sprite{
-	Drawable: core.RectShape{Size: geom.Vector2{X: 120, Y: 60}},
+render.Sprite{
+	Drawable: render.RectShape{Size: geom.Vector2{X: 120, Y: 60}},
 	Color:    color.RGBA{G: 200, A: 255},
 }
 ```
@@ -99,8 +99,8 @@ Shapes can be filled or outlined. Set `Outline: true` and provide a positive `St
 Text renders through a font loaded by the asset server. Point the sprite at the font file and give it a size in pixels:
 
 ```go
-core.Sprite{
-	Drawable: core.TextSource{Font: "fonts/go.ttf", Text: "score: 1", Size: 16},
+render.Sprite{
+	Drawable: render.TextSource{Font: "fonts/go.ttf", Text: "score: 1", Size: 16},
 }
 ```
 
@@ -157,7 +157,7 @@ if err := camera.Update(g.World(), func(t *core.Transform) {
 }); err != nil {
 	return err
 }
-if err := camera.Update(g.World(), func(c *core.Camera) {
+if err := camera.Update(g.World(), func(c *render.Camera) {
 	c.Zoom = 2
 }); err != nil {
 	return err
@@ -171,14 +171,14 @@ When camera state belongs to a game entity, spawn another entity with `Camera` a
 ```go
 _, err := g.World().NewEntity(
 	core.Transform{Position: geom.Vector2{X: 320, Y: 180}},
-	core.Camera{Primary: true, Zoom: 1.5},
+	render.Camera{Primary: true, Zoom: 1.5},
 )
 if err != nil {
 	return err
 }
 ```
 
-A user-spawned primary takes precedence over the engine camera. Keep one user primary active so camera selection stays intentional. When game code needs to connect screen-space input to world-space entities, build a `core.CameraView` from the camera entity's current `Transform.Position` and `Camera.Zoom`, then use its `WorldToScreen` or `ScreenToWorld` method. The [input example](../../examples/input) shows this pattern.
+A user-spawned primary takes precedence over the engine camera. Keep one user primary active so camera selection stays intentional. When game code needs to connect screen-space input to world-space entities, build a `render.CameraView` from the camera entity's current `Transform.Position` and `Camera.Zoom`, then use its `WorldToScreen` or `ScreenToWorld` method. The [input example](../../examples/input) shows this pattern.
 
 ## Overlays
 

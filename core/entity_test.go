@@ -1,9 +1,22 @@
 package core
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 type position struct{ x, y float64 }
 type velocity struct{ dx, dy float64 }
+
+// rating is a validatable test component: values outside [0, 10] fail.
+type rating struct{ n int }
+
+func (r rating) Validate() error {
+	if r.n < 0 || r.n > 10 {
+		return fmt.Errorf("rating must be between 0 and 10")
+	}
+	return nil
+}
 
 func TestNewEntityAliveWithID(t *testing.T) {
 	e := NewEntity(42)
@@ -93,11 +106,11 @@ func TestEntityUpdateMissingComponent(t *testing.T) {
 
 func TestEntityUpdateValidatesOnWrite(t *testing.T) {
 	w := NewWorld()
-	e, err := w.NewEntity(Sprite{})
+	e, err := w.NewEntity(rating{n: 5})
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
-	err = e.Update(w, func(s *Sprite) { s.Layer = 99 })
+	err = e.Update(w, func(r *rating) { r.n = 99 })
 	if err == nil {
 		t.Fatal("Update writing an invalid value should error")
 	}

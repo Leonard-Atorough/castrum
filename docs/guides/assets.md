@@ -185,8 +185,8 @@ if err := g.AssetServer().RegisterGridAtlas(
 	return err
 }
 
-sprite := core.Sprite{
-	Drawable: core.AtlasSource{Atlas: "characters", Region: "char_0"},
+sprite := render.Sprite{
+	Drawable: render.AtlasSource{Atlas: "characters", Region: "char_0"},
 }
 ```
 

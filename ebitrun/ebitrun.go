@@ -14,6 +14,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/render"
 )
 
 // Size is a 2D dimension in pixels, shared by window and logical resolution.
@@ -73,6 +74,10 @@ type Runner struct {
 
 var _ castrum.Runner = (*Runner)(nil)
 
+// AudioSystemName is the name the runner registers the audio
+// reconciler under in the frame schedule.
+const AudioSystemName = "engine.audio"
+
 // New creates the Runner for g, applying opts over defaults. The option
 // constructors never fail; all validation happens here in a single pass.
 // g must come from [castrum.New], which provides the game's [asset.Server];
@@ -102,21 +107,21 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	if audioCtx == nil {
 		audioCtx = ebitaudio.NewContext(options.SampleRate)
 	}
-	audioProvider := newAudioProvider(audioCtx, server)
+	controller := newAudioProvider(audioCtx, server)
 	if err := g.World().ProvideEager(func(*core.World) (audio.Controller, error) {
-		return audioProvider, nil
+		return controller, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum/ebiten: provide audio provider: %w", err)
 	}
 
-	if err := g.AddSystem(core.PhaseFrame, "engine.audio", audio.NewAudioSystem(audioProvider, g.Mixer())); err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: register engine.audio: %w", err)
+	if err := g.AddSystem(core.PhaseFrame, AudioSystemName, audio.NewAudioSystem(controller, g.Mixer())); err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: register %s: %w", AudioSystemName, err)
 	}
 
 	g.Context().LogicalWidth = options.Logical.Width
 	g.Context().LogicalHeight = options.Logical.Height
 
-	collector := core.NewCollector(g.World())
+	collector := render.NewCollector(g.World())
 	fonts := newFontProvider(server)
 	if err := g.World().ProvideEager(func(*core.World) (*FontProvider, error) {
 		return fonts, nil

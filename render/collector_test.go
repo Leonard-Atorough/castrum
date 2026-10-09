@@ -1,4 +1,4 @@
-package core
+package render
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"golang.org/x/image/font/gofont/goregular"
 
 	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
@@ -20,7 +21,7 @@ var unitScale = geom.Vector2{X: 1, Y: 1}
 // newCollectorWorld wires a world the way a runner wires it: an asset
 // server over a filesystem holding two 4x4 textures and a two-region
 // atlas sidecar over the first, both registered.
-func newCollectorWorld(t *testing.T) *World {
+func newCollectorWorld(t *testing.T) *core.World {
 	t.Helper()
 	encode := func() []byte {
 		var buf bytes.Buffer
@@ -35,8 +36,8 @@ func newCollectorWorld(t *testing.T) *World {
 		"atlas.json": &fstest.MapFile{Data: []byte(
 			`{"regions":[{"name":"player","x":0,"y":0,"w":2,"h":2},{"name":"enemy","x":2,"y":2,"w":2,"h":2}]}`)},
 	}
-	w := NewWorld()
-	if err := w.Provide(func(*World) (*asset.Server, error) {
+	w := core.NewWorld()
+	if err := w.Provide(func(*core.World) (*asset.Server, error) {
 		return asset.New(files), nil
 	}); err != nil {
 		t.Fatalf("provide asset server: %v", err)
@@ -53,22 +54,22 @@ func newCollectorWorld(t *testing.T) *World {
 
 // drawContext builds a draw context against a 100x100 logical target,
 // the resolution every culling test's viewport math assumes.
-func drawContext(w *World, alpha float64) *Context {
-	return &Context{World: w, Alpha: alpha, LogicalWidth: 100, LogicalHeight: 100}
+func drawContext(w *core.World, alpha float64) *core.Context {
+	return &core.Context{World: w, Alpha: alpha, LogicalWidth: 100, LogicalHeight: 100}
 }
 
-func spawnCamera(t *testing.T, w *World, prev, curr geom.Vector2, zoom float64, primary bool) {
+func spawnCamera(t *testing.T, w *core.World, prev, curr geom.Vector2, zoom float64, primary bool) {
 	t.Helper()
 	if _, err := w.NewEntity(
 		Camera{Zoom: zoom, Primary: primary},
-		Transform{Position: curr, Scale: unitScale},
-		PrevTransform{Position: prev},
+		core.Transform{Position: curr, Scale: unitScale},
+		core.PrevTransform{Position: prev},
 	); err != nil {
 		t.Fatalf("spawn camera: %v", err)
 	}
 }
 
-func spawnSprite(t *testing.T, w *World, prev, curr geom.Vector2, sprite Sprite, transform Transform) *Entity {
+func spawnSprite(t *testing.T, w *core.World, prev, curr geom.Vector2, sprite Sprite, transform core.Transform) *core.Entity {
 	t.Helper()
 	transform.Position = curr
 	if transform.Scale == (geom.Vector2{}) {
@@ -77,17 +78,17 @@ func spawnSprite(t *testing.T, w *World, prev, curr geom.Vector2, sprite Sprite,
 	// The sprite moved between ticks but did not rotate or rescale:
 	// the pair rule would snapshot the same rotation and scale.
 	e, err := w.NewEntity(sprite, transform,
-		PrevTransform{Position: prev, Rotation: transform.Rotation, Scale: transform.Scale})
+		core.PrevTransform{Position: prev, Rotation: transform.Rotation, Scale: transform.Scale})
 	if err != nil {
 		t.Fatalf("spawn sprite: %v", err)
 	}
 	return e
 }
 
-func spawnTextureSprite(t *testing.T, w *World, texture asset.ID, prev, curr geom.Vector2, sprite Sprite) *Entity {
+func spawnTextureSprite(t *testing.T, w *core.World, texture asset.ID, prev, curr geom.Vector2, sprite Sprite) *core.Entity {
 	t.Helper()
 	sprite.Drawable = TextureSource{Texture: texture}
-	return spawnSprite(t, w, prev, curr, sprite, Transform{})
+	return spawnSprite(t, w, prev, curr, sprite, core.Transform{})
 }
 
 // Without a primary camera the collector has nothing to draw: empty
@@ -139,7 +140,7 @@ func TestCollectSkipsHiddenSprites(t *testing.T) {
 	}
 }
 
-// The camera position interpolates from PrevTransform to Transform by
+// The camera position interpolates from core.PrevTransform to core.Transform by
 // alpha; the zoom comes straight from the camera component.
 func TestCollectInterpolatesCamera(t *testing.T) {
 	w := newCollectorWorld(t)
@@ -227,15 +228,15 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 	}
 }
 
-// Rotation and scale interpolate from PrevTransform like position:
+// Rotation and scale interpolate from core.PrevTransform like position:
 // the same alpha drives all three.
 func TestCollectInterpolatesRotationAndScale(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	if _, err := w.NewEntity(
 		Sprite{Drawable: TextureSource{Texture: "tex.png"}},
-		Transform{Rotation: 1, Scale: geom.Vector2{X: 3, Y: 5}},
-		PrevTransform{Scale: unitScale},
+		core.Transform{Rotation: 1, Scale: geom.Vector2{X: 3, Y: 5}},
+		core.PrevTransform{Scale: unitScale},
 	); err != nil {
 		t.Fatalf("spawn sprite: %v", err)
 	}
@@ -277,8 +278,8 @@ func TestCollectCullsByInterpolatedScale(t *testing.T) {
 	// [52, 56] sit outside the viewport's +50 edge.
 	if _, err := w.NewEntity(
 		Sprite{Drawable: TextureSource{Texture: "tex.png"}},
-		Transform{Position: geom.Vector2{X: 54}},
-		PrevTransform{Position: geom.Vector2{X: 54}, Scale: geom.Vector2{X: 10, Y: 10}},
+		core.Transform{Position: geom.Vector2{X: 54}},
+		core.PrevTransform{Position: geom.Vector2{X: 54}, Scale: geom.Vector2{X: 10, Y: 10}},
 	); err != nil {
 		t.Fatalf("spawn sprite: %v", err)
 	}
@@ -319,7 +320,7 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 	} {
 		if _, err := w.NewEntity(
 			Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: name}},
-			Transform{Position: geom.Vector2{}, Scale: unitScale},
+			core.Transform{Position: geom.Vector2{}, Scale: unitScale},
 		); err != nil {
 			t.Fatalf("spawn atlas sprite %q: %v", name, err)
 		}
@@ -327,7 +328,7 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 		// bounds end at 61, well outside the 100x100 viewport's +50.
 		if _, err := w.NewEntity(
 			Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: name}},
-			Transform{Position: geom.Vector2{X: 60}, Scale: unitScale},
+			core.Transform{Position: geom.Vector2{X: 60}, Scale: unitScale},
 		); err != nil {
 			t.Fatalf("spawn culled atlas sprite %q: %v", name, err)
 		}
@@ -364,7 +365,7 @@ func TestCollectZeroScaleReadsAsUnit(t *testing.T) {
 	// unit at spawn, so both ends of the interpolation read unscaled.
 	if _, err := w.NewEntity(
 		Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: "player"}},
-		Transform{Position: geom.Vector2{}}, // zero scale: the zero value
+		core.Transform{Position: geom.Vector2{}}, // zero scale: the zero value
 	); err != nil {
 		t.Fatalf("spawn zero-scale sprite: %v", err)
 	}
@@ -397,7 +398,7 @@ func TestCollectCullsAgainstViewport(t *testing.T) {
 	// 10x. The pair rule snapshots the scale with the spawn.
 	if _, err := w.NewEntity(
 		Sprite{Drawable: TextureSource{Texture: "tex.png"}},
-		Transform{Position: geom.Vector2{X: 60}, Scale: geom.Vector2{X: 10, Y: 10}},
+		core.Transform{Position: geom.Vector2{X: 60}, Scale: geom.Vector2{X: 10, Y: 10}},
 	); err != nil {
 		t.Fatalf("spawn scaled sprite: %v", err)
 	}
@@ -432,26 +433,26 @@ func TestCollectCullsAgainstViewport(t *testing.T) {
 func TestCollectFailsFastNamingHandles(t *testing.T) {
 	cases := []struct {
 		name   string
-		sprite func(t *testing.T, w *World)
+		sprite func(t *testing.T, w *core.World)
 		want   []string
 	}{
-		{"unloadable texture", func(t *testing.T, w *World) {
+		{"unloadable texture", func(t *testing.T, w *core.World) {
 			spawnTextureSprite(t, w, "missing.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
 		}, []string{"missing.png"}},
-		{"unregistered atlas", func(t *testing.T, w *World) {
+		{"unregistered atlas", func(t *testing.T, w *core.World) {
 			if _, err := w.NewEntity(
 				Sprite{Drawable: AtlasSource{Atlas: "ghost", Region: "player"}},
-				Transform{Position: geom.Vector2{}, Scale: unitScale},
-				PrevTransform{},
+				core.Transform{Position: geom.Vector2{}, Scale: unitScale},
+				core.PrevTransform{},
 			); err != nil {
 				t.Fatalf("spawn sprite: %v", err)
 			}
 		}, []string{"ghost"}},
-		{"unknown region", func(t *testing.T, w *World) {
+		{"unknown region", func(t *testing.T, w *core.World) {
 			if _, err := w.NewEntity(
 				Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: "boss"}},
-				Transform{Position: geom.Vector2{}, Scale: unitScale},
-				PrevTransform{},
+				core.Transform{Position: geom.Vector2{}, Scale: unitScale},
+				core.PrevTransform{},
 			); err != nil {
 				t.Fatalf("spawn sprite: %v", err)
 			}
@@ -566,15 +567,15 @@ func TestCollectStagesShapeSprites(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{X: 10, Y: 0},
-		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 20}}, Layer: 1}, Transform{})
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 20}}, Layer: 1}, core.Transform{})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Color: color.RGBA{R: 255, A: 255}},
-		Transform{Rotation: 0.5, Scale: geom.Vector2{X: 2, Y: 2}})
+		core.Transform{Rotation: 0.5, Scale: geom.Vector2{X: 2, Y: 2}})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
-		Sprite{Drawable: LineShape{From: geom.Vector2{X: -10, Y: 0}, To: geom.Vector2{X: 30, Y: 0}}}, Transform{})
+		Sprite{Drawable: LineShape{From: geom.Vector2{X: -10, Y: 0}, To: geom.Vector2{X: 30, Y: 0}}}, core.Transform{})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Outline: true, StrokeWidth: 2},
-		Transform{})
+		core.Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
 	if err != nil {
@@ -641,11 +642,11 @@ func TestCollectOrdersShapesWithSprites(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{Y: 10}, geom.Vector2{Y: 10}, Sprite{Layer: 1})
 	spawnSprite(t, w, geom.Vector2{Y: -10}, geom.Vector2{Y: -10},
-		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 4}}}, Transform{}) // layer 0
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 4}}}, core.Transform{}) // layer 0
 	spawnSprite(t, w, geom.Vector2{Y: -10}, geom.Vector2{Y: -10},
-		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}, Layer: 1}, Transform{})
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}, Layer: 1}, core.Transform{})
 	spawnSprite(t, w, geom.Vector2{Y: 10}, geom.Vector2{Y: 10},
-		Sprite{Drawable: LineShape{To: geom.Vector2{X: 8, Y: 0}}, Layer: 1}, Transform{})
+		Sprite{Drawable: LineShape{To: geom.Vector2{X: 8, Y: 0}}, Layer: 1}, core.Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {
@@ -692,24 +693,24 @@ func TestCollectCullsShapes(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	// Viewport is [-50, 50]^2 at zoom 1.
 	spawnSprite(t, w, geom.Vector2{X: 40}, geom.Vector2{X: 40},
-		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, Transform{}) // kept
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, core.Transform{}) // kept
 	spawnSprite(t, w, geom.Vector2{X: 56}, geom.Vector2{X: 56},
-		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, Transform{}) // bounds [51,61]: culled
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, core.Transform{}) // bounds [51,61]: culled
 	spawnSprite(t, w, geom.Vector2{X: 61}, geom.Vector2{X: 61},
-		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 10, Y: 10}}}, Transform{}) // bounds [51,71]: culled
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 10, Y: 10}}}, core.Transform{}) // bounds [51,71]: culled
 	// The offset proof: position (75, 0) is outside the viewport, but
 	// the segment reaches back to (45, 0) - its bounds are [45, 75],
 	// which overlaps. Centered bounds [60, 90] would have culled it.
 	spawnSprite(t, w, geom.Vector2{X: 75}, geom.Vector2{X: 75},
-		Sprite{Drawable: LineShape{To: geom.Vector2{X: -30, Y: 0}}}, Transform{})
+		Sprite{Drawable: LineShape{To: geom.Vector2{X: -30, Y: 0}}}, core.Transform{})
 	spawnSprite(t, w, geom.Vector2{X: 60}, geom.Vector2{X: 60},
-		Sprite{Drawable: LineShape{To: geom.Vector2{X: 20, Y: 0}}}, Transform{}) // bounds [60,80]: culled
+		Sprite{Drawable: LineShape{To: geom.Vector2{X: 20, Y: 0}}}, core.Transform{}) // bounds [60,80]: culled
 	// The inverse proof: this line's position is dead center, but its
 	// segment spans (80, 0) to (110, 0), entirely outside - the AABB
 	// bounds cull it despite the visible position.
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 		Sprite{Drawable: LineShape{From: geom.Vector2{X: 80, Y: 0}, To: geom.Vector2{X: 110, Y: 0}}},
-		Transform{})
+		core.Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {
@@ -737,9 +738,9 @@ func TestCollectCullsShapes(t *testing.T) {
 func TestCollectSkipsNilDrawable(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{}, Sprite{Layer: 3}, Transform{})
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{}, Sprite{Layer: 3}, core.Transform{})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
-		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, Transform{})
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, core.Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {
@@ -759,9 +760,9 @@ func TestCollectSkipsHiddenShapes(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
-		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, Transform{})
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, core.Transform{})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
-		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Hidden: true}, Transform{})
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Hidden: true}, core.Transform{})
 
 	list, err := NewCollector(w).Collect(drawContext(w, 0))
 	if err != nil {
@@ -817,13 +818,13 @@ func TestEngineCameraPreference(t *testing.T) {
 // newFontWorld is the collector's world with a real font in the asset
 // server: the Go font, BSD licensed, byte-encoded in a test
 // filesystem.
-func newFontWorld(t *testing.T) *World {
+func newFontWorld(t *testing.T) *core.World {
 	t.Helper()
 	files := fstest.MapFS{
 		"fonts/go.ttf": &fstest.MapFile{Data: goregular.TTF},
 	}
-	w := NewWorld()
-	if err := w.Provide(func(*World) (*asset.Server, error) {
+	w := core.NewWorld()
+	if err := w.Provide(func(*core.World) (*asset.Server, error) {
 		return asset.New(files), nil
 	}); err != nil {
 		t.Fatalf("provide asset server: %v", err)
@@ -831,11 +832,11 @@ func newFontWorld(t *testing.T) *World {
 	return w
 }
 
-func spawnTextSprite(t *testing.T, w *World, text string, fill color.Color, pos geom.Vector2) *Entity {
+func spawnTextSprite(t *testing.T, w *core.World, text string, fill color.Color, pos geom.Vector2) *core.Entity {
 	t.Helper()
 	entity, err := w.NewEntity(
 		Sprite{Drawable: TextSource{Font: "fonts/go.ttf", Text: text, Size: 16}, Color: fill},
-		Transform{Position: pos, Scale: geom.Vector2{X: 1, Y: 1}},
+		core.Transform{Position: pos, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	if err != nil {
 		t.Fatalf("spawn text sprite: %v", err)
@@ -933,7 +934,7 @@ func TestCollectMissingFontFails(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{X: 50, Y: 50}, geom.Vector2{X: 50, Y: 50}, 1, true)
 	if _, err := w.NewEntity(
 		Sprite{Drawable: TextSource{Font: "fonts/ghost.ttf", Text: "haunted", Size: 16}},
-		Transform{Position: geom.Vector2{X: 50, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
+		core.Transform{Position: geom.Vector2{X: 50, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
 	); err != nil {
 		t.Fatal(err)
 	}

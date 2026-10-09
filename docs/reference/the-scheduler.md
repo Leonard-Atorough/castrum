@@ -14,7 +14,7 @@ The defaults are `FixedTPS=60`, `MaxFrameTime=250ms`, and `MaxTicksPerFrame=5`. 
 
 ## Alpha
 
-`Context.Alpha` is the remainder of the accumulator divided by the fixed interval, in `[0, 1)`. A renderer uses it to display a position between the previous and current simulation states. `core.Collector` interpolates transform position; a custom overlay that draws world-space state must apply the value itself if it needs the same effect.
+`Context.Alpha` is the remainder of the accumulator divided by the fixed interval, in `[0, 1)`. A renderer uses it to display a position between the previous and current simulation states. `render.Collector` interpolates transform position; a custom overlay that draws world-space state must apply the value itself if it needs the same effect.
 
 When the catch-up cap drops the backlog, the accumulator is reset and alpha becomes zero. The renderer therefore never interpolates across time that the simulation intentionally discarded.
 
@@ -24,15 +24,17 @@ Systems in one phase run in registration order. `castrum.New` registers engine s
 
 The engine's normal registrations are:
 
-| System                  | Phase | Role                                                    |
-| ----------------------- | ----- | ------------------------------------------------------- |
-| `engine.prev-transform` | fixed | Captures transform position before gameplay changes it. |
-| `engine.input-tick`     | fixed | Publishes tick-scoped input edges.                      |
-| `engine.animation`      | fixed | Advances animation state and updates sprites.           |
-| `engine.input-update`   | frame | Publishes the frame-scoped action view.                 |
-| `engine.audio`          | frame | Reconciles audio source state with runner players.      |
+| System                  | Phase | Registered by            | Role                                                    |
+| ----------------------- | ----- | ------------------------ | ------------------------------------------------------- |
+| `engine.prev-transform` | fixed | always                   | Captures transform position before gameplay changes it. |
+| `engine.animation`      | fixed | `WithAnimation`          | Advances animation state and updates sprites.           |
+| `engine.collision`      | fixed | `WithCollision`         | Detects contacts and records their lifecycle.           |
+| `engine.timer`          | fixed | `WithTimer`              | Advances timers and stamps completions.                 |
+| `engine.input-tick`     | fixed | with bindings            | Publishes tick-scoped input edges.                      |
+| `engine.input-update`   | frame | with bindings            | Publishes the frame-scoped action view.                 |
+| `engine.audio`          | frame | the runner               | Reconciles audio source state with runner players.      |
 
-The exact set depends on options: input systems are present when bindings are configured, and `engine.audio` is registered by the runner.
+The optional subsystems are opt-in: `castrum.WithAnimation`, `castrum.WithCollision`, and `castrum.WithTimer` each register their system, and `castrum.WithDefaultSystems` registers all three. Every system's registration name is exported as a constant from the package that owns the system - `core.PrevTransformSystemName`, `input.FrameSystemName`, `input.TickSystemName`, `animation.SystemName`, `collision.SystemName`, `timer.SystemName`, `ebitrun.AudioSystemName` - so no call site hand-types the strings; the names identify registrations in error messages and will serve as the handles for future ordering constraints.
 
 ## Input timing
 

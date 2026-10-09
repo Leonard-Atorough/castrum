@@ -75,7 +75,7 @@ Spawn an entity with a `Sprite`, a `Transform`, and an `Animation` component tha
 ```go
 _, err := g.World().NewEntity(
 	core.Transform{Position: geom.Vector2{X: 100, Y: 100}},
-	core.Sprite{},
+	render.Sprite{},
 	animation.Animation{
 		Clip: "flickering_torch",
 		Loop: animation.LoopForever,
@@ -86,7 +86,7 @@ if err != nil {
 }
 ```
 
-The animation system is registered automatically by `castrum.New`; you do not register it yourself. During fixed updates it advances elapsed time, selects the current frame, and writes a `core.AtlasSource` to `Sprite.Drawable`.
+The animation system is registered by `castrum.New` when the game is configured with `castrum.WithAnimation()` (or `castrum.WithDefaultSystems()`, which also enables the collision and timer systems); you do not register it yourself. During fixed updates it advances elapsed time, selects the current frame, and writes a `render.AtlasSource` to `Sprite.Drawable`.
 
 Two entities can share a clip without sharing playback state. Each entity has its own current frame, elapsed time, pause state, playback speed, and loop mode.
 

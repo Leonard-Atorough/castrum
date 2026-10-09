@@ -8,6 +8,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/render"
 )
 
 // ClipID identifies an animation clip in a ClipStore.
@@ -155,15 +156,21 @@ func (s *ClipStore) Get(name ClipID) (Clip, error) {
 	return clip, nil
 }
 
+// SystemName is the name castrum.New registers the animation system
+// under in the fixed schedule.
+const SystemName = "engine.animation"
+
 // NewAnimationSystem returns a system that advances animations during fixed
-// updates. castrum.New registers this system automatically. An animation
-// that references an unregistered clip causes the system to return an error.
+// updates. castrum.New registers this system, under [SystemName], when the
+// game is configured with castrum.WithAnimation; games that register it
+// themselves do not need the option. An animation that references an
+// unregistered clip causes the system to return an error.
 func NewAnimationSystem(store *ClipStore) core.System {
 	var animations *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if animations == nil {
 			animations = core.NewQuery(ctx.World).
-				With(Animation{}, core.Sprite{})
+				With(Animation{}, render.Sprite{})
 		}
 		dt := ctx.DeltaTime.Seconds()
 		for e := range animations.Execute() {
@@ -200,8 +207,8 @@ func NewAnimationSystem(store *ClipStore) core.System {
 				e.SetComponent(anim)
 			}
 
-			sprite, _ := e.Component[core.Sprite]()
-			target := core.AtlasSource{Atlas: clip.Source, Region: clip.Frames[anim.Current]}
+			sprite, _ := e.Component[render.Sprite]()
+			target := render.AtlasSource{Atlas: clip.Source, Region: clip.Frames[anim.Current]}
 			if sprite.Drawable != target {
 				sprite.Drawable = target
 				e.SetComponent(sprite)

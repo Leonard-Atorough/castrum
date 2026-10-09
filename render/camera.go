@@ -1,20 +1,22 @@
-package core
+package render
 
 import (
 	"fmt"
 	"math"
 
+	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
 // Camera is the framing half of a camera entity: pair it with a
-// [Transform], which owns the position. An entity with a Camera and
+// [core.Transform], which owns the position. An entity with a Camera and
 // Primary set is the camera the renderer uses; cameras move by moving
 // their Transform, and interpolated rendering covers them the same as
 // any other entity.
 //
-// Game.New spawns a default primary camera and hands it out through
-// Game.MainCamera; a user-spawned primary takes precedence over it.
+// castrum.New spawns a default primary camera and hands it out
+// through Game.MainCamera; a user-spawned primary takes precedence
+// over it.
 //
 // The render target's dimensions are not part of the Camera: the runner
 // owns the logical resolution. Keeping a camera inside level bounds is
@@ -41,27 +43,23 @@ type engineCamera struct{}
 
 // SpawnEngineCamera creates the engine's default primary camera:
 // zoom 1 at the world origin, marked as the engine's. The collector
-// prefers any user-spawned primary camera over it. Game.New spawns it
-// and hands it out through MainCamera; games never spawn it
-// themselves.
-func SpawnEngineCamera(w *World) (*Entity, error) {
+// prefers any user-spawned primary camera over it.
+//
+// castrum.New spawns it and hands it out through Game.MainCamera;
+// games never spawn it themselves. Hosts that build a world without
+// castrum.New can call it to give their collector a working camera.
+func SpawnEngineCamera(w *core.World) (*core.Entity, error) {
 	return w.NewEntity(
 		Camera{Zoom: 1, Primary: true},
-		Transform{Position: geom.Vector2{}, Scale: geom.Vector2{X: 1, Y: 1}},
+		core.Transform{Position: geom.Vector2{}, Scale: geom.Vector2{X: 1, Y: 1}},
 		engineCamera{},
 	)
 }
 
-// CameraView is the resolved render camera: the interpolated position
-// (previous → current by the collect alpha) and the current zoom -
-// everything the blit and input picking need to project between world
-// space and the screen.
-
-// CameraView is the resolved view of a camera for rendering, containing
-// its interpolated position and zoom.
-//
-// It is used to convert between world and screen coordinates during rendering
-// and input picking.
+// CameraView is the resolved view of a camera for rendering: the
+// interpolated position (previous → current by the collect alpha)
+// and the current zoom - everything the blit and input picking need
+// to project between world space and the screen.
 type CameraView struct {
 	Position geom.Vector2
 	Zoom     float64

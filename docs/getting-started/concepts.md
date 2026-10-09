@@ -23,7 +23,7 @@ A component is a piece of plain data describing one aspect of a thing. `Transfor
 ```go
 _, err := g.World().NewEntity(
 	core.Transform{Position: geom.Vector2{X: 640, Y: 360}},
-	core.Sprite{Drawable: core.RectShape{Size: geom.Vector2{X: 120, Y: 120}}},
+	render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 120, Y: 120}}},
 )
 ```
 
@@ -47,7 +47,7 @@ if err := g.AddSystem(core.PhaseFixed, "move", moveSystem(square)); err != nil {
 }
 ```
 
-The name appears in error messages, which is reason enough to pick a good one. Systems run in registration order within their phase, and the engine registers its own first - the transform snapshot, animation, audio, input - so your systems always run after them: a `PhaseFixed` system of yours sees animation and audio already advanced for the tick.
+The name appears in error messages, which is reason enough to pick a good one. Systems run in registration order within their phase, and the engine registers its own first - the transform snapshot, the optional subsystem systems their `With*` option enabled, animation and audio among them - so your systems always run after the enabled ones: a `PhaseFixed` system of yours sees animation and audio already advanced for the tick.
 
 There are three phases:
 
@@ -96,7 +96,7 @@ func tagSystem() core.System {
 		if query == nil {
 			query = core.NewQuery(ctx.World).
 				With(core.Transform{}).
-				Without(core.Sprite{})
+				Without(render.Sprite{})
 		}
 		for e := range query.Execute() {
 			// e.Component, e.Update, e.SetComponent

@@ -58,6 +58,10 @@ func (t Transform) snapshot() PrevTransform {
 	return PrevTransform{Position: t.Position, Rotation: t.Rotation, Scale: scale}
 }
 
+// PrevTransformSystemName is the name castrum.New registers the
+// previous-transform capture system under in the fixed schedule.
+const PrevTransformSystemName = "engine.prev-transform"
+
 // NewPrevTransformCapture returns the engine system that snapshots
 // every entity's Transform into its PrevTransform, keeping the
 // previous tick's state available so renderers can interpolate
@@ -65,8 +69,9 @@ func (t Transform) snapshot() PrevTransform {
 //
 // It must run first in the fixed phase, before any gameplay system
 // moves an entity - registered later, it snapshots the moved state
-// and interpolation silently stops. Game.New registers this
-// system; games never register it themselves.
+// and interpolation silently stops. castrum.New registers this
+// system under [PrevTransformSystemName]; games never register it
+// themselves.
 func NewPrevTransformCapture() System {
 	var update *Query
 	return SystemFunc(func(ctx *Context) error {

@@ -16,16 +16,21 @@ import (
 // decides.
 const cellSize = 50.0
 
+// SystemName is the name castrum.New registers the collision system
+// under in the fixed schedule.
+const SystemName = "engine.collision"
+
 // NewSystem returns the collision system, which finds overlapping
 // colliders and records their lifecycle in [Contacts]. It detects
 // contacts but does not resolve collisions or emit events; games
 // derive enter, stay, and exit by comparing Current and Previous.
 //
-// [castrum.New] registers this system, so games do not need to
-// register it separately. It runs early in the fixed phase, before
-// gameplay systems. As a result, it reads transforms from the end of
-// the previous tick, and movement made during this tick is detected
-// on the next one.
+// castrum.New registers this system, under [SystemName], when the
+// game is configured with castrum.WithCollision; games that register
+// it themselves do not need the option. It runs early in the fixed
+// phase, before gameplay systems. As a result, it reads transforms
+// from the end of the previous tick, and movement made during this
+// tick is detected on the next one.
 //
 // The system attaches [Contacts] to entities with a [Collider],
 // transforms active colliders by position and rotation (not scale),

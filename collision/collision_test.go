@@ -9,7 +9,7 @@ import (
 )
 
 func TestTransformShape_RectRotationBuildsConservativeBounds(t *testing.T) {
-	shape := RectShape{Min: geom.Vector2{X: -2, Y: -1}, Max: geom.Vector2{X: 2, Y: 1}}
+	shape := Box{Min: geom.Vector2{X: -2, Y: -1}, Max: geom.Vector2{X: 2, Y: 1}}
 
 	rotated90 := transformShape(shape, geom.Vector2{}, core.Transform{Rotation: math.Pi / 2})
 	if got := rotated90.bounds.Width(); math.Abs(got-2) > 1e-9 {
@@ -30,7 +30,7 @@ func TestTransformShape_RectRotationBuildsConservativeBounds(t *testing.T) {
 }
 
 func TestTransformShape_PreservesLocalOffsetThroughRotation(t *testing.T) {
-	shape := CircleShape{Center: geom.Vector2{X: 2, Y: 0}, Radius: 1}
+	shape := Circle{Center: geom.Vector2{X: 2, Y: 0}, Radius: 1}
 	transformed := transformShape(shape, geom.Vector2{}, core.Transform{
 		Position: geom.Vector2{X: 10, Y: 5},
 		Rotation: math.Pi / 2,
@@ -46,7 +46,7 @@ func TestTransformShape_PreservesLocalOffsetThroughRotation(t *testing.T) {
 }
 
 func TestTransformShape_AppliesColliderOffsetBeforeRotation(t *testing.T) {
-	transformed := transformShape(CircleShape{Radius: 1}, geom.Vector2{X: 3, Y: 0}, core.Transform{
+	transformed := transformShape(Circle{Radius: 1}, geom.Vector2{X: 3, Y: 0}, core.Transform{
 		Position: geom.Vector2{X: 1, Y: 1},
 		Rotation: math.Pi / 2,
 	})
@@ -61,7 +61,7 @@ func TestTransformShape_AppliesColliderOffsetBeforeRotation(t *testing.T) {
 }
 
 func TestTransformShape_CircleIgnoresScale(t *testing.T) {
-	transformed := transformShape(CircleShape{Radius: 2}, geom.Vector2{}, core.Transform{
+	transformed := transformShape(Circle{Radius: 2}, geom.Vector2{}, core.Transform{
 		Scale: geom.Vector2{X: 2, Y: 3},
 	})
 
@@ -78,7 +78,7 @@ func TestTransformShape_CircleIgnoresScale(t *testing.T) {
 }
 
 func TestContactBetween_RotatedRectanglesUseOrientedGeometry(t *testing.T) {
-	shape := RectShape{Min: geom.Vector2{X: -2, Y: -0.5}, Max: geom.Vector2{X: 2, Y: 0.5}}
+	shape := Box{Min: geom.Vector2{X: -2, Y: -0.5}, Max: geom.Vector2{X: 2, Y: 0.5}}
 	verticalA := transformShape(shape, geom.Vector2{}, core.Transform{Rotation: math.Pi / 2})
 	verticalB := transformShape(shape, geom.Vector2{}, core.Transform{
 		Position: geom.Vector2{Y: 3.5},
@@ -91,8 +91,8 @@ func TestContactBetween_RotatedRectanglesUseOrientedGeometry(t *testing.T) {
 }
 
 func TestContactBetween_CircleCircleNormalPointsFirstToSecond(t *testing.T) {
-	a := transformShape(CircleShape{Radius: 2}, geom.Vector2{}, core.Transform{})
-	b := transformShape(CircleShape{Radius: 2}, geom.Vector2{}, core.Transform{Position: geom.Vector2{X: 3, Y: 0}})
+	a := transformShape(Circle{Radius: 2}, geom.Vector2{}, core.Transform{})
+	b := transformShape(Circle{Radius: 2}, geom.Vector2{}, core.Transform{Position: geom.Vector2{X: 3, Y: 0}})
 
 	hit := contactBetween(a.shape, b.shape)
 	if !hit.collided {
@@ -113,8 +113,8 @@ func TestContactBetween_CircleCircleNormalPointsFirstToSecond(t *testing.T) {
 }
 
 func TestContactBetween_CircleRectNormalPointsFirstToSecond(t *testing.T) {
-	circle := transformShape(CircleShape{Center: geom.Vector2{X: 5, Y: 0}, Radius: 1}, geom.Vector2{}, core.Transform{})
-	rect := transformShape(RectShape{Min: geom.Vector2{X: 2, Y: -1}, Max: geom.Vector2{X: 4, Y: 1}}, geom.Vector2{}, core.Transform{})
+	circle := transformShape(Circle{Center: geom.Vector2{X: 5, Y: 0}, Radius: 1}, geom.Vector2{}, core.Transform{})
+	rect := transformShape(Box{Min: geom.Vector2{X: 2, Y: -1}, Max: geom.Vector2{X: 4, Y: 1}}, geom.Vector2{}, core.Transform{})
 
 	// The circle touches the rect's edge: distance from (5,0) to the
 	// rect equals the radius, and touching counts.
@@ -143,11 +143,11 @@ func TestContactBetween_CircleRectNormalPointsFirstToSecond(t *testing.T) {
 // boundary distance plus the radius - with the normal pointing at
 // the nearest face, and the exit through that face reads cleanly.
 func TestContactBetween_ContainedCircleDepth(t *testing.T) {
-	rect := transformShape(RectShape{Min: geom.Vector2{X: -2, Y: -2}, Max: geom.Vector2{X: 2, Y: 2}}, geom.Vector2{}, core.Transform{})
+	rect := transformShape(Box{Min: geom.Vector2{X: -2, Y: -2}, Max: geom.Vector2{X: 2, Y: 2}}, geom.Vector2{}, core.Transform{})
 
 	// Center one unit right of the rect's center: the nearest face is
 	// the right wall, one unit away.
-	contained := transformShape(CircleShape{Center: geom.Vector2{X: 1, Y: 0}, Radius: 0.5}, geom.Vector2{}, core.Transform{})
+	contained := transformShape(Circle{Center: geom.Vector2{X: 1, Y: 0}, Radius: 0.5}, geom.Vector2{}, core.Transform{})
 	hit := contactBetween(contained.shape, rect.shape)
 	if !hit.collided {
 		t.Fatal("contained circle should collide")
@@ -164,7 +164,7 @@ func TestContactBetween_ContainedCircleDepth(t *testing.T) {
 
 	// A center exactly on the boundary is the depth-zero case of the
 	// same rule: the penetration is the radius alone.
-	onEdge := transformShape(CircleShape{Center: geom.Vector2{X: 2, Y: 0}, Radius: 0.5}, geom.Vector2{}, core.Transform{})
+	onEdge := transformShape(Circle{Center: geom.Vector2{X: 2, Y: 0}, Radius: 0.5}, geom.Vector2{}, core.Transform{})
 	hit = contactBetween(onEdge.shape, rect.shape)
 	if !hit.collided {
 		t.Fatal("circle centered on the rect's edge should collide")

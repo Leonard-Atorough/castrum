@@ -60,7 +60,7 @@ func testWAV() []byte {
 	return buf.Bytes()
 }
 
-func newStreamTestProvider(t *testing.T) (*AudioProvider, string) {
+func newStreamTestProvider(t *testing.T) (*audioProvider, string) {
 	t.Helper()
 	dir := t.TempDir()
 	name := filepath.Join(dir, "tone.wav")

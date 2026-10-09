@@ -46,7 +46,7 @@ A component in its zero value is usable and means something sensible. `Sprite{}`
 So partial literals are idiomatic. Write the fields you care about and leave the rest at zero:
 
 ```go
-core.Sprite{Color: color.White} // everything else zero, everything valid
+render.Sprite{Color: color.White} // everything else zero, everything valid
 ```
 
 Some fields have no sensible zero, and the engine says so at spawn. An `audio.Source` with an empty `Audio` is a spawn error, and its `Volume` must be in (0, 1] - a silent play is a bug in the spawn, and the engine treats it like one. These components meet you halfway: a constructor supplies the minimal valid form (`audio.NewSource`), or the component is meaningless without one named field (for example, `Animation.Clip`).
@@ -75,7 +75,7 @@ The game has three phases:
 
 `PhaseFrame` runs once per display frame with elapsed frame time. `PhaseFixed` runs zero or more times after it, with a stable `DeltaTime` derived from `FixedTPS` (60 by default). Put simulation in the fixed phase so it does not depend on display refresh rate. Read named actions in the phase appropriate to the behavior; the [input guide](input.md) covers how action edges are carried into fixed ticks.
 
-Systems run in registration order within a phase. Register a reader after the system that writes the state it needs. The engine's built-in systems are registered during `New`, before game systems are added; this includes transform snapshots, animation, and input systems when bindings are configured. Do not rely on ordering between systems that are not explicitly ordered by registration.
+Systems run in registration order within a phase. Register a reader after the system that writes the state it needs. The engine's built-in systems are registered during `New`, before game systems are added; this includes transform snapshots, the optional subsystem systems their `With*` option enabled, and input systems when bindings are configured. Do not rely on ordering between systems that are not explicitly ordered by registration.
 
 ## Errors are values
 

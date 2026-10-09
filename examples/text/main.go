@@ -26,6 +26,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/render"
 )
 
 //go:embed fonts/GoRegular.ttf
@@ -69,7 +70,7 @@ func run() error {
 	// on the position like every other drawable.
 	if _, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: titleY}, Scale: geom.Vector2{X: 1, Y: 1}},
-		core.Sprite{Drawable: core.TextSource{Font: goFont, Text: "hello, castrum", Size: 48}},
+		render.Sprite{Drawable: render.TextSource{Font: goFont, Text: "hello, castrum", Size: 48}},
 	); err != nil {
 		return err
 	}
@@ -79,7 +80,7 @@ func run() error {
 	// update closure, nothing else.
 	score, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: scoreY}, Scale: geom.Vector2{X: 1, Y: 1}},
-		core.Sprite{Drawable: core.TextSource{Font: goFont, Text: "score: 0", Size: 32}},
+		render.Sprite{Drawable: render.TextSource{Font: goFont, Text: "score: 0", Size: 32}},
 	)
 	if err != nil {
 		return err
@@ -92,8 +93,8 @@ func run() error {
 			Position: geom.Vector2{X: screenW / 2, Y: notesY},
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
-		core.Sprite{
-			Drawable: core.TextSource{Font: goFont, Text: "text culls, sorts, and fades like any drawable", Size: 24},
+		render.Sprite{
+			Drawable: render.TextSource{Font: goFont, Text: "text culls, sorts, and fades like any drawable", Size: 24},
 			Color:    color.NRGBA{R: 120, G: 200, B: 255, A: 255},
 		},
 	); err != nil {
@@ -105,8 +106,8 @@ func run() error {
 	elapsed := time.Duration(0)
 	if err := g.AddSystem(core.PhaseFixed, "score", core.SystemFunc(func(ctx *core.Context) error {
 		elapsed += ctx.DeltaTime
-		return score.Update(ctx.World, func(s *core.Sprite) {
-			s.Drawable = core.TextSource{Font: goFont, Text: fmt.Sprintf("score: %d", int(elapsed.Seconds())), Size: 32}
+		return score.Update(ctx.World, func(s *render.Sprite) {
+			s.Drawable = render.TextSource{Font: goFont, Text: fmt.Sprintf("score: %d", int(elapsed.Seconds())), Size: 32}
 		})
 	})); err != nil {
 		return err

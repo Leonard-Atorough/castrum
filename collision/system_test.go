@@ -31,11 +31,11 @@ func contactsOf(t *testing.T, world *core.World, entity *core.Entity) Contacts {
 // penetrating the rect's near edge by exactly one unit.
 func playerAndWall(t *testing.T, world *core.World) (player, wall *core.Entity) {
 	t.Helper()
-	playerCollider, err := NewCollider(CircleShape{Radius: 2})
+	playerCollider, err := NewCollider(Circle{Radius: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	wallCollider, err := NewCollider(RectShape{Min: geom.Vector2{X: 1, Y: -2}, Max: geom.Vector2{X: 3, Y: 2}})
+	wallCollider, err := NewCollider(Box{Min: geom.Vector2{X: 1, Y: -2}, Max: geom.Vector2{X: 3, Y: 2}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,11 +215,11 @@ func TestSystem_MovingColliderEntersNewPair(t *testing.T) {
 	world := core.NewWorld()
 	sys := NewSystem()
 
-	playerCollider, err := NewCollider(CircleShape{Radius: 2})
+	playerCollider, err := NewCollider(Circle{Radius: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	wallCollider, err := NewCollider(RectShape{Min: geom.Vector2{X: 1, Y: -2}, Max: geom.Vector2{X: 3, Y: 2}})
+	wallCollider, err := NewCollider(Box{Min: geom.Vector2{X: 1, Y: -2}, Max: geom.Vector2{X: 3, Y: 2}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +255,7 @@ func TestSystem_ContactsSortedByOther(t *testing.T) {
 	world := core.NewWorld()
 	sys := NewSystem()
 
-	playerCollider, err := NewCollider(CircleShape{Radius: 10})
+	playerCollider, err := NewCollider(Circle{Radius: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +264,7 @@ func TestSystem_ContactsSortedByOther(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := range 3 {
-		wallCollider, err := NewCollider(CircleShape{Radius: 2})
+		wallCollider, err := NewCollider(Circle{Radius: 2})
 		if err != nil {
 			t.Fatal(err)
 		}

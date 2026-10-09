@@ -19,6 +19,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
@@ -46,6 +47,7 @@ func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - animate"),
 		castrum.WithFilesystem(files),
+		castrum.WithAnimation(),
 	)
 	if err != nil {
 		return err
@@ -73,7 +75,7 @@ func run() error {
 	}
 
 	_, err = g.World().NewEntity(
-		core.Sprite{},
+		render.Sprite{},
 		core.Transform{
 			Scale: geom.Vector2{X: Scale, Y: Scale},
 		},

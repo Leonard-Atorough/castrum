@@ -15,7 +15,8 @@
      the verified programs when editing.
 
      GROWTH (planned sections - add beats, not prose, until then):
-     - Timers (when timers land)
+     - Timers (landed; the section must add castrum.WithTimer() to
+       the New call)
      - Text
      - UI
      The layout grows by inserting sections under "Adding more features". -->
@@ -128,6 +129,8 @@ func run() error {
 
 `castrum.New` creates the game and its world. The bindings give names to the keys the game will read later. `ebitrun.New` supplies the window and input, and `g.Run(runner)` starts the game.
 
+The engine's optional subsystem systems are opt-in: `castrum.WithTimer()`, `castrum.WithCollision()`, and `castrum.WithAnimation()` register them, and `castrum.WithDefaultSystems()` registers all three. This game needs none of them yet - timers, collision, and animation enter through those options when a later section adds them.
+
 Run it now. An empty window should open. Close it, then continue to add the player.
 
 Add new imports when later sections use `core`, `geom`, `color`, `audio`, or `asset`.
@@ -139,8 +142,8 @@ Add this below `castrum.New`. The player needs a position and something to draw;
 ```go
 player, err := g.World().NewEntity(
 	core.Transform{Position: geom.Vector2{X: 640, Y: 360}},
-	core.Sprite{
-		Drawable: core.RectShape{Size: geom.Vector2{X: 120, Y: 120}},
+	render.Sprite{
+		Drawable: render.RectShape{Size: geom.Vector2{X: 120, Y: 120}},
 		Color:   color.RGBA{G: 200, A: 255},
 	},
 )
@@ -301,7 +304,7 @@ var (
 
 hull, err := g.World().NewEntity(
 	core.Transform{Position: SpawnPos},
-	core.Sprite{Drawable: core.TextureSource{Texture: AssetHull}},
+	render.Sprite{Drawable: render.TextureSource{Texture: AssetHull}},
 )
 if err != nil {
 	return err
@@ -309,7 +312,7 @@ if err != nil {
 
 turret, err := g.World().NewEntity(
 	core.Transform{Position: SpawnPos.Add(TurretOffset)},
-	core.Sprite{Drawable: core.TextureSource{Texture: AssetTurret}},
+	render.Sprite{Drawable: render.TextureSource{Texture: AssetTurret}},
 )
 if err != nil {
 	return err
@@ -359,10 +362,10 @@ Add this turret system next to `moveSystem`. It keeps the turret mounted on the 
 func turretSystem(turret, hull, camera *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		cameraData, _ := camera.Component[core.Camera](ctx.World)
+		cameraData, _ := camera.Component[render.Camera](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
 
-		cursor := core.CameraView{
+		cursor := render.CameraView{
 			Position: cameraTransform.Position,
 			Zoom:     cameraData.Zoom,
 		}.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)

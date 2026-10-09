@@ -30,6 +30,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
+	"github.com/Leonard-Atorough/castrum/render"
 )
 
 const (
@@ -124,6 +125,7 @@ func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - collision"),
 		castrum.WithBindings(bindings),
+		castrum.WithCollision(),
 	)
 	if err != nil {
 		return err
@@ -139,15 +141,15 @@ func run() error {
 	// The player: a circle collider on layer 0 with its mask open to
 	// every layer - collision.NewCollider's defaults. NewCollider
 	// validates immediately, so the shape is known good here.
-	playerCollider, err := collision.NewCollider(collision.CircleShape{Radius: playerRadius})
+	playerCollider, err := collision.NewCollider(collision.Circle{Radius: playerRadius})
 	if err != nil {
 		return err
 	}
 	stats := newPlayerStats(maxHealth, moveSpeed)
 	player, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: 0 + wallThickness*2}},
-		core.Sprite{
-			Drawable: core.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
+		render.Sprite{
+			Drawable: render.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
 			Color:    playerColor,
 		},
 		playerCollider,
@@ -200,7 +202,7 @@ func run() error {
 	// implication.
 	pickups := make([]*core.Entity, pickupCount)
 	for i := range pickups {
-		collider, err := collision.NewCollider(collision.CircleShape{Radius: pickupRadius})
+		collider, err := collision.NewCollider(collision.Circle{Radius: pickupRadius})
 		if err != nil {
 			return err
 		}
@@ -209,8 +211,8 @@ func run() error {
 		collider.Trigger = true
 		pickups[i], err = g.World().NewEntity(
 			core.Transform{Position: randomPosition()},
-			core.Sprite{
-				Drawable: core.CircleShape{Radii: geom.Vector2{X: pickupRadius, Y: pickupRadius}},
+			render.Sprite{
+				Drawable: render.CircleShape{Radii: geom.Vector2{X: pickupRadius, Y: pickupRadius}},
 				Color:    pickupColor,
 			},
 			collider,
@@ -254,8 +256,8 @@ func run() error {
 				}
 			}
 		}
-		return player.SetComponent(ctx.World, core.Sprite{
-			Drawable: core.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
+		return player.SetComponent(ctx.World, render.Sprite{
+			Drawable: render.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
 			Color:    tint,
 		})
 	})); err != nil {
@@ -371,7 +373,7 @@ func run() error {
 // spinning bars. The collider's mask admits only the player's layer.
 // extra attaches more components - the bars add their rotation.
 func spawnRect(world *core.World, position, min, max geom.Vector2, fill color.Color, layers uint32, extra ...any) (*core.Entity, error) {
-	collider, err := collision.NewCollider(collision.RectShape{Min: min, Max: max})
+	collider, err := collision.NewCollider(collision.Box{Min: min, Max: max})
 	if err != nil {
 		return nil, err
 	}
@@ -380,7 +382,7 @@ func spawnRect(world *core.World, position, min, max geom.Vector2, fill color.Co
 	size := max.Sub(min)
 	return world.NewEntity(append([]any{
 		core.Transform{Position: position},
-		core.Sprite{Drawable: core.RectShape{Size: size}, Color: fill},
+		render.Sprite{Drawable: render.RectShape{Size: size}, Color: fill},
 		collider,
 	}, extra...)...)
 }

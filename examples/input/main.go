@@ -18,6 +18,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
+	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
@@ -95,8 +96,8 @@ func run() error {
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 		},
-		core.Sprite{
-			Drawable: core.RectShape{Size: geom.Vector2{X: 64, Y: 96}},
+		render.Sprite{
+			Drawable: render.RectShape{Size: geom.Vector2{X: 64, Y: 96}},
 			Color:    color.RGBA{G: 200},
 		},
 	)
@@ -107,8 +108,8 @@ func run() error {
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 		},
-		core.Sprite{
-			Drawable:    core.LineShape{To: geom.Vector2{X: 0, Y: -barrelLen}},
+		render.Sprite{
+			Drawable:    render.LineShape{To: geom.Vector2{X: 0, Y: -barrelLen}},
 			Outline:     true,
 			StrokeWidth: barrelWidth,
 			Color:       color.RGBA{R: 120, A: 255},
@@ -128,8 +129,8 @@ func run() error {
 				core.Transform{
 					Position: pos,
 				},
-				core.Sprite{
-					Drawable: core.CircleShape{Radii: geom.Vector2{X: circleRadii, Y: circleRadii}},
+				render.Sprite{
+					Drawable: render.CircleShape{Radii: geom.Vector2{X: circleRadii, Y: circleRadii}},
 					Color:    color.RGBA{R: 255},
 				},
 			); err != nil {
@@ -176,7 +177,7 @@ func cameraSystem(camera *core.Entity, body *core.Entity) core.System {
 		}
 
 		if ctx.Actions.Held("zoom") {
-			if err := camera.Update(ctx.World, func(c *core.Camera) {
+			if err := camera.Update(ctx.World, func(c *render.Camera) {
 				c.Zoom += ctx.Actions.Axis("zoom") * zoomSpeed * ctx.DeltaTime.Seconds()
 				c.Zoom = math.Max(zoomMin, math.Min(zoomMax, c.Zoom))
 			}); err != nil {
@@ -221,10 +222,10 @@ func tankBodySystem(body *core.Entity) core.System {
 func turretSystem(turret *core.Entity, body *core.Entity, camera *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hull, _ := body.Component[core.Transform](ctx.World)
-		cam, _ := camera.Component[core.Camera](ctx.World)
+		cam, _ := camera.Component[render.Camera](ctx.World)
 		camT, _ := camera.Component[core.Transform](ctx.World)
 
-		world := core.CameraView{Position: camT.Position, Zoom: cam.Zoom}.
+		world := render.CameraView{Position: camT.Position, Zoom: cam.Zoom}.
 			ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
 		aim := world.Sub(hull.Position)
 

@@ -14,7 +14,16 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
+	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/timer"
+)
+
+// Optional engine systems, tracked in [Options.systems] so the With*
+// options enable each at most once.
+const (
+	sysAnimation = 1 << iota
+	sysCollision
+	sysTimer
 )
 
 // Options is the pure-data configuration [New] converges option values into.
@@ -48,6 +57,10 @@ type Options struct {
 
 	// fixedDT is derived from FixedTPS in New; no option sets it.
 	fixedDT time.Duration
+
+	// systems records which optional engine systems the With* options
+	// enabled, so New registers each at most once.
+	systems uint8
 }
 
 // FixedDT returns the derived interval between fixed ticks.
@@ -118,7 +131,7 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide asset server: %w", err)
 	}
 
-	if err := g.AddSystem(core.PhaseFixed, "engine.prev-transform", core.NewPrevTransformCapture()); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, core.PrevTransformSystemName, core.NewPrevTransformCapture()); err != nil {
 		return nil, err
 	}
 
@@ -130,18 +143,24 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide clip store: %w", err)
 	}
 
-	// The advancer costs an empty query in games without Animation
-	// entities.
-	if err := g.AddSystem(core.PhaseFixed, "engine.animation", animation.NewAnimationSystem(clips)); err != nil {
-		return nil, err
+	// The optional subsystems register in the engine's documented
+	// order, only when their With* option enabled them.
+	if options.systems&sysAnimation != 0 {
+		if err := g.AddSystem(core.PhaseFixed, animation.SystemName, animation.NewAnimationSystem(clips)); err != nil {
+			return nil, err
+		}
 	}
 
-	if err := g.AddSystem(core.PhaseFixed, "engine.collision", collision.NewSystem()); err != nil {
-		return nil, err
+	if options.systems&sysCollision != 0 {
+		if err := g.AddSystem(core.PhaseFixed, collision.SystemName, collision.NewSystem()); err != nil {
+			return nil, err
+		}
 	}
 
-	if err := g.AddSystem(core.PhaseFixed, "engine.timer", timer.NewSystem()); err != nil {
-		return nil, err
+	if options.systems&sysTimer != 0 {
+		if err := g.AddSystem(core.PhaseFixed, timer.SystemName, timer.NewSystem()); err != nil {
+			return nil, err
+		}
 	}
 
 	mixer := audio.NewMixer()
@@ -154,7 +173,7 @@ func New(opts ...option) (*Game, error) {
 
 	// The engine.s default camera: every game gets a working viewport without wiring.
 	// It yields to any user-spawned primary - the collector prefers user cameras.
-	camera, err := core.SpawnEngineCamera(g.world)
+	camera, err := render.SpawnEngineCamera(g.world)
 	if err != nil {
 		return nil, fmt.Errorf("castrum: spawn main camera: %w", err)
 	}
@@ -182,12 +201,12 @@ func (g *Game) wireInput(bindings input.Bindings) error {
 		return fmt.Errorf("castrum: provide action map: %w", err)
 	}
 
-	if err := g.AddSystem(core.PhaseFrame, "engine.input-update", newInputUpdateSystem(am)); err != nil {
+	if err := g.AddSystem(core.PhaseFrame, input.FrameSystemName, newInputUpdateSystem(am)); err != nil {
 		return err
 	}
 
 	g.Context().Actions = am
-	return g.AddSystem(core.PhaseFixed, "engine.input-tick", newInputTickSystem(am))
+	return g.AddSystem(core.PhaseFixed, input.TickSystemName, newInputTickSystem(am))
 }
 
 func (o *Options) finalize() error {
@@ -235,8 +254,10 @@ func (g *Game) AssetServer() *asset.Server {
 }
 
 // Clips returns the game's animation clip store: the engine provides
-// it at New, so games Add clips at setup time. Systems access the
-// same store through the world's resource locator.
+// it at New, so games Add clips at setup time. The animation system
+// that consumes the store is registered by [WithAnimation]; the
+// store itself exists either way. Systems access the same store
+// through the world's resource locator.
 func (g *Game) Clips() *animation.ClipStore {
 	return g.clips
 }
@@ -390,4 +411,33 @@ func WithMaxTicksPerFrame(n int) option {
 // in the world and drives input handling automatically.
 func WithBindings(bindings input.Bindings) option {
 	return optionFunc(func(o *Options) { o.InputBindings = bindings })
+}
+
+// WithCollision registers the engine's collision system in the fixed
+// schedule, under [collision.SystemName]. Without it, colliders
+// never produce [collision.Contacts]. Idempotent: passing it twice,
+// or together with [WithDefaultSystems], registers the system once.
+func WithCollision() option {
+	return optionFunc(func(o *Options) { o.systems |= sysCollision })
+}
+
+// WithTimer registers the engine's timer system in the fixed
+// schedule, under [timer.SystemName]. Without it, [timer.Timer]
+// components never advance. Idempotent.
+func WithTimer() option {
+	return optionFunc(func(o *Options) { o.systems |= sysTimer })
+}
+
+// WithAnimation registers the engine's animation system in the fixed
+// schedule, under [animation.SystemName]. Without it, animations
+// never advance and sprites keep their current drawable. Idempotent.
+func WithAnimation() option {
+	return optionFunc(func(o *Options) { o.systems |= sysAnimation })
+}
+
+// WithDefaultSystems registers all of the engine's optional systems:
+// animation, collision, and timer. It is equivalent to passing
+// [WithAnimation], [WithCollision], and [WithTimer] together.
+func WithDefaultSystems() option {
+	return optionFunc(func(o *Options) { o.systems |= sysAnimation | sysCollision | sysTimer })
 }
