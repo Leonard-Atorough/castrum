@@ -5,8 +5,8 @@ import (
 	"math"
 )
 
-// DefaultDeadzone is the default value of the Deadzone field in ActionMap.
-// Below the value, input axes are considered inactive, i.e., treated as zero.
+// DefaultDeadzone is the default gamepad axis deadzone used by [New].
+// Axis values with magnitude below it are treated as zero.
 const DefaultDeadzone = 0.15
 
 // FrameSystemName is the name castrum.New registers the frame input
@@ -19,13 +19,11 @@ const FrameSystemName = "engine.input-update"
 // accumulated since the previous tick by calling [ActionMap.Tick].
 const TickSystemName = "engine.input-tick"
 
-// Action is a human-readable alias for a game-level input role, such as "jump" or "move_x".
-// It is used as the key in the Bindings map to associate actions with physical inputs.
+// Action is a game-level input role, such as "jump" or "move_x".
 type Action string
 
-// Bindings maps [Action] to the physical inputs associated with that action.
-// Each action can have multiple inputs bound to it, allowing flexible control schemes.
-// Example:
+// Bindings maps each [Action] to the physical inputs that activate it.
+// Multiple inputs can be bound to one action.
 //
 //	Bindings{
 //	    "jump":   []Input{KeyInput{KeySpace}, PadButtonInput{Button: PadSouth}},
@@ -80,9 +78,9 @@ type ActionMap struct {
 	states   map[Action]*actionState
 }
 
-// New returns an ActionManager over a copy of bindings. A deadzone
-// of zero selects DefaultDeadzone. Nil bindings, or a deadzone
-// outside [0, 1], are errors.
+// New creates an [ActionMap] with a copy of bindings. A deadzone of zero
+// selects [DefaultDeadzone]. It returns an error if bindings is nil or
+// deadzone is outside [0, 1].
 func New(bindings Bindings, deadzone float64) (*ActionMap, error) {
 	if bindings == nil {
 		return nil, fmt.Errorf("bindings cannot be nil")

@@ -1,22 +1,19 @@
-// Package input provides types and constants for handling keyboard, mouse, and gamepad input.
-// It is backend/runner free and provides a unified interface for input handling.
-
+// Package input provides backend-independent keyboard, mouse, and gamepad
+// types. [Snapshot] records physical input, and [ActionMap] resolves it into
+// game actions.
 package input
 
 import "fmt"
 
-// Key represents a keyboard key. The provided constants cover standard
-// alphanumeric, control, function, navigation, and numpad keys.
-// it follows the ISO/IEC 9995 standard.
+// Key identifies a keyboard key using the package's backend-independent key
+// set.
 type Key int
 
-// BASED ON ISO/IEC 9995 standard for keyboard layouts and categories
 const (
-	// KeyNone is the zero value of Key: no key at all. Modifier slots
+	// KeyNone is the zero value of [Key]: no key at all. Modifier slots
 	// read as empty, a binding with KeyNone never fires, and the
 	// poller never reports it.
 	KeyNone Key = iota
-	// Alphanumeric keys
 	KeyA
 	KeyB
 	KeyC
@@ -64,23 +61,20 @@ const (
 	KeyComma
 	KeyPeriod
 	KeySlash
-	// Supporting ISO/IEC 9995 standard backslash key
+	// KeyISOBackslash identifies the ISO layout's additional backslash key.
 	KeyISOBackslash
-	// Space and the control row
 	KeySpace
 	KeyEscape
 	KeyTab
 	KeyCapsLock
 	KeyEnter
 	KeyBackspace
-	// Modifiers
 	KeyShiftLeft
 	KeyShiftRight
 	KeyControlLeft
 	KeyControlRight
 	KeyAltLeft
 	KeyAltRight
-	// Function Row
 	KeyF1
 	KeyF2
 	KeyF3
@@ -93,7 +87,6 @@ const (
 	KeyF10
 	KeyF11
 	KeyF12
-	// Navigation cluster
 	KeyInsert
 	KeyDelete
 	KeyHome
@@ -103,12 +96,10 @@ const (
 	KeyPrintScreen
 	KeyScrollLock
 	KeyPause
-	// Arrow keys
 	KeyArrowUp
 	KeyArrowDown
 	KeyArrowLeft
 	KeyArrowRight
-	// Numpad keys
 	KeyNumpad0
 	KeyNumpad1
 	KeyNumpad2
@@ -126,7 +117,8 @@ const (
 	KeyNumpadMultiply
 	KeyNumpadDivide
 	KeyNumLock
-	NumKeys // sizes the number of keys
+	// NumKeys is the number of key values, including [KeyNone].
+	NumKeys
 )
 
 var keyNames = [NumKeys]string{
@@ -144,6 +136,7 @@ var keyNames = [NumKeys]string{
 	"numpad_decimal", "numpad_enter", "numpad_add", "numpad_subtract", "numpad_multiply", "numpad_divide", "num_lock",
 }
 
+// String returns the key's name, or a formatted value if k is invalid.
 func (k Key) String() string {
 	if k >= 0 && k < NumKeys {
 		return keyNames[k]
@@ -159,13 +152,15 @@ const (
 	MouseButtonLeft MouseButton = iota
 	MouseButtonRight
 	MouseButtonMiddle
-	NumMouseButtons // sizes the number of mouse buttons
+	// NumMouseButtons is the number of mouse buttons.
+	NumMouseButtons
 )
 
 var mouseButtonNames = [NumMouseButtons]string{
 	"left", "right", "middle",
 }
 
+// String returns the button's name, or a formatted value if b is invalid.
 func (b MouseButton) String() string {
 	if b >= 0 && b < NumMouseButtons {
 		return mouseButtonNames[b]
@@ -180,9 +175,17 @@ func (b MouseButton) String() string {
 type PadButton int
 
 const (
+	// PadSouth identifies the button at the south position in a standard
+	// gamepad layout.
 	PadSouth PadButton = iota
+	// PadEast identifies the button at the east position in a standard
+	// gamepad layout.
 	PadEast
+	// PadWest identifies the button at the west position in a standard
+	// gamepad layout.
 	PadWest
+	// PadNorth identifies the button at the north position in a standard
+	// gamepad layout.
 	PadNorth
 	PadLeftShoulder
 	PadRightShoulder
@@ -195,7 +198,8 @@ const (
 	PadDPadDown
 	PadDPadLeft
 	PadDPadRight
-	NumPadButtons // sizes the number of pad buttons
+	// NumPadButtons is the number of gamepad buttons.
+	NumPadButtons
 )
 
 var padButtonNames = [NumPadButtons]string{
@@ -206,6 +210,7 @@ var padButtonNames = [NumPadButtons]string{
 	"dpad_up", "dpad_down", "dpad_left", "dpad_right",
 }
 
+// String returns the button's name, or a formatted value if b is invalid.
 func (b PadButton) String() string {
 	if b >= 0 && b < NumPadButtons {
 		return padButtonNames[b]
@@ -226,7 +231,8 @@ const (
 	PadRightStickY
 	PadLeftTrigger
 	PadRightTrigger
-	NumPadAxes // sizes the number of pad axes
+	// NumPadAxes is the number of gamepad axes.
+	NumPadAxes
 )
 
 var padAxisNames = [NumPadAxes]string{
@@ -235,6 +241,7 @@ var padAxisNames = [NumPadAxes]string{
 	"left_trigger", "right_trigger",
 }
 
+// String returns the axis's name, or a formatted value if a is invalid.
 func (a PadAxis) String() string {
 	if a >= 0 && a < NumPadAxes {
 		return padAxisNames[a]
@@ -242,13 +249,17 @@ func (a PadAxis) String() string {
 	return fmt.Sprintf("PadAxis(%d)", int(a))
 }
 
-// State is one frame of one physical input: Pressed and Released are
-// this-frame edges, Held is the level. Snapshots carry one per input;
-// duration is an action-level accumulation, not stored here.
-type State struct{ Pressed, Held, Released bool }
+// State records a physical input's state for one frame.
+type State struct {
+	// Pressed is true on the frame the input becomes active.
+	Pressed bool
+	// Held is true while the input is active.
+	Held bool
+	// Released is true on the frame the input becomes inactive.
+	Released bool
+}
 
-// Input is the interface implemented by all bindable physical inputs.
-// Every type that can be bound to an action implements this interface.
+// Input is implemented by the physical input types accepted by [Bindings].
 type Input interface{ isInput() }
 
 // KeyInput binds an action to a keyboard key, with optional modifier
@@ -267,7 +278,10 @@ type KeyInput struct {
 }
 
 // MouseButtonInput binds an action to a mouse button.
-type MouseButtonInput struct{ Button MouseButton }
+type MouseButtonInput struct {
+	// Button is the mouse button that triggers the action.
+	Button MouseButton
+}
 
 // PadButtonInput binds an action to a gamepad button.
 type PadButtonInput struct {
@@ -291,9 +305,13 @@ type PadAxisInput struct {
 	Direction int
 }
 
-// KeyPairInput binds an axis from two keyboard keys,
-// one for the negative direction and one for the positive direction.
-type KeyPairInput struct{ Negative, Positive Key }
+// KeyPairInput binds an axis to a pair of keyboard keys.
+type KeyPairInput struct {
+	// Negative is the key for the negative axis direction.
+	Negative Key
+	// Positive is the key for the positive axis direction.
+	Positive Key
+}
 
 func (KeyInput) isInput()         {}
 func (MouseButtonInput) isInput() {}
