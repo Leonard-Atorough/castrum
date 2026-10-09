@@ -17,7 +17,7 @@ import (
 // [New] provides FontProvider as a resource for the engine renderer and
 // user draw functions.
 type FontProvider struct {
-	server  *asset.Server
+	server *asset.Server
 	// mu protects both caches.
 	mu      sync.RWMutex
 	sources map[asset.ID]*text.GoTextFaceSource
