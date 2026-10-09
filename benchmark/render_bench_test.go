@@ -53,7 +53,7 @@ func BenchmarkCollectCulled(b *testing.B) {
 	world, collector := spriteWorld(b, 1000, false, 0.25)
 	ctx := drawCtx(world, 0.5)
 	b.ReportAllocs()
-	
+
 	for b.Loop() {
 		list, err := collector.Collect(ctx)
 		if err != nil {

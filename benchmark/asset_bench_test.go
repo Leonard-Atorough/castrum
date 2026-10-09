@@ -23,7 +23,7 @@ func BenchmarkLoadWarmTexture(b *testing.B) {
 		b.Fatal(err)
 	}
 	b.ReportAllocs()
-	
+
 	for b.Loop() {
 		if _, err := server.Load[asset.TextureData]("tex.png"); err != nil {
 			b.Fatal(err)
@@ -38,7 +38,7 @@ func BenchmarkLoadWarmFont(b *testing.B) {
 		b.Fatal(err)
 	}
 	b.ReportAllocs()
-	
+
 	for b.Loop() {
 		if _, err := server.Load[asset.FontData]("font.ttf"); err != nil {
 			b.Fatal(err)
