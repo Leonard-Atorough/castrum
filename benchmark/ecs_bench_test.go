@@ -18,8 +18,8 @@ var benchSizes = []int{100, 1000, 10000}
 func BenchmarkSpawnEntity(b *testing.B) {
 	world := core.NewWorld()
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	
+	for b.Loop() {
 		if _, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: 1, Y: 2}}); err != nil {
 			b.Fatal(err)
 		}
@@ -31,8 +31,8 @@ func BenchmarkSpawnEntity(b *testing.B) {
 func BenchmarkSpawnEntityThreeComponents(b *testing.B) {
 	world := core.NewWorld()
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	
+	for b.Loop() {
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: 1, Y: 2}},
 			render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 4, Y: 4}}},
@@ -48,8 +48,8 @@ func BenchmarkSpawnEntityThreeComponents(b *testing.B) {
 func BenchmarkSpawnEntitiesBatch(b *testing.B) {
 	world := core.NewWorld()
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	
+	for b.Loop() {
 		if _, err := world.NewEntities(100, core.Transform{Position: geom.Vector2{X: 1, Y: 2}}); err != nil {
 			b.Fatal(err)
 		}
@@ -76,8 +76,8 @@ func BenchmarkDestroyEntity(b *testing.B) {
 	}
 	refill()
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	
+	for b.Loop() {
 		if next >= len(pool) {
 			b.StopTimer()
 			refill()
@@ -120,8 +120,8 @@ func BenchmarkComponentAddRemove(b *testing.B) {
 		b.Fatal(err)
 	}
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	
+	for b.Loop() {
 		if err := e.AddComponent(world, render.Sprite{}); err != nil {
 			b.Fatal(err)
 		}
@@ -225,8 +225,8 @@ func BenchmarkQueryWhere(b *testing.B) {
 		return s.Drawable != nil
 	})
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	
+	for b.Loop() {
 		for e := range query.Execute() {
 			t, _ := e.Component[core.Transform]()
 			sinkF += t.Position.X
@@ -244,8 +244,8 @@ func BenchmarkQueryConstruct(b *testing.B) {
 		}
 	}
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	
+	for b.Loop() {
 		query := core.NewQuery(world).With(core.Transform{}, render.Sprite{})
 		for e := range query.Execute() {
 			sinkEnt = e.ID()
