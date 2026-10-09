@@ -125,7 +125,7 @@ func run() error {
 		// R restarts the one-shot from zero: elapsed time resets and
 		// the completion stamp clears, so the "fired" color reverts
 		// until it fires again.
-		if ctx.Actions.JustPressed("restart_one_shot") {
+		if ctx.Actions.Pressed("restart_one_shot") {
 			if err := oneShot.Update(ctx.World, func(t *timer.Timer) { t.Restart() }); err != nil {
 				return err
 			}
@@ -133,7 +133,7 @@ func run() error {
 
 		// SPACE starts the paused timer by writing Running. The
 		// countdown then advances on its own.
-		if ctx.Actions.JustPressed("start_held") {
+		if ctx.Actions.Pressed("start_held") {
 			if err := held.Update(ctx.World, func(t *timer.Timer) { t.Running = true }); err != nil {
 				return err
 			}

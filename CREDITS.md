@@ -17,6 +17,8 @@ All sound effects, currently:
 
 - `sprites/T-34/ww2_top_view_hull4.png` (examples/your-first-game)
 - `sprites/T-34/ww2_top_view_turret4.png` (examples/your-first-game)
+- `sprites/Panzer 4/ww2_top_view_hull2.png` (examples/your-first-game)
+- `sprites/Panzer 4/ww2_top_view_turret2.png` (examples/your-first-game)
 
 ## [Pixel Poem](https://pixel-poem.itch.io)
 
