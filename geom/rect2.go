@@ -8,7 +8,9 @@ import (
 // Rect is a two-dimensional axis-aligned bounding rectangle.
 // Canonical rectangles have Min no greater than Max on either axis.
 type Rect struct {
+	// Min is the lower coordinate bound on each axis.
 	Min Vector2
+	// Max is the upper coordinate bound on each axis.
 	Max Vector2
 }
 
@@ -48,13 +50,13 @@ func (r Rect) Size() Vector2 {
 }
 
 // Width returns the distance between the rectangle's vertical sides.
-// It is negative for a non-canonical rectangle created by a struct literal.
+// It is negative when Max.X is less than Min.X.
 func (r Rect) Width() float64 {
 	return r.Max.X - r.Min.X
 }
 
 // Height returns the distance between the rectangle's horizontal sides.
-// It is negative for a non-canonical rectangle created by a struct literal.
+// It is negative when Max.Y is less than Min.Y.
 func (r Rect) Height() float64 {
 	return r.Max.Y - r.Min.Y
 }
@@ -94,7 +96,7 @@ func (r Rect) OverlapsOrTouches(other Rect) bool {
 		r.Min.Y <= other.Max.Y && r.Max.Y >= other.Min.Y
 }
 
-// IsEmpty reports whether the rectangle has zero area or invalid dimensions.
+// IsEmpty reports whether r has zero width or height, or is invalid.
 func (r Rect) IsEmpty() bool {
 	return !r.IsValid() || r.Width() == 0 || r.Height() == 0
 }
@@ -106,8 +108,7 @@ func (r Rect) IsValid() bool {
 		r.Min.X <= r.Max.X && r.Min.Y <= r.Max.Y
 }
 
-// Normalize returns a canonical rectangle whose Min components are no greater
-// than their corresponding Max components.
+// Normalize returns r with its bounds ordered on each axis.
 func (r Rect) Normalize() Rect {
 	return RectFromMinMax(r.Min, r.Max)
 }
@@ -142,7 +143,8 @@ func (r Rect) ClosestPoint(point Vector2) Vector2 {
 }
 
 // DistanceSquared returns the squared distance from point to r.
-// It returns zero for points inside or on the rectangle and avoids a square root.
+// It returns zero for points inside or on the rectangle, and for invalid
+// rectangles.
 func (r Rect) DistanceSquared(point Vector2) float64 {
 	if !r.IsValid() {
 		return 0
