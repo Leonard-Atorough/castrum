@@ -20,21 +20,18 @@ const cellSize = 50.0
 // under in the fixed schedule.
 const SystemName = "engine.collision"
 
-// NewSystem returns the collision system, which finds overlapping
-// colliders and records their lifecycle in [Contacts]. It detects
-// contacts but does not resolve collisions or emit events; games
-// derive enter, stay, and exit by comparing Current and Previous.
+// NewSystem returns the collision detector, which records overlaps in
+// [Contacts].
 //
-// castrum.New registers this system, under [SystemName], when the
-// game is configured with castrum.WithCollision; games that register
-// it themselves do not need the option. It runs early in the fixed
-// phase, before gameplay systems. As a result, it reads transforms
-// from the end of the previous tick, and movement made during this
-// tick is detected on the next one.
+// castrum.New registers it under [SystemName] when configured with
+// `castrum.WithCollision`; otherwise, register it directly. It runs before
+// gameplay systems in the fixed phase, so it reads transforms from the
+// preceding tick and detects movement made during the current tick on the
+// next one.
 //
-// The system attaches [Contacts] to entities with a [Collider],
-// transforms active colliders by position and rotation (not scale),
-// and preserves enough state to report when an existing contact ends.
+// The system attaches [Contacts] to entities with a [Collider], applies
+// position and rotation but not scale, and retains existing pairs long enough
+// to report when a contact ends.
 func NewSystem() core.System {
 	return &system{
 		proxies:     make(map[core.EntityID]proxy),
@@ -48,17 +45,15 @@ func NewSystem() core.System {
 	}
 }
 
-// proxy is an active collider's world-space snapshot. Two equal
-// proxies mean nothing observable changed, so the collider is not
-// re-tested against its surroundings this tick.
+// Equal proxies need no broad-phase update or re-test.
 type proxy struct {
 	collider Collider
 	shape    worldShape
 	bounds   geom.Rect
 }
 
-// pairKey identifies an unordered pair of entities; build it with
-// [canonicalPair] so (a, b) and (b, a) collapse to one key.
+// pairKey identifies an unordered pair; use [canonicalPair] to keep its order
+// consistent.
 type pairKey struct {
 	a, b core.EntityID
 }
@@ -129,14 +124,8 @@ func (s *system) resetTick() {
 	s.candidates = s.candidates[:0]
 }
 
-// reconcileContacts attaches Contacts to every collider entity that
-// lacks one and strips it from entities that stopped being collision
-// participants - a Collider or Transform removed mid-game. Without
-// the strip, the removed side's last contacts would read as a
-// permanent stay; with it, a re-added collider starts from clean
-// state. The structural changes happen between passes, when no
-// iteration is active, and only the first tick a state changes costs
-// anything.
+// reconcileContacts removes stale contact state so removing and later
+// re-adding a collider cannot preserve an old contact.
 func (s *system) reconcileContacts(world *core.World) error {
 	s.attachIDs = s.attachIDs[:0]
 	for e := range s.ensure.Execute() {
@@ -162,10 +151,6 @@ func (s *system) reconcileContacts(world *core.World) error {
 	return nil
 }
 
-// syncProxies refreshes the world-space snapshot of every active
-// collider, updates the index for the changed ones, and drops every
-// trace of proxies that vanished - destroyed, deactivated, or
-// stripped of their Transform.
 func (s *system) syncProxies() error {
 	for e := range s.update.Execute() {
 		id := e.ID()
@@ -202,10 +187,8 @@ func (s *system) syncProxies() error {
 	return nil
 }
 
-// collectCandidates builds this tick's pair list: every changed
-// collider against everything near it now, plus every pair that was
-// already colliding, so a separating pair is re-tested and its exit
-// observed even when neither proxy changed.
+// collectCandidates includes existing pairs so separating colliders are
+// retested and their exits are observed even when neither proxy changed.
 func (s *system) collectCandidates() {
 	for id := range s.dirty {
 		p := s.proxies[id]
@@ -232,9 +215,6 @@ func (s *system) addCandidate(pair pairKey) {
 	s.candidates = append(s.candidates, pair)
 }
 
-// narrowPhase runs the exact test for each candidate pair that the
-// layer/mask filters allow and records hits for both entities. A
-// miss records nothing: absence from Current is the exit signal.
 func (s *system) narrowPhase() {
 	for _, pair := range s.candidates {
 		a, okA := s.proxies[pair.a]
@@ -267,9 +247,6 @@ func (s *system) narrowPhase() {
 	}
 }
 
-// writeContacts rotates each collider's state - last tick's Current
-// becomes Previous - and installs this tick's contacts, sorted so
-// successive ticks compare stably.
 func (s *system) writeContacts() error {
 	for id := range s.newContacts {
 		contacts := s.newContacts[id]
