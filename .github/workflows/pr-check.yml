@@ -89,7 +89,20 @@ jobs:
         run: |
           coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Coverage: $coverage%"
-          if (( $(echo "$coverage < 75" | bc -l) )); then
-            echo "Coverage below 75% threshold"
+          if (( $(echo "$coverage < 85" | bc -l) )); then
+            echo "Coverage below 85% threshold"
             exit 1
           fi
+          {
+            echo "### Per-package coverage (statements)"
+            echo '```'
+            awk 'FNR > 1 {
+              split($1, p, "/")
+              pkg = p[length(p)-1]
+              total[pkg] += $2
+              if ($3 > 0) covered[pkg] += $2
+            } END {
+              for (k in total) printf "%s: %.1f%%\n", k, 100*covered[k]/total[k]
+            }' coverage.out | sort
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
