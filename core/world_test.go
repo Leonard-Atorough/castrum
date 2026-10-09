@@ -61,6 +61,36 @@ func TestResourceNotRegistered(t *testing.T) {
 	}
 }
 
+func TestMustResourceProvided(t *testing.T) {
+	w := NewWorld()
+	if err := w.Provide(func(w *World) (*atlas, error) {
+		return &atlas{name: "sprites"}, nil
+	}); err != nil {
+		t.Fatalf("Provide: %v", err)
+	}
+	a := w.MustResource[*atlas]()
+	if a.name != "sprites" {
+		t.Errorf("instance = %+v, want name %q", a, "sprites")
+	}
+	byErr, err := w.Resource[*atlas]()
+	if err != nil {
+		t.Fatalf("Resource after MustResource: %v", err)
+	}
+	if byErr != a {
+		t.Error("MustResource and Resource must return the same instance")
+	}
+}
+
+func TestMustResourceAbsentPanics(t *testing.T) {
+	w := NewWorld()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("MustResource of an unregistered type should panic")
+		}
+	}()
+	w.MustResource[*atlas]()
+}
+
 func TestProvideDuplicateRejected(t *testing.T) {
 	w := NewWorld()
 	if err := w.Provide(func(w *World) (*atlas, error) {

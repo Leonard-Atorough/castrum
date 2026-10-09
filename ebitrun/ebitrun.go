@@ -92,10 +92,7 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, err
 	}
 
-	server, err := g.World().Resource[*asset.Server]()
-	if err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: asset server: %w", err)
-	}
+	server := g.World().MustResource[*asset.Server]()
 	provider := newTextureProvider(server)
 	if err := g.World().ProvideEager(func(*core.World) (*TextureProvider, error) {
 		return provider, nil
@@ -114,7 +111,7 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, fmt.Errorf("castrum/ebiten: provide audio provider: %w", err)
 	}
 
-	if err := g.AddSystem(core.PhaseFrame, AudioSystemName, audio.NewAudioSystem(controller, g.Mixer())); err != nil {
+	if err := g.AddSystem(core.PhaseFrame, AudioSystemName, audio.NewAudioSystem(controller, g.World().MustResource[*audio.Mixer]())); err != nil {
 		return nil, fmt.Errorf("castrum/ebiten: register %s: %w", AudioSystemName, err)
 	}
 

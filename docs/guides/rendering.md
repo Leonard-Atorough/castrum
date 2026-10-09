@@ -44,7 +44,7 @@ The zero `Sprite` is valid but invisible: a nil `Drawable` declares style withou
 Register an atlas before creating sprites that depend on it, then point the sprite at a named region:
 
 ```go
-server := g.AssetServer()
+server := g.World().MustResource[*asset.Server]()
 if err := server.RegisterGridAtlas("characters", "char.png", 16, 16, "char"); err != nil {
 	return err
 }
@@ -74,7 +74,7 @@ render.Sprite{Drawable: render.TextureSource{Texture: "sprites/player.png"}}
 The texture is loaded through the asset server when the collector resolves it. Preload it during setup if a missing or malformed image should prevent the game from starting:
 
 ```go
-if _, err := g.AssetServer().Load[asset.TextureData]("sprites/player.png"); err != nil {
+if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData]("sprites/player.png"); err != nil {
 	return err
 }
 ```

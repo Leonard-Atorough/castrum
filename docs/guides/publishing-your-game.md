@@ -49,7 +49,7 @@ func run() error {
 		return err
 	}
 
-	if err := g.AssetServer().RegisterGridAtlas(
+	if err := g.World().MustResource[*asset.Server]().RegisterGridAtlas(
 		"characters", "assets/sprites/characters.png", 16, 16, "char",
 	); err != nil {
 		return err
