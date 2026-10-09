@@ -153,9 +153,19 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		Y: float64(ctx.LogicalHeight) / camera.Zoom,
 	})
 
-	server, err := ctx.World.Resource[*asset.Server]()
-	if err != nil {
-		return DrawList{}, fmt.Errorf("castrum: collect: resolve asset server: %w", err)
+	// The asset server resolves lazily: a frame whose drawables are
+	// all shapes never touches it, so a shape-only world needs no
+	// asset wiring at all.
+	var server *asset.Server
+	assetServer := func() (*asset.Server, error) {
+		if server == nil {
+			s, err := ctx.World.Resource[*asset.Server]()
+			if err != nil {
+				return nil, fmt.Errorf("castrum: collect: resolve asset server: %w", err)
+			}
+			server = s
+		}
+		return server, nil
 	}
 
 	c.working = c.working[:0]
@@ -182,7 +192,11 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			// Style without a picture: legal, not drawn.
 			continue
 		case AtlasSource:
-			atlas, err := server.Atlas(drawable.Atlas)
+			srv, err := assetServer()
+			if err != nil {
+				return DrawList{}, err
+			}
+			atlas, err := srv.Atlas(drawable.Atlas)
 			if err != nil {
 				return DrawList{}, fmt.Errorf("castrum: collect: %w", err)
 			}
@@ -207,7 +221,11 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 					Color:    sprite.Color,
 				})
 		case TextureSource:
-			data, err := server.Load[asset.TextureData](string(drawable.Texture))
+			srv, err := assetServer()
+			if err != nil {
+				return DrawList{}, err
+			}
+			data, err := srv.Load[asset.TextureData](string(drawable.Texture))
 			if err != nil {
 				return DrawList{}, fmt.Errorf("castrum: collect: texture %q: %w", drawable.Texture, err)
 			}
@@ -232,7 +250,11 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 				// Nothing to draw, like a nil drawable.
 				continue
 			}
-			font, err := server.Load[asset.FontData](string(drawable.Font))
+			srv, err := assetServer()
+			if err != nil {
+				return DrawList{}, err
+			}
+			font, err := srv.Load[asset.FontData](string(drawable.Font))
 			if err != nil {
 				return DrawList{}, fmt.Errorf("castrum: collect: font %q: %w", drawable.Font, err)
 			}
