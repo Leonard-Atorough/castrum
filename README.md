@@ -10,10 +10,12 @@ Castrum uses [Ebitengine](https://ebitengine.org) as its underlying rendering an
 
 | Area       | What works                                                                                                                                                                                                     |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rendering  | Sprites and shape primitives from one pipeline: standalone textures and grid atlases, a camera, interpolated motion between ticks, viewport culling, layer/sort-order/Y ordering, overlays on top of the world |
+| Rendering  | Sprites, shapes, and text from one pipeline: standalone textures and grid atlases, fonts, a camera, interpolated motion between ticks, viewport culling, layer/sort-order/Y ordering, overlays on top of the world |
 | Simulation | A fixed-timestep loop (60 ticks per second by default) with slow-frame guards, startup/frame/fixed phases                                                                                                      |
 | Input      | Named bindings across keyboard, mouse, and gamepad - and raw per-frame polling when a game wants a key, not an action                                                                                          |
 | Animation  | Atlas-frame clips with looping, pause, and playback rate, advanced by the engine                                                                                                                               |
+| Collision  | Overlap detection for boxes and circles over layer bitmasks, with contacts as component state - detection only, no solver                                                                                      |
+| Timers     | One-shot and repeating timers as components, with tick-stamped completion you read as state                                                                                                                    |
 | Audio      | Sound effects (decoded and shared) and music (streamed from the file), a master and two group volume buses, per-play pause behavior                                                                            |
 | Structure  | Entities, components, queries over the world, typed resources                                                                                                                                                  |
 
@@ -32,3 +34,9 @@ Castrum is pre-1.0 and moving: the API is unstable, the docs evolve with it, and
 ## The name
 
 A _castrum_ (Latin) was a Roman fortified camp: a garrison built to a standard layout from local materials, quickly, wherever the legions needed to hold ground. The name fits an engine that aims to be the standard-built base your game stands on - small, planned, and hard to knock over.
+
+## How this is made
+
+Castrum is developed using an AI-assisted workflow: a person owns the design, the direction, and every line that lands; AI helps implement, test, and document it; the person reviews the whole diff, and nothing merges without passing gates nobody can talk past - vet, tests, coverage, and benchmarks. The contribution policy in [CONTRIBUTING.md](CONTRIBUTING.md) draws the same line for others: AI assistance is welcome, delegation is not.
+
+We declare this because it is true, and because we would rather read a one-line "built with AI assistance, reviewed by me" than guess. If castrum is part of something you make, transparency in your own style is encouraged - say what the machine did and what you did. The tooling has changed how software gets written and honesty and integrity is how we as a community build trust in each other, and in the projects we create.
