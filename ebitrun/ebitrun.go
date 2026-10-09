@@ -42,6 +42,9 @@ type Options struct {
 	// SampleRate is the audio context's mixing rate in Hz, used when the
 	// runner creates the context.
 	SampleRate int
+	// DebugOverlay draws the frame and tick rates in the window's
+	// top-left corner. Default is off.
+	DebugOverlay bool
 }
 
 type option interface {
@@ -134,7 +137,12 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 
 	engineDraw := newEngineDrawFunc(collector, provider, fonts)
 
-	return &Runner{g: g, opts: options, last: time.Now(), engine: engineDraw}, nil
+	runner := &Runner{g: g, opts: options, last: time.Now(), engine: engineDraw}
+	if options.DebugOverlay {
+		overlay := newDebugOverlay()
+		runner.AddDraw(overlay.draw)
+	}
+	return runner, nil
 }
 
 func (o *Options) validate() error {
@@ -255,4 +263,13 @@ func WithoutVSync() option {
 // 44100; invalid values are reported by [New].
 func WithAudioSampleRate(sampleRate int) option {
 	return optionFunc(func(o *Options) { o.SampleRate = sampleRate })
+}
+
+// WithDebugOverlay draws a development overlay in the window's top-left
+// corner: fps counts the display frames rendered per second, and tps counts
+// the fixed simulation ticks the engine advances per second. The overlay
+// draws only - it never changes simulation timing or game state - and is
+// off unless the option is passed.
+func WithDebugOverlay() option {
+	return optionFunc(func(o *Options) { o.DebugOverlay = true })
 }

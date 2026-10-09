@@ -193,6 +193,12 @@ runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
 
 The runner draws the world first, then runs user draw callbacks once per display frame in registration order. Later callbacks draw on top of earlier ones. The callback receives the backend screen, so it is runner-specific and not portable across rendering backends. Return an error so `Run` can surface it.
 
+The runner ships one overlay of its own: `ebitrun.WithDebugOverlay()` prints the frame and tick rates in the window's top-left corner - `fps` counts display frames rendered per second, `tps` counts fixed simulation ticks advanced per second. It draws only and is off unless the option is passed:
+
+```go
+runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
+```
+
 ## Culling and render failures
 
 The collector culls drawable bounds against the active camera viewport before sorting. Off-screen sprites still cost entity matching and collection, but they are not sent to the backend for drawing. Culling uses the drawable's bounds and does not expand them for a rotated sprite's full swept area, so a rotating object can appear at the edge as its unrotated bounds enter the view.
