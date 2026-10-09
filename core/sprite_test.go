@@ -2,6 +2,7 @@ package core
 
 import (
 	"image/color"
+	"math"
 	"strings"
 	"testing"
 
@@ -25,6 +26,15 @@ func TestSpriteValidate(t *testing.T) {
 	if err := outlined.Validate(); err != nil {
 		t.Fatalf("outlined shape Sprite rejected: %v", err)
 	}
+	// Text sources validate: real strings and empty ones, which draw
+	// nothing like a nil drawable does.
+	if err := (Sprite{Drawable: TextSource{Font: "ui/go.ttf", Text: "score: 1", Size: 16}}).Validate(); err != nil {
+		t.Fatalf("valid text source rejected: %v", err)
+	}
+	if err := (Sprite{Drawable: TextSource{Font: "ui/go.ttf", Size: 16}}).Validate(); err != nil {
+		t.Fatalf("empty text source rejected: %v", err)
+	}
+
 	// Style without a picture is legal — it just does not draw.
 	if err := (Sprite{}).Validate(); err != nil {
 		t.Fatalf("nil Drawable should validate, got: %v", err)
@@ -45,6 +55,11 @@ func TestSpriteValidate(t *testing.T) {
 		"circle negative radii": {Drawable: CircleShape{Radii: geom.Vector2{X: -5, Y: 5}}},
 		"line zero endpoints":   {Drawable: LineShape{}},
 		"line same endpoints":   {Drawable: LineShape{From: geom.Vector2{X: 1, Y: 1}, To: geom.Vector2{X: 1, Y: 1}}},
+		"text without font":     {Drawable: TextSource{Text: "hi", Size: 16}},
+		"text zero size":        {Drawable: TextSource{Font: "f.ttf", Text: "hi"}},
+		"text negative size":    {Drawable: TextSource{Font: "f.ttf", Text: "hi", Size: -16}},
+		"text NaN size":         {Drawable: TextSource{Font: "f.ttf", Text: "hi", Size: math.NaN()}},
+		"text multiline":        {Drawable: TextSource{Font: "f.ttf", Text: "a\nb", Size: 16}},
 	} {
 		if err := sprite.Validate(); err == nil {
 			t.Errorf("Sprite with %s should fail validation", name)

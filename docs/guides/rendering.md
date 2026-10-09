@@ -30,13 +30,14 @@ The zero `Sprite` is valid but invisible: a nil `Drawable` declares style withou
 
 ## Choose a drawable
 
-`Sprite.Drawable` is a sealed set of five current choices:
+`Sprite.Drawable` is a sealed set of six current choices:
 
 - `AtlasSource` draws one named region from a registered atlas.
 - `TextureSource` draws a standalone texture at its full size.
 - `RectShape` draws a rectangle in world units.
 - `CircleShape` draws a circle or ellipse in world units.
 - `LineShape` draws a segment between two points relative to the entity position.
+- `TextSource` draws a string of text in a loaded font.
 
 ### Atlas regions
 
@@ -92,6 +93,22 @@ core.Sprite{
 `RectShape.Size` is centered on the entity position. `CircleShape.Radii` describes the radii; unequal radii make an ellipse. `LineShape.From` and `LineShape.To` are offsets from the entity position, and the endpoints must differ. Shapes are measured in world units and are affected by the transform's scale and rotation.
 
 Shapes can be filled or outlined. Set `Outline: true` and provide a positive `StrokeWidth`. A line always draws as a stroke and uses `StrokeWidth`. A nil `Color` defaults shapes to black; for texture sources, nil leaves the source's pixels uncolored and opaque.
+
+### Text
+
+Text renders through a font loaded by the asset server. Point the sprite at the font file and give it a size in pixels:
+
+```go
+core.Sprite{
+	Drawable: core.TextSource{Font: "fonts/go.ttf", Text: "score: 1", Size: 16},
+}
+```
+
+`Font` is the font asset's path - a `ttf` or `otf` file, loaded and decoded like any other asset. `Size` is the font size in pixels at scale one; the transform's scale applies on top, and rotation and movement work exactly as for the other drawables. One line per sprite: line breaks are rejected at validation, so a paragraph is several text sprites.
+
+An empty `Text` draws nothing, like an empty drawable. A nil `Color` defaults text to white - the one drawable kind whose default is not black, since text on a screen has no authored color to inherit.
+
+The engine measures each text sprite with the font's own metrics - the measured size drives both culling and the draw's anchoring, so a sprite draws exactly as it was measured. Changing the string is rewriting component state in an update closure; the next frame measures and draws the new string with no extra wiring.
 
 ## Transform sprites
 

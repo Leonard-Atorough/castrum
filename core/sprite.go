@@ -3,57 +3,45 @@ package core
 import (
 	"fmt"
 	"image/color"
+	"math"
+	"strings"
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// Sprite is the single drawable component: the shared style plus what
-// to draw. The Drawable sum carries the picture — an atlas region or
-// a standalone texture — or a shape: rect, circle, or line. Pair it
-// with a Transform and a PrevTransform and the collector renders it,
-// interpolated, culled, and sorted.
+// Sprite is a drawable component with shared style and one optional picture
+// or shape.
 //
-// The zero value is the shown, opaque sprite. With a nil Drawable it
-// declares style but no picture and simply does not draw until a
-// Drawable is set. Hide it with Hidden; see through it with Color's
-// alpha; outline shapes with Outline.
+// The zero value is visible but draws nothing until [Sprite.Drawable] is set.
 type Sprite struct {
-	// Layer orders the sprite against every other drawable, 0-31,
-	// back to front.
+	// Layer orders drawables from back to front and must be between 0 and 31.
 	Layer uint8
-	// SortOrder orders within the layer: higher draws on top, with
-	// the world-Y fallback below that.
+	// SortOrder orders drawables within a layer; higher values draw on top.
+	// Equal values are ordered by world Y.
 	SortOrder int8
-	// Hidden skips collection entirely. false — the zero value —
-	// means shown.
+	// Hidden excludes the sprite from collection. The zero value is shown.
 	Hidden bool
-	// FlipH and FlipV mirror the sprite horizontally and vertically.
-	// Applies when Drawable is a texture source; shapes have no flip.
+	// FlipH and FlipV mirror texture-backed drawables horizontally and
+	// vertically. Shapes are not flipped.
 	FlipH, FlipV bool
-	// Drawable is what to draw. nil means style without a picture:
-	// the sprite is legal but not drawn.
+	// Drawable is what to draw. A nil value leaves the sprite without a
+	// picture, so it is not drawn.
 	Drawable Drawable
-	// Outline strokes the shape's border instead of filling it.
-	// Applies when Drawable is a shape; false — the zero value —
-	// fills, the prototyping default. Outline requires a positive
-	// StrokeWidth, enforced by Validate.
+	// Outline strokes a shape's border instead of filling it. It requires a
+	// positive StrokeWidth and has no effect on other drawable types.
 	Outline bool
-	// StrokeWidth is the outline's width in world units. Applies when
-	// Drawable is a shape and Outline is set.
+	// StrokeWidth is the outline width in world units. It must not be
+	// negative and must be positive when outlining a shape.
 	StrokeWidth float64
-	// Color is the color to multiply a texture's pixels by, or a
-	// shape's fill and stroke color. Its alpha channel is the
-	// drawable's opacity: a half-alpha color draws half-faded, so
-	// fading is expressing a color, not a separate field —
-	// color.NRGBA{R: 255, G: 255, B: 255, A: 128} fades an uncolored
-	// sprite to half.
-	//
-	// nil means no color on a texture source (fully
-	// opaque); shapes default a nil color to black at collection.
+	// Color tints texture pixels or sets a shape's fill and stroke color.
+	// Its alpha controls opacity. A nil color leaves textures untinted,
+	// defaults text to white, and defaults shapes to black.
 	Color color.Color
 }
 
+// Validate reports whether the sprite's style and drawable parameters are
+// valid. It does not check whether referenced assets can be loaded.
 func (s Sprite) Validate() error {
 	if s.Layer > 31 {
 		return fmt.Errorf("layer must be between 0 and 31")
@@ -90,65 +78,86 @@ func (s Sprite) Validate() error {
 		if d.From == d.To {
 			return fmt.Errorf("line endpoints must be distinct")
 		}
+	case TextSource:
+		if d.Font == "" {
+			return fmt.Errorf("text source requires a font")
+		}
+		if d.Size <= 0 || math.IsNaN(d.Size) || math.IsInf(d.Size, 0) {
+			return fmt.Errorf("text size must be a positive number of pixels")
+		}
+		if strings.ContainsAny(d.Text, "\r\n") {
+			return fmt.Errorf("text source is single-line; use one sprite per line")
+		}
 	default:
 		return fmt.Errorf("unknown drawable %T", s.Drawable)
 	}
 	return nil
 }
 
-// Drawable is what a Sprite draws: one of the two texture sources or
-// one of the three shapes. It is a sealed sum — the only
-// implementations are in this file — so exactly-one-drawable is a
-// construction guarantee: a sprite cannot declare two pictures, and
-// the collector type-switches one field instead of querying per
-// variant.
+// Drawable is the source rendered by a [Sprite]: an atlas region, texture,
+// text string, or shape. Its implementations are [AtlasSource],
+// [TextureSource], [TextSource], [RectShape], [CircleShape], and [LineShape].
 type Drawable interface {
 	isDrawable()
 }
 
 // AtlasSource draws one named region of a registered atlas.
 type AtlasSource struct {
-	Atlas  asset.AtlasID
+	// Atlas is the ID of the registered atlas.
+	Atlas asset.AtlasID
+	// Region is the name of the region to draw.
 	Region string
 }
 
 // TextureSource draws a standalone texture, whole.
 type TextureSource struct {
+	// Texture is the ID of the texture asset to draw.
 	Texture asset.ID
 }
 
-// Shape is a Drawable that is geometry instead of an image — the sum
-// a DrawItem carries when it resolved from a shape sprite. Sealed:
-// RectShape, CircleShape, and LineShape.
+// TextSource draws a single line of text centered on the sprite's position.
+// The sprite's scale applies to the font size like it does to other drawables.
+type TextSource struct {
+	// Font is the ID of the font asset to render with.
+	Font asset.ID
+	// Text is the single line to draw. Empty text draws nothing.
+	Text string
+	// Size is the font size in pixels before sprite scaling.
+	Size float64
+}
+
+// Shape is a [Drawable] defined by geometry rather than an image.
+// Implementations are [RectShape], [CircleShape], and [LineShape].
 type Shape interface {
 	Drawable
 	isShape()
 }
 
-// RectShape draws a filled or outlined rectangle of Size world units,
-// centered on the position and scaled by the scale.
+// RectShape is a rectangle centered on the sprite's position. Its fill or
+// outline comes from the sprite's style.
 type RectShape struct {
+	// Size is the rectangle's width and height in world units.
 	Size geom.Vector2
 }
 
-// CircleShape draws a filled or outlined circle — an ellipse whenever
-// the radii differ — of Radii world units, centered on the position
-// and scaled by the scale. The transform's scale still applies on top,
-// so non-uniform scale widens any radii just as it stretches a rect.
+// CircleShape is a circle centered on the sprite's position, or an ellipse
+// when its radii differ. Its fill or outline comes from the sprite's style.
 type CircleShape struct {
+	// Radii are the circle's horizontal and vertical radii in world units.
 	Radii geom.Vector2
 }
 
-// LineShape draws a segment between From and To, both relative to
-// the position, scaled by the scale. A zero From anchors the segment
-// at the position itself; either way the whole segment moves rigidly
-// and interpolates for free.
+// LineShape is a segment whose endpoints are relative to the sprite's
+// position.
 type LineShape struct {
+	// From is the segment's start point relative to the sprite's position.
 	From geom.Vector2
-	To   geom.Vector2
+	// To is the segment's end point relative to the sprite's position.
+	To geom.Vector2
 }
 
 func (AtlasSource) isDrawable()   {}
+func (TextSource) isDrawable()    {}
 func (TextureSource) isDrawable() {}
 func (RectShape) isDrawable()     {}
 func (CircleShape) isDrawable()   {}

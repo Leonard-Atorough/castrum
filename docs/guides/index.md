@@ -10,7 +10,7 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 
 ## Presentation
 
-- [Rendering](rendering.md) - sprites, shapes, cameras, overlays, ordering, and culling.
+- [Rendering](rendering.md) - sprites, shapes, text, cameras, overlays, ordering, and culling.
 - [Animation](animation.md) - atlas clips, playback state, looping, and control.
 
 ## Interaction and audio
