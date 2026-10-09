@@ -1,3 +1,5 @@
+// Package ecs stores entities in archetypes grouped by component type sets.
+// [Service] manages entity locations and component values across those archetypes.
 package ecs
 
 import (
@@ -15,6 +17,7 @@ const (
 
 type archetypeID uint64
 
+// EntityID uniquely identifies an entity within a [Service].
 type EntityID uint64
 
 type key []reflect.Type
@@ -49,7 +52,6 @@ func (k key) hash() hash {
 	return hash(h)
 }
 
-// equals reports whether two keys hold the same component types.
 func (k key) equals(other key) bool {
 	if len(k) != len(other) {
 		return false
@@ -79,10 +81,12 @@ func (k key) containsNone(types ...reflect.Type) bool {
 	return !slices.ContainsFunc(types, k.contains)
 }
 
+// Len returns the number of component types in the key.
 func (k key) Len() int {
 	return len(k)
 }
 
+// String returns the component types in the key as a bracketed list.
 func (k key) String() string {
 	strs := make([]string, len(k))
 	for i, t := range k {
@@ -93,14 +97,19 @@ func (k key) String() string {
 
 const initialColumnCapacity = 16
 
-// Archetype represents a collection of entities that share the same set
-// of component types. Every column holds one slot per entity: column
-// length always equals the entity ID slice length.
+// Archetype groups entities that share the same component types.
+//
+// Each component column has one value per entity, in the same row order as
+// the entity IDs.
 type Archetype struct {
+	// archetypeID uniquely identifies this archetype within its store.
 	archetypeID
-	key       key
+	// key is the component type set shared by every entity.
+	key key
+	// entityIDs lists the entities in row order.
 	entityIDs []EntityID
-	columns   map[reflect.Type][]any
+	// columns stores each component type's values in the same row order.
+	columns map[reflect.Type][]any
 }
 
 func newArchetype(id archetypeID, key key) *Archetype {
@@ -116,13 +125,13 @@ func newArchetype(id archetypeID, key key) *Archetype {
 	}
 }
 
-// ID returns the archetype's unique identifier.
+// ID returns the archetype's identifier within its store.
 func (a *Archetype) ID() archetypeID {
 	return a.archetypeID
 }
 
-// Key returns the archetype's component type set: the types shared by
-// every entity in the archetype.
+// Key returns the component types shared by every entity in the archetype.
+// The returned slice aliases the archetype's key and must not be modified.
 func (a *Archetype) Key() key {
 	return a.key
 }
@@ -195,16 +204,15 @@ func (a *Archetype) component(index int, typ reflect.Type) any {
 	return col[index]
 }
 
-// Column returns the backing slice for typ without copying. The slice
-// aliases the archetype's storage: do not append to it, and do not hold it
-// across insertions, removals, or migrations, which can reallocate.
+// Column returns the backing slice for typ, or nil if the archetype has no
+// such component type. The slice aliases archetype storage: do not append to
+// it or retain it across structural changes, which may reallocate the column.
 func (a *Archetype) Column(typ reflect.Type) []any {
 	return a.columns[typ]
 }
 
-// EachEntity iterates the archetype's entities in place, yielding each
-// entity's index and ID without copying the ID slice. Iteration stops when
-// yield returns false.
+// EachEntity calls yield for each entity's row index and ID. Iteration stops
+// when yield returns false.
 func (a *Archetype) EachEntity(yield func(index int, entityID EntityID) bool) {
 	for i, entityID := range a.entityIDs {
 		if !yield(i, entityID) {
@@ -214,10 +222,14 @@ func (a *Archetype) EachEntity(yield func(index int, entityID EntityID) bool) {
 }
 
 type store struct {
+	// archetypes holds the live archetypes, keyed by ID.
 	archetypes map[archetypeID]*Archetype
-	byHash     map[hash]archetypeID
+	// byHash maps component-set hashes to archetype IDs.
+	byHash map[hash]archetypeID
+	// generation tracks changes to the set of archetypes.
 	generation uint64
-	nextID     archetypeID
+	// nextID is the next archetype ID to assign.
+	nextID archetypeID
 }
 
 func newArchetypes() *store {
@@ -263,8 +275,6 @@ func (s *store) get(id archetypeID) (*Archetype, bool) {
 	return archetype, ok
 }
 
-// matchInto appends the matching archetypes to buf, reusing its capacity,
-// and returns the possibly grown slice.
 func (s *store) matchInto(buf []*Archetype, required, excluded []reflect.Type) []*Archetype {
 	buf = buf[:0]
 	for _, archetype := range s.archetypes {
@@ -288,35 +298,38 @@ func (s *store) cleanupEmpty() {
 	s.generation++
 }
 
+// Len returns the number of archetypes in the store.
 func (s *store) Len() int {
 	return len(s.archetypes)
 }
 
-// Location represents the position of an entity within an archetype,
-// including the archetype ID and the index within that archetype.
+// Location identifies an entity's row in an archetype.
 type Location struct {
+	// ArchetypeID identifies the archetype containing the entity.
 	ArchetypeID archetypeID
-	Index       int
+	// Index is the entity's row within that archetype.
+	Index int
 }
 
-// Result represents the outcome of an operation on an entity within the ECS.
+// Result describes the outcome of an entity operation.
 type Result struct {
-	// Moved indicates if the entity was moved to a different archetype as a result of the operation.
+	// Moved reports whether an entity moved within or between archetypes.
 	Moved bool
-	// MovedID is the ID of the entity that was moved, if any.
+	// MovedID identifies the moved entity when Moved is true.
 	MovedID EntityID
-	// Error contains any error encountered during the operation.
+	// Error is the failure encountered by the operation, if any.
 	Error error
 }
 
-// Service provides methods to create, remove, and update entities within the ECS,
-// managing their locations and archetypes.
+// Service manages entities, their component values, and their archetype locations.
 type Service struct {
-	store     *store
+	// store owns the entity archetypes.
+	store *store
+	// locations maps each live entity to its archetype row.
 	locations map[EntityID]Location
 }
 
-// NewService initializes and returns a new Service instance with an empty store and location map.
+// NewService returns an empty entity service.
 func NewService() *Service {
 	return &Service{
 		store:     newArchetypes(),
@@ -324,8 +337,10 @@ func NewService() *Service {
 	}
 }
 
-// Create adds a new entity with the specified components to the ECS.
-// It returns a [Result] indicating the success or failure of the operation.
+// Create adds an entity with the given component types and values.
+// types and values must have the same length, and each value must be assignable
+// to the type at the corresponding index. An entity ID already in use is an
+// error.
 func (s *Service) Create(entityID EntityID, types []reflect.Type, values []any) error {
 	if err := validateComponentInput(types, values); err != nil {
 		return err
@@ -353,9 +368,9 @@ func (s *Service) Create(entityID EntityID, types []reflect.Type, values []any) 
 
 }
 
-// Destroy deletes the entity with the specified ID from the ECS.
-// It returns a [Result] indicating the success or failure of the operation,
-// and whether the entity was moved within its archetype as a result of the removal.
+// Destroy removes an entity and its components. If removing its row moves
+// another entity within the archetype, the result identifies that entity in
+// MovedID. Destroy reports an error in Result.Error if entityID does not exist.
 func (s *Service) Destroy(entityID EntityID) Result {
 	loc, err := s.location(entityID)
 	if err != nil {
@@ -387,13 +402,16 @@ func (s *Service) Destroy(entityID EntityID) Result {
 	}
 }
 
-// AddComponents attaches components to an existing entity, migrating it to
-// the archetype that holds the union of its current and new components.
-// Values of existing components are preserved. Adding a component the
-// entity already has overwrites its value without migrating.
+// AddComponents attaches or replaces components on an existing entity.
+// Existing component values are preserved when the entity migrates to the
+// archetype for the resulting type set. If all specified types are already
+// present, their values are replaced without migration. Component values
+// must be assignable to their corresponding types and pass validation; an
+// invalid input leaves the entity unchanged.
 //
-// It returns a [Result] reporting whether the entity migrated; Moved and
-// MovedID refer to the target entity, not to swap-removal bookkeeping.
+// The result reports errors in Error. Moved and MovedID identify the target
+// entity when it migrates; they do not report any other entity moved by
+// swap-removal.
 func (s *Service) AddComponents(entityID EntityID, types []reflect.Type, values []any) Result {
 	if err := validateComponentInput(types, values); err != nil {
 		return Result{
@@ -466,13 +484,14 @@ func (s *Service) AddComponents(entityID EntityID, types []reflect.Type, values 
 	}
 }
 
-// RemoveComponents detaches components from an existing entity, migrating
-// it to the archetype that holds its remaining components. Values of the
-// remaining components are preserved. Types the entity does not have are
-// ignored; removing all components leaves the entity in an empty archetype.
+// RemoveComponents detaches the specified component types from an existing
+// entity. Types the entity does not have are ignored; remaining values are
+// preserved when it migrates to the archetype for its remaining types.
+// Removing all components leaves the entity in an empty archetype.
 //
-// It returns a [Result] reporting whether the entity migrated; Moved and
-// MovedID refer to the target entity, not to swap-removal bookkeeping.
+// The result reports errors in Error. Moved and MovedID identify the target
+// entity when it migrates; they do not report any other entity moved by
+// swap-removal.
 func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Result {
 	if err := validateTypes(types); err != nil {
 		return Result{
@@ -538,8 +557,8 @@ func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Resu
 	}
 }
 
-// Component retrieves the value of a specific component for the given entity.
-// If the component is not found or the entity does not exist, an error is returned.
+// Component returns the value of type t on entityID. The second result is
+// false if the entity or component does not exist.
 func (s *Service) Component(entityID EntityID, t reflect.Type) (any, bool) {
 	val, err := s.resolveComponent(entityID, t)
 	if err != nil {
@@ -549,9 +568,7 @@ func (s *Service) Component(entityID EntityID, t reflect.Type) (any, bool) {
 	return val, true
 }
 
-// HasComponent reports whether the given entity has a specific component.
-// It returns false if the entity does not exist or does not have the
-// component.
+// HasComponent reports whether entityID exists and has a component of type t.
 func (s *Service) HasComponent(entityID EntityID, t reflect.Type) bool {
 	loc, exists := s.locations[entityID]
 	if !exists {
@@ -566,8 +583,9 @@ func (s *Service) HasComponent(entityID EntityID, t reflect.Type) bool {
 	return arch.component(loc.Index, t) != nil
 }
 
-// SetComponent sets the value of a specific component for the given entity.
-// It returns an error if the operation failed.
+// SetComponent replaces the value of an existing component on entityID.
+// value must be assignable to t and pass validation. It returns an error if
+// the entity or component does not exist, or if the value is invalid.
 func (s *Service) SetComponent(entityID EntityID, t reflect.Type, value any) error {
 	loc, err := s.location(entityID)
 	if err != nil {
@@ -593,22 +611,22 @@ func (s *Service) SetComponent(entityID EntityID, t reflect.Type, value any) err
 	return nil
 }
 
-// Match returns the archetypes that match the required and excluded
-// component types. It allocates a new slice on every call; hot paths that
-// re-match repeatedly should prefer [Service.MatchInto] to reuse capacity.
+// Match returns archetypes containing every required type and none of the
+// excluded types. The returned slice is newly allocated; use [Service.MatchInto]
+// to reuse a buffer.
 func (s *Service) Match(required, excluded []reflect.Type) []*Archetype {
 	return s.store.matchInto(nil, required, excluded)
 }
 
-// MatchInto appends the matching archetypes to buf, reusing its capacity,
-// and returns the possibly grown slice. Pass the returned slice back on
-// the next call to keep the capacity.
+// MatchInto returns archetypes containing every required type and none of the
+// excluded types, reusing buf's capacity when possible. Pass the returned
+// slice to the next call to retain that capacity.
 func (s *Service) MatchInto(buf []*Archetype, required, excluded []reflect.Type) []*Archetype {
 	return s.store.matchInto(buf, required, excluded)
 }
 
-// Generation returns the current generation of the underlying store.
-// It can be used to track changes in the store and detect if any modifications have occurred.
+// Generation returns the store generation, which changes when archetypes are
+// created or empty archetypes are removed.
 func (s *Service) Generation() uint64 {
 	return s.store.generation
 }
