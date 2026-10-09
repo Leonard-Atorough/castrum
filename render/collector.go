@@ -1,7 +1,5 @@
-// Package render is the engine's render tier: the Sprite component and its
-// drawable sources, the Camera framing component, and the Collector that
-// resolves each frame's DrawList. Gameplay code writes component state; the
-// runner consumes the DrawList and blits it.
+// Package render defines drawable components and camera state, then resolves
+// them into ordered [DrawList] values for a renderer to draw.
 package render
 
 import (
@@ -16,66 +14,47 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// DrawItem is a drawable resolved for rendering. Texture items carry their
-// texture and source rectangle; shape items carry their geometry. Positions
-// are interpolated in world space for the current frame.
+// DrawItem is one drawable resolved from a [Sprite] for a frame.
 type DrawItem struct {
-	// Texture is the texture the sprite's pixels come from: a
-	// standalone texture's path, or the atlas's texture path. Applies
-	// when Shape is nil.
+	// Texture is the source texture for a texture item; empty for text and shapes.
 	Texture asset.ID
-	// Rect is the region of Texture to draw, in pixels. Empty means
-	// the whole texture - dimension knowledge lives in the blit.
-	// Applies when Shape is nil.
+	// Rect is the source region in Texture, in pixels. An empty rectangle
+	// selects the whole texture.
 	Rect image.Rectangle
-	// Shape is the primitive to draw instead of a texture. nil means
-	// this item is a texture sprite and Texture and Rect apply. When
-	// non-nil, Color is the shape's color and is never nil: the
-	// collector defaults a nil Sprite.Color to black.
+	// Shape is the geometry of a shape item; nil for texture and text items.
 	Shape Shape
-	// Text is the string of a text item; empty on every other item.
+	// Text is the text to draw; empty for non-text items.
 	Text string
-	// Font is the font of a text item; empty on every other item. It also
-	// identifies text items.
+	// Font is the font asset for a text item; empty for non-text items.
 	Font asset.ID
-	// TextSize is the text item's font size in pixels at scale one.
+	// TextSize is the font size in pixels before applying Scale.
 	TextSize float64
-	// TextWidth and TextHeight are the measured size of the item's
-	// text at scale one, from the font's metrics. The blit anchors by
-	// them, so an item draws exactly as it was measured.
+	// TextWidth and TextHeight are the text dimensions measured by the font
+	// before applying Scale.
 	TextWidth, TextHeight float64
-	// Position is the interpolated position of the drawable in world
-	// space.
+	// Position is the interpolated position in world space.
 	Position geom.Vector2
-	// Rotation is the rotation of the drawable in world space, in
-	// radians.
+	// Rotation is the rotation in world space, in radians.
 	Rotation float64
-	// Scale is the scale of the drawable in world space.
+	// Scale is the drawable's scale in world space.
 	Scale geom.Vector2
-	// FlipH and FlipV mirror the sprite horizontally and vertically.
-	// Applies when Shape is nil; shapes have no flip.
+	// FlipH and FlipV mirror texture items horizontally and vertically.
 	FlipH, FlipV bool
-	// Color is the color to multiply the sprite's pixels by, or the
-	// shape's fill and stroke color; its alpha channel is the
-	// drawable's opacity. nil means no color on a sprite; shape
-	// items always carry a concrete color.
+	// Color tints texture pixels or sets the text or shape color. Its alpha
+	// controls opacity; nil means no tint on a texture item.
 	Color color.Color
-	// Outline strokes the shape's border instead of filling it.
-	// Applies when Shape is non-nil.
+	// Outline strokes a shape's border instead of filling it.
 	Outline bool
-	// StrokeWidth is the outline's width in world units; the blit
-	// scales it by zoom. Applies when Shape is non-nil and Outline
-	// is set.
+	// StrokeWidth is the outline width in world units.
 	StrokeWidth float64
 }
 
-// DrawList contains the resolved camera and draw items for one frame.
+// DrawList contains the camera view and sorted draw items for one frame.
 type DrawList struct {
-	// Camera is the resolved primary camera view for this frame.
+	// Camera is the resolved primary camera view.
 	Camera CameraView
-	// Items is the sorted set of drawables for this frame. When returned by
-	// [Collector.Collect], the slice is owned by the collector and is
-	// overwritten by its next call.
+	// Items is the sorted set of drawables. When returned by [Collector.Collect],
+	// the collector owns the slice and overwrites it on its next call.
 	Items []DrawItem
 }
 
@@ -86,20 +65,19 @@ type workingItem struct {
 	worldY    float64 // interpolated, the Y-fallback sort key
 }
 
-// Collector builds each frame's draw list by resolving drawable assets,
-// culling against the camera viewport, and sorting by layer, sort order, and
-// world Y. Reuse a Collector across frames.
+// Collector resolves drawable assets, culls against the camera viewport, and
+// sorts draw items for each frame. Reuse a Collector across frames.
 type Collector struct {
 	userCamera,
 	engineCamera,
 	sprites *core.Query
 	working []workingItem
-	// SortedItems is the sorted output the returned DrawList views.
-	// It is reused across frames; do not modify or retain it.
+	// SortedItems backs [DrawList.Items]. It is reused on the next
+	// [Collector.Collect] call; callers must not modify or retain it.
 	SortedItems []DrawItem
 }
 
-// NewCollector creates a [Collector] for world. A primary user camera takes
+// NewCollector creates a [Collector] for world. A user primary camera takes
 // precedence over the engine camera.
 func NewCollector(world *core.World) *Collector {
 	// User-spawned primaries are preferred; the engine camera
@@ -143,14 +121,13 @@ func NewCollector(world *core.World) *Collector {
 	}
 }
 
-// Collect returns the draw list for the current frame. It interpolates
-// drawable transforms using [core.Context.Alpha], culls against the camera
-// viewport, and sorts items by layer, sort order, then world Y. Text bounds
-// come from [asset.FontData.Measure].
+// Collect resolves the draw list for the current frame. It interpolates
+// transforms using [core.Context.Alpha], culls to the camera viewport, and
+// sorts items by layer, sort order, then world Y. Text bounds use
+// [asset.FontData.Measure].
 //
-// If no primary camera is available, Collect returns an empty list without
-// an error. Errors resolving fonts, textures, atlases, or atlas regions are
-// returned; shapes require no assets.
+// If no primary camera is available, Collect returns an empty list without an
+// error. Asset lookup and loading errors are returned; shapes require no assets.
 func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 	// A user-spawned primary wins; the engine camera is the
 	// fallback. Query iteration order is deterministic within each.
