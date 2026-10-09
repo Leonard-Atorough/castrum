@@ -88,7 +88,7 @@ func (p *TextureProvider) SubImageRect(texturePath asset.ID, rect image.Rectangl
 // texture is converted on first use and shared by all its regions;
 // errors name the atlas, region, and texture path.
 func (p *TextureProvider) SubImage(atlasID asset.AtlasID, regionName string) (*ebiten.Image, error) {
-	atlas, err := p.server.Store().Atlas(atlasID)
+	atlas, err := p.server.Atlas(atlasID)
 	if err != nil {
 		return nil, err
 	}
