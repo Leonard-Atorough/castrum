@@ -79,8 +79,8 @@ type Source struct {
 	// Completed reports whether a [LoopNone] play has finished. The audio
 	// system owns this field: it sets it on completion and clears it on
 	// restart, including an Audio change.
-	Completed bool
-	restarts uint64
+	Completed      bool
+	restarts       uint64
 	syncedRestarts uint64
 	syncedAudio    asset.ID
 }
