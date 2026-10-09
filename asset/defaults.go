@@ -12,6 +12,9 @@ func (a *Server) registerDefaults() {
 		mustRegister(a.RegisterDecoder(format, decodeTexture, false))
 	}
 	mustRegister(a.RegisterDecoder(FormatJSON, decodeAtlasMeta, false))
+	for _, format := range []Format{FormatTTF, FormatOTF} {
+		mustRegister(a.RegisterDecoder(format, decodeFont, false))
+	}
 }
 
 func mustRegister(err error) {

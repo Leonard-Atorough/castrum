@@ -5,19 +5,16 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// newEngineDrawFunc builds the engine's world renderer: it collects
-// the frame's DrawList and blits each item through the provider,
-// projecting world space onto the logical screen. The runner draws it
-// before any user DrawFunc, so overlays land on top of the world. Its
-// errors are already attributed (collect and provider errors name
-// their handles) and propagate as the frame's draw error.
-func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider) DrawFunc {
+// newEngineDrawFunc returns the world renderer. [Runner] draws it before user
+// [DrawFunc] callbacks so user content can appear over the world.
+func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider, fonts *FontProvider) DrawFunc {
 	return DrawFunc(func(ctx *core.Context, screen *ebiten.Image) error {
 		list, err := collector.Collect(ctx)
 		if err != nil {
@@ -28,6 +25,12 @@ func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider) Dra
 		for _, item := range list.Items {
 			if item.Shape != nil {
 				drawShape(screen, item, camera)
+				continue
+			}
+			if item.Font != "" {
+				if err := drawText(screen, fonts, item, camera); err != nil {
+					return err
+				}
 				continue
 			}
 			var img *ebiten.Image
@@ -56,11 +59,7 @@ func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider) Dra
 			op.GeoM.Rotate(item.Rotation)
 			op.GeoM.Translate(screenPos.X, screenPos.Y)
 
-			// The color carries the fade: ScaleWithColor feeds its
-			// alpha-premultiplied channels straight into the color
-			// scale, so the color's alpha scales hue and coverage
-			// together. A nil color leaves the sprite untouched and
-			// fully opaque.
+			// ScaleWithColor applies tint and opacity together.
 			if item.Color != nil {
 				op.ColorScale.ScaleWithColor(item.Color)
 			}
@@ -71,17 +70,7 @@ func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider) Dra
 	})
 }
 
-// drawShape blits one shape item: geometry through the pure projection
-// helpers, filled or outlined by the item's style, into the vector
-// package. Pixel reads are impossible headless, so the helpers carry
-// the math and this stays a smoke-tested thin layer. Rects and circles
-// go through the path API so any rotation - and, for circles, any
-// non-uniform scale - renders with one code path; lines use the
-// dedicated vector call.
 func drawShape(screen *ebiten.Image, item core.DrawItem, camera core.CameraView) {
-	// Shape items always carry a concrete color - the collector
-	// defaults nil to black - and its alpha channel is the shape's
-	// opacity, the same contract the sprite path has.
 	width, height := screen.Bounds().Dx(), screen.Bounds().Dy()
 
 	switch shape := item.Shape.(type) {
@@ -118,11 +107,6 @@ func drawShape(screen *ebiten.Image, item core.DrawItem, camera core.CameraView)
 	}
 }
 
-// rectCorners returns a rect's four screen-space corners around its
-// projected center, clockwise from top-left: half the size, scaled by
-// the item's scale and the camera zoom, rotated by the item's
-// rotation. The center is snapped once and the corners stay rigid, so
-// the rect never wobbles from per-corner rounding.
 func rectCorners(center, size, scale geom.Vector2, zoom, rotation float64) [4]geom.Vector2 {
 	half := geom.Vector2{
 		X: size.X * math.Abs(scale.X) * zoom / 2,
@@ -140,14 +124,6 @@ func rectCorners(center, size, scale geom.Vector2, zoom, rotation float64) [4]ge
 	return corners
 }
 
-// ellipsePoints returns a circle's twelve screen-space Bézier points
-// around its projected center: four anchor/control-point triples
-// tracing the quarter arcs (anchor, two controls, repeating), with the
-// radii scaled by the item's X/Y scale and the camera zoom, rotated by
-// the item's rotation. Equal radii draw a circle; unequal radii draw an
-// ellipse through the same Béziers - the geometry the shape declares
-// and the transform's scale compose. The center is snapped once and
-// the points stay rigid, mirroring the rect's anti-wobble policy.
 func ellipsePoints(center, radii, scale geom.Vector2, zoom, rotation float64) [12]geom.Vector2 {
 	k := 4 * (math.Sqrt(2) - 1) / 3
 
@@ -175,13 +151,8 @@ func ellipsePoints(center, radii, scale geom.Vector2, zoom, rotation float64) [1
 	return points
 }
 
-// fillOrStrokePath finishes a path-backed shape: the color fed
-// straight to ScaleWithColor, then stroked or filled by the item's
-// style, with the stroke width zoomed to screen space. Rects and
-// circles share it as their path-API exit. The color must be a valid
-// alpha-premultiplied color.Color - every color.Color is, so long as
-// color.RGBA values carry premultiplied channels - because
-// ScaleWithColor uses the channels as premultiplied scale factors.
+// fillOrStrokePath applies the item's style to a path. ColorScale uses the
+// premultiplied channels returned by color.Color.RGBA.
 func fillOrStrokePath(screen *ebiten.Image, path *vector.Path, clr color.Color, item core.DrawItem, zoom float64) {
 	opts := &vector.DrawPathOptions{AntiAlias: true}
 	opts.ColorScale.ScaleWithColor(clr)
@@ -193,13 +164,32 @@ func fillOrStrokePath(screen *ebiten.Image, path *vector.Path, clr color.Color, 
 	vector.FillPath(screen, path, &vector.FillOptions{}, opts)
 }
 
-// offsetPoint maps a drawable-relative offset to screen space,
-// rigidly from the snapped position: the offset scaled, zoomed, and
-// rotated. A line's two endpoints both map through it. Pure.
 func offsetPoint(start, offset, scale geom.Vector2, zoom, rotation float64) geom.Vector2 {
 	scaled := geom.Vector2{
 		X: offset.X * scale.X * zoom,
 		Y: offset.Y * scale.Y * zoom,
 	}
 	return start.Add(scaled.Rotate(rotation))
+}
+
+// drawText uses the bounds computed during collection so rendered text stays
+// aligned with its measured and culled bounds.
+func drawText(screen *ebiten.Image, fonts *FontProvider, item core.DrawItem, camera core.CameraView) error {
+	face, err := fonts.Face(item.Font, item.TextSize)
+	if err != nil {
+		return err
+	}
+
+	screenPos := camera.WorldToScreen(item.Position, screen.Bounds().Dx(), screen.Bounds().Dy())
+	scaleX := item.Scale.X * camera.Zoom
+	scaleY := item.Scale.Y * camera.Zoom
+
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(-item.TextWidth/2, -item.TextHeight/2)
+	op.GeoM.Scale(scaleX, scaleY)
+	op.GeoM.Rotate(item.Rotation)
+	op.GeoM.Translate(screenPos.X, screenPos.Y)
+	op.ColorScale.ScaleWithColor(item.Color)
+	text.Draw(screen, item.Text, face, op)
+	return nil
 }

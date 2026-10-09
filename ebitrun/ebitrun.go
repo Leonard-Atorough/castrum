@@ -117,7 +117,14 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	g.Context().LogicalHeight = options.Logical.Height
 
 	collector := core.NewCollector(g.World())
-	engineDraw := newEngineDrawFunc(collector, provider)
+	fonts := newFontProvider(server)
+	if err := g.World().ProvideEager(func(*core.World) (*FontProvider, error) {
+		return fonts, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: provide font provider: %w", err)
+	}
+
+	engineDraw := newEngineDrawFunc(collector, provider, fonts)
 
 	return &Runner{g: g, opts: options, last: time.Now(), engine: engineDraw}, nil
 }

@@ -11,12 +11,9 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// DrawItem is one resolved drawable, ready to blit: a texture sprite
-// or a shape primitive. The render source is fully resolved at
-// collection - an atlas region became (Texture, Rect) here, and a
-// geometry variant became Shape - so the runner never deals in atlas
-// IDs or component variants. World-space, interpolated; the blit
-// projects to screen.
+// DrawItem is a drawable resolved for rendering. Texture items carry their
+// texture and source rectangle; shape items carry their geometry. Positions
+// are interpolated in world space for the current frame.
 type DrawItem struct {
 	// Texture is the texture the sprite's pixels come from: a
 	// standalone texture's path, or the atlas's texture path. Applies
@@ -31,6 +28,17 @@ type DrawItem struct {
 	// non-nil, Color is the shape's color and is never nil: the
 	// collector defaults a nil Sprite.Color to black.
 	Shape Shape
+	// Text is the string of a text item; empty on every other item.
+	Text string
+	// Font is the font of a text item; empty on every other item. It also
+	// identifies text items.
+	Font asset.ID
+	// TextSize is the text item's font size in pixels at scale one.
+	TextSize float64
+	// TextWidth and TextHeight are the measured size of the item's
+	// text at scale one, from the font's metrics. The blit anchors by
+	// them, so an item draws exactly as it was measured.
+	TextWidth, TextHeight float64
 	// Position is the interpolated position of the drawable in world
 	// space.
 	Position geom.Vector2
@@ -56,17 +64,16 @@ type DrawItem struct {
 	StrokeWidth float64
 }
 
-// DrawList is one collected frame: the resolved camera and the sorted
-// draw items. Items views the collector's reused buffer; do not modify
-// it or retain the list beyond the frame it was collected for.
+// DrawList contains the resolved camera and draw items for one frame.
 type DrawList struct {
+	// Camera is the resolved primary camera view for this frame.
 	Camera CameraView
-	Items  []DrawItem
+	// Items is the sorted set of drawables for this frame. When returned by
+	// [Collector.Collect], the slice is owned by the collector and is
+	// overwritten by its next call.
+	Items []DrawItem
 }
 
-// workingItem carries the sort keys through collection. The keys are
-// consumed by the sort and stripped before items join the DrawList:
-// consumers see the post-sort draw list, lean, without ordering data.
 type workingItem struct {
 	DrawItem
 	layer     uint8
@@ -74,32 +81,21 @@ type workingItem struct {
 	worldY    float64 // interpolated, the Y-fallback sort key
 }
 
-// Collector assembles each frame's draw list: it owns the camera and
-// sprite queries, resolves texture sources through the asset server,
-// culls against the camera viewport, and sorts by layer, sort order,
-// then world Y. Reused across frames - construct once per game; the
-// runner's engine draw calls Collect every frame.
+// Collector builds each frame's draw list by resolving drawable assets,
+// culling against the camera viewport, and sorting by layer, sort order, and
+// world Y. Reuse a Collector across frames.
 type Collector struct {
 	userCamera,
 	engineCamera,
 	sprites *Query
-	// working is the pre-sort buffer; SortedItems the post-sort
-	// output. Both are reused across frames: steady-state collection
-	// is zero-alloc.
 	working []workingItem
 	// SortedItems is the sorted output the returned DrawList views.
 	// It is reused across frames; do not modify or retain it.
 	SortedItems []DrawItem
 }
 
-// NewCollector builds a Collector over world: two camera queries
-// (user-spawned primaries first, the engine camera as fallback) and
-// one sprite query — every Drawable kind flows through the
-// same query, because Sprite carries its Drawable as data rather than
-// as component variants. Each is predicate-filtered (Primary; sprites
-// not Hidden). The first primary camera in deterministic query order
-// frames the world; sprites pair with a Transform and a PrevTransform
-// to match.
+// NewCollector creates a [Collector] for world. A primary user camera takes
+// precedence over the engine camera.
 func NewCollector(world *World) *Collector {
 	// User-spawned primaries are preferred; the engine camera
 	// (SpawnEngineCamera) is the fallback when none exists.
@@ -142,20 +138,14 @@ func NewCollector(world *World) *Collector {
 	}
 }
 
-// Collect resolves the primary camera, collects every sprite — the
-// Drawable sum picks the path: texture sources resolve through the
-// asset server, shapes carry geometry alone, nil is style without a
-// picture and skips — interpolates position, rotation, and scale
-// from PrevTransform by
-// ctx.Alpha, culls against the camera viewport, and sorts by layer →
-// SortOrder → world Y. It returns a DrawList viewing the collector's
-// buffers; do not retain it across frames.
+// Collect returns the draw list for the current frame. It interpolates
+// drawable transforms using [Context.Alpha], culls against the camera
+// viewport, and sorts items by layer, sort order, then world Y. Text bounds
+// come from [asset.FontData.Measure].
 //
-// No primary camera: an empty DrawList, no error - overlays still run.
-// An unresolvable texture source - an unregistered atlas or region,
-// or a texture that will not load - fails the collect, naming the
-// handles: registration problems surface at the first rendered frame.
-// Shapes cannot fail: there is nothing to resolve.
+// If no primary camera is available, Collect returns an empty list without
+// an error. Errors resolving fonts, textures, atlases, or atlas regions are
+// returned; shapes require no assets.
 func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 	// A user-spawned primary wins; the engine camera is the
 	// fallback. Query iteration order is deterministic within each.
@@ -255,6 +245,39 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 					FlipV:    sprite.FlipV,
 					Color:    sprite.Color,
 				})
+		case TextSource:
+			if drawable.Text == "" {
+				// Nothing to draw, like a nil drawable.
+				continue
+			}
+			font, err := server.Load[asset.FontData](string(drawable.Font))
+			if err != nil {
+				return DrawList{}, fmt.Errorf("castrum: collect: font %q: %w", drawable.Font, err)
+			}
+			textWidth, textHeight := font.Measure(drawable.Size, drawable.Text)
+			fill := sprite.Color
+			if fill == nil {
+				// Text defaults to white, not black: text on a screen
+				// has no authored color to inherit.
+				fill = color.White
+			}
+			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
+				prev.Position, transform.Position,
+				geom.Vector2{}, // text is centered on the position
+				geom.Vector2{
+					X: textWidth * scale.X,
+					Y: textHeight * scale.Y,
+				},
+				DrawItem{
+					Text:       drawable.Text,
+					Font:       drawable.Font,
+					TextSize:   drawable.Size,
+					TextWidth:  textWidth,
+					TextHeight: textHeight,
+					Rotation:   rotation,
+					Scale:      scale,
+					Color:      fill,
+				})
 		case RectShape:
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
@@ -314,13 +337,6 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 	return DrawList{Camera: camera, Items: c.SortedItems}, nil
 }
 
-// stage interpolates one drawable's position between prev and curr,
-// culls it against the viewport, and appends it to the working buffer
-// with its sort keys. offset shifts the bounds center off the
-// position - zero for centered drawables (sprites, rects, circles),
-// half the segment for lines; size is the drawable's world-space
-// extent, already scaled. Rotation is ignored for culling, as with
-// sprites.
 func (c *Collector) stage(viewport geom.Rect, alpha float64, layer uint8, sortOrder int8, prev, curr, offset, size geom.Vector2, item DrawItem) {
 	position := prev.Lerp(curr, alpha)
 	bounds := geom.RectFromCenterSize(position.Add(offset), size)
@@ -336,10 +352,6 @@ func (c *Collector) stage(viewport geom.Rect, alpha float64, layer uint8, sortOr
 	})
 }
 
-// shapeItem assembles a shape sprite's DrawItem: the geometry carried
-// straight through as the item's Shape, interpolated rotation and
-// scale, and style. A nil color draws black, so shape items always
-// carry a concrete color.
 func shapeItem(sprite Sprite, rotation float64, scale geom.Vector2, shape Shape) DrawItem {
 	fill := sprite.Color
 	if fill == nil {

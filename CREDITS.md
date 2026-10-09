@@ -22,3 +22,7 @@ All sound effects, currently:
 
 - `Dungeon_Character_2.png` (examples/wander)
 - `torch_light.png` (examples/animate)
+
+## [The Go Authors](https://go.googlesource.com/go/image/#gofont) (BSD-3-Clause)
+
+- `fonts/GoRegular.ttf` (examples/text)

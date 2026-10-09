@@ -45,6 +45,8 @@ const (
 	FormatWAV  Format = "wav"
 	FormatMP3  Format = "mp3"
 	FormatOGG  Format = "ogg"
+	FormatTTF  Format = "ttf"
+	FormatOTF  Format = "otf"
 )
 
 // Decoder decodes a value of type T from a reader.

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"golang.org/x/image/font/gofont/goregular"
+
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/geom"
 )
@@ -809,5 +811,135 @@ func TestEngineCameraPreference(t *testing.T) {
 	}
 	if list.Camera.Position != (geom.Vector2{X: 30, Y: 30}) || list.Camera.Zoom != 2 {
 		t.Fatalf("user camera should win: view = %+v, want (30, 30) zoom 2", list.Camera)
+	}
+}
+
+// newFontWorld is the collector's world with a real font in the asset
+// server: the Go font, BSD licensed, byte-encoded in a test
+// filesystem.
+func newFontWorld(t *testing.T) *World {
+	t.Helper()
+	files := fstest.MapFS{
+		"fonts/go.ttf": &fstest.MapFile{Data: goregular.TTF},
+	}
+	w := NewWorld()
+	if err := w.Provide(func(*World) (*asset.Server, error) {
+		return asset.New(files), nil
+	}); err != nil {
+		t.Fatalf("provide asset server: %v", err)
+	}
+	return w
+}
+
+func spawnTextSprite(t *testing.T, w *World, text string, fill color.Color, pos geom.Vector2) *Entity {
+	t.Helper()
+	entity, err := w.NewEntity(
+		Sprite{Drawable: TextSource{Font: "fonts/go.ttf", Text: text, Size: 16}, Color: fill},
+		Transform{Position: pos, Scale: geom.Vector2{X: 1, Y: 1}},
+	)
+	if err != nil {
+		t.Fatalf("spawn text sprite: %v", err)
+	}
+	return entity
+}
+
+// A collected text item carries the source's text, font, and size,
+// the font's measured dimensions, and the white default color.
+func TestCollectTextItem(t *testing.T) {
+	w := newFontWorld(t)
+	spawnCamera(t, w, geom.Vector2{X: 50, Y: 50}, geom.Vector2{X: 50, Y: 50}, 1, true)
+	spawnTextSprite(t, w, "score: 1", nil, geom.Vector2{X: 60, Y: 50})
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("collected %d items, want 1", len(list.Items))
+	}
+	item := list.Items[0]
+	if item.Text != "score: 1" || item.Font != "fonts/go.ttf" || item.TextSize != 16 {
+		t.Errorf("item text fields = %q %q %v", item.Text, item.Font, item.TextSize)
+	}
+	if item.TextWidth <= 0 || item.TextHeight <= 0 {
+		t.Errorf("measured size = %v x %v, want positive", item.TextWidth, item.TextHeight)
+	}
+	// The position is the sprite's transform position; prev matches
+	// curr at spawn, so there is nothing to interpolate.
+	if item.Position != (geom.Vector2{X: 60, Y: 50}) {
+		t.Errorf("position = %v, want (60, 50)", item.Position)
+	}
+	// A nil sprite color collects as white for text, not black.
+	if item.Color != color.White {
+		t.Errorf("text color = %v, want the white default", item.Color)
+	}
+}
+
+// The sprite's own color passes through to the item untouched.
+func TestCollectTextKeepsSpriteColor(t *testing.T) {
+	w := newFontWorld(t)
+	spawnCamera(t, w, geom.Vector2{X: 50, Y: 50}, geom.Vector2{X: 50, Y: 50}, 1, true)
+	spawnTextSprite(t, w, "tinted", color.NRGBA{R: 200, G: 40, B: 40, A: 255}, geom.Vector2{X: 50, Y: 50})
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("collected %d items, want 1", len(list.Items))
+	}
+	tinted, ok := list.Items[0].Color.(color.NRGBA)
+	if !ok || tinted != (color.NRGBA{R: 200, G: 40, B: 40, A: 255}) {
+		t.Errorf("text color = %v, want the sprite's own color", list.Items[0].Color)
+	}
+}
+
+// Text culls against the viewport by its measured bounds, like every
+// other drawable.
+func TestCollectTextCulls(t *testing.T) {
+	w := newFontWorld(t)
+	spawnCamera(t, w, geom.Vector2{X: 50, Y: 50}, geom.Vector2{X: 50, Y: 50}, 1, true)
+	spawnTextSprite(t, w, "off screen", nil, geom.Vector2{X: 500, Y: 500})
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("off-screen text collected %d items, want 0", len(list.Items))
+	}
+}
+
+// An empty string skips the item entirely, the same way a nil
+// drawable does.
+func TestCollectEmptyTextSkips(t *testing.T) {
+	w := newFontWorld(t)
+	spawnCamera(t, w, geom.Vector2{X: 50, Y: 50}, geom.Vector2{X: 50, Y: 50}, 1, true)
+	spawnTextSprite(t, w, "", nil, geom.Vector2{X: 50, Y: 50})
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0.5))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("empty text collected %d items, want 0", len(list.Items))
+	}
+}
+
+// An unresolvable font fails the collect naming the font, the same
+// contract as an unresolvable texture source.
+func TestCollectMissingFontFails(t *testing.T) {
+	w := newFontWorld(t)
+	spawnCamera(t, w, geom.Vector2{X: 50, Y: 50}, geom.Vector2{X: 50, Y: 50}, 1, true)
+	if _, err := w.NewEntity(
+		Sprite{Drawable: TextSource{Font: "fonts/ghost.ttf", Text: "haunted", Size: 16}},
+		Transform{Position: geom.Vector2{X: 50, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := NewCollector(w).Collect(drawContext(w, 0.5))
+	if err == nil || !strings.Contains(err.Error(), "fonts/ghost.ttf") {
+		t.Errorf("missing font error = %v, want an error naming the font", err)
 	}
 }
