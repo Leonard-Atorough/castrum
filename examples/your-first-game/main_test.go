@@ -95,7 +95,7 @@ func newTestGame(t *testing.T) (*castrum.Game, *core.Entity, *core.Entity) {
 		name string
 		s    core.System
 	}{
-		{"bullets", bulletsSystem(g.MainCamera())},
+		{"bullets", bulletsSystem(g.MainCamera(), stats)},
 		{"enemy.spawn", spawnSystem(spawner, hull, g.MainCamera(), stats)},
 		{"enemies", enemiesSystem(hull, stats)},
 		{"game.danger", dangerSystem(hull, stats)},
@@ -257,10 +257,25 @@ func TestTankTouchedEndsRun(t *testing.T) {
 		t.Error("a loss should not also read as won")
 	}
 
+	// The touch must not read as a kill: the enemy survives it and
+	// the score stays zero.
+	if run.Score != 0 {
+		t.Errorf("score = %d, want 0 - a touch is not a kill", run.Score)
+	}
+	if _, ok := toucher.Component[core.Transform](world); !ok {
+		t.Fatal("the touching enemy should survive - only bullets kill")
+	}
+
 	// The run is over, so the world freezes: the enemy sits still.
-	before, _ := toucher.Component[core.Transform](world)
+	before, ok := toucher.Component[core.Transform](world)
+	if !ok {
+		t.Fatal("the touching enemy should still exist after the freeze")
+	}
 	advance(t, g, 20)
-	after, _ := toucher.Component[core.Transform](world)
+	after, ok := toucher.Component[core.Transform](world)
+	if !ok {
+		t.Fatal("the touching enemy should still exist after the freeze")
+	}
 	if before.Position != after.Position {
 		t.Errorf("enemy moved after the run ended: %v -> %v", before.Position, after.Position)
 	}

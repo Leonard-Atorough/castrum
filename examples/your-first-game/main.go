@@ -306,7 +306,7 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFixed, "player.fire", fireSystem(turret, stats)); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFixed, "bullets", bulletsSystem(g.MainCamera())); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "bullets", bulletsSystem(g.MainCamera(), stats)); err != nil {
 		return err
 	}
 	if err := g.AddSystem(core.PhaseFixed, "enemy.spawn", spawnSystem(spawner, hull, g.MainCamera(), stats)); err != nil {
@@ -448,13 +448,21 @@ func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (*core.En
 }
 
 // bulletsSystem moves every live bullet along its facing and
-// destroys it on impact - its Contacts hold an enemy - or when it
-// flies past what the camera can see.
-func bulletsSystem(camera *core.Entity) core.System {
+// destroys it on impact or when it flies past what the camera can
+// see. Each contact is a kill - the bullet's mask admits enemies
+// only, so its contacts name enemies by construction - and each
+// kill raises the score, with WinScore winning the run. The kill
+// lives on the bullet side on purpose: an enemy's contacts cannot
+// tell a bullet apart from the tank, and crediting a touch as a
+// kill would let a ramming Panzer score.
+func bulletsSystem(camera, stats *core.Entity) core.System {
 	var live *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if live == nil {
 			live = core.NewQuery(ctx.World).With(core.Transform{}, bullet{})
+		}
+		if over(stats, ctx) {
+			return nil
 		}
 		dt := ctx.DeltaTime.Seconds()
 
@@ -464,8 +472,28 @@ func bulletsSystem(camera *core.Entity) core.System {
 		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
 
 		for e := range live.Execute() {
-			contacts, hasContacts := e.Component[collision.Contacts]()
+			// Contacts are read through the ID, not the query entry:
+			// an entry prefetches only the With-listed types, so
+			// Entry.Component reports other types as absent.
+			contacts, hasContacts := core.NewEntity(e.ID()).Component[collision.Contacts](ctx.World)
 			if hasContacts && len(contacts.Current) > 0 {
+				for _, hit := range contacts.Current {
+					other := core.NewEntity(hit.Other)
+					if _, ok := other.Component[enemy](ctx.World); !ok {
+						continue // a simultaneous bullet already killed this enemy
+					}
+					if err := ctx.World.DestroyEntity(other); err != nil {
+						return err
+					}
+					if err := stats.Update(ctx.World, func(s *game) {
+						s.Score++
+						if s.Score >= WinScore {
+							s.Won = true
+						}
+					}); err != nil {
+						return err
+					}
+				}
 				if err := ctx.World.DestroyEntity(core.NewEntity(e.ID())); err != nil {
 					return err
 				}
@@ -548,16 +576,12 @@ func spawnEnemy(world *core.World, at geom.Vector2) (*core.Entity, error) {
 	)
 }
 
-// enemiesSystem drives every enemy toward the tank, removes the
-// ones a bullet found, and scores them: each kill raises the score,
-// and the score reaching WinScore wins the run. A current contact
-// means the hit already happened - the bullet system is destroying
-// the other half of the pair in the same tick.
+// enemiesSystem drives every enemy toward the tank.
 func enemiesSystem(hull, stats *core.Entity) core.System {
 	var targets *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if targets == nil {
-			targets = core.NewQuery(ctx.World).With(core.Transform{}, collision.Contacts{}, enemy{})
+			targets = core.NewQuery(ctx.World).With(core.Transform{}, enemy{})
 		}
 		if over(stats, ctx) {
 			return nil
@@ -566,21 +590,6 @@ func enemiesSystem(hull, stats *core.Entity) core.System {
 		dt := ctx.DeltaTime.Seconds()
 
 		for e := range targets.Execute() {
-			contacts, _ := e.Component[collision.Contacts]()
-			if len(contacts.Current) > 0 {
-				if err := ctx.World.DestroyEntity(core.NewEntity(e.ID())); err != nil {
-					return err
-				}
-				if err := stats.Update(ctx.World, func(s *game) {
-					s.Score++
-					if s.Score >= WinScore {
-						s.Won = true
-					}
-				}); err != nil {
-					return err
-				}
-				continue
-			}
 			e.Update(func(t *core.Transform) {
 				aim := hullTransform.Position.Sub(t.Position)
 				t.Rotation = math.Atan2(aim.X, -aim.Y)

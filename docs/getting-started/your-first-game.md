@@ -126,7 +126,7 @@ Add imports as each section needs them.
 
 The player consists of two co-located entities: a moving hull and an independently aiming turret.
 
-Add `core`, `geom`, `asset`, and `render` to the import block. Then declare the asset paths and the spawn point, and create both entities below `castrum.New`:
+Add `core`, `geom`, `asset`, `render`, and `image/color` to the import block. Then declare the asset paths and the spawn point, and create both entities below `castrum.New`:
 
 ```go
 const (
@@ -416,7 +416,7 @@ Drive away from the start. Try a few changes:
 
 The tank drives and aims, and a left-click plays a shot. Now make the left mouse button fire too: each click spawns a bullet at the barrel tip, and the bullet flies until it leaves view.
 
-Add `collision` and `color` to the import block. Colliders only produce contacts when the engine's collision system is registered, and it is opt-in: add `castrum.WithCollision()` to the `castrum.New` call:
+Add `collision` to the import block. Colliders only produce contacts when the engine's collision system is registered, and it is opt-in: add `castrum.WithCollision()` to the `castrum.New` call:
 
 ```go
 	g, err := castrum.New(
@@ -519,14 +519,6 @@ func bulletsSystem(camera *core.Entity) core.System {
 		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
 
 		for e := range live.Execute() {
-			contacts, hasContacts := e.Component[collision.Contacts]()
-			if hasContacts && len(contacts.Current) > 0 {
-				if err := ctx.World.DestroyEntity(core.NewEntity(e.ID())); err != nil {
-					return err
-				}
-				continue
-			}
-
 			e.Update(func(t *core.Transform) {
 				t.Position = t.Position.Add(geom.Vector2{X: 0, Y: -1}.Rotate(t.Rotation).Mul(BulletSpeed * dt))
 			})
@@ -735,26 +727,42 @@ Run the game. Every second and a half, an enemy should arrive from off-screen. T
 
 ### Chasing enemies
 
-The enemies are in the game, but they are not dangerous yet. Add this system to steer each one towards the tank. It also removes an enemy after a bullet hits it:
+The enemies are in the game, but they are not dangerous yet and your bullets fly straight through them, because the bullet system has no contact handling. Two additions make the fight real.
+
+A bullet's mask admits enemies only, so its contacts name enemies by construction; an enemy's own contacts could never tell a bullet apart from the tank once both can touch it. Give the bullet loop a contact branch - add this at the top of the loop in `bulletsSystem`, before the movement update:
+
+```go
+			contacts, hasContacts := core.NewEntity(e.ID()).Component[collision.Contacts](ctx.World)
+			if hasContacts && len(contacts.Current) > 0 {
+				for _, hit := range contacts.Current {
+					other := core.NewEntity(hit.Other)
+					if _, ok := other.Component[enemy](ctx.World); !ok {
+						continue // a simultaneous bullet already killed this enemy
+					}
+					if err := ctx.World.DestroyEntity(other); err != nil {
+						return err
+					}
+				}
+				if err := ctx.World.DestroyEntity(core.NewEntity(e.ID())); err != nil {
+					return err
+				}
+				continue
+			}
+```
+
+Now let's have the enemies chase the tank as it moves. Add the following system:
 
 ```go
 func enemiesSystem(hull *core.Entity) core.System {
 	var targets *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if targets == nil {
-			targets = core.NewQuery(ctx.World).With(core.Transform{}, collision.Contacts{}, enemy{})
+			targets = core.NewQuery(ctx.World).With(core.Transform{}, enemy{})
 		}
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		dt := ctx.DeltaTime.Seconds()
 
 		for e := range targets.Execute() {
-			contacts, _ := e.Component[collision.Contacts]()
-			if len(contacts.Current) > 0 {
-				if err := ctx.World.DestroyEntity(core.NewEntity(e.ID())); err != nil {
-					return err
-				}
-				continue
-			}
 			e.Update(func(t *core.Transform) {
 				aim := hullTransform.Position.Sub(t.Position)
 				t.Rotation = math.Atan2(aim.X, -aim.Y)
@@ -772,7 +780,7 @@ if err := g.AddSystem(core.PhaseFixed, "enemies", enemiesSystem(hull)); err != n
 }
 ```
 
-You do not need to call collision code here. The collision system records hits for each entity, and this system removes the enemy when it finds one. The [collision guide](../guides/collision.md) explains the collision API when you are ready to explore it further.
+You do not need to call collision code anywhere. The collision system records hits for each entity, and the bullet branch reads them. The [collision guide](../guides/collision.md) explains the collision API when you are ready to explore it further.
 
 Run it again. Enemies now converge from every side, and one bullet destroys each one. They are slower than the tank, so keep moving, turn, and shoot.
 
@@ -933,7 +941,7 @@ func over(stats *core.Entity, ctx *core.Context) bool {
 }
 ```
 
-Update `moveSystem` and `fireSystem` to accept `stats`. At the start of each `SystemFunc`, add this guard so the game stops responding after a win or loss:
+Update `moveSystem`, `fireSystem`, `bulletsSystem`, and `enemiesSystem` to accept `stats`. At the start of each `SystemFunc`, add this guard so the game stops responding after a win or loss:
 
 ```go
 if over(stats, ctx) {
@@ -955,27 +963,9 @@ if err := g.AddSystem(core.PhaseFixed, "player.fire", fireSystem(turret, stats))
 }
 ```
 
-Replace `enemiesSystem` with this version. A destroyed enemy adds a point, and the final point sets `Won`:
+Each kill now scores. In `bulletsSystem`, inside the contact branch, immediately after the `DestroyEntity` that removes the enemy, add the score update - the score reaching `WinScore` wins the run:
 
 ```go
-func enemiesSystem(hull, stats *core.Entity) core.System {
-	var targets *core.Query
-	return core.SystemFunc(func(ctx *core.Context) error {
-		if targets == nil {
-			targets = core.NewQuery(ctx.World).With(core.Transform{}, collision.Contacts{}, enemy{})
-		}
-		if over(stats, ctx) {
-			return nil
-		}
-		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		dt := ctx.DeltaTime.Seconds()
-
-		for e := range targets.Execute() {
-			contacts, _ := e.Component[collision.Contacts]()
-			if len(contacts.Current) > 0 {
-				if err := ctx.World.DestroyEntity(core.NewEntity(e.ID())); err != nil {
-					return err
-				}
 				if err := stats.Update(ctx.World, func(s *game) {
 					s.Score++
 					if s.Score >= WinScore {
@@ -984,17 +974,6 @@ func enemiesSystem(hull, stats *core.Entity) core.System {
 				}); err != nil {
 					return err
 				}
-				continue
-			}
-			e.Update(func(t *core.Transform) {
-				aim := hullTransform.Position.Sub(t.Position)
-				t.Rotation = math.Atan2(aim.X, -aim.Y)
-				t.Position = t.Position.Add(aim.Normalize().Mul(EnemySpeed * dt))
-			})
-		}
-		return nil
-	})
-}
 ```
 
 Make each score point increase the pace too. Replace `spawnSystem` with this version; it shortens the interval until it reaches `MinSpawnEvery`:
@@ -1099,9 +1078,12 @@ Show the score in the top-left corner. Add the ebiten imports (`github.com/hajim
 	})
 ```
 
-Register the new systems. Replace the previous enemy, chase, and reload registrations with these:
+Register the new systems. Replace the previous bullet, enemy, chase, and reload registrations with these:
 
 ```go
+if err := g.AddSystem(core.PhaseFixed, "bullets", bulletsSystem(g.MainCamera(), stats)); err != nil {
+	return err
+}
 if err := g.AddSystem(core.PhaseFixed, "enemy.spawn", spawnSystem(spawner, hull, g.MainCamera(), stats)); err != nil {
 	return err
 }
