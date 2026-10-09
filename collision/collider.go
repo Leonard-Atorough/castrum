@@ -11,20 +11,21 @@ import (
 // filter. An entity must also have a Transform to participate in
 // detection. Each fixed tick, the collision system applies the
 // transform's position and rotation, and records detected overlaps
-// in the entity's Contacts.
+// in the entity's [Contacts].
 //
-// The zero value is not spawnable: it has no shape, and Validate
-// rejects it. Build one with [NewCollider] or a struct literal with
-// a valid shape.
+// The zero value has no shape and is not valid for spawning. Use
+// [NewCollider] or provide a valid shape, then configure its filter
+// and activation as needed.
 type Collider struct {
 	// Shape is the collider's geometry in local space, before the
 	// entity's position and rotation are applied. Supported shapes are
-	// Box and Circle.
+	// [Box] and [Circle].
 	Shape ColliderShape
 	// Offset shifts the shape from the entity's local origin, for
 	// hitboxes that are not centered on it.
 	//
-	// e.g. a foot collider belowthe sprite, a sword reach in front of it.
+	// For example, place a foot collider below a sprite or a sword
+	// collider in front of its owner.
 	Offset geom.Vector2
 	// Layers is the bitmask of layers this collider belongs to:
 	// bit i is layer i. A collider may occupy any combination of the
@@ -43,17 +44,13 @@ type Collider struct {
 	Mask uint32
 	// Trigger marks contacts involving this collider as triggers.
 	Trigger bool
-	// Active controls whether the collider participates in collision
-	// detection at all.
+	// Active controls whether the collider participates in detection.
 	Active bool
 }
 
-// Validate checks that the collider is spawnable: a supported shape
-// with valid geometry and a finite offset. It rejects rather than
-// repairs - an inverted rect or a negative radius is an authoring
-// error, not input to normalize. Layers and Mask accept any bitmask;
-// a collider that belongs to no layer, like one that listens to
-// none, simply collides with nothing.
+// Validate returns an error if the shape is unsupported or has invalid
+// geometry, or if the offset is non-finite. It rejects rather than normalizes
+// invalid geometry. Any layer and mask bitmasks are valid, including zero.
 func (c Collider) Validate() error {
 	switch shape := c.Shape.(type) {
 	case nil:
@@ -82,16 +79,10 @@ func (c Collider) Validate() error {
 	return nil
 }
 
-// NewCollider returns a ready-to-spawn Collider for shape. It starts
-// active, belongs to layer 0, and listens to every layer. Set Layers,
-// Mask, Trigger, or Offset afterwards to give it the interaction
-// behavior the game needs; [Layers] and [Mask] turn layer numbers
-// into bitmasks.
-//
-// NewCollider validates shape immediately, so an authoring mistake is
-// reported while the entity is being built instead of later during a
-// fixed tick. The collider is validated again when written into world
-// storage.
+// NewCollider returns an active collider on layer 0 that listens to every
+// layer. It validates shape before returning; invalid shapes produce an
+// error. Set the fields to customize its filter, offset, trigger behavior,
+// or activation. [Layers] and [Mask] convert layer indexes to bitmasks.
 func NewCollider(shape ColliderShape) (Collider, error) {
 	collider := Collider{
 		Shape:  shape,
@@ -112,19 +103,18 @@ func (c Collider) CanCollideWith(other Collider) bool {
 	return c.Mask&other.Layers != 0 && other.Mask&c.Layers != 0
 }
 
-// Layers returns the bitmask for the given layer indexes, for a
-// Collider's Layers field: Layers(0, 2) is a collider that belongs
-// to layers 0 and 2. The zero-argument form is the empty bitmask -
-// a collider on no layer collides with nothing.
+// Layers returns the bitmask for the given layer indexes for [Collider.Layers].
+// For example, Layers(0, 2) includes layers 0 and 2. With no arguments it
+// returns zero, so the collider belongs to no layer.
 //
 // It panics on an index outside 0-31.
 func Layers(layers ...int) uint32 {
 	return layersToMask("Layers", layers)
 }
 
-// Mask returns the bitmask for the given layer indexes, for a
-// Collider's Mask field: Mask(0) listens to layer 0 alone. The
-// zero-argument form is the empty mask - collide with nothing.
+// Mask returns the bitmask for the given layer indexes for [Collider.Mask].
+// For example, Mask(0) listens only to layer 0. With no arguments it returns
+// zero, so the collider listens to no layers.
 //
 // It panics on an index outside 0-31.
 func Mask(layers ...int) uint32 {
@@ -142,28 +132,29 @@ func layersToMask(name string, layers []int) uint32 {
 	return mask
 }
 
-// ColliderShape is a collider's geometry: one of the concrete shapes
-// in this package. It is a sealed sum whose only implementations are
-// in this file, and the narrow phase type-switches one field instead
-// of querying per variant.
+// ColliderShape is local-space geometry accepted by a [Collider]. The package
+// provides [Box] and [Circle]; the interface is sealed to these built-in
+// shapes.
 type ColliderShape interface {
 	isColliderShape()
 }
 
-// Box is an axis-aligned rectangle in local space. Both corners
-// must be finite, and Min must be strictly below Max on both axes.
-// [Collider.Validate] rejects inverted or degenerate rectangles
-// instead of normalizing them.
+// Box is an axis-aligned rectangle in collider-local space. Both corners must
+// be finite, and Min must be strictly below Max on both axes.
+// [Collider.Validate] rejects invalid bounds rather than normalizing them.
 type Box struct {
+	// Min is the rectangle's minimum local-space corner.
 	Min geom.Vector2
+	// Max is the rectangle's maximum local-space corner.
 	Max geom.Vector2
 }
 
-// Circle is a circle in local space. Its center must be finite
-// and its radius must be finite and positive; invalid values are
-// rejected by [Collider.Validate].
+// Circle is a circle in collider-local space. Its center must be finite and
+// its radius finite and positive; [Collider.Validate] rejects invalid values.
 type Circle struct {
+	// Center is the circle's center in collider-local space.
 	Center geom.Vector2
+	// Radius is the circle's radius.
 	Radius float64
 }
 

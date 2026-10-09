@@ -1,16 +1,10 @@
-// Package collision detects overlaps between entity colliders and
-// records the results as [Contacts] component state. It supports
-// local-space rectangles and circles, applying each entity's position
-// and rotation (not scale).
-//
-// To use it, create a [Collider] with [NewCollider], optionally set
-// its Layers, Mask, Offset, or Trigger fields, and spawn it alongside
-// a [core.Transform]. [castrum.New] registers the collision system
-// for the game. A gameplay system can then read Contacts.Current for
-// this tick's overlaps and compare it with Contacts.Previous to
-// derive enter, stay, and exit behavior. The collision system detects
-// overlaps but does not move entities, resolve collisions, or emit
-// events; gameplay code decides what each contact means.
+// Package collision detects overlaps between entity colliders and records
+// them in [Contacts]. [Collider] supports local-space [Box] and [Circle]
+// shapes, transformed by an entity's position and rotation (scale is ignored).
+// Create colliders with [NewCollider], attach them to entities with a
+// [core.Transform], and register [NewSystem] in the fixed schedule. Gameplay
+// derives enter, stay, and exit behavior by comparing [Contacts.Current] with
+// [Contacts.Previous]; the package does not resolve collisions or emit events.
 package collision
 
 import (
@@ -20,17 +14,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// worldShape is a collider's geometry after the transform applies:
-// rotation and position are baked in, so narrow-phase tests work in
-// world space directly. A sealed sum, like [ColliderShape], so the
-// pair dispatch is one type switch.
 type worldShape interface {
 	isWorldShape()
 }
 
-// orientedRect is a rectangle rotated into world space: its center,
-// its half-extents before rotation, and its two orthonormal world
-// axes.
 type orientedRect struct {
 	center      geom.Vector2
 	halfExtents geom.Vector2
@@ -39,7 +26,6 @@ type orientedRect struct {
 
 func (orientedRect) isWorldShape() {}
 
-// worldCircle is a circle in world space.
 type worldCircle struct {
 	center geom.Vector2
 	radius float64
@@ -47,10 +33,6 @@ type worldCircle struct {
 
 func (worldCircle) isWorldShape() {}
 
-// contact is the exact narrow-phase result for a shape pair:
-// collided, the shared contact point, the contact normal, and the
-// overlap depth along it. Normal points from the first shape toward
-// the second.
 type contact struct {
 	collided    bool
 	point       geom.Vector2
@@ -58,20 +40,17 @@ type contact struct {
 	penetration float64
 }
 
-// transformedShape keeps the exact world-space shape alongside its
-// conservative world-space AABB. The exact shape is for narrow-phase
-// tests; the AABB is for broad-phase indexing.
+// bounds must enclose shape so broad-phase queries cannot miss overlaps.
 type transformedShape struct {
 	shape  worldShape
 	bounds geom.Rect
 }
 
 // transformShape applies the collider's local-space offset, then the
-// transform's rotation and position. Scale is ignored: transform
-// scale is presentation state - squash-and-stretch, death effects -
-// and non-uniform scale would turn circles into ellipses the narrow
-// phase cannot test. A game that wants a hitbox to follow scale
-// writes the shape explicitly.
+// transform's rotation and position. Scale is intentionally ignored:
+// non-uniform scaling would turn circles into ellipses that the narrow phase
+// cannot test. Define the shape explicitly when collision geometry must
+// follow scale.
 //
 // The zero value is returned for a shape outside the sum; storage
 // validation keeps that from ever reaching the system.

@@ -13,17 +13,14 @@ import (
 type Contact struct {
 	// Other is the entity this contact is with.
 	Other core.EntityID
-	// Point is the representative contact point returned by the
-	// narrow-phase test for this pair.
+	// Point is the pair's representative contact point.
 	Point geom.Vector2
 	// Normal points from this collider toward Other.
 	Normal geom.Vector2
 	// Penetration is the overlap depth along the normal. Touching
 	// shapes have zero penetration and still produce a contact.
 	Penetration float64
-	// Trigger reports whether either collider in the pair is a
-	// trigger. A game reacting to trigger contacts reads this instead
-	// of fetching the other collider.
+	// Trigger is true if either collider in the pair is a trigger.
 	Trigger bool
 }
 
