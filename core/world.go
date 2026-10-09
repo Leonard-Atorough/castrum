@@ -1,5 +1,6 @@
-// Package core provides the foundational structures and mechanisms for managing the game world,
-// including entities and resources, and their lifecycle within the world.
+// Package core provides [World]-owned entities and resources, [Query]
+// iteration over components, and the [System] and [Context] contracts for
+// updating a game.
 package core
 
 import (
@@ -9,20 +10,14 @@ import (
 	"github.com/Leonard-Atorough/castrum/internal/ecs"
 )
 
-// resourceState represents the current state of a resource within the world.
 type resourceState int
 
 const (
-	// stateRegistered indicates that the resource has been registered but not yet resolved.
 	stateRegistered resourceState = iota
-	// stateResolving indicates that the resource is currently being resolved.
 	stateResolving
-	// stateResolved indicates that the resource has been successfully resolved.
 	stateResolved
 )
 
-// resourceEntry represents an individual resource within the world, including its current state,
-// constructor function, and the instantiated resource once resolved.
 type resourceEntry[T any] struct {
 	state    resourceState
 	ctor     func(*World) (T, error)
@@ -31,7 +26,7 @@ type resourceEntry[T any] struct {
 
 const defaultEagerCapacity = 8
 
-// World represents the game world, containing all entities and resources.
+// World owns a game's entities, components, and registered resources.
 type World struct {
 	// entries holds every registered resource by its type, from
 	// registration through resolution.
@@ -44,8 +39,7 @@ type World struct {
 	archetypes   *ecs.Service
 }
 
-// NewWorld creates and initializes a new game world with empty resources.
-// It returns a pointer to the newly created World instance.
+// NewWorld creates an empty world.
 func NewWorld() *World {
 	return &World{
 		entries:    make(map[reflect.Type]*resourceEntry[any]),
@@ -54,14 +48,14 @@ func NewWorld() *World {
 	}
 }
 
-// Provide registers a new resource with the world using the given constructor function.
-// The resource will be lazily resolved when first requested.
+// Provide registers a resource constructor. The resource is created on its
+// first [World.Resource] request.
 func (w *World) Provide[T any](ctor func(*World) (T, error)) error {
 	return w.provide(ctor, false)
 }
 
-// ProvideEager registers a new resource with the world using the given constructor function.
-// The resource will be resolved immediately when ResolveEager is called.
+// ProvideEager registers a resource constructor for resolution by
+// [World.ResolveEager].
 func (w *World) ProvideEager[T any](ctor func(*World) (T, error)) error {
 	return w.provide(ctor, true)
 }
@@ -84,9 +78,8 @@ func (w *World) provide[T any](ctor func(*World) (T, error), eager bool) error {
 	return nil
 }
 
-// Resource retrieves the resource of the specified type from the world.
-// If the resource has not been resolved yet, it will be resolved at this time.
-// Returns an error if the resource is not registered or if resolution fails.
+// Resource returns the registered resource of type T, resolving it on first
+// access. It returns an error if T is not registered or resolution fails.
 func (w *World) Resource[T any]() (T, error) {
 	typ := reflect.TypeFor[T]()
 
@@ -99,13 +92,9 @@ func (w *World) Resource[T any]() (T, error) {
 	return entry.instance.(T), nil
 }
 
-// MustResource retrieves the resource of the specified type from the
-// world, panicking if it is not registered or fails to resolve. It
-// is licensed for engine-owned static wiring only: a resource the
-// engine provides at construction can be asserted, while
-// runner-provided and user-provided resources belong to
-// [World.Resource], whose absent case is reachable and must be
-// handled.
+// MustResource returns the resource of type T, panicking if it is not
+// registered or cannot be resolved. Use it only for resources guaranteed by
+// engine-owned wiring; use [World.Resource] when the resource may be absent.
 func (w *World) MustResource[T any]() T {
 	value, err := w.Resource[T]()
 	if err != nil {
@@ -114,8 +103,8 @@ func (w *World) MustResource[T any]() T {
 	return value
 }
 
-// ResolveEager resolves all eager resources registered with the world.
-// It returns an error if any resource fails to resolve.
+// ResolveEager resolves resources registered with [World.ProvideEager], in
+// registration order. It stops at and returns the first resolution error.
 func (w *World) ResolveEager() error {
 	for _, typ := range w.eager {
 		if err := w.resolve(typ); err != nil {
@@ -150,11 +139,10 @@ func (w *World) resolve(key reflect.Type) error {
 	return nil
 }
 
-// NewEntity spawns an entity with the given components and returns its
-// handle. The handle is convenience for immediate follow-up calls; the
-// ID is the durable reference, and every component operation accepts it
-// directly. It returns an error if any component is nil or fails its
-// Validate; a failed spawn consumes no ID and leaves no state behind.
+// NewEntity creates an entity with the given components and returns its
+// handle. It returns an error if a component is nil or fails validation.
+// Adding a [Transform] also adds its initial [PrevTransform] unless one is
+// provided.
 func (w *World) NewEntity(components ...any) (*Entity, error) {
 	components = createPreviousTransformComponents(components)
 	for i, c := range components {
@@ -189,9 +177,10 @@ func (w *World) NewEntity(components ...any) (*Entity, error) {
 	return entity, nil
 }
 
-// NewEntities spawns count entities with the same components and returns
-// their handles. It returns an error under the same conditions as
-// NewEntity, without partial results.
+// NewEntities creates count entities with the same components and returns
+// their handles. Count must be non-negative. If creation fails, it returns
+// the error and no handles; entities created before the failure remain in
+// the world.
 func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
 	entities := make([]*Entity, count)
 	for i := range entities {
@@ -205,7 +194,7 @@ func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
 	return entities, nil
 }
 
-// DestroyEntity removes the entity from the world and kills its handle.
+// DestroyEntity removes the entity from the world and kills entity's handle.
 func (w *World) DestroyEntity(entity *Entity) error {
 	res := w.archetypes.Destroy(entity.id)
 	if res.Error != nil {
@@ -216,8 +205,9 @@ func (w *World) DestroyEntity(entity *Entity) error {
 	return nil
 }
 
-// DestroyEntities removes all the given entities from the world and kills
-// their handles, stopping at the first error.
+// DestroyEntities removes the given entities and kills their handles,
+// stopping at the first error. Entities removed before an error remain
+// destroyed.
 func (w *World) DestroyEntities(entities []*Entity) error {
 	for _, entity := range entities {
 		if err := w.DestroyEntity(entity); err != nil {
@@ -227,8 +217,6 @@ func (w *World) DestroyEntities(entities []*Entity) error {
 	return nil
 }
 
-// getNextID reserves the next sequential entity ID. IDs are never
-// recycled within a world's lifetime.
 func (w *World) getNextID() EntityID {
 	id := w.nextEntityID
 	w.nextEntityID++
