@@ -199,7 +199,7 @@ The collector culls drawable bounds against the active camera viewport before so
 
 If no primary camera exists, the world draw list is empty and overlays still run. The engine camera normally prevents that case.
 
-Rendering errors usually mean a reference could not be resolved: a texture could not load, or an atlas or region was not registered. Return errors from setup when you preload or register assets, and keep the first-frame resolution behavior in mind for assets you load lazily.
+Rendering errors usually mean a reference could not be resolved: a texture could not load, or an atlas or region was not registered. Texture, atlas, and text drawables resolve through the world's asset server, which `castrum.New` always provides; a core-only headless world that draws them provides its own through `World.Provide`. Shapes are the exception - they draw with no server and no loaded assets, so a shape-only world needs no asset wiring at all. Return errors from setup when you preload or register assets, and keep the first-frame resolution behavior in mind for assets you load lazily.
 
 ## Where to go next
 

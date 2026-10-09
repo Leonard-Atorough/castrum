@@ -944,3 +944,45 @@ func TestCollectMissingFontFails(t *testing.T) {
 		t.Errorf("missing font error = %v, want an error naming the font", err)
 	}
 }
+
+// Shapes never touch the asset server: a bare world with a camera
+// and a shape sprite collects without one.
+func TestCollectShapesNeedNoAssetServer(t *testing.T) {
+	w := core.NewWorld()
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	if _, err := w.NewEntity(
+		core.Transform{Position: geom.Vector2{X: 50, Y: 50}},
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := NewCollector(w).Collect(drawContext(w, 1))
+	if err != nil {
+		t.Fatalf("shape-only Collect without an asset server: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("items = %d, want the shape", len(list.Items))
+	}
+}
+
+// The server resolves lazily, but an asset-backed drawable still
+// requires it: the error names the server, not the sprite.
+func TestCollectTextureWithoutAssetServerErrors(t *testing.T) {
+	w := core.NewWorld()
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	if _, err := w.NewEntity(
+		core.Transform{Position: geom.Vector2{X: 50, Y: 50}},
+		Sprite{Drawable: TextureSource{Texture: "tex.png"}},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := NewCollector(w).Collect(drawContext(w, 1))
+	if err == nil {
+		t.Fatal("a texture drawable without an asset server should error")
+	}
+	if !strings.Contains(err.Error(), "asset server") {
+		t.Errorf("error = %v, want it to name the asset server", err)
+	}
+}

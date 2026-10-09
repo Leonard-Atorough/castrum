@@ -10,38 +10,36 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// Sprite is a drawable component with shared style and one optional picture
-// or shape.
+// Sprite is a drawable component with shared style and an optional drawable.
 //
 // The zero value is visible but draws nothing until [Sprite.Drawable] is set.
 type Sprite struct {
-	// Layer orders drawables from back to front and must be between 0 and 31.
+	// Layer orders sprites from back to front, from 0 through 31.
 	Layer uint8
-	// SortOrder orders drawables within a layer; higher values draw on top.
+	// SortOrder orders sprites within a layer; higher values draw on top.
 	// Equal values are ordered by world Y.
 	SortOrder int8
-	// Hidden excludes the sprite from collection. The zero value is shown.
+	// Hidden excludes the sprite from collection.
 	Hidden bool
 	// FlipH and FlipV mirror texture-backed drawables horizontally and
-	// vertically. Shapes are not flipped.
+	// vertically; shapes are not flipped.
 	FlipH, FlipV bool
-	// Drawable is what to draw. A nil value leaves the sprite without a
-	// picture, so it is not drawn.
+	// Drawable is the image, text, or shape to draw. A nil value draws nothing.
 	Drawable Drawable
 	// Outline strokes a shape's border instead of filling it. It requires a
-	// positive StrokeWidth and has no effect on other drawable types.
+	// positive StrokeWidth and has no effect on non-shape drawables.
 	Outline bool
-	// StrokeWidth is the outline width in world units. It must not be
-	// negative and must be positive when outlining a shape.
+	// StrokeWidth is the outline width in world units. It must not be negative
+	// and must be positive when Outline is set.
 	StrokeWidth float64
-	// Color tints texture pixels or sets a shape's fill and stroke color.
-	// Its alpha controls opacity. A nil color leaves textures untinted,
-	// defaults text to white, and defaults shapes to black.
+	// Color tints texture pixels or sets the text or shape color. Its alpha
+	// controls opacity. A nil value leaves textures untinted, defaults text
+	// to white, and defaults shapes to black.
 	Color color.Color
 }
 
 // Validate reports whether the sprite's style and drawable parameters are
-// valid. It does not check whether referenced assets can be loaded.
+// valid. It does not resolve referenced assets.
 func (s Sprite) Validate() error {
 	if s.Layer > 31 {
 		return fmt.Errorf("layer must be between 0 and 31")
@@ -94,14 +92,14 @@ func (s Sprite) Validate() error {
 	return nil
 }
 
-// Drawable is the source rendered by a [Sprite]: an atlas region, texture,
-// text string, or shape. Its implementations are [AtlasSource],
+// Drawable is the image, text, or shape rendered by a [Sprite]. Its
+// implementations are [AtlasSource],
 // [TextureSource], [TextSource], [RectShape], [CircleShape], and [LineShape].
 type Drawable interface {
 	isDrawable()
 }
 
-// AtlasSource draws one named region of a registered atlas.
+// AtlasSource draws a named region of a registered atlas.
 type AtlasSource struct {
 	// Atlas is the ID of the registered atlas.
 	Atlas asset.AtlasID
@@ -109,14 +107,14 @@ type AtlasSource struct {
 	Region string
 }
 
-// TextureSource draws a standalone texture, whole.
+// TextureSource draws a whole standalone texture.
 type TextureSource struct {
 	// Texture is the ID of the texture asset to draw.
 	Texture asset.ID
 }
 
-// TextSource draws a single line of text centered on the sprite's position.
-// The sprite's scale applies to the font size like it does to other drawables.
+// TextSource draws one line of text centered on the sprite's position. The
+// sprite's scale applies to the font size.
 type TextSource struct {
 	// Font is the ID of the font asset to render with.
 	Font asset.ID
