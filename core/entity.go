@@ -7,28 +7,21 @@ import (
 	"github.com/Leonard-Atorough/castrum/internal/ecs"
 )
 
-// EntityID identifies an entity. IDs are the durable reference to an
-// entity: query results carry IDs, every world operation accepts one, and
-// an ID remains valid to hold across iterations.
+// EntityID identifies an entity within a [World]. IDs are not recycled
+// during a world's lifetime and are safe to retain across query iterations.
 type EntityID = ecs.EntityID
 
-// Entity is a lightweight handle to an entity's ID. It exists for
-// spawn-time ergonomics - creation code keeps the handle for a few
-// follow-up calls before dropping down to the ID-keyed world methods.
-// The handle carries no engine state beyond its liveness flag, and
-// liveness here reflects the handle, not the storage: it reports false
-// only after [World.DestroyEntity] killed this handle. The ID is the
-// source of truth.
+// Entity is a handle for addressing a world entity by [EntityID]. Its
+// liveness flag belongs to the handle and does not reflect whether the ID is
+// present in world storage.
 type Entity struct {
 	id    EntityID
 	alive bool
 }
 
-// NewEntity creates a handle for the entity with the given ID. Use
-// [World.NewEntity] to spawn an entity and receive its handle; for an ID
-// already in a world - collected from a query, for example - minting a
-// handle with NewEntity is the way to turn the ID back into a working
-// Entity whose methods perform component operations.
+// NewEntity creates a live handle for id. Use [World.NewEntity] to spawn an
+// entity; use this function to create a handle from an ID obtained elsewhere,
+// such as from a query.
 func NewEntity(id EntityID) *Entity {
 	return &Entity{
 		id:    id,
@@ -36,28 +29,25 @@ func NewEntity(id EntityID) *Entity {
 	}
 }
 
-// ID returns the entity's durable identifier.
+// ID returns the entity's identifier.
 func (e *Entity) ID() EntityID {
 	return e.id
 }
 
-// IsAlive reports whether this handle's entity has not been destroyed
-// through [World.DestroyEntity]. Storage membership is the authoritative
-// liveness: queries only yield entities that exist.
+// IsAlive reports whether this handle is alive. It does not check whether
+// the entity still exists in world storage.
 func (e *Entity) IsAlive() bool {
 	return e.alive
 }
 
-// Kill marks the handle's entity as destroyed. It does not remove the
-// entity from the world; [World.DestroyEntity] does both.
+// Kill marks this handle as dead. It does not remove the entity from the
+// world; use [World.DestroyEntity] to do both.
 func (e *Entity) Kill() {
 	e.alive = false
 }
 
-// Component returns the entity's component of type T. It reports false
-// if the entity does not exist in the world or has no component of that
-// type. The world is passed explicitly: a handle holds no storage, so
-// every component operation goes through the world.
+// Component returns the entity's component of type T. It reports false if
+// the entity does not exist or has no component of that type.
 func (e *Entity) Component[T any](w *World) (T, bool) {
 	value, ok := w.archetypes.Component(e.id, reflect.TypeFor[T]())
 	if !ok {
@@ -94,9 +84,9 @@ func (e *Entity) Update[T any](w *World, fn func(*T)) error {
 	return e.SetComponent(w, value)
 }
 
-// AddComponent attaches a component of type T to the entity, migrating it
-// to the archetype for its new component set. Existing components are
-// preserved.
+// AddComponent attaches a component of type T to the entity. Existing
+// components are preserved. Adding a [Transform] also adds an initial
+// [PrevTransform] if the entity does not already have one.
 func (e *Entity) AddComponent[T any](w *World, value T) error {
 	if reflect.TypeFor[T]() == reflect.TypeFor[Transform]() && !e.HasComponent[PrevTransform](w) {
 		transform := any(value).(Transform)

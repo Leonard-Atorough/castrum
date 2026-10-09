@@ -4,42 +4,36 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// Transform is the 2d spatial state of an entity: position, rotation,
-// and scale, relative to a position offset.
+// Transform stores an entity's position, rotation, scale, and offset in 2D
+// space.
 //
-// A Transform always comes paired with a [PrevTransform]: spawn and
-// AddComponent attach one automatically, snapshotting the transform
-// so the renderer can interpolate motion between fixed ticks.
+// When [World.NewEntity] or [Entity.AddComponent] adds a [Transform], the
+// world also adds a [PrevTransform] if one is not already present.
 type Transform struct {
-	// Position represents the position of the transform in 2D space.
+	// Position is the entity's position in 2D space.
 	Position geom.Vector2
-	// Rotation represents the rotation of the transform in radians.
+	// Rotation is the entity's rotation in radians.
 	Rotation float64
-	// Scale represents the scale of the transform in 2D space. A zero
-	// axis - the zero value - reads as unscaled: collection treats it
-	// as 1.
+	// Scale is the entity's 2D scale. A zero component is treated as 1.
 	Scale geom.Vector2
-	// Offset represents the offset of the transform relative to its position.
+	// Offset is the transform's position offset.
 	Offset geom.Vector2
 }
 
-// PrevTransform is the engine-managed snapshot of an entity's
-// transform at the start of each fixed tick. Renderers interpolate
-// between PrevTransform and the Transform by an alpha value to
-// display smooth motion between ticks.
+// PrevTransform stores an entity's transform at the start of a fixed tick.
+// Renderers interpolate between it and [Transform] to smooth motion between
+// ticks.
 //
-// Rotation interpolates as a plain numeric lerp, not shortest-arc:
-// a rotation crossing pi or -pi spins the long way round.
+// Rotation is interpolated as a numeric value, not along the shortest arc.
 //
-// The capture system writes it: game code reads it but never writes
-// or removes it. A Transform without a PrevTransform never renders.
+// The capture system updates this component; game code should treat it as
+// read-only. A [Transform] without a [PrevTransform] is not rendered.
 type PrevTransform struct {
-	// Position represents the snapshot position in 2D space.
+	// Position is the snapshot position.
 	Position geom.Vector2
-	// Rotation represents the snapshot rotation in radians.
+	// Rotation is the snapshot rotation in radians.
 	Rotation float64
-	// Scale represents the snapshot scale in 2D space, with a zero
-	// axis normalized to 1 at snapshot time.
+	// Scale is the snapshot scale, with zero components normalized to 1.
 	Scale geom.Vector2
 }
 
@@ -58,20 +52,16 @@ func (t Transform) snapshot() PrevTransform {
 	return PrevTransform{Position: t.Position, Rotation: t.Rotation, Scale: scale}
 }
 
-// PrevTransformSystemName is the name castrum.New registers the
-// previous-transform capture system under in the fixed schedule.
+// PrevTransformSystemName is the name under which castrum.New registers the
+// previous-transform capture system in the fixed schedule.
 const PrevTransformSystemName = "engine.prev-transform"
 
-// NewPrevTransformCapture returns the engine system that snapshots
-// every entity's Transform into its PrevTransform, keeping the
-// previous tick's state available so renderers can interpolate
-// motion between fixed ticks.
+// NewPrevTransformCapture returns the system that updates each existing
+// [PrevTransform] from its entity's [Transform] for rendering interpolation.
 //
-// It must run first in the fixed phase, before any gameplay system
-// moves an entity - registered later, it snapshots the moved state
-// and interpolation silently stops. castrum.New registers this
-// system under [PrevTransformSystemName]; games never register it
-// themselves.
+// Run it before systems that change transforms so the snapshot represents
+// the start of the tick. castrum.New registers it first in the fixed phase
+// under [PrevTransformSystemName].
 func NewPrevTransformCapture() System {
 	var update *Query
 	return SystemFunc(func(ctx *Context) error {
