@@ -1,6 +1,6 @@
-// Package ebitrun is the default castrum Runner, backed by Ebitengine.
-// It owns the window, the draw surface, and input; the core Game owns
-// configuration, schedules, and the fixed loop.
+// Package ebitrun provides the default Ebitengine-backed [Runner] for
+// castrum. The runner owns the window, draw surface, and input; [castrum.Game]
+// owns configuration, schedules, and the fixed loop.
 package ebitrun
 
 import (
@@ -17,25 +17,30 @@ import (
 	"github.com/Leonard-Atorough/castrum/render"
 )
 
-// Size is a 2D dimension in pixels, shared by window and logical resolution.
+// Size is a pixel dimension used for window or logical resolution.
 type Size struct {
-	Width  int
+	// Width is the horizontal dimension in pixels.
+	Width int
+	// Height is the vertical dimension in pixels.
 	Height int
 }
 
-// DrawFunc renders one frame. DrawFuncs are backend-typed by design: they
-// receive the runner's canvas directly, so they do not transfer across
-// runners.
+// DrawFunc renders one frame to the runner's Ebitengine canvas.
 type DrawFunc func(ctx *core.Context, screen *ebiten.Image) error
 
-// Options holds the runner's launch settings: window, vsync, and the
-// internal render resolution.
+// Options configures the Ebitengine window, logical render size, and audio
+// context.
 type Options struct {
-	Window    Size
+	// Window is the initial window size in pixels.
+	Window Size
+	// Resizable controls whether the window can be resized.
 	Resizable bool
-	VSync     bool
-	Logical   Size
-	// SampleRate is the audio context's mixing rate in Hz.
+	// VSync enables vertical synchronization.
+	VSync bool
+	// Logical is the internal render size in pixels.
+	Logical Size
+	// SampleRate is the audio context's mixing rate in Hz, used when the
+	// runner creates the context.
 	SampleRate int
 }
 
@@ -58,10 +63,9 @@ func defaultOptions() Options {
 	}
 }
 
-// Runner drives a castrum.Game over Ebitengine.
+// Runner drives a [castrum.Game] with Ebitengine.
 //
-// It implements [castrum.Runner]; start the game through
-// [castrum.Game.Run].
+// It implements [castrum.Runner]. Start the game with [castrum.Game.Run].
 type Runner struct {
 	g       *castrum.Game
 	opts    Options
@@ -78,11 +82,13 @@ var _ castrum.Runner = (*Runner)(nil)
 // reconciler under in the frame schedule.
 const AudioSystemName = "engine.audio"
 
-// New creates the Runner for g, applying opts over defaults. The option
-// constructors never fail; all validation happens here in a single pass.
-// g must come from [castrum.New], which provides the game's [asset.Server];
-// New wires the runner's [TextureProvider] and audio provider over it,
-// both provided eagerly, and registers the engine.audio reconciler.
+// New creates a Runner for g, applying opts over the defaults. It returns an
+// error for invalid options or if the runner's resources or audio system
+// cannot be registered.
+//
+// g must come from [castrum.New], which provides the game's [asset.Server].
+// New registers the [TextureProvider], [FontProvider], and audio provider as
+// eager resources, and adds the audio reconciler to the frame schedule.
 func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	options := defaultOptions()
 	for _, o := range opts {
@@ -144,16 +150,15 @@ func (o *Options) validate() error {
 	return nil
 }
 
-// AddDraw registers a user draw system. DrawFuncs run in registration
-// order, after the engine's world rendering - overlays land on top of
-// the world.
+// AddDraw appends f to the user draw callbacks. They run in registration
+// order, after the engine renders the world.
 func (r *Runner) AddDraw(f DrawFunc) {
 	r.draws = append(r.draws, f)
 }
 
-// Run applies the window settings, runs the game's startup schedule, and
-// blocks in the Ebitengine loop until the game quits. A startup failure
-// returns before a window opens.
+// Run applies the window settings, starts the game, and blocks in the
+// Ebitengine loop until it quits. A startup error is returned before the
+// window opens.
 func (r *Runner) Run() error {
 	ebiten.SetWindowTitle(r.g.Options().Title)
 	ebiten.SetWindowSize(r.opts.Window.Width, r.opts.Window.Height)
@@ -173,8 +178,9 @@ func (r *Runner) Run() error {
 	return ebiten.RunGame(r)
 }
 
-// Update advances the game by the elapsed platform time and reports quit
-// requests to Ebitengine.
+// Update advances the game by elapsed platform time and reports quit
+// requests to Ebitengine. Errors from [Runner.Draw] are returned here on the
+// next frame because Ebitengine's Draw callback cannot return an error.
 func (r *Runner) Update() error {
 	if r.drawErr != nil {
 		err := r.drawErr
@@ -199,11 +205,9 @@ func (r *Runner) Update() error {
 	return nil
 }
 
-// Draw renders the engine's collected draw list, then the registered
-// DrawFuncs, with the interpolation alpha - engine world first, user
-// overlays on top. A draw error is stored and surfaces from Update on
-// the next frame, since Ebitengine's Draw cannot return errors; the
-// stored error names the failing layer ("engine draw" or "draw").
+// Draw renders the engine's world, then the registered user callbacks, with
+// the current interpolation alpha. It runs every callback even if one fails;
+// the first error is returned by [Runner.Update] on the next frame.
 func (r *Runner) Draw(screen *ebiten.Image) {
 	ctx := r.g.Context()
 	ctx.Alpha = r.g.Alpha()
@@ -218,11 +222,7 @@ func (r *Runner) Draw(screen *ebiten.Image) {
 	}
 }
 
-// Layout returns the internal render resolution; the window may
-// differ, and Ebitengine letterboxes the difference (uniform scale,
-// centered). The returned size must stay equal to the logical
-// resolution New published to Context.LogicalWidth/Height: culling
-// reads those, projection reads this, and the two must never diverge.
+// Layout returns the logical render size, independent of the window size.
 func (r *Runner) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return r.opts.Logical.Width, r.opts.Logical.Height
 }
@@ -249,10 +249,10 @@ func WithoutVSync() option {
 	return optionFunc(func(o *Options) { o.VSync = false })
 }
 
-// WithAudioSampleRate sets the audio context's sample rate in Hz.
-// Sources are resampled to it at decode time; a source already at
-// this rate never resamples. Default is 44100. Invalid values are
-// reported by [New].
+// WithAudioSampleRate sets the sample rate in Hz for the audio context created
+// by the runner. An existing Ebitengine audio context is reused instead.
+// Audio sources are resampled to this rate when decoded. The default is
+// 44100; invalid values are reported by [New].
 func WithAudioSampleRate(sampleRate int) option {
 	return optionFunc(func(o *Options) { o.SampleRate = sampleRate })
 }
