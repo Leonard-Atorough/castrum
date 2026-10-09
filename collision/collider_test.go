@@ -12,7 +12,7 @@ import (
 func TestColliderValidate(t *testing.T) {
 	valid := []Collider{
 		{
-			Shape:   RectShape{Min: geom.Vector2{X: -1, Y: -2}, Max: geom.Vector2{X: 3, Y: 4}},
+			Shape:   Box{Min: geom.Vector2{X: -1, Y: -2}, Max: geom.Vector2{X: 3, Y: 4}},
 			Offset:  geom.Vector2{X: 2, Y: 5},
 			Layers:  1<<0 | 1<<31,
 			Mask:    1 << 31,
@@ -21,7 +21,7 @@ func TestColliderValidate(t *testing.T) {
 		},
 		// A collider that belongs to no layer is legal: it collides
 		// with nothing, the mirror of an empty mask.
-		{Shape: CircleShape{Center: geom.Vector2{X: 1, Y: 1}, Radius: 8}, Active: true},
+		{Shape: Circle{Center: geom.Vector2{X: 1, Y: 1}, Radius: 8}, Active: true},
 	}
 	for _, collider := range valid {
 		if err := collider.Validate(); err != nil {
@@ -33,15 +33,15 @@ func TestColliderValidate(t *testing.T) {
 	inf := math.Inf(1)
 	for name, collider := range map[string]Collider{
 		"nil shape":              {},
-		"inverted rect":          {Shape: RectShape{Min: geom.Vector2{X: 4, Y: 4}, Max: geom.Vector2{X: 0, Y: 2}}},
-		"zero-area rect":         {Shape: RectShape{}},
-		"rect NaN bound":         {Shape: RectShape{Min: geom.Vector2{X: nan}, Max: geom.Vector2{X: 2, Y: 2}}},
-		"rect infinite bound":    {Shape: RectShape{Min: geom.Vector2{X: -inf}, Max: geom.Vector2{X: 2, Y: 2}}},
-		"circle zero radius":     {Shape: CircleShape{}},
-		"circle negative radius": {Shape: CircleShape{Radius: -1}},
-		"circle NaN radius":      {Shape: CircleShape{Radius: nan}},
-		"circle NaN center":      {Shape: CircleShape{Center: geom.Vector2{X: nan}, Radius: 1}},
-		"NaN offset":             {Shape: CircleShape{Radius: 1}, Offset: geom.Vector2{X: nan}},
+		"inverted rect":          {Shape: Box{Min: geom.Vector2{X: 4, Y: 4}, Max: geom.Vector2{X: 0, Y: 2}}},
+		"zero-area rect":         {Shape: Box{}},
+		"rect NaN bound":         {Shape: Box{Min: geom.Vector2{X: nan}, Max: geom.Vector2{X: 2, Y: 2}}},
+		"rect infinite bound":    {Shape: Box{Min: geom.Vector2{X: -inf}, Max: geom.Vector2{X: 2, Y: 2}}},
+		"circle zero radius":     {Shape: Circle{}},
+		"circle negative radius": {Shape: Circle{Radius: -1}},
+		"circle NaN radius":      {Shape: Circle{Radius: nan}},
+		"circle NaN center":      {Shape: Circle{Center: geom.Vector2{X: nan}, Radius: 1}},
+		"NaN offset":             {Shape: Circle{Radius: 1}, Offset: geom.Vector2{X: nan}},
 	} {
 		if err := collider.Validate(); err == nil {
 			t.Errorf("Collider with %s should fail validation", name)
@@ -50,7 +50,7 @@ func TestColliderValidate(t *testing.T) {
 }
 
 func TestNewCollider(t *testing.T) {
-	collider, err := NewCollider(CircleShape{Center: geom.Vector2{X: 10, Y: 10}, Radius: 4})
+	collider, err := NewCollider(Circle{Center: geom.Vector2{X: 10, Y: 10}, Radius: 4})
 	if err != nil {
 		t.Fatalf("NewCollider rejected a valid circle: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestNewCollider(t *testing.T) {
 	if _, err := NewCollider(nil); err == nil {
 		t.Error("NewCollider should reject a nil shape")
 	}
-	if _, err := NewCollider(RectShape{}); err == nil {
+	if _, err := NewCollider(Box{}); err == nil {
 		t.Error("NewCollider should reject a degenerate rect")
 	}
 }
@@ -114,7 +114,7 @@ func TestColliderCanCollideWith(t *testing.T) {
 func TestColliderValidationAtSpawn(t *testing.T) {
 	w := core.NewWorld()
 
-	if _, err := w.NewEntity(Collider{Shape: CircleShape{Radius: -8}}); err == nil ||
+	if _, err := w.NewEntity(Collider{Shape: Circle{Radius: -8}}); err == nil ||
 		!strings.Contains(err.Error(), "Collider") {
 		t.Errorf("negative radius at spawn = %v, want an error naming Collider", err)
 	}
@@ -122,7 +122,7 @@ func TestColliderValidationAtSpawn(t *testing.T) {
 		t.Error("nil shape at spawn should error")
 	}
 
-	collider, err := NewCollider(CircleShape{Radius: 8})
+	collider, err := NewCollider(Circle{Radius: 8})
 	if err != nil {
 		t.Fatalf("NewCollider: %v", err)
 	}

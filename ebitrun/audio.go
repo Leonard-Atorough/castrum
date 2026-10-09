@@ -22,10 +22,10 @@ type audioStream interface {
 	Length() int64
 }
 
-// AudioProvider is the runner's [audio.Controller]: it owns the
+// audioProvider is the runner's [audio.Controller]: it owns the
 // ebiten players and applies the reconciler's resolved
 // [audio.Playback] state to them, one session per synced entity.
-type AudioProvider struct {
+type audioProvider struct {
 	audioCtx *ebitaudio.Context
 	server   *asset.Server
 	players  map[core.EntityID]*audioSession
@@ -46,9 +46,9 @@ type audioSession struct {
 	finished bool
 }
 
-func newAudioProvider(audioCtx *ebitaudio.Context, server *asset.Server) *AudioProvider {
+func newAudioProvider(audioCtx *ebitaudio.Context, server *asset.Server) *audioProvider {
 	registerAudioCodecs(server, audioCtx.SampleRate())
-	return &AudioProvider{
+	return &audioProvider{
 		audioCtx: audioCtx,
 		server:   server,
 		players:  make(map[core.EntityID]*audioSession),
@@ -115,7 +115,7 @@ func drain(s audioStream, sampleRate int) (asset.AudioData, error) {
 //
 // Note: variable-speed playback is not supported; a rate other
 // than 1 is an error. Errors name the audio source.
-func (a *AudioProvider) Sync(entityID core.EntityID, source asset.ID, want audio.Playback) (live bool, err error) {
+func (a *audioProvider) Sync(entityID core.EntityID, source asset.ID, want audio.Playback) (live bool, err error) {
 	s, exists := a.players[entityID]
 
 	if !exists && !want.Playing && !want.Restart {
@@ -181,7 +181,7 @@ func (a *AudioProvider) Sync(entityID core.EntityID, source asset.ID, want audio
 //
 // Note: Sweep stops at the first error; sessions not yet examined
 // are released by the next sweep.
-func (a *AudioProvider) Sweep() error {
+func (a *audioProvider) Sweep() error {
 	for id, s := range a.players {
 		if _, ok := a.touched[id]; ok {
 			continue
@@ -198,7 +198,7 @@ func (a *AudioProvider) Sweep() error {
 	return nil
 }
 
-func (a *AudioProvider) createPlayer(source asset.ID, want audio.Playback) (*audioSession, error) {
+func (a *audioProvider) createPlayer(source asset.ID, want audio.Playback) (*audioSession, error) {
 	if want.Rate != 1 {
 		return nil, fmt.Errorf("castrum/ebiten: audio: playback rate %v is not supported by this runner", want.Rate)
 	}

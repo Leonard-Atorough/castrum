@@ -1,8 +1,9 @@
-package core
+package render
 
 import (
 	"testing"
 
+	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
@@ -21,19 +22,19 @@ func TestCameraValidate(t *testing.T) {
 	}
 }
 
-// A camera is a composed entity: Transform for position, Camera for
+// A camera is a composed entity: core.Transform for position, Camera for
 // framing. The spawn surface accepts both together.
 func TestCameraSpawnsComposedWithTransform(t *testing.T) {
-	w := NewWorld()
+	w := core.NewWorld()
 	entity, err := w.NewEntity(
-		Transform{Position: geom.Vector2{X: 100, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
+		core.Transform{Position: geom.Vector2{X: 100, Y: 50}, Scale: geom.Vector2{X: 1, Y: 1}},
 		Camera{Zoom: 1.5, Primary: true},
 	)
 	if err != nil {
 		t.Fatalf("spawn camera entity: %v", err)
 	}
 
-	transform, ok := entity.Component[Transform](w)
+	transform, ok := entity.Component[core.Transform](w)
 	if !ok || transform.Position.X != 100 {
 		t.Fatalf("camera entity transform = %+v, ok=%v", transform, ok)
 	}

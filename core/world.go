@@ -29,18 +29,17 @@ type resourceEntry[T any] struct {
 	instance T
 }
 
-// Resources manages the collection of all resources within the world. It keeps track of their registration,
-// resolution state, and the order in which eager resources should be resolved.
-type Resources struct {
-	entries map[reflect.Type]*resourceEntry[any]
-	eager   []reflect.Type
-}
-
 const defaultEagerCapacity = 8
 
 // World represents the game world, containing all entities and resources.
 type World struct {
-	*Resources
+	// entries holds every registered resource by its type, from
+	// registration through resolution.
+	entries map[reflect.Type]*resourceEntry[any]
+	// eager lists the resource types registered eagerly, in
+	// registration order, for ResolveEager.
+	eager []reflect.Type
+
 	nextEntityID EntityID
 	archetypes   *ecs.Service
 }
@@ -49,10 +48,8 @@ type World struct {
 // It returns a pointer to the newly created World instance.
 func NewWorld() *World {
 	return &World{
-		Resources: &Resources{
-			entries: make(map[reflect.Type]*resourceEntry[any]),
-			eager:   make([]reflect.Type, 0, defaultEagerCapacity),
-		},
+		entries:    make(map[reflect.Type]*resourceEntry[any]),
+		eager:      make([]reflect.Type, 0, defaultEagerCapacity),
 		archetypes: ecs.NewService(),
 	}
 }

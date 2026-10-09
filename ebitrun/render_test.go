@@ -9,6 +9,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
@@ -35,7 +36,7 @@ func newSpriteGame(t *testing.T) (*castrum.Game, *Runner) {
 		t.Fatalf("New: %v", err)
 	}
 	if _, err := g.World().NewEntity(
-		core.Camera{Zoom: 1, Primary: true},
+		render.Camera{Zoom: 1, Primary: true},
 		core.Transform{Position: geom.Vector2{}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn camera: %v", err)
@@ -46,7 +47,7 @@ func newSpriteGame(t *testing.T) (*castrum.Game, *Runner) {
 func TestEngineDrawFailsFast(t *testing.T) {
 	g, r := newSpriteGame(t)
 	if _, err := g.World().NewEntity(
-		core.Sprite{Drawable: core.TextureSource{Texture: "missing.png"}},
+		render.Sprite{Drawable: render.TextureSource{Texture: "missing.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn sprite: %v", err)
@@ -76,13 +77,13 @@ func TestEngineDrawSmoke(t *testing.T) {
 	}
 
 	if _, err := g.World().NewEntity(
-		core.Sprite{Drawable: core.TextureSource{Texture: "tex.png"}},
+		render.Sprite{Drawable: render.TextureSource{Texture: "tex.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn texture sprite: %v", err)
 	}
 	if _, err := g.World().NewEntity(
-		core.Sprite{Drawable: core.AtlasSource{Atlas: "sprites", Region: "player"}},
+		render.Sprite{Drawable: render.AtlasSource{Atlas: "sprites", Region: "player"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn atlas sprite: %v", err)
@@ -100,7 +101,7 @@ func TestEngineDrawSmoke(t *testing.T) {
 func TestDrawEngineErrorPrefixedAndUserDrawsRun(t *testing.T) {
 	g, r := newSpriteGame(t)
 	if _, err := g.World().NewEntity(
-		core.Sprite{Drawable: core.TextureSource{Texture: "missing.png"}},
+		render.Sprite{Drawable: render.TextureSource{Texture: "missing.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn sprite: %v", err)
@@ -248,12 +249,12 @@ func TestEllipsePoints(t *testing.T) {
 // no panic. Nothing pixel-assertable headless.
 func TestEngineDrawShapeSmoke(t *testing.T) {
 	g, r := newSpriteGame(t)
-	spawns := []core.Sprite{
-		{Drawable: core.RectShape{Size: geom.Vector2{X: 10, Y: 20}}},
-		{Drawable: core.RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Outline: true, StrokeWidth: 2},
-		{Drawable: core.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}},
-		{Drawable: core.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Outline: true, StrokeWidth: 1},
-		{Drawable: core.LineShape{To: geom.Vector2{X: 30, Y: 0}}, Outline: true, StrokeWidth: 2},
+	spawns := []render.Sprite{
+		{Drawable: render.RectShape{Size: geom.Vector2{X: 10, Y: 20}}},
+		{Drawable: render.RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Outline: true, StrokeWidth: 2},
+		{Drawable: render.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}},
+		{Drawable: render.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Outline: true, StrokeWidth: 1},
+		{Drawable: render.LineShape{To: geom.Vector2{X: 30, Y: 0}}, Outline: true, StrokeWidth: 2},
 	}
 	for i, sprite := range spawns {
 		sprite.Layer = uint8(i)
@@ -271,8 +272,8 @@ func TestEngineDrawShapeSmoke(t *testing.T) {
 	// A rotated ellipse declares its own unequal radii and rides the
 	// Béziers.
 	if _, err := g.World().NewEntity(
-		core.Sprite{
-			Drawable: core.CircleShape{Radii: geom.Vector2{X: 15, Y: 5}}, Outline: true, StrokeWidth: 1, Layer: 5,
+		render.Sprite{
+			Drawable: render.CircleShape{Radii: geom.Vector2{X: 15, Y: 5}}, Outline: true, StrokeWidth: 1, Layer: 5,
 		},
 		core.Transform{
 			Position: geom.Vector2{X: 50, Y: 50},

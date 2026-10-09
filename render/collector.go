@@ -1,4 +1,8 @@
-package core
+// Package render is the engine's render tier: the Sprite component and its
+// drawable sources, the Camera framing component, and the Collector that
+// resolves each frame's DrawList. Gameplay code writes component state; the
+// runner consumes the DrawList and blits it.
+package render
 
 import (
 	"cmp"
@@ -8,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
@@ -87,7 +92,7 @@ type workingItem struct {
 type Collector struct {
 	userCamera,
 	engineCamera,
-	sprites *Query
+	sprites *core.Query
 	working []workingItem
 	// SortedItems is the sorted output the returned DrawList views.
 	// It is reused across frames; do not modify or retain it.
@@ -96,22 +101,22 @@ type Collector struct {
 
 // NewCollector creates a [Collector] for world. A primary user camera takes
 // precedence over the engine camera.
-func NewCollector(world *World) *Collector {
+func NewCollector(world *core.World) *Collector {
 	// User-spawned primaries are preferred; the engine camera
 	// (SpawnEngineCamera) is the fallback when none exists.
-	userCamera := NewQuery(world).
-		With(Camera{}, Transform{}, PrevTransform{}).
+	userCamera := core.NewQuery(world).
+		With(Camera{}, core.Transform{}, core.PrevTransform{}).
 		Without(engineCamera{}).
-		Where(func(e Entry) bool {
+		Where(func(e core.Entry) bool {
 			cam, ok := e.Component[Camera]()
 			if !ok {
 				return false
 			}
 			return cam.Primary
 		})
-	engineCamera := NewQuery(world).
-		With(Camera{}, Transform{}, PrevTransform{}, engineCamera{}).
-		Where(func(e Entry) bool {
+	engineCamera := core.NewQuery(world).
+		With(Camera{}, core.Transform{}, core.PrevTransform{}, engineCamera{}).
+		Where(func(e core.Entry) bool {
 			cam, ok := e.Component[Camera]()
 			if !ok {
 				return false
@@ -119,9 +124,9 @@ func NewCollector(world *World) *Collector {
 			return cam.Primary
 		})
 
-	sprites := NewQuery(world).
-		With(Sprite{}, Transform{}, PrevTransform{}).
-		Where(func(e Entry) bool {
+	sprites := core.NewQuery(world).
+		With(Sprite{}, core.Transform{}, core.PrevTransform{}).
+		Where(func(e core.Entry) bool {
 			s, ok := e.Component[Sprite]()
 			if !ok {
 				return false
@@ -139,14 +144,14 @@ func NewCollector(world *World) *Collector {
 }
 
 // Collect returns the draw list for the current frame. It interpolates
-// drawable transforms using [Context.Alpha], culls against the camera
+// drawable transforms using [core.Context.Alpha], culls against the camera
 // viewport, and sorts items by layer, sort order, then world Y. Text bounds
 // come from [asset.FontData.Measure].
 //
 // If no primary camera is available, Collect returns an empty list without
 // an error. Errors resolving fonts, textures, atlases, or atlas regions are
 // returned; shapes require no assets.
-func (c *Collector) Collect(ctx *Context) (DrawList, error) {
+func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 	// A user-spawned primary wins; the engine camera is the
 	// fallback. Query iteration order is deterministic within each.
 	entry, ok := c.userCamera.First()
@@ -157,8 +162,8 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 		return DrawList{}, nil
 	}
 	cam, _ := entry.Component[Camera]()
-	camTransform, _ := entry.Component[Transform]()
-	camPrev, _ := entry.Component[PrevTransform]()
+	camTransform, _ := entry.Component[core.Transform]()
+	camPrev, _ := entry.Component[core.PrevTransform]()
 	camera := CameraView{
 		Position: camPrev.Position.Lerp(camTransform.Position, ctx.Alpha),
 		Zoom:     cam.Zoom,
@@ -180,8 +185,8 @@ func (c *Collector) Collect(ctx *Context) (DrawList, error) {
 
 	for e := range c.sprites.Execute() {
 		sprite, _ := e.Component[Sprite]()
-		transform, _ := e.Component[Transform]()
-		prev, _ := e.Component[PrevTransform]()
+		transform, _ := e.Component[core.Transform]()
+		prev, _ := e.Component[core.PrevTransform]()
 
 		if transform.Scale.X == 0 {
 			transform.Scale.X = 1

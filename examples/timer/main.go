@@ -31,6 +31,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
+	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/timer"
 )
 
@@ -77,6 +78,7 @@ func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - timers"),
 		castrum.WithBindings(bindings),
+		castrum.WithTimer(),
 	)
 	if err != nil {
 		return err
@@ -215,9 +217,9 @@ func spawnBar(world *core.World, y float64, duration time.Duration, repeating bo
 }
 
 // barSprite builds the bar's drawable rect in the given state color.
-func barSprite(fill color.Color) core.Sprite {
-	return core.Sprite{
-		Drawable: core.RectShape{Size: geom.Vector2{X: barWidth, Y: barHeight}},
+func barSprite(fill color.Color) render.Sprite {
+	return render.Sprite{
+		Drawable: render.RectShape{Size: geom.Vector2{X: barWidth, Y: barHeight}},
 		Color:    fill,
 	}
 }

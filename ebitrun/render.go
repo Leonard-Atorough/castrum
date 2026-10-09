@@ -10,11 +10,12 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/render"
 )
 
 // newEngineDrawFunc returns the world renderer. [Runner] draws it before user
 // [DrawFunc] callbacks so user content can appear over the world.
-func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider, fonts *FontProvider) DrawFunc {
+func newEngineDrawFunc(collector *render.Collector, provider *TextureProvider, fonts *FontProvider) DrawFunc {
 	return DrawFunc(func(ctx *core.Context, screen *ebiten.Image) error {
 		list, err := collector.Collect(ctx)
 		if err != nil {
@@ -70,11 +71,11 @@ func newEngineDrawFunc(collector *core.Collector, provider *TextureProvider, fon
 	})
 }
 
-func drawShape(screen *ebiten.Image, item core.DrawItem, camera core.CameraView) {
+func drawShape(screen *ebiten.Image, item render.DrawItem, camera render.CameraView) {
 	width, height := screen.Bounds().Dx(), screen.Bounds().Dy()
 
 	switch shape := item.Shape.(type) {
-	case core.RectShape:
+	case render.RectShape:
 		center := camera.WorldToScreen(item.Position, width, height)
 		corners := rectCorners(center, shape.Size, item.Scale, camera.Zoom, item.Rotation)
 		var path vector.Path
@@ -84,7 +85,7 @@ func drawShape(screen *ebiten.Image, item core.DrawItem, camera core.CameraView)
 		}
 		path.Close()
 		fillOrStrokePath(screen, &path, item.Color, item, camera.Zoom)
-	case core.CircleShape:
+	case render.CircleShape:
 		center := camera.WorldToScreen(item.Position, width, height)
 		points := ellipsePoints(center, shape.Radii, item.Scale, camera.Zoom, item.Rotation)
 		var path vector.Path
@@ -98,7 +99,7 @@ func drawShape(screen *ebiten.Image, item core.DrawItem, camera core.CameraView)
 		}
 		path.Close()
 		fillOrStrokePath(screen, &path, item.Color, item, camera.Zoom)
-	case core.LineShape:
+	case render.LineShape:
 		start := camera.WorldToScreen(item.Position, width, height)
 		from := offsetPoint(start, shape.From, item.Scale, camera.Zoom, item.Rotation)
 		to := offsetPoint(start, shape.To, item.Scale, camera.Zoom, item.Rotation)
@@ -153,7 +154,7 @@ func ellipsePoints(center, radii, scale geom.Vector2, zoom, rotation float64) [1
 
 // fillOrStrokePath applies the item's style to a path. ColorScale uses the
 // premultiplied channels returned by color.Color.RGBA.
-func fillOrStrokePath(screen *ebiten.Image, path *vector.Path, clr color.Color, item core.DrawItem, zoom float64) {
+func fillOrStrokePath(screen *ebiten.Image, path *vector.Path, clr color.Color, item render.DrawItem, zoom float64) {
 	opts := &vector.DrawPathOptions{AntiAlias: true}
 	opts.ColorScale.ScaleWithColor(clr)
 	if item.Outline {
@@ -174,7 +175,7 @@ func offsetPoint(start, offset, scale geom.Vector2, zoom, rotation float64) geom
 
 // drawText uses the bounds computed during collection so rendered text stays
 // aligned with its measured and culled bounds.
-func drawText(screen *ebiten.Image, fonts *FontProvider, item core.DrawItem, camera core.CameraView) error {
+func drawText(screen *ebiten.Image, fonts *FontProvider, item render.DrawItem, camera render.CameraView) error {
 	face, err := fonts.Face(item.Font, item.TextSize)
 	if err != nil {
 		return err

@@ -77,7 +77,7 @@ type transformedShape struct {
 // validation keeps that from ever reaching the system.
 func transformShape(shape ColliderShape, offset geom.Vector2, transform core.Transform) transformedShape {
 	switch local := shape.(type) {
-	case RectShape:
+	case Box:
 		ox, oy := offset.X, offset.Y
 		corners := [4]geom.Vector2{
 			{X: local.Min.X + ox, Y: local.Min.Y + oy},
@@ -101,7 +101,7 @@ func transformShape(shape ColliderShape, offset geom.Vector2, transform core.Tra
 			},
 			bounds: boundsOf(world[:]),
 		}
-	case CircleShape:
+	case Circle:
 		center := transformPoint(geom.Vector2{
 			X: local.Center.X + offset.X,
 			Y: local.Center.Y + offset.Y,

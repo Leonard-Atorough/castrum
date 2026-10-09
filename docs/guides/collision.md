@@ -2,7 +2,7 @@
 
 Castrum collision is overlap detection, not a physics solver. Give an entity a `collision.Collider` and a `core.Transform`; the engine detects overlaps and writes them to `collision.Contacts`. Your systems decide whether a contact blocks movement, deals damage, collects a pickup, or does nothing.
 
-The engine registers collision detection in the fixed phase before gameplay systems. It tests the transforms at the start of that tick, so movement your systems make is detected on the following fixed tick. You do not register the collision system yourself.
+The engine registers collision detection in the fixed phase before gameplay systems, when the game is created with `castrum.WithCollision()`. It tests the transforms at the start of that tick, so movement your systems make is detected on the following fixed tick. You do not register the collision system yourself.
 
 For a complete runnable example, including walls, rotating hazards, trigger pickups, and contact lifecycle handling, run:
 
@@ -14,10 +14,12 @@ For entity, component, and system basics, see [The ECS in depth](ecs.md).
 
 ## Create a collider
 
-The supported local-space shapes are `collision.RectShape` and `collision.CircleShape`. Create a collider with `collision.NewCollider`, then spawn it with a transform:
+Enable the collision system when creating the game: `castrum.WithCollision()` registers it in the fixed schedule under `collision.SystemName`. Without the option, colliders never produce contacts. `castrum.WithDefaultSystems()` enables it together with the timer and animation systems.
+
+The supported local-space shapes are `collision.Box` and `collision.Circle`. Create a collider with `collision.NewCollider`, then spawn it with a transform:
 
 ```go
-collider, err := collision.NewCollider(collision.CircleShape{Radius: 12})
+collider, err := collision.NewCollider(collision.Circle{Radius: 12})
 if err != nil {
 	return err
 }

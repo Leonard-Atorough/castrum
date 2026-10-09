@@ -1,4 +1,4 @@
-package core
+package render
 
 import (
 	"image/color"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
@@ -67,34 +68,34 @@ func TestSpriteValidate(t *testing.T) {
 	}
 }
 
-// The Validatable hook fires through the public surface: spawn rejects
+// The core.Validatable hook fires through the public surface: spawn rejects
 // invalid sprites, naming the component type, and a nil-Drawable
 // sprite spawns fine — it simply does not draw.
 func TestComponentValidationAtSpawn(t *testing.T) {
-	w := NewWorld()
+	w := core.NewWorld()
 
 	if _, err := w.NewEntity(
 		Sprite{Layer: 32},
-		Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+		core.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	); err == nil || !strings.Contains(err.Error(), "Sprite") {
 		t.Errorf("invalid layer at spawn = %v, want an error naming Sprite", err)
 	}
 	if _, err := w.NewEntity(
 		Sprite{Drawable: TextureSource{}},
-		Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+		core.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	); err == nil || !strings.Contains(err.Error(), "Sprite") {
 		t.Errorf("empty texture source at spawn = %v, want an error naming Sprite", err)
 	}
 	if _, err := w.NewEntity(
 		Sprite{Drawable: RectShape{}},
-		Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+		core.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	); err == nil || !strings.Contains(err.Error(), "Sprite") {
 		t.Errorf("degenerate rect at spawn = %v, want an error naming Sprite", err)
 	}
 
 	entity, err := w.NewEntity(
 		Sprite{}, // style only: legal
-		Transform{Scale: geom.Vector2{X: 1, Y: 1}},
+		core.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	if err != nil {
 		t.Fatalf("nil-Drawable sprite should spawn: %v", err)

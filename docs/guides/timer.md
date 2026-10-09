@@ -23,7 +23,7 @@ if err != nil {
 
 Each entity can hold one `Timer`. To run several timers for the same actor, put each timer on its own entity and keep the entity handles.
 
-Castrum registers the timer system automatically when creating a game. A timer is validated when it enters storage, including when an update writes it back: its duration must be positive and elapsed time cannot be negative. Invalid timers are rejected with an error; `NewTimer` itself does not return an error.
+Castrum registers the timer system when the game is created with `castrum.WithTimer()` (or `castrum.WithDefaultSystems()`, which also enables the animation and collision systems). A timer is validated when it enters storage, including when an update writes it back: its duration must be positive and elapsed time cannot be negative. Invalid timers are rejected with an error; `NewTimer` itself does not return an error.
 
 ## Pause and resume
 

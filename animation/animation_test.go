@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/render"
 )
 
 func newAnimWorld(t *testing.T, anim Animation, clip Clip) (*core.Entity, core.System, *core.Context) {
@@ -16,7 +17,7 @@ func newAnimWorld(t *testing.T, anim Animation, clip Clip) (*core.Entity, core.S
 	if err := store.Add(anim.Clip, clip); err != nil {
 		t.Fatalf("add clip: %v", err)
 	}
-	entity, err := w.NewEntity(anim, core.Sprite{})
+	entity, err := w.NewEntity(anim, render.Sprite{})
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
@@ -42,17 +43,17 @@ func readAnim(t *testing.T, e *core.Entity, ctx *core.Context) Animation {
 	return anim
 }
 
-func readSprite(t *testing.T, e *core.Entity, ctx *core.Context) core.Sprite {
+func readSprite(t *testing.T, e *core.Entity, ctx *core.Context) render.Sprite {
 	t.Helper()
-	sprite, ok := e.Component[core.Sprite](ctx.World)
+	sprite, ok := e.Component[render.Sprite](ctx.World)
 	if !ok {
 		t.Fatal("sprite component missing")
 	}
 	return sprite
 }
 
-func region(s core.Sprite) (core.AtlasSource, bool) {
-	src, ok := s.Drawable.(core.AtlasSource)
+func region(s render.Sprite) (render.AtlasSource, bool) {
+	src, ok := s.Drawable.(render.AtlasSource)
 	return src, ok
 }
 
@@ -167,7 +168,7 @@ func TestFirstTickStampsFrameZero(t *testing.T) {
 
 func TestMissingClipFailsFast(t *testing.T) {
 	w := core.NewWorld()
-	if _, err := w.NewEntity(Animation{Clip: "nope"}, core.Sprite{}); err != nil {
+	if _, err := w.NewEntity(Animation{Clip: "nope"}, render.Sprite{}); err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
 	ctx := &core.Context{World: w, DeltaTime: 100 * time.Millisecond}

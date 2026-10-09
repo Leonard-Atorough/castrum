@@ -7,9 +7,12 @@ import (
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
+	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
+	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/timer"
 )
 
 func TestNewDefaults(t *testing.T) {
@@ -175,7 +178,7 @@ func TestMainCamera(t *testing.T) {
 	if camera == nil {
 		t.Fatal("MainCamera should return the engine camera")
 	}
-	cam, ok := camera.Component[core.Camera](g.World())
+	cam, ok := camera.Component[render.Camera](g.World())
 	if !ok || !cam.Primary || cam.Zoom != 1 {
 		t.Fatalf("engine camera = %+v, ok %v, want primary zoom 1", cam, ok)
 	}
@@ -237,5 +240,161 @@ func TestNewProvidesAudioMixer(t *testing.T) {
 	}
 	if g.Mixer() != mixer {
 		t.Fatal("Mixer and the resource must be the same instance")
+	}
+}
+
+// The optional subsystem systems are opt-in: without their With*
+// option, their components sit inert. Each test proves both sides -
+// the option registers the system, and its absence leaves it out.
+func TestOptionalTimerSystems(t *testing.T) {
+	spawn := func(g *Game) {
+		if _, err := g.World().NewEntity(timer.NewTimer(2*g.Options().FixedDT(), false)); err != nil {
+			t.Fatalf("spawn timer: %v", err)
+		}
+	}
+	advanceTwoTicks := func(g *Game) {
+		if err := g.Advance(2 * g.Options().FixedDT()); err != nil {
+			t.Fatalf("Advance: %v", err)
+		}
+	}
+
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	spawn(g)
+	advanceTwoTicks(g)
+	for e := range core.NewQuery(g.World()).With(timer.Timer{}).Execute() {
+		if tm, _ := e.Component[timer.Timer](); tm.CompletedOn != 0 {
+			t.Errorf("timer completed without WithTimer: %+v", tm)
+		}
+	}
+
+	g, err = New(WithTimer())
+	if err != nil {
+		t.Fatalf("New(WithTimer): %v", err)
+	}
+	spawn(g)
+	advanceTwoTicks(g)
+	for e := range core.NewQuery(g.World()).With(timer.Timer{}).Execute() {
+		if tm, _ := e.Component[timer.Timer](); tm.CompletedOn == 0 {
+			t.Errorf("timer did not complete with WithTimer: %+v", tm)
+		}
+	}
+}
+
+func TestOptionalCollisionSystem(t *testing.T) {
+	spawnPair := func(g *Game) {
+		for _, x := range []float64{0, 1} {
+			collider, err := collision.NewCollider(collision.Circle{Radius: 8})
+			if err != nil {
+				t.Fatalf("NewCollider: %v", err)
+			}
+			if _, err := g.World().NewEntity(collider, core.Transform{Position: geom.Vector2{X: x, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}}); err != nil {
+				t.Fatalf("spawn collider: %v", err)
+			}
+		}
+	}
+
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	spawnPair(g)
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	for e := range core.NewQuery(g.World()).With(collision.Collider{}).Execute() {
+		if _, ok := core.NewEntity(e.ID()).Component[collision.Contacts](g.World()); ok {
+			t.Error("contacts produced without WithCollision")
+		}
+	}
+
+	g, err = New(WithCollision())
+	if err != nil {
+		t.Fatalf("New(WithCollision): %v", err)
+	}
+	spawnPair(g)
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	for e := range core.NewQuery(g.World()).With(collision.Collider{}).Execute() {
+		contacts, ok := core.NewEntity(e.ID()).Component[collision.Contacts](g.World())
+		if !ok || len(contacts.Current) != 1 {
+			t.Errorf("contacts with WithCollision = %+v, ok %v, want one contact", contacts, ok)
+		}
+	}
+}
+
+func TestOptionalAnimationSystem(t *testing.T) {
+	spawnAnimated := func(g *Game) {
+		if err := g.Clips().Add("clip", animation.Clip{
+			Source: "sprites",
+			Frames: []string{"frame_0", "frame_1"},
+			FPS:    60,
+		}); err != nil {
+			t.Fatalf("Add clip: %v", err)
+		}
+		if _, err := g.World().NewEntity(animation.Animation{Clip: "clip"}, render.Sprite{}, core.Transform{Scale: geom.Vector2{X: 1, Y: 1}}); err != nil {
+			t.Fatalf("spawn animated sprite: %v", err)
+		}
+	}
+
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	spawnAnimated(g)
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	for e := range core.NewQuery(g.World()).With(animation.Animation{}).Execute() {
+		if s, _ := core.NewEntity(e.ID()).Component[render.Sprite](g.World()); s.Drawable != nil {
+			t.Errorf("sprite drawable written without WithAnimation: %+v", s.Drawable)
+		}
+	}
+
+	g, err = New(WithAnimation())
+	if err != nil {
+		t.Fatalf("New(WithAnimation): %v", err)
+	}
+	spawnAnimated(g)
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	for e := range core.NewQuery(g.World()).With(animation.Animation{}).Execute() {
+		s, _ := core.NewEntity(e.ID()).Component[render.Sprite](g.World())
+		if _, ok := s.Drawable.(render.AtlasSource); !ok {
+			t.Errorf("sprite drawable with WithAnimation = %#v, want an atlas source", s.Drawable)
+		}
+	}
+}
+
+// The option bits are idempotent: WithDefaultSystems and a specific
+// With* together still register each system exactly once. A doubled
+// timer system would complete a two-tick timer after one tick.
+func TestWithDefaultSystemsIdempotent(t *testing.T) {
+	g, err := New(WithDefaultSystems(), WithTimer())
+	if err != nil {
+		t.Fatalf("New(WithDefaultSystems, WithTimer): %v", err)
+	}
+	if _, err := g.World().NewEntity(timer.NewTimer(2*g.Options().FixedDT(), false)); err != nil {
+		t.Fatalf("spawn timer: %v", err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	for e := range core.NewQuery(g.World()).With(timer.Timer{}).Execute() {
+		if tm, _ := e.Component[timer.Timer](); tm.CompletedOn != 0 {
+			t.Fatalf("timer completed after one tick: %+v, want a single registration", tm)
+		}
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	for e := range core.NewQuery(g.World()).With(timer.Timer{}).Execute() {
+		if tm, _ := e.Component[timer.Timer](); tm.CompletedOn == 0 {
+			t.Fatalf("timer did not complete on its second tick: %+v", tm)
+		}
 	}
 }

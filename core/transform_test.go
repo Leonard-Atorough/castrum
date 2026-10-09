@@ -13,6 +13,10 @@ func runCapture(t *testing.T, capture System, w *World) {
 	}
 }
 
+// depTag is a component that is not a Transform, for pairing tests that
+// need a spawned entity without Transform state.
+type depTag struct{}
+
 func TestPrevCaptureSnapshotsTickStartState(t *testing.T) {
 	w := NewWorld()
 	entity, err := w.NewEntity(Transform{
@@ -78,7 +82,7 @@ func TestPrevCaptureSnapshotsTickStartState(t *testing.T) {
 
 func TestAddComponentTransformCompletesPair(t *testing.T) {
 	w := NewWorld()
-	entity, err := w.NewEntity(Camera{Zoom: 1})
+	entity, err := w.NewEntity(depTag{})
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
@@ -133,7 +137,7 @@ func TestAddComponentTransformKeepsExistingPrev(t *testing.T) {
 
 func TestPrevCaptureSkipsEntitiesWithoutTransform(t *testing.T) {
 	w := NewWorld()
-	if _, err := w.NewEntity(Camera{Zoom: 1}); err != nil {
+	if _, err := w.NewEntity(depTag{}); err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
 	capture := NewPrevTransformCapture()

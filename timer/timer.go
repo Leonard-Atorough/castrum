@@ -105,6 +105,10 @@ func (t Timer) HasCompleted() bool {
 	return !t.Repeating && t.CompletedOn != 0
 }
 
+// SystemName is the name castrum.New registers the timer reconciler
+// under in the fixed schedule.
+const SystemName = "engine.timer"
+
 // NewSystem returns the timer reconciler: every fixed tick it
 // advances each running [Timer] by the tick interval and stamps
 // [Timer.CompletedOn] when the duration has fully elapsed. A
@@ -112,6 +116,10 @@ func (t Timer) HasCompleted() bool {
 // restarts itself, keeping the overshoot so its intervals do not
 // drift. Nothing is emitted and no entity is removed - completion
 // is component state a game reads.
+//
+// castrum.New registers this system, under [SystemName], when the
+// game is configured with castrum.WithTimer; games that register it
+// themselves do not need the option.
 func NewSystem() core.System {
 	return &system{}
 }
