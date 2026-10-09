@@ -1,9 +1,7 @@
-// Package asset loads, decodes, and caches game assets from a filesystem.
-//
-// Assets are identified by fs.FS paths - slash-separated and relative to
-// the filesystem root - and by the Go type they decode into. The package
-// is backend-free: images decode to image.Image, never a GPU texture;
-// backend-specific conversion belongs to a runner.
+// Package asset loads, decodes, and caches typed assets from an [fs.FS].
+// Paths are slash-separated and relative to the filesystem root. The package
+// stays backend-free: images decode to [image.Image], leaving backend-specific
+// conversion to runners.
 package asset
 
 import (
@@ -21,110 +19,108 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-// ID is the cache identity of an asset. It defaults to the cleaned asset
-// path; [WithID] overrides it. The decode cache keys on ID, type, and
-// format together, so one ID may hold several types or formats - but two
-// different files loaded under one ID, type, and format collide: the
-// first load wins.
+// ID identifies an asset in the decode cache. It defaults to the cleaned
+// asset path; [WithID] overrides it. Cache entries are keyed by ID, decoded
+// type, and format, so reusing all three for different files returns the
+// first cached value.
 type ID string
 
 // Format identifies an asset's encoding and selects the decoder for it.
 // It defaults to the lowercased file extension.
 type Format string
 
-// Asset formats with built-in constants. New formats can be  introduced
-// by using [Server.RegisterDecoder].
+// Format constants identify common asset encodings. Register a decoder for a
+// format with [Server.RegisterDecoder].
 const (
+	// FormatJSON is the JSON format.
 	FormatJSON Format = "json"
+	// FormatYAML is the YAML format.
 	FormatYAML Format = "yaml"
-	FormatYML  Format = "yml"
-	FormatPNG  Format = "png"
-	FormatJPG  Format = "jpg"
+	// FormatYML is the YML format.
+	FormatYML Format = "yml"
+	// FormatPNG is the PNG format.
+	FormatPNG Format = "png"
+	// FormatJPG is the JPG format.
+	FormatJPG Format = "jpg"
+	// FormatJPEG is the JPEG format.
 	FormatJPEG Format = "jpeg"
-	FormatWAV  Format = "wav"
-	FormatMP3  Format = "mp3"
-	FormatOGG  Format = "ogg"
-	FormatTTF  Format = "ttf"
-	FormatOTF  Format = "otf"
+	// FormatWAV is the WAV format.
+	FormatWAV Format = "wav"
+	// FormatMP3 is the MP3 format.
+	FormatMP3 Format = "mp3"
+	// FormatOGG is the OGG format.
+	FormatOGG Format = "ogg"
+	// FormatTTF is the TTF format.
+	FormatTTF Format = "ttf"
+	// FormatOTF is the OTF format.
+	FormatOTF Format = "otf"
 )
 
 // Decoder decodes a value of type T from a reader.
 type Decoder[T any] func(reader io.Reader) (T, error)
 
-// Server loads and caches decoded assets from a filesystem. It is the
-// single owner of the load flow - cache check, deduplication, open,
-// decode, cache put - and the pieces of that flow are not callable
-// separately. It also hosts the atlas registry; see [Server.Store].
+// Server loads assets from a filesystem, decodes them with registered
+// decoders, and caches the results. It also owns the atlas registry.
 type Server struct {
-	fs         fs.FS
-	mu         sync.RWMutex // guards decoders
-	decoders   map[codecKey]decoderFunc
-	cache      *cache
-	loadGroup  *singleflight.Group
-	atlasStore *AtlasStore
+	fs        fs.FS
+	mu        sync.RWMutex // guards decoders
+	decoders  map[codecKey]decoderFunc
+	cache     *cache
+	loadGroup *singleflight.Group
+	atlases   *atlasRegistry
 }
 
-// New creates an Asset over filesystem. A nil filesystem defaults to
-// os.DirFS("."), the game's working directory: asset names resolve
-// relative to it, wherever the files live. Nothing is read at
-// construction; loading is lazy and starts at the first [Server.Load].
+// New creates a Server backed by filesystem. If filesystem is nil, assets are
+// read from the current working directory. Loading is lazy and begins on the
+// first call to [Server.Load].
 func New(filesystem fs.FS) *Server {
 	if filesystem == nil {
 		filesystem = os.DirFS(".")
 	}
 	a := &Server{
-		fs:         filesystem,
-		decoders:   make(map[codecKey]decoderFunc),
-		cache:      newCache(),
-		loadGroup:  &singleflight.Group{},
-		atlasStore: newStore(),
+		fs:        filesystem,
+		decoders:  make(map[codecKey]decoderFunc),
+		cache:     newCache(),
+		loadGroup: &singleflight.Group{},
+		atlases:   newAtlasRegistry(),
 	}
 	a.registerDefaults()
 	return a
 }
 
-// Store returns the atlas registry. Exactly one store exists per Asset;
-// [Server.RegisterAtlasFromSidecar] and [Server.RegisterGridAtlas] are the
-// registration verbs, and there is no way to construct another.
-func (a *Server) Store() *AtlasStore {
-	return a.atlasStore
-}
-
-// Load reads and decodes the asset at name as T, serving repeat loads
-// from the cache. Concurrent loads of the same asset are deduplicated:
-// the read and decode happen at most once while the first call is in
-// flight.
+// Load opens name, decodes it as T, and caches the result. Concurrent loads
+// with the same cache key share the in-flight read and decode.
 //
 // The format defaults to the lowercased file extension; [WithFormat] and
-// [WithID] override it and the cache identity.
-func (a *Server) Load[T any](fpath string, opts ...loadOption) (T, error) {
+// [WithID] override the format and cache identity, respectively.
+func (s *Server) Load[T any](fpath string, opts ...loadOption) (T, error) {
 	var zero T
 	fpath = normalizeAssetPath(fpath)
 	typ := reflect.TypeFor[T]()
 	lo := resolveLoad(fpath, opts...)
 	key := newLoadKey(lo.id, typ, lo.format)
 
-	if value, ok := a.cache.get(key); ok {
+	if value, ok := s.cache.get(key); ok {
 		if value == nil {
 			return zero, nil // only a pointer decoder can cache nil
 		}
 		return value.(T), nil
 	}
 
-	value, err, _ := a.loadGroup.Do(key.String(), func() (any, error) {
-		if value, ok := a.cache.get(key); ok {
+	value, err, _ := s.loadGroup.Do(key.String(), func() (any, error) {
+		if value, ok := s.cache.get(key); ok {
 			return value, nil // a peer load may have finished while we waited
 		}
 
-		file, err := a.fs.Open(fpath)
+		file, err := s.fs.Open(fpath)
 		if err != nil {
 			return nil, &AssetError{Op: "Load", ID: ID(fpath), Err: err}
 		}
 		defer file.Close()
 
-		a.mu.RLock()
-		decoder, ok := a.decoders[codecKey{typ: typ, format: lo.format}]
-		a.mu.RUnlock()
+		s.mu.RLock()
+		decoder, ok := s.decoders[codecKey{typ: typ, format: lo.format}]
+		s.mu.RUnlock()
 		if !ok {
 			return nil, &AssetError{Op: "Load", ID: ID(fpath),
 				Err: fmt.Errorf("no decoder registered for type %v and format %q; decoders register at engine or runner construction - loading audio before the runner exists is the common cause", typ, lo.format)}
@@ -134,7 +130,7 @@ func (a *Server) Load[T any](fpath string, opts ...loadOption) (T, error) {
 		if err != nil {
 			return nil, &AssetError{Op: "Decode", ID: ID(fpath), Err: err}
 		}
-		a.cache.put(key, value)
+		s.cache.put(key, value)
 		return value, nil
 	})
 	if err != nil {
@@ -146,43 +142,38 @@ func (a *Server) Load[T any](fpath string, opts ...loadOption) (T, error) {
 	return value.(T), nil // safe: same construction as the cache-hit assertion
 }
 
-// Open opens the asset at name as a raw file, without decoding or
-// caching: the streaming counterpart to [Server.Load]. The resolved
-// format comes with it — the server owns the format vocabulary, the
-// caller picks its decoder. The caller owns the file and must close
-// it.
+// Open opens the asset at name as a raw file and returns its inferred format.
+// Unlike [Server.Load], it does not decode or cache the asset. The caller
+// owns the file and must close it.
 //
-// A streaming consumer needs a seek-capable file (loop wrapping and
-// position resets seek); os.DirFS and embed.FS qualify. Verify and
-// fail fast rather than panic inside a backend.
-func (a *Server) Open(fpath string) (fs.File, Format, error) {
+// Consumers that need seeking for looping or position resets must verify that
+// the returned file supports it.
+func (s *Server) Open(fpath string) (fs.File, Format, error) {
 	if fpath == "" {
 		return nil, "", &AssetError{Op: "Open", ID: ID(fpath),
 			Err: fmt.Errorf("asset path must not be empty")}
 	}
 	fpath = normalizeAssetPath(fpath)
 	format := resolveFormat(fpath)
-	file, err := a.fs.Open(fpath)
+	file, err := s.fs.Open(fpath)
 	if err != nil {
 		return nil, "", &AssetError{Op: "Open", ID: ID(fpath), Err: err}
 	}
 	return file, format, nil
 }
 
-// LoadReader decodes a value of type T from the given reader using the
-// registered decoder for format. A reader has no extension to infer the
-// format from, so it must be given explicitly.
+// LoadReader decodes a value of type T from reader using the decoder
+// registered for format. The format must be supplied explicitly.
 //
 // Unlike [Server.Load], LoadReader does not cache and does not
-// deduplicate concurrent decodes. The reader is not closed; the caller
-// owns it.
-func (a *Server) LoadReader[T any](reader io.Reader, format Format) (T, error) {
+// deduplicate concurrent decodes. It does not close reader; the caller owns it.
+func (s *Server) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 	var zero T
 	typ := reflect.TypeFor[T]()
 
-	a.mu.RLock()
-	decoder, ok := a.decoders[codecKey{typ: typ, format: format}]
-	a.mu.RUnlock()
+	s.mu.RLock()
+	decoder, ok := s.decoders[codecKey{typ: typ, format: format}]
+	s.mu.RUnlock()
 	if !ok {
 		return zero, fmt.Errorf("no decoder registered for type %v and format %q; decoders register at engine or runner construction - loading audio before the runner exists is the common cause", typ, format)
 	}
@@ -197,16 +188,10 @@ func (a *Server) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 	return value.(T), nil
 }
 
-// RegisterDecoder registers d as the decoder for values of type T in the
-// given format. override replaces an existing decoder for the same type
-// and format; without it, a duplicate is an error.
-//
-// This is the only way into the codec registry: the wrapper boxes the
-// decoded value as T, so the type assertions in [Server.Load] and
-// [Server.LoadReader] are safe by construction. A panic from either means
-// a registration bypassed this wrapper - an engine-internal invariant
-// breach, not user error.
-func (a *Server) RegisterDecoder[T any](format Format, d Decoder[T], override bool) error {
+// RegisterDecoder registers d for values of type T in format. It returns an
+// error if d is nil or format is empty. If a decoder already exists for that
+// type and format, override must be true to replace it.
+func (s *Server) RegisterDecoder[T any](format Format, d Decoder[T], override bool) error {
 	if d == nil {
 		return fmt.Errorf("decoder cannot be nil")
 	}
@@ -216,12 +201,12 @@ func (a *Server) RegisterDecoder[T any](format Format, d Decoder[T], override bo
 	typ := reflect.TypeFor[T]()
 	key := codecKey{typ: typ, format: format}
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if _, exists := a.decoders[key]; exists && !override {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.decoders[key]; exists && !override {
 		return fmt.Errorf("decoder for type %v and format %q already exists", typ, format)
 	}
-	a.decoders[key] = func(reader io.Reader) (any, error) {
+	s.decoders[key] = func(reader io.Reader) (any, error) {
 		value, err := d(reader)
 		if err != nil {
 			return nil, err
@@ -231,37 +216,37 @@ func (a *Server) RegisterDecoder[T any](format Format, d Decoder[T], override bo
 	return nil
 }
 
-// WithID overrides the cache identity of an asset. The default is the
-// cleaned asset path. See [ID] for the collision rules.
+// WithID overrides the asset's default cache identity, its cleaned path.
 func WithID(id ID) loadOption {
 	return loadOptionFunc(func(opts *loadOptions) {
 		opts.id = id
 	})
 }
 
-// WithFormat overrides the asset's format. The default is inferred from
-// the lowercased file extension.
+// WithFormat overrides the format inferred from the lowercased file extension.
 func WithFormat(format Format) loadOption {
 	return loadOptionFunc(func(opts *loadOptions) {
 		opts.format = format
 	})
 }
 
-// AssetError wraps a failure that occurred while loading or decoding an
-// asset, naming the operation and the asset involved.
+// AssetError identifies the operation and asset path associated with a load
+// or decode failure.
 type AssetError struct {
 	// Op is the failing operation: "Load", "Open", or "Decode".
 	Op string
-	// ID is the asset's cache identity, if one applies.
+	// ID is the normalized path of the asset, if known.
 	ID ID
 	// Err is the underlying cause; Unwrap preserves it for errors.Is.
 	Err error
 }
 
+// Error returns the operation, asset path, and underlying error.
 func (e AssetError) Error() string {
 	return fmt.Sprintf("%s %s: %v", e.Op, e.ID, e.Err)
 }
 
+// Unwrap returns the underlying error.
 func (e AssetError) Unwrap() error {
 	return e.Err
 }

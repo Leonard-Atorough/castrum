@@ -205,7 +205,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			// Style without a picture: legal, not drawn.
 			continue
 		case AtlasSource:
-			atlas, err := server.Store().Atlas(drawable.Atlas)
+			atlas, err := server.Atlas(drawable.Atlas)
 			if err != nil {
 				return DrawList{}, fmt.Errorf("castrum: collect: %w", err)
 			}

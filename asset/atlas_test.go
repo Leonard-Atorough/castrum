@@ -64,6 +64,7 @@ func TestNewAtlasValidates(t *testing.T) {
 		{"region exceeds width", "atlas", "tex.png", 4, 3, map[string]AtlasRegion{"player": {X: 2, Y: 0, W: 3, H: 3}}},
 		{"region exceeds height", "atlas", "tex.png", 4, 3, map[string]AtlasRegion{"player": {X: 0, Y: 1, W: 4, H: 3}}},
 		{"negative region x", "atlas", "tex.png", 4, 3, map[string]AtlasRegion{"player": {X: -1, Y: 0, W: 2, H: 2}}},
+		{"no regions", "atlas", "tex.png", 4, 3, map[string]AtlasRegion{}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -97,8 +98,8 @@ func TestAtlasAccessorsAndLookup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAtlas: %v", err)
 	}
-	if atlas.ID() != "atlas" || atlas.TexturePath() != "tex.png" || atlas.TextureW() != 8 || atlas.TextureH() != 6 {
-		t.Fatalf("accessors = %q %q %dx%d", atlas.ID(), atlas.TexturePath(), atlas.TextureW(), atlas.TextureH())
+	if atlas.ID() != "atlas" || atlas.TexturePath() != "tex.png" {
+		t.Fatalf("accessors = %q %q", atlas.ID(), atlas.TexturePath())
 	}
 	if _, err := atlas.Region("player"); err != nil {
 		t.Fatalf("Region hit: %v", err)
@@ -112,8 +113,8 @@ func TestAtlasAccessorsAndLookup(t *testing.T) {
 	}
 }
 
-func TestAtlasStoreRegisterAndResolve(t *testing.T) {
-	store := newStore()
+func TestServerRegisterAndResolveAtlas(t *testing.T) {
+	a := New(nil)
 	atlas, err := NewAtlas("atlas", "tex.png", 4, 3, map[string]AtlasRegion{
 		"player": {X: 0, Y: 0, W: 4, H: 3},
 	})
@@ -121,53 +122,31 @@ func TestAtlasStoreRegisterAndResolve(t *testing.T) {
 		t.Fatalf("NewAtlas: %v", err)
 	}
 
-	if err := store.Register(atlas); err != nil {
-		t.Fatalf("Register: %v", err)
+	if err := a.RegisterAtlas(atlas); err != nil {
+		t.Fatalf("RegisterAtlas: %v", err)
 	}
-	if err := store.Register(atlas); err == nil {
+	if err := a.RegisterAtlas(atlas); err == nil {
 		t.Error("duplicate registration should error")
 	}
-	if err := store.Register(nil); err == nil {
+	if err := a.RegisterAtlas(nil); err == nil {
 		t.Error("nil atlas registration should error")
 	}
 
-	resolved, err := store.Atlas("atlas")
+	resolved, err := a.Atlas("atlas")
 	if err != nil {
 		t.Fatalf("Atlas hit: %v", err)
 	}
 	if resolved != atlas {
 		t.Fatal("Atlas returned a different instance")
 	}
-	if _, err := store.Atlas("other"); err == nil || !strings.Contains(err.Error(), "other") {
+	if _, err := a.Atlas("other"); err == nil || !strings.Contains(err.Error(), "other") {
 		t.Errorf("Atlas miss = %v, want an error naming the id", err)
 	}
 
-	region, err := store.Region("atlas", "player")
-	if err != nil {
-		t.Fatalf("Region hit: %v", err)
-	}
-	if region.W != 4 || region.H != 3 {
-		t.Fatalf("region = %+v, want the registered rect", region)
-	}
-	_, err = store.Region("atlas", "enemy")
-	if err == nil || !strings.Contains(err.Error(), "enemy") {
-		t.Errorf("Region miss = %v, want an error naming the region", err)
-	}
-	_, err = store.Region("other", "player")
-	if err == nil || !strings.Contains(err.Error(), "other") {
-		t.Errorf("Region on unknown atlas = %v, want an error naming the atlas", err)
-	}
-}
-
-func TestStoreIsHostedPerAsset(t *testing.T) {
-	a := New(nil)
-	store := a.Store()
-	store2 := a.Store()
-	if store != store2 {
-		t.Fatal("Store() must return the same instance every call")
-	}
-	if b := New(nil); b.Store() == store {
-		t.Fatal("two Assets must not share a store")
+	// Each server owns its registry: a registration in one never
+	// resolves in another.
+	if b := New(nil); func() bool { _, err := b.Atlas("atlas"); return err == nil }() {
+		t.Error("two servers must not share an atlas registry")
 	}
 }
 
@@ -180,19 +159,12 @@ func TestRegisterAtlasFromSidecar(t *testing.T) {
 	if err := a.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
 		t.Fatalf("RegisterAtlasFromSidecar: %v", err)
 	}
-	atlas, err := a.Store().Atlas("sprites")
+	atlas, err := a.Atlas("sprites")
 	if err != nil {
 		t.Fatalf("resolve registered atlas: %v", err)
 	}
-	if atlas.TexturePath() != "tex.png" || atlas.TextureW() != 4 || atlas.TextureH() != 3 {
-		t.Fatalf("atlas = %q %dx%d, want tex.png 4x3", atlas.TexturePath(), atlas.TextureW(), atlas.TextureH())
-	}
-	region, err := a.Store().Region("sprites", "player")
-	if err != nil {
-		t.Fatalf("Region: %v", err)
-	}
-	if region != (AtlasRegion{X: 0, Y: 0, W: 4, H: 3}) {
-		t.Fatalf("region = %+v", region)
+	if atlas.TexturePath() != "tex.png" {
+		t.Fatalf("atlas = %q, want tex.png", atlas.TexturePath())
 	}
 
 	// Failure leaves the store untouched: nothing registers under a
@@ -204,8 +176,21 @@ func TestRegisterAtlasFromSidecar(t *testing.T) {
 	if err := bad.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err == nil {
 		t.Fatal("out-of-bounds sidecar region should error")
 	}
-	if _, err := bad.Store().Atlas("sprites"); err == nil {
+	if _, err := bad.Atlas("sprites"); err == nil {
 		t.Fatal("a failed registration must leave the store untouched")
+	}
+}
+
+func TestRegisterAtlasFromSidecarEmptyRegions(t *testing.T) {
+	a := New(newTestFS(map[string]string{
+		"tex.png":    string(encodeTestPNG(t, 4, 3)),
+		"atlas.json": `{"regions":[]}`,
+	}))
+	if err := a.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err == nil {
+		t.Fatal("a sidecar with no regions should error")
+	}
+	if _, err := a.Atlas("sprites"); err == nil {
+		t.Error("a failed registration must leave the registry untouched")
 	}
 }
 
@@ -248,8 +233,14 @@ func TestRegisterGridAtlas(t *testing.T) {
 		"tile_2": {X: 0, Y: 2, W: 2, H: 2},
 		"tile_3": {X: 2, Y: 2, W: 2, H: 2},
 	}
+
+	atlas, err := a.Atlas("tiles")
+	if err != nil {
+		t.Fatalf("Atlas: %v", err)
+	}
+
 	for name, region := range want {
-		got, err := a.Store().Region("tiles", name)
+		got, err := atlas.Region(name)
 		if err != nil {
 			t.Fatalf("Region(%q): %v", name, err)
 		}
@@ -270,7 +261,7 @@ func TestRegisterGridAtlas(t *testing.T) {
 	if err := bad.RegisterGridAtlas("tiles", "tiles.png", 2, 2, ""); err == nil {
 		t.Error("empty prefix should error")
 	}
-	if _, err := bad.Store().Atlas("tiles"); err == nil {
+	if _, err := bad.Atlas("tiles"); err == nil {
 		t.Error("failed registrations must leave the store untouched")
 	}
 }

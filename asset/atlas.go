@@ -11,52 +11,58 @@ import (
 // AtlasMeta is the JSON sidecar describing the named regions of one
 // atlas image.
 type AtlasMeta struct {
+	// Regions lists the named regions in the atlas image.
 	Regions []AtlasRegionMeta `json:"regions"`
 }
 
 // AtlasRegionMeta describes one named region of an atlas image in pixel
 // coordinates, as written in the sidecar file.
 type AtlasRegionMeta struct {
+	// Name is the region's unique name within the atlas.
 	Name string `json:"name"`
-	X    int    `json:"x"`
-	Y    int    `json:"y"`
-	W    int    `json:"w"`
-	H    int    `json:"h"`
+	// X is the left coordinate in pixels.
+	X int `json:"x"`
+	// Y is the top coordinate in pixels.
+	Y int `json:"y"`
+	// W is the region's width in pixels.
+	W int `json:"w"`
+	// H is the region's height in pixels.
+	H int `json:"h"`
 }
 
-// decodeAtlasMeta decodes the JSON sidecar. Registered by default; see
-// defaults.go.
 func decodeAtlasMeta(reader io.Reader) (AtlasMeta, error) {
 	var meta AtlasMeta
 	err := json.NewDecoder(reader).Decode(&meta)
 	return meta, err
 }
 
-// AtlasID identifies a registered atlas within the [Server]'s store.
+// AtlasID identifies a registered atlas within the [Server].
 type AtlasID string
 
-// AtlasRegion is a named rectangular region of an atlas texture, in
-// pixels.
+// AtlasRegion is a named rectangular region of an atlas texture, in pixels.
 type AtlasRegion struct {
-	X, Y, W, H int
+	// X is the region's left coordinate.
+	X int
+	// Y is the region's top coordinate.
+	Y int
+	// W is the region's width.
+	W int
+	// H is the region's height.
+	H int
 }
 
-// Rect returns the region as a pixel rectangle - the value a runner
-// feeds to its sub-image call.
+// Rect returns the region's pixel bounds as an [image.Rectangle].
 func (r AtlasRegion) Rect() image.Rectangle {
 	return image.Rect(r.X, r.Y, r.X+r.W, r.Y+r.H)
 }
 
-// Atlas is a texture subdivided into named pixel regions, validated
-// against the dimensions of the texture it names. Immutable after
-// construction; the pairing of regions to texture is enforceable because
-// the registration verbs derive the region set and the dimensions from
-// the same loaded texture.
+// Atlas associates named pixel regions with a texture. It is immutable
+// after construction, and each region is validated against the texture
+// bounds, so an Atlas is safe to share across goroutines.
 type Atlas struct {
-	id                 AtlasID
-	texturePath        ID
-	regions            map[string]AtlasRegion
-	textureW, textureH int
+	id          AtlasID
+	texturePath ID
+	regions     map[string]AtlasRegion
 }
 
 // ID returns the atlas's identifier.
@@ -69,16 +75,6 @@ func (a *Atlas) TexturePath() ID {
 	return a.texturePath
 }
 
-// TextureW returns the atlas texture's width in pixels.
-func (a *Atlas) TextureW() int {
-	return a.textureW
-}
-
-// TextureH returns the atlas texture's height in pixels.
-func (a *Atlas) TextureH() int {
-	return a.textureH
-}
-
 // Region resolves a named region. It errors, naming the region and the
 // atlas, if no such region exists.
 func (a *Atlas) Region(name string) (AtlasRegion, error) {
@@ -89,12 +85,10 @@ func (a *Atlas) Region(name string) (AtlasRegion, error) {
 	return region, nil
 }
 
-// NewAtlas builds an Atlas from explicit fields, validating every region
-// against the texture dimensions and copying the regions map. It is the
-// construction seam for tests, tooling, and hand-authored atlases; games
-// register through [Server.RegisterAtlasFromSidecar] and
-// [Server.RegisterGridAtlas] instead, where the texture path and the
-// validated dimensions come from the same loaded texture.
+// NewAtlas creates an atlas from explicit texture dimensions and regions. It
+// rejects empty IDs, empty region maps, empty region names, non-positive
+// texture or region dimensions, and regions outside the texture bounds. It
+// copies regions so later changes to the input map do not affect the atlas.
 func NewAtlas(id AtlasID, texturePath ID, texW, texH int, regions map[string]AtlasRegion) (*Atlas, error) {
 	if id == "" {
 		return nil, fmt.Errorf("atlas id must not be empty")
@@ -104,6 +98,9 @@ func NewAtlas(id AtlasID, texturePath ID, texW, texH int, regions map[string]Atl
 	}
 	if texW <= 0 || texH <= 0 {
 		return nil, fmt.Errorf("texture dimensions %dx%d for atlas %q are not positive", texW, texH, id)
+	}
+	if len(regions) == 0 {
+		return nil, fmt.Errorf("atlas %q must have at least one region", id)
 	}
 	copied := make(map[string]AtlasRegion, len(regions))
 	for name, region := range regions {
@@ -124,73 +121,67 @@ func NewAtlas(id AtlasID, texturePath ID, texW, texH int, regions map[string]Atl
 		id:          id,
 		texturePath: texturePath,
 		regions:     copied,
-		textureW:    texW,
-		textureH:    texH,
 	}, nil
 }
 
-// AtlasStore resolves atlas handles. Exactly one store exists per
-// [Asset]: there is no constructor outside the package, and atlases
-// enter only through [Server.RegisterAtlasFromSidecar],
-// [Server.RegisterGridAtlas], or [AtlasStore.Register].
-type AtlasStore struct {
+// atlasRegistry holds the server's registered atlases. It is safe for
+// concurrent use. Registration rejects duplicates, so a registered atlas's
+// regions never change.
+type atlasRegistry struct {
 	mu      sync.RWMutex
 	atlases map[AtlasID]*Atlas
 }
 
-func newStore() *AtlasStore {
-	return &AtlasStore{atlases: make(map[AtlasID]*Atlas)}
+func newAtlasRegistry() *atlasRegistry {
+	return &atlasRegistry{atlases: make(map[AtlasID]*Atlas)}
 }
 
-// Register adds an atlas to the store. An atlas whose ID is already
-// registered is an error.
-func (s *AtlasStore) Register(atlas *Atlas) error {
+func (r *atlasRegistry) register(atlas *Atlas) error {
 	if atlas == nil {
 		return fmt.Errorf("cannot register a nil atlas")
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	id := atlas.ID()
-	if _, exists := s.atlases[id]; exists {
+	if _, exists := r.atlases[id]; exists {
 		return fmt.Errorf("atlas %q is already registered", id)
 	}
-	s.atlases[id] = atlas
+	r.atlases[id] = atlas
 	return nil
 }
 
-// Atlas resolves a registered atlas. It errors, naming the ID, if no
-// atlas is registered under it.
-func (s *AtlasStore) Atlas(id AtlasID) (*Atlas, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	atlas, ok := s.atlases[id]
+func (r *atlasRegistry) atlas(id AtlasID) (*Atlas, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	atlas, ok := r.atlases[id]
 	if !ok {
 		return nil, fmt.Errorf("atlas %q is not registered", id)
 	}
 	return atlas, nil
 }
 
-// Region resolves a named region of a registered atlas in one lookup.
-func (s *AtlasStore) Region(atlasID AtlasID, regionName string) (AtlasRegion, error) {
-	atlas, err := s.Atlas(atlasID)
-	if err != nil {
-		return AtlasRegion{}, err
-	}
-	return atlas.Region(regionName)
+// Atlas returns the atlas registered under id. It returns an error if id is
+// not registered. Lookups are safe for concurrent use.
+func (s *Server) Atlas(id AtlasID) (*Atlas, error) {
+	return s.atlases.atlas(id)
 }
 
-// RegisterAtlasFromSidecar loads the texture and its JSON sidecar through
-// the unified load flow, validates every region against the loaded
-// texture's dimensions, and registers the atlas. The texture path and
-// the validated dimensions come from the same load, so region-to-texture
-// pairing holds by construction. Failure at any step errors and leaves
-// the store untouched.
-func (a *Server) RegisterAtlasFromSidecar(id AtlasID, texturePath, metaPath string) error {
-	texture, err := a.Load[TextureData](texturePath)
+// RegisterAtlas adds a programmatically-built atlas - one constructed with
+// [NewAtlas] rather than the Register* constructors. It returns an error if
+// atlas is nil or its ID is already registered.
+func (s *Server) RegisterAtlas(atlas *Atlas) error {
+	return s.atlases.register(atlas)
+}
+
+// RegisterAtlasFromSidecar loads the texture and JSON sidecar, validates the
+// regions against the texture dimensions, and registers the atlas. If any
+// step fails, the atlas is not registered.
+func (s *Server) RegisterAtlasFromSidecar(id AtlasID, texturePath, metaPath string) error {
+	texture, err := s.Load[TextureData](texturePath)
 	if err != nil {
 		return err
 	}
-	meta, err := a.Load[AtlasMeta](metaPath)
+	meta, err := s.Load[AtlasMeta](metaPath)
 	if err != nil {
 		return err
 	}
@@ -207,21 +198,21 @@ func (a *Server) RegisterAtlasFromSidecar(id AtlasID, texturePath, metaPath stri
 	if err != nil {
 		return err
 	}
-	return a.atlasStore.Register(atlas)
+	return s.atlases.register(atlas)
 }
 
-// RegisterGridAtlas loads the texture and divides it into equally sized
-// tiles named prefix_0.. in row-major order, then registers the atlas.
-// The texture dimensions must be evenly divisible by the tile
-// dimensions.
-func (a *Server) RegisterGridAtlas(id AtlasID, texturePath string, tileW, tileH int, prefix string) error {
+// RegisterGridAtlas divides the texture into equally sized tiles named
+// prefix_0, prefix_1, and so on in row-major order, then registers the atlas.
+// Tile dimensions must be positive, prefix must be non-empty, and the texture
+// dimensions must be evenly divisible by the tile dimensions.
+func (s *Server) RegisterGridAtlas(id AtlasID, texturePath string, tileW, tileH int, prefix string) error {
 	if tileW <= 0 || tileH <= 0 {
 		return fmt.Errorf("tile dimensions %dx%d for atlas %q are not positive", tileW, tileH, id)
 	}
 	if prefix == "" {
 		return fmt.Errorf("tile prefix for atlas %q must not be empty", id)
 	}
-	texture, err := a.Load[TextureData](texturePath)
+	texture, err := s.Load[TextureData](texturePath)
 	if err != nil {
 		return err
 	}
@@ -247,5 +238,5 @@ func (a *Server) RegisterGridAtlas(id AtlasID, texturePath string, tileW, tileH 
 	if err != nil {
 		return err
 	}
-	return a.atlasStore.Register(atlas)
+	return s.atlases.register(atlas)
 }

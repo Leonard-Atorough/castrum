@@ -2,18 +2,16 @@ package asset
 
 import "fmt"
 
-// registerDefaults wires the engine's built-in decoders. A failure here
-// can only be an engine authoring bug - a duplicate in this static
-// table - so it panics: no caller is positioned to recover from it
-// (Must-style, the same rule as template.Must). User codecs go through
-// [Server.RegisterDecoder] and get errors instead.
-func (a *Server) registerDefaults() {
+// registerDefaults treats duplicate built-in registrations as an engine
+// authoring error and panics. User codecs go through
+// [Server.RegisterDecoder] and return errors instead.
+func (s *Server) registerDefaults() {
 	for _, format := range []Format{FormatPNG, FormatJPG, FormatJPEG} {
-		mustRegister(a.RegisterDecoder(format, decodeTexture, false))
+		mustRegister(s.RegisterDecoder(format, decodeTexture, false))
 	}
-	mustRegister(a.RegisterDecoder(FormatJSON, decodeAtlasMeta, false))
+	mustRegister(s.RegisterDecoder(FormatJSON, decodeAtlasMeta, false))
 	for _, format := range []Format{FormatTTF, FormatOTF} {
-		mustRegister(a.RegisterDecoder(format, decodeFont, false))
+		mustRegister(s.RegisterDecoder(format, decodeFont, false))
 	}
 }
 

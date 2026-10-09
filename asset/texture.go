@@ -8,19 +8,18 @@ import (
 	_ "image/png"  // register PNG decoding with image.Decode
 )
 
-// TextureData is a decoded image asset: the pixels plus their dimensions.
-// Its consumers are atlas construction, which validates region bounds
-// against the dimensions, and a runner, which converts the image to a GPU
-// texture once. Backend-free by the package contract: nothing here holds
-// a backend type.
+// TextureData holds a decoded image and its dimensions. Atlas registration
+// uses the dimensions to validate regions; runners convert the image to a
+// backend texture.
 type TextureData struct {
-	Image  image.Image
-	Width  int
+	// Image is the decoded image.
+	Image image.Image
+	// Width is the image width in pixels.
+	Width int
+	// Height is the image height in pixels.
 	Height int
 }
 
-// decodeTexture decodes an image into TextureData for the png, jpg, and
-// jpeg formats. Registered by default; see defaults.go.
 func decodeTexture(reader io.Reader) (TextureData, error) {
 	decoded, _, err := image.Decode(reader)
 	if err != nil {
