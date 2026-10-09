@@ -1,10 +1,11 @@
 // Command your-first-game is the companion program to the getting
 // started tutorial: a tank that drives with the keyboard and aims
 // its turret at the mouse, from a camera that follows it. The gun
-// fires on a cooldown; Panzers spawn just out of sight and chase
-// the tank until a bullet finds them. Music and the shot sound
-// effect play through the audio API, and the reload countdown
-// renders as text.
+// fires on a cooldown; Panzers spawn just out of sight, chase the
+// tank, and come faster as the score climbs. Shooting 100 wins;
+// being touched loses. Music and the shot sound effect play
+// through the audio API, the reload countdown renders as text, and
+// the score sits in a screen-space overlay.
 //
 // Run from the repository root:
 //
@@ -19,6 +20,9 @@ import (
 	"math/rand/v2"
 	"time"
 
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
@@ -27,9 +31,12 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
+	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/timer"
 )
 
+// Unlike the tutorial, this example embeds its assets instead of reading a
+// downloaded bundle from the working directory; see docs/guides/assets.md.
 //go:embed sprites audio fonts
 var files embed.FS
 
@@ -44,6 +51,10 @@ const (
 	Speed     = 100 // world units per second
 	TurnSpeed = 3   // radians per second
 
+	// The start tile: the tank needs a frame of reference, or
+	// driving on an empty field reads as standing still.
+	TileSize = 160 // world units per side
+
 	// The camera: 50% closer than the default zoom of 1, and
 	// following the tank so the field scrolls as it drives.
 	CameraZoom = 1.5
@@ -57,15 +68,30 @@ const (
 
 	// Collision layers: the masks below decide which pairs ever
 	// reach the narrow phase - bullets admit enemies and nothing
-	// else, so the tank cannot shoot itself.
+	// else, so the tank cannot shoot itself, and enemies admit
+	// bullets and the tank, so a touch ends the run.
 	bulletLayer = 1
 	enemyLayer  = 2
+	playerLayer = 3
+
+	// The hit circles match the visible hull art, which is much
+	// smaller than its 100-pixel texture: a touch then reads as a
+	// touch instead of firing across a visible gap.
+	TankRadius = 16 // world units, the hull's hit circle
 
 	// The enemies: slower than the tank, so a straight retreat
 	// always opens the gap.
 	EnemySpeed  = 60 // world units per second
-	EnemyRadius = 32 // world units
+	EnemyRadius = 16 // world units
 	SpawnEvery  = 1500 * time.Millisecond
+
+	// The waves accelerate with the score: each kill shaves
+	// SpawnShave off the spawn interval, down to MinSpawnEvery.
+	SpawnShave    = 12 * time.Millisecond
+	MinSpawnEvery = 300 * time.Millisecond
+
+	// Reach WinScore kills to win.
+	WinScore = 100
 )
 
 var SpawnPos = geom.Vector2{X: 640, Y: 360}
@@ -78,8 +104,23 @@ type bullet struct{}
 // drive at the player until a bullet finds them.
 type enemy struct{}
 
+// game is the run's state: the kill count and the finished flags.
+// One entity carries it, and systems read and write it like any
+// other component.
+type game struct {
+	// Score counts enemy tanks destroyed by bullets.
+	Score int
+	// Won and Lost end the run: gameplay gates on them, and the
+	// end banner reads them.
+	Won  bool
+	Lost bool
+}
+
 // bulletColor paints the bullets; the tanks keep their textures.
 var bulletColor = color.NRGBA{R: 245, G: 220, B: 130, A: 255}
+
+// tileColor paints the start tile; the field around it is empty.
+var tileColor = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
 
 func main() {
 	if err := run(); err != nil {
@@ -106,7 +147,7 @@ func run() error {
 			input.KeyInput{Key: input.KeyArrowRight},
 		},
 		"fire": []input.Input{
-			input.KeyInput{Key: input.KeySpace},
+			input.MouseButtonInput{Button: input.MouseButtonLeft},
 		},
 	}
 
@@ -114,6 +155,8 @@ func run() error {
 		castrum.WithTitle("your first game"),
 		castrum.WithBindings(bindings),
 		castrum.WithFilesystem(files),
+		castrum.WithTimer(),
+		castrum.WithCollision(),
 	)
 	if err != nil {
 		return err
@@ -131,9 +174,32 @@ func run() error {
 		return err
 	}
 
+	// The start tile: a frame of reference under the tank, so
+	// driving reads as movement against a static world instead of
+	// the whole field sliding with the camera.
+	if _, err := g.World().NewEntity(
+		core.Transform{Position: SpawnPos},
+		render.Sprite{
+			Drawable:  render.RectShape{Size: geom.Vector2{X: TileSize, Y: TileSize}},
+			Color:     tileColor,
+			SortOrder: -1,
+		},
+	); err != nil {
+		return err
+	}
+
+	// The hull carries the run's loss condition: a collider on the
+	// player layer, listening for enemies only.
+	playerCollider, err := collision.NewCollider(collision.Circle{Radius: TankRadius})
+	if err != nil {
+		return err
+	}
+	playerCollider.Layers = collision.Layers(playerLayer)
+	playerCollider.Mask = collision.Mask(enemyLayer)
 	hull, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
-		core.Sprite{Drawable: core.TextureSource{Texture: AssetHull}},
+		render.Sprite{Drawable: render.TextureSource{Texture: AssetHull}},
+		playerCollider,
 	)
 	if err != nil {
 		return err
@@ -144,7 +210,7 @@ func run() error {
 	// timer and a completed one both read as ready to fire.
 	turret, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
-		core.Sprite{Drawable: core.TextureSource{Texture: AssetTurret}},
+		render.Sprite{Drawable: render.TextureSource{Texture: AssetTurret}, Layer: 1},
 		timer.NewTimer(FireCooldown, false),
 	)
 	if err != nil {
@@ -163,11 +229,27 @@ func run() error {
 		return err
 	}
 
+	// The run's state: the score and the finished flags.
+	stats, err := g.World().NewEntity(game{})
+	if err != nil {
+		return err
+	}
+
 	// The reload readout: a text sprite under the tank, rewritten
 	// every tick while the gun cools and hidden while it is ready.
 	cooldown, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos.Add(geom.Vector2{X: 0, Y: 72}), Scale: geom.Vector2{X: 1, Y: 1}},
-		core.Sprite{Drawable: core.TextSource{Font: AssetFont, Text: "", Size: 18}},
+		render.Sprite{Drawable: render.TextSource{Font: AssetFont, Text: "", Size: 18}},
+	)
+	if err != nil {
+		return err
+	}
+
+	// The end banner: hidden while the run lives, drawn over the
+	// field on its own layer once the game is won or lost.
+	banner, err := g.World().NewEntity(
+		core.Transform{Position: SpawnPos},
+		render.Sprite{Hidden: true, Layer: 10},
 	)
 	if err != nil {
 		return err
@@ -176,16 +258,16 @@ func run() error {
 	// Preload every asset with a path, so a missing or invalid file
 	// fails during setup rather than mid-game. Textures and fonts
 	// are different asset types: load each with its own.
-	if _, err := g.AssetServer().Load[asset.TextureData](AssetHull); err != nil {
+	if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetHull); err != nil {
 		return err
 	}
-	if _, err := g.AssetServer().Load[asset.TextureData](AssetTurret); err != nil {
+	if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetTurret); err != nil {
 		return err
 	}
-	if _, err := g.AssetServer().Load[asset.TextureData](AssetEnemy); err != nil {
+	if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetEnemy); err != nil {
 		return err
 	}
-	if _, err := g.AssetServer().Load[asset.FontData](AssetFont); err != nil {
+	if _, err := g.World().MustResource[*asset.Server]().Load[asset.FontData](AssetFont); err != nil {
 		return err
 	}
 
@@ -193,17 +275,25 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if _, err := g.AssetServer().Load[asset.AudioData](AssetSFX); err != nil {
+	if _, err := g.World().MustResource[*asset.Server]().Load[asset.AudioData](AssetSFX); err != nil {
 		return err
 	}
 
 	// The camera starts zoomed in; the follow system keeps it on
 	// the tank from the first tick.
-	if err := g.MainCamera().Update(g.World(), func(c *core.Camera) { c.Zoom = CameraZoom }); err != nil {
+	if err := g.MainCamera().Update(g.World(), func(c *render.Camera) { c.Zoom = CameraZoom }); err != nil {
 		return err
 	}
 
-	if err := g.AddSystem(core.PhaseFixed, "player.hull.move", moveSystem(hull)); err != nil {
+	// The score HUD is screen-space: an overlay drawn after the
+	// world, fixed to the top-left corner whatever the camera does.
+	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
+		run, _ := stats.Component[game](ctx.World)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("score %d / %d", run.Score, WinScore), 16, 16)
+		return nil
+	})
+
+	if err := g.AddSystem(core.PhaseFixed, "player.hull.move", moveSystem(hull, stats)); err != nil {
 		return err
 	}
 	if err := g.AddSystem(core.PhaseFixed, "player.turret", turretSystem(turret, hull, g.MainCamera())); err != nil {
@@ -212,27 +302,42 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFixed, "camera.follow", cameraSystem(g.MainCamera(), hull)); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFixed, "player.fire", fireSystem(turret)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "player.fire", fireSystem(turret, stats)); err != nil {
 		return err
 	}
 	if err := g.AddSystem(core.PhaseFixed, "bullets", bulletsSystem(g.MainCamera())); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFixed, "enemy.spawn", spawnSystem(spawner, hull, g.MainCamera())); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "enemy.spawn", spawnSystem(spawner, hull, g.MainCamera(), stats)); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFixed, "enemies", enemiesSystem(hull)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "enemies", enemiesSystem(hull, stats)); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFixed, "reload.readout", reloadReadoutSystem(cooldown, turret)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "game.danger", dangerSystem(hull, stats)); err != nil {
+		return err
+	}
+	if err := g.AddSystem(core.PhaseFixed, "game.result", resultSystem(banner, hull, stats)); err != nil {
+		return err
+	}
+	if err := g.AddSystem(core.PhaseFixed, "reload.readout", reloadReadoutSystem(cooldown, turret, stats)); err != nil {
 		return err
 	}
 
 	return g.Run(runner)
 }
 
-func moveSystem(hull *core.Entity) core.System {
+// over reports whether the run has ended.
+func over(stats *core.Entity, ctx *core.Context) bool {
+	run, _ := stats.Component[game](ctx.World)
+	return run.Won || run.Lost
+}
+
+func moveSystem(hull, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		if over(stats, ctx) {
+			return nil
+		}
 		dt := ctx.DeltaTime.Seconds()
 		return hull.Update(ctx.World, func(t *core.Transform) {
 			facing := geom.Vector2{X: 0, Y: -1}.Rotate(t.Rotation)
@@ -255,10 +360,10 @@ func moveSystem(hull *core.Entity) core.System {
 func turretSystem(turret, hull, camera *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		cameraData, _ := camera.Component[core.Camera](ctx.World)
+		cameraData, _ := camera.Component[render.Camera](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
 
-		cursor := core.CameraView{
+		cursor := render.CameraView{
 			Position: cameraTransform.Position,
 			Zoom:     cameraData.Zoom,
 		}.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
@@ -283,14 +388,17 @@ func cameraSystem(camera, hull *core.Entity) core.System {
 	})
 }
 
-// fireSystem fires the gun: when the fire key is pressed and the
+// fireSystem fires the gun: when the fire action is pressed and the
 // cooldown is not running, a bullet spawns at the barrel tip - the
 // turret center pushed out along the turret's rotation - and the
 // cooldown timer restarts, clearing its completion so it can count
 // down again. Fixed systems read Pressed, the tick-stable edge:
 // a tap that lands between ticks still fires.
-func fireSystem(turret *core.Entity) core.System {
+func fireSystem(turret, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		if over(stats, ctx) {
+			return nil
+		}
 		if !ctx.Actions.Pressed("fire") {
 			return nil
 		}
@@ -321,7 +429,7 @@ func fireSystem(turret *core.Entity) core.System {
 // listening for enemies only, so the tank that fired it can never
 // shoot itself.
 func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (*core.Entity, error) {
-	collider, err := collision.NewCollider(collision.CircleShape{Radius: BulletRadius})
+	collider, err := collision.NewCollider(collision.Circle{Radius: BulletRadius})
 	if err != nil {
 		return nil, err
 	}
@@ -329,8 +437,8 @@ func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (*core.En
 	collider.Mask = collision.Mask(enemyLayer)
 	return world.NewEntity(
 		core.Transform{Position: at, Rotation: rotation, Scale: geom.Vector2{X: 1, Y: 1}},
-		core.Sprite{
-			Drawable: core.CircleShape{Radii: geom.Vector2{X: BulletRadius, Y: BulletRadius}},
+		render.Sprite{
+			Drawable: render.CircleShape{Radii: geom.Vector2{X: BulletRadius, Y: BulletRadius}},
 			Color:    bulletColor,
 		},
 		collider,
@@ -349,7 +457,7 @@ func bulletsSystem(camera *core.Entity) core.System {
 		}
 		dt := ctx.DeltaTime.Seconds()
 
-		cameraData, _ := camera.Component[core.Camera](ctx.World)
+		cameraData, _ := camera.Component[render.Camera](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
 		halfW := float64(ctx.LogicalWidth) / (2 * cameraData.Zoom)
 		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
@@ -380,18 +488,32 @@ func bulletsSystem(camera *core.Entity) core.System {
 	})
 }
 
-// spawnSystem keeps the waves coming: every time the spawner's
-// repeating timer completes, one enemy appears just outside what
-// the camera can see, at a random angle around the tank.
-func spawnSystem(spawner, hull, camera *core.Entity) core.System {
+// spawnSystem keeps the waves coming, faster as the score climbs:
+// each tick it shortens the spawner's interval by SpawnShave per
+// kill, down to MinSpawnEvery, and every completion drops one enemy
+// just outside what the camera can see, at a random angle around
+// the tank.
+func spawnSystem(spawner, hull, camera, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		if over(stats, ctx) {
+			return nil
+		}
+		run, _ := stats.Component[game](ctx.World)
+		interval := SpawnEvery - SpawnShave*time.Duration(run.Score)
+		if interval < MinSpawnEvery {
+			interval = MinSpawnEvery
+		}
+		if err := spawner.Update(ctx.World, func(t *timer.Timer) { t.Duration = interval }); err != nil {
+			return err
+		}
+
 		waves, _ := spawner.Component[timer.Timer](ctx.World)
 		if !waves.JustCompleted(ctx.Tick) {
 			return nil
 		}
 
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		cameraData, _ := camera.Component[core.Camera](ctx.World)
+		cameraData, _ := camera.Component[render.Camera](ctx.World)
 		halfW := float64(ctx.LogicalWidth) / (2 * cameraData.Zoom)
 		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
 
@@ -407,33 +529,37 @@ func spawnSystem(spawner, hull, camera *core.Entity) core.System {
 }
 
 // spawnEnemy creates one enemy tank at a point, on the enemy
-// layer, listening for bullets only. An enemy is a single hull
-// entity: giving it a turret of its own would need an entity
+// layer, listening for bullets and the tank. An enemy is a single
+// hull entity: giving it a turret of its own would need an entity
 // hierarchy, which the engine does not have yet.
 func spawnEnemy(world *core.World, at geom.Vector2) (*core.Entity, error) {
-	collider, err := collision.NewCollider(collision.CircleShape{Radius: EnemyRadius})
+	collider, err := collision.NewCollider(collision.Circle{Radius: EnemyRadius})
 	if err != nil {
 		return nil, err
 	}
 	collider.Layers = collision.Layers(enemyLayer)
-	collider.Mask = collision.Mask(bulletLayer)
+	collider.Mask = collision.Mask(bulletLayer, playerLayer)
 	return world.NewEntity(
 		core.Transform{Position: at, Scale: geom.Vector2{X: 1, Y: 1}},
-		core.Sprite{Drawable: core.TextureSource{Texture: AssetEnemy}},
+		render.Sprite{Drawable: render.TextureSource{Texture: AssetEnemy}},
 		collider,
 		enemy{},
 	)
 }
 
-// enemiesSystem drives every enemy toward the tank and removes the
-// ones a bullet found. A current contact means the hit already
-// happened - the bullet system is destroying the other half of the
-// pair in the same tick.
-func enemiesSystem(hull *core.Entity) core.System {
+// enemiesSystem drives every enemy toward the tank, removes the
+// ones a bullet found, and scores them: each kill raises the score,
+// and the score reaching WinScore wins the run. A current contact
+// means the hit already happened - the bullet system is destroying
+// the other half of the pair in the same tick.
+func enemiesSystem(hull, stats *core.Entity) core.System {
 	var targets *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if targets == nil {
 			targets = core.NewQuery(ctx.World).With(core.Transform{}, collision.Contacts{}, enemy{})
+		}
+		if over(stats, ctx) {
+			return nil
 		}
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		dt := ctx.DeltaTime.Seconds()
@@ -442,6 +568,14 @@ func enemiesSystem(hull *core.Entity) core.System {
 			contacts, _ := e.Component[collision.Contacts]()
 			if len(contacts.Current) > 0 {
 				if err := ctx.World.DestroyEntity(core.NewEntity(e.ID())); err != nil {
+					return err
+				}
+				if err := stats.Update(ctx.World, func(s *game) {
+					s.Score++
+					if s.Score >= WinScore {
+						s.Won = true
+					}
+				}); err != nil {
 					return err
 				}
 				continue
@@ -456,12 +590,53 @@ func enemiesSystem(hull *core.Entity) core.System {
 	})
 }
 
+// dangerSystem ends the run when an enemy touches the tank: the
+// hull's contacts turn non-empty, and the loss flag goes up.
+func dangerSystem(hull, stats *core.Entity) core.System {
+	return core.SystemFunc(func(ctx *core.Context) error {
+		contacts, has := hull.Component[collision.Contacts](ctx.World)
+		if !has || len(contacts.Current) == 0 {
+			return nil
+		}
+		return stats.Update(ctx.World, func(s *game) { s.Lost = true })
+	})
+}
+
+// resultSystem shows the end banner: hidden while the run lives,
+// and pinned over the tank - the camera keeps it centered - once
+// the game is won or lost.
+func resultSystem(banner, hull, stats *core.Entity) core.System {
+	return core.SystemFunc(func(ctx *core.Context) error {
+		run, _ := stats.Component[game](ctx.World)
+		if !run.Won && !run.Lost {
+			return banner.Update(ctx.World, func(s *render.Sprite) { s.Hidden = true })
+		}
+		hullTransform, _ := hull.Component[core.Transform](ctx.World)
+		if err := banner.Update(ctx.World, func(t *core.Transform) {
+			t.Position = hullTransform.Position
+		}); err != nil {
+			return err
+		}
+		text := "GAME OVER"
+		if run.Won {
+			text = "YOU WIN"
+		}
+		return banner.Update(ctx.World, func(s *render.Sprite) {
+			s.Hidden = false
+			s.Drawable = render.TextSource{Font: AssetFont, Text: text, Size: 48}
+		})
+	})
+}
+
 // reloadReadoutSystem writes the cooldown countdown as text: while
 // the gun is reloading the text shows the remaining time under the
 // turret, and when the timer is idle the text hides - the timer's
 // Running field is the whole state machine.
-func reloadReadoutSystem(readout, turret *core.Entity) core.System {
+func reloadReadoutSystem(readout, turret, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		if over(stats, ctx) {
+			return readout.Update(ctx.World, func(s *render.Sprite) { s.Hidden = true })
+		}
 		gun, _ := turret.Component[timer.Timer](ctx.World)
 		turretTransform, _ := turret.Component[core.Transform](ctx.World)
 		if err := readout.Update(ctx.World, func(t *core.Transform) {
@@ -469,10 +644,10 @@ func reloadReadoutSystem(readout, turret *core.Entity) core.System {
 		}); err != nil {
 			return err
 		}
-		return readout.Update(ctx.World, func(s *core.Sprite) {
+		return readout.Update(ctx.World, func(s *render.Sprite) {
 			if gun.Running {
 				s.Hidden = false
-				s.Drawable = core.TextSource{
+				s.Drawable = render.TextSource{
 					Font: AssetFont,
 					Text: fmt.Sprintf("reloading %.1fs", (gun.Duration - gun.Elapsed).Seconds()),
 					Size: 18,
