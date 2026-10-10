@@ -82,7 +82,9 @@ jobs:
       # entry; restore-keys above resolves to the most recent one.
       - name: Update Linux baseline (main only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: cp benchmark/current.txt benchmark/baselines/linux-latest.txt
+        run: |
+          mkdir -p benchmark/baselines
+          cp benchmark/current.txt benchmark/baselines/linux-latest.txt
 
       - name: Save Linux baseline (main only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
