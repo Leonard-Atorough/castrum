@@ -14,6 +14,7 @@ package main
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"image/color"
 	"math"
@@ -282,7 +283,9 @@ func run() error {
 
 	// The camera starts zoomed in; the follow system keeps it on
 	// the tank from the first tick.
-	if err := g.MainCamera().Update(g.World(), func(c *render.Camera) { c.Zoom = CameraZoom }); err != nil {
+	if err := g.MainCamera().Update(g.World(), func(c *core.Transform) {
+		c.Scale = geom.Vector2{X: CameraZoom, Y: CameraZoom}
+	}); err != nil {
 		return err
 	}
 
@@ -297,7 +300,7 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFixed, "player.hull.move", moveSystem(hull, stats)); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFixed, "player.turret", turretSystem(turret, hull, g.MainCamera())); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "player.turret", turretSystem(turret, hull)); err != nil {
 		return err
 	}
 	if err := g.AddSystem(core.PhaseFixed, "camera.follow", cameraSystem(g.MainCamera(), hull)); err != nil {
@@ -358,16 +361,20 @@ func moveSystem(hull, stats *core.Entity) core.System {
 	})
 }
 
-func turretSystem(turret, hull, camera *core.Entity) core.System {
+func turretSystem(turret, hull *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		cameraData, _ := camera.Component[render.Camera](ctx.World)
-		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
+		view, err := ctx.World.Resource[*render.CameraView]()
+		if errors.Is(err, core.ErrResourceNotRegistered) {
+			// The view publishes on the first draw; the first fixed
+			// tick has nothing to aim with yet.
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 
-		cursor := render.CameraView{
-			Position: cameraTransform.Position,
-			Zoom:     cameraData.Zoom,
-		}.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		cursor := view.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
 		aim := cursor.Sub(hullTransform.Position)
 
 		return turret.Update(ctx.World, func(t *core.Transform) {
@@ -466,10 +473,9 @@ func bulletsSystem(camera, stats *core.Entity) core.System {
 		}
 		dt := ctx.DeltaTime.Seconds()
 
-		cameraData, _ := camera.Component[render.Camera](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraData.Zoom)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
+		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
+		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
 
 		for e := range live.Execute() {
 			// Contacts are read through the ID, not the query entry:
@@ -542,9 +548,9 @@ func spawnSystem(spawner, hull, camera, stats *core.Entity) core.System {
 		}
 
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		cameraData, _ := camera.Component[render.Camera](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraData.Zoom)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
+		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
+		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
+		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
 
 		angle := rand.Float64() * 2 * math.Pi
 		radius := math.Hypot(halfW, halfH) + CullMargin

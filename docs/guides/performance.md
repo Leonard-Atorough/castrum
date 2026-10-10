@@ -151,7 +151,7 @@ When many entities start with the same component set, use `World.NewEntities` ra
 
 ## Reduce rendering work
 
-The renderer collects every non-hidden entity with `Sprite`, `Transform`, and the engine-managed previous transform. For each candidate it may resolve a texture or atlas region, calculate bounds, cull against the camera, and add the visible item to a sorted list.
+The renderer collects every non-hidden entity with `Sprite`, `Transform`, and the engine-managed previous transform. For each candidate it may resolve a texture or atlas region, calculate bounds, cull against the camera, and add the visible item to a sorted list. Culling under camera rotation uses a conservative circumscribed rectangle, so a rotated view may collect a few items that are just off screen.
 
 The collector reuses its working and sorted buffers across frames. That avoids an allocation per sprite in steady state, but visible sprites still cost collection, sorting, texture resolution, and backend drawing. The main levers are:
 

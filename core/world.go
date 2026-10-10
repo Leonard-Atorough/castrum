@@ -4,11 +4,17 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
 	"github.com/Leonard-Atorough/castrum/internal/ecs"
 )
+
+// ErrResourceNotRegistered reports that [World.Resource] or
+// [World.MustResource] was called for a type no [World.Provide] call
+// registered. Distinguish it from resolution failures with errors.Is.
+var ErrResourceNotRegistered = errors.New("resource is not registered")
 
 type resourceState int
 
@@ -84,7 +90,8 @@ func (w *World) provide[T any](ctor func(*World) (T, error), eager bool) error {
 }
 
 // Resource returns the registered resource of type T, resolving it on first
-// access. It returns an error if T is not registered or resolution fails.
+// access. It returns [ErrResourceNotRegistered] if T is not registered, and
+// the resolution error if the resource's constructor fails.
 func (w *World) Resource[T any]() (T, error) {
 	typ := reflect.TypeFor[T]()
 
@@ -122,7 +129,7 @@ func (w *World) ResolveEager() error {
 func (w *World) resolve(key reflect.Type) error {
 	entry, exists := w.entries[key]
 	if !exists {
-		return fmt.Errorf("resource of type %s is not registered", key)
+		return fmt.Errorf("%w: type %s", ErrResourceNotRegistered, key)
 	}
 
 	switch entry.state {

@@ -179,12 +179,15 @@ func TestMainCamera(t *testing.T) {
 		t.Fatal("MainCamera should return the engine camera")
 	}
 	cam, ok := camera.Component[render.Camera](g.World())
-	if !ok || !cam.Primary || cam.Zoom != 1 {
-		t.Fatalf("engine camera = %+v, ok %v, want primary zoom 1", cam, ok)
+	if !ok || !cam.Primary {
+		t.Fatalf("engine camera = %+v, ok %v, want primary", cam, ok)
 	}
 	transform, _ := camera.Component[core.Transform](g.World())
 	if transform.Position != (geom.Vector2{}) {
 		t.Fatalf("engine camera position = %v, want the origin", transform.Position)
+	}
+	if transform.Scale.X != 1 || transform.Scale.Y != 1 {
+		t.Fatalf("engine camera scale = %v, want zoom 1", transform.Scale)
 	}
 }
 

@@ -102,11 +102,11 @@ Check the rendering path in order:
 1. Confirm the entity has both `Transform` and `Sprite`.
 2. Confirm `Sprite.Drawable` is non-nil. A zero `Sprite` is valid but invisible.
 3. For `TextureSource`, verify the texture path and filesystem. For `AtlasSource`, verify the registered atlas and region.
-4. Confirm the entity is inside the active camera viewport and that the camera zoom is positive.
+4. Confirm the entity is inside the active camera viewport and that the camera's uniform `Transform.Scale` resolves to positive zoom.
 5. Check `Hidden`, color alpha, layer, and sort order.
 6. Inspect the returned error. Lazy texture and atlas resolution failures can surface during the first rendered frame.
 
-Every game starts with an engine camera. A user-spawned `Camera{Primary: true}` takes precedence, so check that its transform and zoom are intentional and that there is only one active user primary. See [Rendering](rendering.md) for drawable bounds, camera selection, ordering, and culling.
+Every game starts with an engine camera. A user-spawned `Camera{Primary: true}` takes precedence, so check that its transform and zoom are intentional and that there is only one active user primary. Negative or non-uniform camera `Transform.Scale` is a collect-time error. Screen-to-world systems must also skip `core.ErrResourceNotRegistered` on the first tick, before the renderer publishes `*render.CameraView`; do not call `MustResource` for this resource. See [Rendering](rendering.md) for drawable bounds, camera selection, ordering, and culling.
 
 ## A system runs at the wrong time
 

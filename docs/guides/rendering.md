@@ -148,37 +148,82 @@ The sort keys are applied in that order: layer, sort order, then interpolated wo
 
 ## The camera
 
-Every game starts with an engine-owned primary camera at the world origin with zoom 1. Access it with `g.MainCamera()`:
+Every game starts with an engine-owned primary camera at the world origin with zoom 1. A camera is composed from `render.Camera`, which supplies framing policy, and its `core.Transform`, which supplies position, rotation, and uniform zoom. Access the engine camera with `g.MainCamera()`:
 
 ```go
 camera := g.MainCamera()
 if err := camera.Update(g.World(), func(t *core.Transform) {
 	t.Position = geom.Vector2{X: 320, Y: 180}
-}); err != nil {
-	return err
-}
-if err := camera.Update(g.World(), func(c *render.Camera) {
-	c.Zoom = 2
+	t.Scale = geom.Vector2{X: 2, Y: 2}
 }); err != nil {
 	return err
 }
 ```
 
-`Camera.Zoom` must be positive. Zoom 1 leaves world scale unchanged; larger values zoom in and smaller positive values zoom out. The camera's `Transform` moves the view through the world.
+Zoom 1 leaves world scale unchanged; larger values zoom in and smaller positive values zoom out. A zero scale axis means 1, but a camera's resolved scale must be positive and uniform. Negative or non-uniform scale reports a named error during collection.
 
-When camera state belongs to a game entity, spawn another entity with `Camera` and `Transform`, and mark the camera `Primary`:
+When camera state belongs to a game entity, prefer `render.SpawnCamera`. It validates the camera policy, creates the paired transform, and treats a zero zoom as 1:
 
 ```go
-_, err := g.World().NewEntity(
-	core.Transform{Position: geom.Vector2{X: 320, Y: 180}},
-	render.Camera{Primary: true, Zoom: 1.5},
+_, err := render.SpawnCamera(
+	g.World(),
+	render.Camera{Primary: true},
+	geom.Vector2{X: 320, Y: 180},
+	1.5,
 )
 if err != nil {
 	return err
 }
 ```
 
-A user-spawned primary takes precedence over the engine camera. Keep one user primary active so camera selection stays intentional. When game code needs to connect screen-space input to world-space entities, build a `render.CameraView` from the camera entity's current `Transform.Position` and `Camera.Zoom`, then use its `WorldToScreen` or `ScreenToWorld` method. The [input example](../../examples/input) shows this pattern.
+A user-spawned primary takes precedence over the engine camera. Keep one user primary active so camera selection stays intentional.
+
+### Anchor
+
+`Camera.Anchor` says where the camera position appears in the logical viewport. Its zero value is centered. Use `geom.Vector2{X: -0.5, Y: -0.5}` to put the camera position at the top-left instead:
+
+```go
+render.Camera{
+	Primary: true,
+	Anchor:  geom.Vector2{X: -0.5, Y: -0.5},
+}
+```
+
+An anchor replaces the manual `position = {screenW/2, screenH/2}` setup pattern. Anchor coordinates range from `-0.5` through `0.5` on each axis and are validated when the component enters the world.
+
+### Rotation
+
+Camera rotation is `Transform.Rotation`. It is interpolated as a plain numeric value, not along the shortest arc. Positive rotation is counter-clockwise in world space and looks clockwise on the Y-down screen. The camera transform cancels the same sprite rotation: a sprite rotated by the same amount as the camera appears unrotated.
+
+### Bounds
+
+Set `Camera.Bounds` to an optional world-space `geom.Rect` to keep the view inside a level:
+
+```go
+render.Camera{
+	Primary: true,
+	Bounds:  geom.RectFromMinMax(geom.Vector2{}, geom.Vector2{X: 2000, Y: 1200}),
+}
+```
+
+An empty bounds rectangle means unbounded. The collector clamps the interpolated view before projection, including the effects of anchor, zoom, and rotation. When a view cannot fit on an axis, that axis pins to the bounds center; game systems do not need to reimplement camera clamping.
+
+### The resolved view resource
+
+Do not construct `CameraView` yourself. The collector publishes the resolved `*render.CameraView` as a world resource after it draws: it includes interpolation, anchor, rotation, zoom, and bounds clamping. Frame and fixed systems therefore see the most recently drawn view, which is one frame stale. On the first tick the renderer may not have registered it yet, so screen-to-world code must skip that case:
+
+```go
+view, err := ctx.World.Resource[*render.CameraView]()
+if errors.Is(err, core.ErrResourceNotRegistered) {
+	return nil
+}
+if err != nil {
+	return fmt.Errorf("read camera view: %w", err)
+}
+worldPoint := view.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+```
+
+This is the authoritative picking path: using the interpolated view makes the world target match the displayed screen position. See the [input guide](input.md) for the complete pattern.
 
 ## Overlays
 
@@ -201,7 +246,7 @@ runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 
 ## Culling and render failures
 
-The collector culls drawable bounds against the active camera viewport before sorting. Off-screen sprites still cost entity matching and collection, but they are not sent to the backend for drawing. Culling uses the drawable's bounds and does not expand them for a rotated sprite's full swept area, so a rotating object can appear at the edge as its unrotated bounds enter the view.
+The collector culls drawable bounds against the active camera viewport before sorting. Off-screen sprites still cost entity matching and collection, but they are not sent to the backend for drawing. Culling uses the drawable's bounds and does not expand them for a rotated sprite's full swept area, so a rotating object can appear at the edge as its unrotated bounds enter the view. Camera rotation uses a conservative circumscribed viewport rectangle, so it can collect some items that are just outside the rotated screen.
 
 If no primary camera exists, the world draw list is empty and overlays still run. The engine camera normally prevents that case.
 

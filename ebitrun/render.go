@@ -57,7 +57,7 @@ func newEngineDrawFunc(collector *render.Collector, provider *TextureProvider, f
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Translate(-float64(img.Bounds().Dx())/2, -float64(img.Bounds().Dy())/2)
 			op.GeoM.Scale(scaleX, scaleY)
-			op.GeoM.Rotate(item.Rotation)
+			op.GeoM.Rotate(item.Rotation - camera.Rotation)
 			op.GeoM.Translate(screenPos.X, screenPos.Y)
 
 			// ScaleWithColor applies tint and opacity together.
@@ -73,11 +73,12 @@ func newEngineDrawFunc(collector *render.Collector, provider *TextureProvider, f
 
 func drawShape(screen *ebiten.Image, item render.DrawItem, camera render.CameraView) {
 	width, height := screen.Bounds().Dx(), screen.Bounds().Dy()
+	rotation := item.Rotation - camera.Rotation
 
 	switch shape := item.Shape.(type) {
 	case render.RectShape:
 		center := camera.WorldToScreen(item.Position, width, height)
-		corners := rectCorners(center, shape.Size, item.Scale, camera.Zoom, item.Rotation)
+		corners := rectCorners(center, shape.Size, item.Scale, camera.Zoom, rotation)
 		var path vector.Path
 		path.MoveTo(float32(corners[0].X), float32(corners[0].Y))
 		for _, corner := range corners[1:] {
@@ -87,7 +88,7 @@ func drawShape(screen *ebiten.Image, item render.DrawItem, camera render.CameraV
 		fillOrStrokePath(screen, &path, item.Color, item, camera.Zoom)
 	case render.CircleShape:
 		center := camera.WorldToScreen(item.Position, width, height)
-		points := ellipsePoints(center, shape.Radii, item.Scale, camera.Zoom, item.Rotation)
+		points := ellipsePoints(center, shape.Radii, item.Scale, camera.Zoom, rotation)
 		var path vector.Path
 		path.MoveTo(float32(points[0].X), float32(points[0].Y))
 		for q := 1; q < 12; q += 3 {
@@ -101,8 +102,8 @@ func drawShape(screen *ebiten.Image, item render.DrawItem, camera render.CameraV
 		fillOrStrokePath(screen, &path, item.Color, item, camera.Zoom)
 	case render.LineShape:
 		start := camera.WorldToScreen(item.Position, width, height)
-		from := offsetPoint(start, shape.From, item.Scale, camera.Zoom, item.Rotation)
-		to := offsetPoint(start, shape.To, item.Scale, camera.Zoom, item.Rotation)
+		from := offsetPoint(start, shape.From, item.Scale, camera.Zoom, rotation)
+		to := offsetPoint(start, shape.To, item.Scale, camera.Zoom, rotation)
 		vector.StrokeLine(screen, float32(from.X), float32(from.Y), float32(to.X), float32(to.Y),
 			float32(item.StrokeWidth*camera.Zoom), item.Color, true)
 	}
@@ -188,7 +189,7 @@ func drawText(screen *ebiten.Image, fonts *FontProvider, item render.DrawItem, c
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(-item.TextWidth/2, -item.TextHeight/2)
 	op.GeoM.Scale(scaleX, scaleY)
-	op.GeoM.Rotate(item.Rotation)
+	op.GeoM.Rotate(item.Rotation - camera.Rotation)
 	op.GeoM.Translate(screenPos.X, screenPos.Y)
 	op.ColorScale.ScaleWithColor(item.Color)
 	text.Draw(screen, item.Text, face, op)

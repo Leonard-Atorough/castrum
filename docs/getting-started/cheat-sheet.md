@@ -70,6 +70,24 @@ w.Provide(func(*core.World) (*T, error) { return &T{}, nil })  // once, before s
 v, err := w.Resource[*T]()                                     // by type
 ```
 
+## Cameras
+
+```go
+camera, err := render.SpawnCamera(
+	w,
+	render.Camera{
+		Primary: true,
+		Anchor:  geom.Vector2{X: -0.5, Y: -0.5},
+		Bounds:  geom.RectFromMinMax(geom.Vector2{}, geom.Vector2{X: 2000, Y: 1200}),
+	},
+	geom.Vector2{},
+	1.5,
+)
+_ = camera
+```
+
+`SpawnCamera` is the normal construction path. Camera zoom is the paired transform's uniform `Scale`; zero means 1. Update it with `Scale: geom.Vector2{X: zoom, Y: zoom}`, not a `Camera` field. `Anchor` defaults to centered; an empty `Bounds` is unbounded.
+
 ## Input
 
 ```go
