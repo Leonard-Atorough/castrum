@@ -61,7 +61,7 @@ jobs:
           fetch-depth: 0
           # Do not persist the job's GITHUB_TOKEN in git config: its
           # Authorization header would override the app token embedded in
-          # the push URL, making GitHub reject the push as github-actions[bot].
+          # the push URL, making GitHub reject the push as github-castrum[bot].
           persist-credentials: false
 
       - name: Install git-cliff
@@ -75,7 +75,6 @@ jobs:
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
 
       - name: Compute next version
         id: version
@@ -148,8 +147,8 @@ jobs:
         env:
           APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-castrum[bot]"
+          git config user.email "41898282+github-castrum[bot]@users.noreply.github.com"
           git add CHANGELOG.md
           git commit -m "chore(release): ${{ steps.version.outputs.version }}"
           git tag "${{ steps.version.outputs.version }}"
