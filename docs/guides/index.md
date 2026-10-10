@@ -20,6 +20,7 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 
 ## Gameplay
 
+- [Time control](time-control.md) - pausing, resuming, and scaling the fixed simulation.
 - [Collision](collision.md) - colliders, layers and masks, and the Contacts lifecycle.
 - [Timers](timer.md) - one-shot and repeating countdowns as component state.
 

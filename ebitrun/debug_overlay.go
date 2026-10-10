@@ -7,6 +7,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 
+	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
@@ -14,8 +15,10 @@ import (
 // updates; short enough to feel live, long enough for a stable read.
 const overlayWindow = 500 * time.Millisecond
 
-// debugOverlay samples and draws the runner's frame and tick rates.
+// debugOverlay samples and draws the runner's frame and tick rates, plus
+// the game's pause state and time scale.
 type debugOverlay struct {
+	game    *castrum.Game
 	started bool
 	last    time.Time
 	tick    uint64
@@ -24,8 +27,8 @@ type debugOverlay struct {
 	tps     float64
 }
 
-func newDebugOverlay() *debugOverlay {
-	return &debugOverlay{}
+func newDebugOverlay(game *castrum.Game) *debugOverlay {
+	return &debugOverlay{game: game}
 }
 
 // sample records one display frame and, once a window has passed,
@@ -52,6 +55,20 @@ func (o *debugOverlay) sample(now time.Time, tick uint64) {
 // draw samples the frame and renders the current rates.
 func (o *debugOverlay) draw(ctx *core.Context, screen *ebiten.Image) error {
 	o.sample(time.Now(), ctx.Tick)
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("fps %.1f  tps %.1f", o.fps, o.tps))
+	ebitenutil.DebugPrint(screen, o.status())
 	return nil
+}
+
+// status renders the overlay line: frame and tick rates, then the pause
+// state and time scale when either departs from its default. Paused games
+// still read their true frame rate; the tick rate naturally falls to zero.
+func (o *debugOverlay) status() string {
+	line := fmt.Sprintf("fps %.1f  tps %.1f", o.fps, o.tps)
+	if o.game.Paused() {
+		line += "  paused"
+	}
+	if scale := o.game.TimeScale(); scale != 1 {
+		line += fmt.Sprintf("  scale %.2g", scale)
+	}
+	return line
 }

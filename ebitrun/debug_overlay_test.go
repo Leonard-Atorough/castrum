@@ -2,6 +2,7 @@ package ebitrun
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,9 +37,45 @@ func TestDebugOverlayOption(t *testing.T) {
 	}
 }
 
+// The status line shows pause and scale only when they depart from the
+// defaults; the rates always render.
+func TestDebugOverlayStatusShowsTimeControl(t *testing.T) {
+	g, err := castrum.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := newDebugOverlay(g)
+
+	line := o.status()
+	if !strings.Contains(line, "fps 0.0") || !strings.Contains(line, "tps 0.0") {
+		t.Errorf("status %q, want the rate fields", line)
+	}
+	if strings.Contains(line, "paused") || strings.Contains(line, "scale") {
+		t.Errorf("status %q, want no time-control fields at defaults", line)
+	}
+
+	if err := g.SetTimeScale(0.5); err != nil {
+		t.Fatal(err)
+	}
+	if line = o.status(); !strings.Contains(line, "scale 0.5") {
+		t.Errorf("status %q, want the half-speed scale", line)
+	}
+
+	g.Pause()
+	if line = o.status(); !strings.Contains(line, "paused") || !strings.Contains(line, "scale 0.5") {
+		t.Errorf("status %q, want paused alongside the scale", line)
+	}
+
+	g.Resume()
+	g.SetTimeScale(1)
+	if line = o.status(); strings.Contains(line, "paused") || strings.Contains(line, "scale") {
+		t.Errorf("status %q, want time-control fields gone after reset", line)
+	}
+}
+
 // Rates stay zero until a full sample window has passed.
 func TestDebugOverlayWaitsForWindow(t *testing.T) {
-	o := newDebugOverlay()
+	o := newDebugOverlay(nil)
 	start := time.Now()
 	for range 10 {
 		o.sample(start.Add(10*time.Millisecond), 1)
@@ -53,7 +90,7 @@ func TestDebugOverlayWaitsForWindow(t *testing.T) {
 // 60 tps. The next window starts fresh, so slowing ticks to 20 per
 // second reads 20 while the frame rate holds.
 func TestDebugOverlayMeasuresRates(t *testing.T) {
-	o := newDebugOverlay()
+	o := newDebugOverlay(nil)
 	start := time.Now()
 	for i := range 31 {
 		o.sample(start.Add(time.Duration(i)*time.Second/60), uint64(i))

@@ -81,6 +81,12 @@ type Game struct {
 	started atomic.Bool
 	startup atomic.Bool
 	quit    atomic.Bool
+
+	// paused and timeScale are the game-level time controls. They are plain
+	// fields under the engine's single-threaded contract: mutators run on
+	// the same goroutine as Advance.
+	paused    bool
+	timeScale float64
 }
 
 type option interface {
@@ -118,6 +124,7 @@ func New(opts ...option) (*Game, error) {
 		opts:      options,
 		world:     core.NewWorld(),
 		schedules: map[core.Phase]*runtime.Schedule[core.System]{},
+		timeScale: 1,
 	}
 	g.ctx.World = g.world
 
@@ -275,6 +282,13 @@ func (g *Game) Startup() error {
 // Advance runs one display frame: ScheduleFrame, then every fixed tick due
 // for elapsed, clamped to MaxFrameTime. Runners call it once per platform
 // frame with the time since the previous call.
+//
+// While the game is paused (see [Game.Pause]), the frame phase still runs
+// and DeltaTime still reports unscaled wall-clock elapsed time, but no
+// time is accumulated and no fixed ticks run. Time scaling (see
+// [Game.SetTimeScale]) multiplies only the elapsed time contributed to the
+// fixed-loop accumulator; DeltaTime and the frame phase are unaffected.
+// Both controls take effect on the next call.
 func (g *Game) Advance(elapsed time.Duration) error {
 	if elapsed > g.opts.MaxFrameTime {
 		elapsed = g.opts.MaxFrameTime
@@ -284,7 +298,10 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	if err := g.run(core.PhaseFrame); err != nil {
 		return err
 	}
-	g.acc += elapsed
+	if g.paused {
+		return nil
+	}
+	g.acc += time.Duration(float64(elapsed) * g.timeScale)
 	ticked := 0
 	for g.acc >= g.opts.fixedDT {
 		g.ctx.Tick++
@@ -303,8 +320,57 @@ func (g *Game) Advance(elapsed time.Duration) error {
 }
 
 // Alpha returns the fixed-loop remainder over the tick interval, in [0, 1).
+//
+// While the game is paused, the accumulator holds its value, so Alpha stays
+// fixed; renderers keep the last interpolated position instead of jumping.
 func (g *Game) Alpha() float64 {
 	return float64(g.acc) / float64(g.opts.fixedDT)
+}
+
+// Pause stops fixed updates: no time accumulates and no fixed ticks run.
+// Frame updates, input polling, and rendering continue, so pause menus and
+// overlays keep working; the frame phase sees unscaled wall-clock time.
+// Pause takes effect on the next [Game.Advance] call.
+//
+// Pause is not the same as a time scale of zero: pausing does not touch
+// [Game.TimeScale], and the accumulator resumes from where it stopped.
+// Timers and animation advance with the fixed tick and therefore pause
+// automatically; audio is not auto-paused - games opt in through the Mixer.
+func (g *Game) Pause() {
+	g.paused = true
+}
+
+// Resume reverses [Game.Pause]. Fixed updates continue from the exact
+// accumulator position they stopped at, so no paused time is recovered.
+func (g *Game) Resume() {
+	g.paused = false
+}
+
+// Paused reports whether fixed updates are stopped by [Game.Pause].
+func (g *Game) Paused() bool {
+	return g.paused
+}
+
+// TimeScale returns the multiplier applied to the time accumulated toward
+// fixed ticks: 0.5 is half speed, 2 is fast forward. The default is 1.
+func (g *Game) TimeScale() float64 {
+	return g.timeScale
+}
+
+// SetTimeScale sets the multiplier applied to the time accumulated toward
+// fixed ticks. It returns an error for a scale of zero or less; use
+// [Game.Pause] to stop the simulation, a zero scale would silently
+// discard accumulated time on resume.
+//
+// The scale multiplies only the accumulator's time contribution; the frame
+// phase and [core.Context.DeltaTime] during frame updates are unaffected.
+// The new scale takes effect on the next [Game.Advance] call.
+func (g *Game) SetTimeScale(scale float64) error {
+	if scale <= 0 {
+		return fmt.Errorf("castrum: time scale %v, want > 0; use Pause to stop the simulation", scale)
+	}
+	g.timeScale = scale
+	return nil
 }
 
 // Context returns the live context. Runners use it when running their draw
