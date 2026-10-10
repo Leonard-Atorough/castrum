@@ -67,10 +67,17 @@ jobs:
 
       - name: Mint app installation token
         id: app-token
-        uses: tibdex/github-app-token@v2
+        uses: actions/create-github-app-token@v2
         with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Identify token actor
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          curl -s -H "Authorization: Bearer ${APP_TOKEN}" https://api.github.com/user \
+            | jq -r '"Push actor: \(.login)"'
 
       - name: Compute next version
         id: version

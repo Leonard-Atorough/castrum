@@ -45,6 +45,8 @@ filter_unconventional = false
 commit_parsers = [
   # Skip merge commits and CI/format noise
   { message = "^Merge (pull request|branch|remote-tracking branch)", skip = true },
+  # Skip release commits so version bumps don't appear in the next changelog
+  { message = "^chore\\(release\\)", skip = true },
   { message = "^(fmt|go fmt|format fix|format fixes|format files|spacing fix)", skip = true },
   { message = "^(clean up|remove (old|unnecessary|debug|comented))", skip = true },
   { message = "^[Pp]otential fix", skip = true },
