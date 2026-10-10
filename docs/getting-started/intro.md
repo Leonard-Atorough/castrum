@@ -15,25 +15,7 @@ The engine is built around an entity-component system. Entities are identities, 
 
 When a component contains invalid data, Castrum returns an error when it enters the world. Errors are values throughout the API; the tutorial returns them to `main`, where the example panics if setup cannot continue.
 
-## What works today
-
-Castrum currently gives you the core pieces for small 2D games:
-
-- sprites and shape primitives, including standalone textures and grid atlases
-- cameras, viewport culling, draw ordering, and interpolated position
-- fixed-timestep simulation with startup, frame, and fixed phases
-- named keyboard, mouse, and gamepad bindings, plus raw input snapshots
-- atlas-based animation
-- sound effects, streamed music, volume buses, and pause behavior
-- entities, components, queries, and typed world resources
-
-The [README](../../README.md) keeps the feature list current.
-
-## What is not here yet
-
-Some common game features are still planned: timers, events, entity hierarchies, scenes, collision, scripting, text, UI, and fullscreen or other window state. Physics and 3D are outside Castrum's current 2D scope.
-
-The current runner is `ebitrun`, backed by Ebitengine. Games run on one loop thread, audio supports MP3, OGG Vorbis, and WAV (8- and 16-bit PCM), and position is interpolated between ticks while rotation and scale currently are not. The API is pre-1.0, so releases may include breaking changes.
+For a structured summary of what the engine supports today, see the [feature overview](features.md).
 
 ## Start building
 
