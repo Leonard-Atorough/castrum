@@ -76,8 +76,9 @@ jobs:
         env:
           APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          curl -s -H "Authorization: Bearer ${APP_TOKEN}" https://api.github.com/user \
-            | jq -r '"Push actor: \(.login)"'
+          curl -s -H "Authorization: Bearer ${APP_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/installation" \
+            | jq '{status: .message, app_slug: .app_slug, app_id: .app_id}'
 
       - name: Compute next version
         id: version
