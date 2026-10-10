@@ -139,7 +139,7 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 
 	runner := &Runner{g: g, opts: options, last: time.Now(), engine: engineDraw}
 	if options.DebugOverlay {
-		overlay := newDebugOverlay()
+		overlay := newDebugOverlay(g)
 		runner.AddDraw(overlay.draw)
 	}
 	return runner, nil
@@ -266,10 +266,12 @@ func WithAudioSampleRate(sampleRate int) option {
 }
 
 // WithDebugOverlay draws a development overlay in the window's top-left
-// corner: fps counts the display frames rendered per second, and tps counts
-// the fixed simulation ticks the engine advances per second. The overlay
-// draws only - it never changes simulation timing or game state - and is
-// off unless the option is passed.
+// corner: fps counts the display frames rendered per second, tps counts
+// the fixed simulation ticks the engine advances per second, and the
+// game's paused state and time scale appear whenever they depart from
+// running at full speed. The overlay draws only - it never changes
+// simulation timing or game state - and is off unless the option is
+// passed.
 func WithDebugOverlay() option {
 	return optionFunc(func(o *Options) { o.DebugOverlay = true })
 }

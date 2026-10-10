@@ -1,6 +1,6 @@
 module github.com/Leonard-Atorough/castrum
 
-go 1.27.0
+go 1.27.2
 
 require (
 	github.com/go-text/typesetting v0.3.5
