@@ -27,6 +27,11 @@ type resourceEntry[T any] struct {
 const defaultEagerCapacity = 8
 
 // World owns a game's entities, components, and registered resources.
+//
+// A World is not safe for concurrent use. In a running game, access it from
+// the engine goroutine, including from systems. To do work on another
+// goroutine, copy the needed data and return results to the engine goroutine.
+// The asset server's loading API is safe to call from other goroutines.
 type World struct {
 	// entries holds every registered resource by its type, from
 	// registration through resolution.

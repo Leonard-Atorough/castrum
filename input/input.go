@@ -1,6 +1,10 @@
 // Package input provides backend-independent keyboard, mouse, and gamepad
 // types. [Snapshot] records physical input, and [ActionMap] resolves it into
 // game actions.
+//
+// A runner samples device state into a [Snapshot], which systems read during
+// a game phase. The package defines input state and bindings, not device
+// polling or event delivery.
 package input
 
 import "fmt"
