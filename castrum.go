@@ -164,6 +164,11 @@ func New(opts ...option) (*Game, error) {
 		if err := g.AddSystem(core.PhaseFixed, timer.SystemName, timer.NewSystem()); err != nil {
 			return nil, err
 		}
+		if err := g.world.Provide(func(*core.World) (*timer.Groups, error) {
+			return timer.NewGroups(), nil
+		}); err != nil {
+			return nil, fmt.Errorf("castrum: provide timer groups: %w", err)
+		}
 	}
 
 	mixer := audio.NewMixer()
