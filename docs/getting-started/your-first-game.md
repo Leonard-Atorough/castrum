@@ -516,10 +516,9 @@ func bulletsSystem(camera *core.Entity) core.System {
 		}
 		dt := ctx.DeltaTime.Seconds()
 
-		cameraData, _ := camera.Component[render.Camera](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraData.Zoom)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
+		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
+		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
 
 		for e := range live.Execute() {
 			e.Update(func(t *core.Transform) {
@@ -693,9 +692,9 @@ func spawnSystem(spawner, hull, camera *core.Entity) core.System {
 		}
 
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		cameraData, _ := camera.Component[render.Camera](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraData.Zoom)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
+		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
+		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
+		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
 
 		angle := rand.Float64() * 2 * math.Pi
 		radius := math.Hypot(halfW, halfH) + CullMargin
@@ -1002,9 +1001,9 @@ func spawnSystem(spawner, hull, camera, stats *core.Entity) core.System {
 		}
 
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		cameraData, _ := camera.Component[render.Camera](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraData.Zoom)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
+		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
+		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
+		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
 
 		angle := rand.Float64() * 2 * math.Pi
 		radius := math.Hypot(halfW, halfH) + CullMargin
