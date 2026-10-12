@@ -4,6 +4,7 @@ package render
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -129,8 +130,12 @@ func NewCollector(world *core.World) *Collector {
 // culls to the view, and sorts items by layer, sort order, then world Y.
 // Text bounds use [asset.FontData.Measure].
 //
-// Collect also publishes the resolved view as the world's [*CameraView]
-// resource, updated on every call; it holds the most recently drawn view.
+// When a primary camera is available, Collect publishes the resolved view as
+// the world's [*CameraView] resource once collection succeeds: the resource
+// always describes a drawn frame. A failed Collect publishes nothing - the
+// resource keeps the previous frame's view, and a first Collect that fails
+// registers no resource. Calls without a primary camera leave the resource
+// unchanged.
 //
 // If no primary camera is available, Collect returns an empty list without an
 // error. Asset lookup and loading errors are returned; shapes require no assets.
@@ -151,18 +156,9 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 	if err != nil {
 		return DrawList{}, err
 	}
-	if err := c.initializeView(ctx.World); err != nil {
-		return DrawList{}, err
-	}
-	*c.view = camera
 
-	// Culling uses the view's conservative world rectangle: the
-	// viewport, expanded to cover rotation and shifted by the anchor.
 	viewport := camera.aabb
 
-	// The asset server resolves lazily: a frame whose drawables are
-	// all shapes never touches it, so a shape-only world needs no
-	// asset wiring at all.
 	var server *asset.Server
 	assetServer := func() (*asset.Server, error) {
 		if server == nil {
@@ -189,14 +185,11 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			transform.Scale.Y = 1
 		}
 
-		// Rotation and scale interpolate alongside position; size
-		// and culling below use the interpolated scale.
 		scale := prev.Scale.Lerp(transform.Scale, ctx.Alpha)
 		rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*ctx.Alpha
 
 		switch drawable := sprite.Drawable.(type) {
 		case nil:
-			// Style without a picture: legal, not drawn.
 			continue
 		case AtlasSource:
 			srv, err := assetServer()
@@ -213,7 +206,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			}
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
-				geom.Vector2{}, // sprites are centered on the position
+				geom.Vector2{},
 				geom.Vector2{
 					X: float64(region.W) * scale.X,
 					Y: float64(region.H) * scale.Y,
@@ -238,7 +231,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			}
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
-				geom.Vector2{}, // sprites are centered on the position
+				geom.Vector2{},
 				geom.Vector2{
 					X: float64(data.Width) * scale.X,
 					Y: float64(data.Height) * scale.Y,
@@ -254,7 +247,6 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 				})
 		case TextSource:
 			if drawable.Text == "" {
-				// Nothing to draw, like a nil drawable.
 				continue
 			}
 			srv, err := assetServer()
@@ -268,13 +260,11 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			textWidth, textHeight := font.Measure(drawable.Size, drawable.Text)
 			fill := sprite.Color
 			if fill == nil {
-				// Text defaults to white, not black: text on a screen
-				// has no authored color to inherit.
 				fill = color.White
 			}
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
-				geom.Vector2{}, // text is centered on the position
+				geom.Vector2{},
 				geom.Vector2{
 					X: textWidth * scale.X,
 					Y: textHeight * scale.Y,
@@ -292,7 +282,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		case RectShape:
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
-				geom.Vector2{}, // rects are centered on the position
+				geom.Vector2{},
 				geom.Vector2{
 					X: drawable.Size.X * scale.X,
 					Y: drawable.Size.Y * scale.Y,
@@ -301,16 +291,14 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		case CircleShape:
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
-				geom.Vector2{}, // circles are centered on the position
+				geom.Vector2{},
 				geom.Vector2{
 					X: 2 * drawable.Radii.X * scale.X,
 					Y: 2 * drawable.Radii.Y * scale.Y,
 				},
 				shapeItem(sprite, rotation, scale, drawable))
 		case LineShape:
-			// The segment spans the two relative endpoints, so its
-			// culling bounds are the segment's own AABB, offset from
-			// the position by its center.
+
 			segment := geom.Segment{
 				Start: geom.Vector2{
 					X: drawable.From.X * scale.X,
@@ -345,6 +333,11 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 	for _, item := range c.working {
 		c.SortedItems = append(c.SortedItems, item.DrawItem)
 	}
+
+	if err := c.initializeView(ctx.World); err != nil {
+		return DrawList{}, err
+	}
+	*c.view = camera
 	return DrawList{Camera: camera, Items: c.SortedItems}, nil
 }
 
@@ -370,9 +363,13 @@ func (c *Collector) initializeView(world *core.World) error {
 	if c.view != nil {
 		return nil
 	}
-	if existing, err := world.Resource[*CameraView](); err == nil {
+	existing, err := world.Resource[*CameraView]()
+	if err == nil {
 		c.view = existing
 		return nil
+	}
+	if !errors.Is(err, core.ErrResourceNotRegistered) {
+		return fmt.Errorf("castrum: collect: resolve existing camera view: %w", err)
 	}
 	view := &CameraView{}
 	if err := world.Provide(func(*core.World) (*CameraView, error) {

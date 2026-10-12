@@ -21,6 +21,7 @@ func TestCameraValidate(t *testing.T) {
 	for name, anchor := range map[string]geom.Vector2{
 		"x beyond viewport": {X: 0.75, Y: 0},
 		"y beyond viewport": {X: 0, Y: -1},
+		"nan anchor":        {X: math.NaN(), Y: 0},
 	} {
 		if err := (Camera{Anchor: anchor}).Validate(); err == nil {
 			t.Errorf("Camera with %s should fail validation", name)
@@ -221,6 +222,8 @@ func TestSpawnCamera(t *testing.T) {
 	}{
 		{"anchor out of range", Camera{Anchor: geom.Vector2{X: 1}}, 1},
 		{"negative zoom", Camera{Primary: true}, -1},
+		{"infinite zoom", Camera{Primary: true}, math.Inf(1)},
+		{"nan zoom", Camera{Primary: true}, math.NaN()},
 	} {
 		if _, err := SpawnCamera(w, tc.cam, geom.Vector2{}, tc.zoom); err == nil {
 			t.Errorf("SpawnCamera with %s should fail", tc.name)
@@ -248,6 +251,8 @@ func TestCameraZoom(t *testing.T) {
 	}{
 		{"negative zoom", geom.Vector2{X: -1, Y: -1}, geom.Vector2{X: 1, Y: 1}},
 		{"non-uniform zoom", geom.Vector2{X: 1, Y: 1}, geom.Vector2{X: 1, Y: 2}},
+		{"infinite zoom", geom.Vector2{X: math.Inf(1), Y: math.Inf(1)}, geom.Vector2{X: math.Inf(1), Y: math.Inf(1)}},
+		{"nan zoom", geom.Vector2{X: math.NaN(), Y: math.NaN()}, geom.Vector2{X: 1, Y: 1}},
 	} {
 		if _, err := cameraZoom(tc.prev, tc.curr, 0.5); err == nil {
 			t.Errorf("%s should fail validation", tc.name)

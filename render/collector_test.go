@@ -2,6 +2,7 @@ package render
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -947,6 +948,7 @@ func TestCollectRejectsInvalidCameraScale(t *testing.T) {
 	}{
 		{"negative zoom", geom.Vector2{X: -1, Y: -1}},
 		{"non-uniform zoom", geom.Vector2{X: 1, Y: 2}},
+		{"infinite zoom", geom.Vector2{X: math.Inf(1), Y: math.Inf(1)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := newCollectorWorld(t)
@@ -992,4 +994,44 @@ func TestCollectPublishesViewResource(t *testing.T) {
 
 	// A second collector adopts the same resource instead of failing.
 	collect(t, NewCollector(w), drawContext(w, 1))
+}
+
+// A failed Collect publishes no view: the resource describes drawn frames
+// only. A first Collect that fails registers no resource at all, and a
+// later failure leaves the previous frame's view in place.
+func TestCollectFailurePublishesNoView(t *testing.T) {
+	// A later failure: the view keeps the last successful frame's
+	// framing instead of the failed frame's.
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{X: 10, Y: 0}, 1, true)
+	spawnTextureSprite(t, w, "tex.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
+	collector := NewCollector(w)
+	collect(t, collector, drawContext(w, 0))
+	view, err := w.Resource[*CameraView]()
+	if err != nil {
+		t.Fatalf("resolve view resource: %v", err)
+	}
+	if want := (geom.Vector2{}); view.Position != want {
+		t.Fatalf("first view position = %v, want %v", view.Position, want)
+	}
+
+	spawnTextureSprite(t, w, "missing.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
+	if _, err := collector.Collect(drawContext(w, 1)); err == nil {
+		t.Fatal("second Collect should fail on the missing texture")
+	}
+	if view.Position != (geom.Vector2{}) {
+		t.Errorf("failed Collect published the failed frame's view %v; want it to keep the drawn frame's",
+			view.Position)
+	}
+
+	// A failing first Collect never registers the resource.
+	broken := newCollectorWorld(t)
+	spawnCamera(t, broken, geom.Vector2{}, geom.Vector2{}, 1, true)
+	spawnTextureSprite(t, broken, "missing.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
+	if _, err := NewCollector(broken).Collect(drawContext(broken, 0)); err == nil {
+		t.Fatal("broken Collect should fail")
+	}
+	if _, err := broken.Resource[*CameraView](); !errors.Is(err, core.ErrResourceNotRegistered) {
+		t.Errorf("failed first Collect registered a view: %v, want ErrResourceNotRegistered", err)
+	}
 }

@@ -8,24 +8,23 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// Camera defines the framing for a camera entity. Pair it with a
-// [core.Transform]: the transform's position and rotation are the
-// camera's, and its uniform Scale is the camera's zoom, where zero
-// components mean 1. The renderer uses a primary camera and interpolates
-// it like any other entity. A user-spawned primary takes precedence over
-// the engine's default camera.
+// Camera defines the framing of a camera entity.
+//
+// Its [core.Transform] supplies the position, rotation, and uniform zoom;
+// zero scale components mean 1. The [Collector] selects a primary camera,
+// preferring user-spawned cameras over the engine camera.
 type Camera struct {
 	// Primary marks this camera as eligible for rendering.
 	Primary bool
 	// Anchor is the viewport point the camera's position maps to: (0,0)
 	// is the center and (-0.5,-0.5) is the top-left corner.
 	Anchor geom.Vector2
-	// Bounds is the world-space rectangle the camera keeps its view
-	// inside. A zero or empty rectangle means unbounded.
+	// Bounds limits the camera view to a world-space rectangle. An empty
+	// rectangle means the view is unbounded.
 	Bounds geom.Rect
 }
 
-// Validate checks that the camera's anchor lies within the viewport.
+// Validate reports an error if the camera's anchor lies outside the viewport.
 func (c Camera) Validate() error {
 	if math.IsNaN(c.Anchor.X) || c.Anchor.X < -0.5 || c.Anchor.X > 0.5 {
 		return fmt.Errorf("anchor X must be between -0.5 and 0.5, got %v", c.Anchor.X)
@@ -36,16 +35,15 @@ func (c Camera) Validate() error {
 	return nil
 }
 
-// SpawnCamera creates a new camera entity in the given world at the specified
-// position with the given zoom; zero zoom means 1. Invalid framing or a
-// negative zoom fail at setup. The camera renders only when cam.Primary is
-// set.
+// SpawnCamera creates a camera entity in w at position with the given zoom.
+// A zoom of zero means 1. It returns an error for an invalid anchor or a
+// negative or non-finite zoom.
 func SpawnCamera(w *core.World, cam Camera, position geom.Vector2, zoom float64) (*core.Entity, error) {
 	if err := cam.Validate(); err != nil {
 		return nil, err
 	}
-	if zoom < 0 {
-		return nil, fmt.Errorf("camera zoom must not be negative, got %v", zoom)
+	if zoom < 0 || math.IsNaN(zoom) || math.IsInf(zoom, 0) {
+		return nil, fmt.Errorf("camera zoom must be finite and not negative, got %v", zoom)
 	}
 	if zoom == 0 {
 		zoom = 1
@@ -61,7 +59,8 @@ func SpawnCamera(w *core.World, cam Camera, position geom.Vector2, zoom float64)
 type engineCamera struct{}
 
 // SpawnEngineCamera creates the engine's default primary camera at the world
-// origin with zoom 1. It is used as a fallback when no user primary camera is available.
+// origin with zoom 1. [Collector] uses it when no user-spawned primary camera
+// is available.
 func SpawnEngineCamera(w *core.World) (*core.Entity, error) {
 	return w.NewEntity(
 		Camera{Primary: true},
@@ -70,18 +69,18 @@ func SpawnEngineCamera(w *core.World) (*core.Entity, error) {
 	)
 }
 
-// CameraView is a camera's resolved framing for a rendered frame:
-// interpolated position and rotation, zoom, and the anchor. The collector
-// publishes it as the world's [*CameraView] resource; it holds the most
-// recently drawn view, one frame stale for frame-phase readers.
+// CameraView is the resolved framing of a camera for one collected frame.
+//
+// A [Collector] publishes it as the world's [*CameraView] resource. Frame-phase
+// readers see the previous frame's view.
 type CameraView struct {
 	// Position is the interpolated camera position in world space.
 	Position geom.Vector2
 	// Zoom is the scale used to project between world and screen coordinates.
 	Zoom float64
-	// Rotation is the camera's interpolated rotation in radians. Positive
-	// values rotate the camera counter-clockwise in world space; a sprite
-	// rotated the same amount appears unrotated.
+	// Rotation is the interpolated camera rotation in radians. Positive values
+	// rotate the view counterclockwise; sprites with the same rotation appear
+	// unrotated.
 	Rotation float64
 	// Anchor is the viewport point the camera's position maps to: (0,0)
 	// is the center and (-0.5,-0.5) is the top-left corner.
@@ -93,10 +92,9 @@ type CameraView struct {
 	aabb geom.Rect
 }
 
-// WorldToScreen projects a world-space point to pixel coordinates in a
-// render target of the given size. The camera's position maps to its
-// anchor point in the viewport. Each coordinate is rounded to the nearest
-// whole pixel.
+// WorldToScreen projects a world-space point to pixel coordinates for a
+// viewport of the given size. The camera's position maps to its anchor, and
+// each coordinate is rounded to the nearest pixel.
 func (v CameraView) WorldToScreen(world geom.Vector2, screenWidth, screenHeight int) geom.Vector2 {
 	d := world.Sub(v.Position).Rotate(-v.Rotation)
 	p := d.Mul(v.Zoom).Add(anchorOffset(v.Anchor, screenWidth, screenHeight))
@@ -110,9 +108,6 @@ func (v CameraView) ScreenToWorld(screen geom.Vector2, screenWidth, screenHeight
 	return d.Add(v.Position)
 }
 
-// anchorOffset returns the screen-space position of the camera's anchor
-// point: the zero anchor sits at the viewport's center, and the anchor
-// range [-0.5, 0.5] spans the viewport.
 func anchorOffset(anchor geom.Vector2, width, height int) geom.Vector2 {
 	return geom.Vector2{
 		X: (anchor.X + 0.5) * float64(width),
@@ -120,10 +115,6 @@ func anchorOffset(anchor geom.Vector2, width, height int) geom.Vector2 {
 	}
 }
 
-// cameraZoom interpolates a camera's [core.Transform] scale into a uniform
-// zoom. Zero components mean 1, as elsewhere in the engine; a negative or
-// non-uniform scale is invalid framing, because a camera view must not be
-// anisotropic. Errors name the offending scale.
 func cameraZoom(prev, curr geom.Vector2, alpha float64) (float64, error) {
 	if prev.X == 0 {
 		prev.X = 1
@@ -144,6 +135,11 @@ func cameraZoom(prev, curr geom.Vector2, alpha float64) (float64, error) {
 		{"previous", prev},
 		{"current", curr},
 	} {
+
+		if math.IsInf(s.scale.X, 0) || math.IsInf(s.scale.Y, 0) ||
+			math.IsNaN(s.scale.X) || math.IsNaN(s.scale.Y) {
+			return 0, fmt.Errorf("camera zoom (Transform.Scale) must be finite, %s scale %v", s.when, s.scale)
+		}
 		if s.scale.X <= 0 || s.scale.Y <= 0 {
 			return 0, fmt.Errorf("camera zoom (Transform.Scale) must be positive, %s scale %v", s.when, s.scale)
 		}
@@ -154,9 +150,6 @@ func cameraZoom(prev, curr geom.Vector2, alpha float64) (float64, error) {
 	return prev.Lerp(curr, alpha).X, nil
 }
 
-// resolveCamera interpolates a camera entity into its view for a frame,
-// applies bounds clamping, and derives the culling rectangle. Width and
-// height are the logical resolution.
 func resolveCamera(cam Camera, prev core.PrevTransform, curr core.Transform, alpha float64, width, height int) (CameraView, error) {
 	zoom, err := cameraZoom(prev.Scale, curr.Scale, alpha)
 	if err != nil {
@@ -175,9 +168,8 @@ func resolveCamera(cam Camera, prev core.PrevTransform, curr core.Transform, alp
 	return view, nil
 }
 
-// viewGeometry returns the world-space vector from the camera position
-// to the center of its anchored view, and the view's half size, expanded
-// to cover rotation (its circumscribed half extents).
+// The circumscribed extents keep culling and bounds checks conservative for
+// rotated views.
 func (v CameraView) viewGeometry(width, height int) (offset, half geom.Vector2) {
 	viewW := float64(width) / v.Zoom
 	viewH := float64(height) / v.Zoom
@@ -195,17 +187,14 @@ func (v CameraView) viewGeometry(width, height int) (offset, half geom.Vector2) 
 	return offset, half
 }
 
-// cullRect returns the conservative world rectangle the camera can see: the
-// viewport expanded to cover rotation, centered on the anchored view.
 func (v CameraView) cullRect(width, height int) geom.Rect {
 	offset, half := v.viewGeometry(width, height)
 	return geom.RectFromCenterSize(v.Position.Add(offset), half.Mul(2))
 }
 
-// clampToBounds keeps the anchored view inside bounds: per axis, the view
-// center clamps into bounds shrunk by the view's half extents, pinning to
-// the bounds center where the view cannot fit. Rotated views clamp
-// conservatively through their circumscribed extents.
+// clampToBounds constrains the anchored view to bounds. If the view cannot
+// fit, it pins the camera to the bounds center; rotated views use conservative
+// extents.
 func (v *CameraView) clampToBounds(bounds geom.Rect, width, height int) {
 	offset, half := v.viewGeometry(width, height)
 	center := v.Position.Add(offset)
@@ -215,7 +204,6 @@ func (v *CameraView) clampToBounds(bounds geom.Rect, width, height int) {
 	v.Position = center.Sub(offset)
 }
 
-// clampAxis clamps v into [min, max], or returns pin when the range is empty.
 func clampAxis(v, min, max, pin float64) float64 {
 	if min > max {
 		return pin

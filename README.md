@@ -11,6 +11,7 @@ See the [feature overview](docs/getting-started/features.md) for what Castrum su
 ## Documentation
 
 - [Documentation](docs/getting-started/intro.md) - choose the introduction, concepts, first-game tutorial, or the full guides from there.
+- [Migration notes](docs/migrations/README.md) - upgrade guidance between releases.
 - [Examples](examples) - run complete programs covering rendering, shapes, input, animation, and audio.
 - [API reference](https://pkg.go.dev/github.com/Leonard-Atorough/castrum) - browse exported types and methods.
 
