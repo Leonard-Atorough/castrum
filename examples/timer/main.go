@@ -51,7 +51,7 @@ const (
 	// rowY0 and rowDY place the five timer rows; labelX is where
 	// each row's overlay text starts.
 	rowY0, rowDY = 160, 120
-	labelX       = 60
+	labelX       = 240
 
 	oneShotDuration = 3 * time.Second
 	pulseDuration   = 1 * time.Second
