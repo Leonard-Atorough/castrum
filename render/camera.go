@@ -27,10 +27,10 @@ type Camera struct {
 
 // Validate checks that the camera's anchor lies within the viewport.
 func (c Camera) Validate() error {
-	if c.Anchor.X < -0.5 || c.Anchor.X > 0.5 {
+	if math.IsNaN(c.Anchor.X) || c.Anchor.X < -0.5 || c.Anchor.X > 0.5 {
 		return fmt.Errorf("anchor X must be between -0.5 and 0.5, got %v", c.Anchor.X)
 	}
-	if c.Anchor.Y < -0.5 || c.Anchor.Y > 0.5 {
+	if math.IsNaN(c.Anchor.Y) || c.Anchor.Y < -0.5 || c.Anchor.Y > 0.5 {
 		return fmt.Errorf("anchor Y must be between -0.5 and 0.5, got %v", c.Anchor.Y)
 	}
 	return nil
