@@ -10,21 +10,27 @@ When a transform enters the world, Castrum adds a matching `PrevTransform` unles
 
 ## Camera projection
 
-A `CameraView` maps a world point to logical-screen coordinates using the camera's world position, zoom, and logical dimensions:
+A camera pairs `render.Camera` framing policy with a `Transform`. Its uniform `Transform.Scale` is zoom: zero means 1, values above 1 zoom in, and values between 0 and 1 zoom out. Camera scale must resolve to positive and uniform; negative or non-uniform scale returns a named error during collection.
+
+The renderer resolves and publishes a `CameraView`; game code reads that resource rather than constructing one. With the centered zero anchor and no rotation, it maps a world point to logical-screen coordinates using the camera's world position, zoom, and logical dimensions:
 
 ```text
 screen = round((world - camera.position) * zoom + logicalSize / 2)
 ```
 
-The camera position is the world point at the center of the logical screen. At zoom 1, one world unit maps to one logical pixel. `ScreenToWorld` reverses the projection without the final rounding, so the result can contain fractional world coordinates.
+The zero camera anchor places the camera position at the logical-screen center. `Camera.Anchor` offsets that point by viewport fractions: `(-0.5, -0.5)` places it at the top-left, removing the need to offset the camera position by half the screen size. At zoom 1, one world unit maps to one logical pixel. `ScreenToWorld` reverses the projection without the final rounding, so the result can contain fractional world coordinates.
 
-The engine camera is created by `castrum.New` and is centered on half the logical size at zoom 1. A user camera marked primary takes precedence; if multiple cameras claim primary, the collector uses the first matching camera in its deterministic query order.
+The engine camera is created by `castrum.New` at the world origin with a centered anchor and zoom 1. A user camera marked primary takes precedence; if multiple cameras claim primary, the collector uses the first matching camera in its deterministic query order.
 
 The logical size belongs to the runner and is published through `Context.LogicalWidth` and `LogicalHeight`. The window can be larger or smaller; the runner scales the logical canvas, while world projection and culling continue to use the logical dimensions.
 
+Camera rotation is `Transform.Rotation`. Positive radians are counter-clockwise in world space and visually clockwise on the Y-down screen. It interpolates numerically, not along the shortest arc. The view applies the inverse camera rotation, so a sprite with the same rotation as the camera appears unrotated.
+
+`Camera.Bounds` is an optional world `geom.Rect`. An empty rectangle leaves the view unbounded; otherwise the resolved view clamps after interpolation and before projection. If the view cannot fit on an axis, its center pins to that bounds center on that axis.
+
 ## Pixel snapping
 
-Projection rounds the screen-space center to whole pixels. The renderer then builds the sprite or shape around that snapped center, so its corners and line endpoints remain rigid rather than being rounded independently. Snapping keeps pixel art stable, but it also quantizes sub-pixel motion.
+`WorldToScreen` rounds after the complete transform, including anchor and rotation. The renderer then builds the sprite or shape around that snapped center, so its corners and line endpoints remain rigid rather than being rounded independently. Snapping keeps pixel art stable, but it also quantizes sub-pixel motion.
 
 Rotation is applied around the drawable's centered position. Culling uses the interpolated position and the drawable's bounds; rotation is not included in the culling bounds, so a long rotated drawable can be culled while part of its rotated image would otherwise reach the view.
 

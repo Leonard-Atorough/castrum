@@ -126,6 +126,34 @@ aim := ctx.Input.PadAxis(0, input.PadRightStickX)
 
 Snapshot reads are nil-safe and bounds-safe. A missing runner snapshot, an invalid key or button, and an out-of-range pad all read as inactive or zero. The runner owns the snapshot; systems should treat it as read-only. Raw snapshot methods include keyboard, mouse buttons, cursor, wheel, gamepad connection, gamepad buttons, and gamepad axes.
 
+## Pick world positions
+
+The cursor is in logical-screen coordinates. Convert it with the render-published view rather than reconstructing a `CameraView` from component state:
+
+```go
+func aimSystem() core.System {
+	return core.SystemFunc(func(ctx *core.Context) error {
+		view, err := ctx.World.Resource[*render.CameraView]()
+		if errors.Is(err, core.ErrResourceNotRegistered) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read camera view: %w", err)
+		}
+
+		aim := view.ScreenToWorld(
+			ctx.Input.Cursor(),
+			ctx.LogicalWidth,
+			ctx.LogicalHeight,
+		)
+		aimAt(aim)
+		return nil
+	})
+}
+```
+
+The resource contains the most recently drawn, interpolated view, including its zoom, rotation, anchor, and bounds clamp. It is one frame stale for frame and fixed readers, and is not registered until the renderer first collects a view. Skipping `core.ErrResourceNotRegistered` on that first tick is intentional; do not use `MustResource` here. Picking through this view is more accurate than reading current camera components because the aim matches what is on screen.
+
 ## Direct action maps
 
 Most games use the engine-owned map configured with `WithBindings`. The lower-level `input.ActionMap` is available for custom loops and tests:

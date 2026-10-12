@@ -9,6 +9,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"image/color"
 	"math"
@@ -143,7 +144,7 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFixed, "input.tank_body", tankBodySystem(body)); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFixed, "input.turret", turretSystem(turret, body, camera)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "input.turret", turretSystem(turret, body)); err != nil {
 		return err
 	}
 	if err := g.AddSystem(core.PhaseFixed, "input.camera", cameraSystem(camera, body)); err != nil {
@@ -177,9 +178,10 @@ func cameraSystem(camera *core.Entity, body *core.Entity) core.System {
 		}
 
 		if ctx.Actions.Held("zoom") {
-			if err := camera.Update(ctx.World, func(c *render.Camera) {
-				c.Zoom += ctx.Actions.Axis("zoom") * zoomSpeed * ctx.DeltaTime.Seconds()
-				c.Zoom = math.Max(zoomMin, math.Min(zoomMax, c.Zoom))
+			if err := camera.Update(ctx.World, func(c *core.Transform) {
+				scaleChange := ctx.Actions.Axis("zoom") * zoomSpeed * ctx.DeltaTime.Seconds()
+				c.Scale.X = math.Max(zoomMin, math.Min(zoomMax, c.Scale.X+scaleChange))
+				c.Scale.Y = math.Max(zoomMin, math.Min(zoomMax, c.Scale.Y+scaleChange))
 			}); err != nil {
 				return err
 			}
@@ -219,14 +221,21 @@ func tankBodySystem(body *core.Entity) core.System {
 // not through bindings - and projects to world space through the same
 // camera view the renderer frames with. Rotation 0 faces screen-up,
 // so the aim angle is atan2(x, -y) of the direction to the cursor.
-func turretSystem(turret *core.Entity, body *core.Entity, camera *core.Entity) core.System {
+func turretSystem(turret, body *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hull, _ := body.Component[core.Transform](ctx.World)
-		cam, _ := camera.Component[render.Camera](ctx.World)
-		camT, _ := camera.Component[core.Transform](ctx.World)
+		view, err := ctx.World.Resource[*render.CameraView]()
+		if errors.Is(err, core.ErrResourceNotRegistered) {
+			// The first fixed tick runs before any draw has occurred,
+			// so the view resource does not exist yet. Skip aiming
+			// until it publishes.
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 
-		world := render.CameraView{Position: camT.Position, Zoom: cam.Zoom}.
-			ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		world := view.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
 		aim := world.Sub(hull.Position)
 
 		return turret.Update(ctx.World, func(t *core.Transform) {

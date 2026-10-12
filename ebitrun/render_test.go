@@ -36,7 +36,7 @@ func newSpriteGame(t *testing.T) (*castrum.Game, *Runner) {
 		t.Fatalf("New: %v", err)
 	}
 	if _, err := g.World().NewEntity(
-		render.Camera{Zoom: 1, Primary: true},
+		render.Camera{Primary: true},
 		core.Transform{Position: geom.Vector2{}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn camera: %v", err)

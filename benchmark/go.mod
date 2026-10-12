@@ -1,6 +1,6 @@
 module github.com/Leonard-Atorough/castrum/benchmark
 
-go 1.27.0
+go 1.27.2
 
 require (
 	github.com/Leonard-Atorough/castrum v0.0.0

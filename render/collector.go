@@ -4,6 +4,7 @@ package render
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -72,6 +73,9 @@ type Collector struct {
 	engineCamera,
 	sprites *core.Query
 	working []workingItem
+	// view is the published [*CameraView] resource; every Collect writes
+	// the resolved view into it.
+	view *CameraView
 	// SortedItems backs [DrawList.Items]. It is reused on the next
 	// [Collector.Collect] call; callers must not modify or retain it.
 	SortedItems []DrawItem
@@ -122,9 +126,16 @@ func NewCollector(world *core.World) *Collector {
 }
 
 // Collect resolves the draw list for the current frame. It interpolates
-// transforms using [core.Context.Alpha], culls to the camera viewport, and
-// sorts items by layer, sort order, then world Y. Text bounds use
-// [asset.FontData.Measure].
+// transforms using [core.Context.Alpha], clamps the camera to its bounds,
+// culls to the view, and sorts items by layer, sort order, then world Y.
+// Text bounds use [asset.FontData.Measure].
+//
+// When a primary camera is available, Collect publishes the resolved view as
+// the world's [*CameraView] resource once collection succeeds: the resource
+// always describes a drawn frame. A failed Collect publishes nothing - the
+// resource keeps the previous frame's view, and a first Collect that fails
+// registers no resource. Calls without a primary camera leave the resource
+// unchanged.
 //
 // If no primary camera is available, Collect returns an empty list without an
 // error. Asset lookup and loading errors are returned; shapes require no assets.
@@ -141,21 +152,13 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 	cam, _ := entry.Component[Camera]()
 	camTransform, _ := entry.Component[core.Transform]()
 	camPrev, _ := entry.Component[core.PrevTransform]()
-	camera := CameraView{
-		Position: camPrev.Position.Lerp(camTransform.Position, ctx.Alpha),
-		Zoom:     cam.Zoom,
+	camera, err := resolveCamera(cam, camPrev, camTransform, ctx.Alpha, ctx.LogicalWidth, ctx.LogicalHeight)
+	if err != nil {
+		return DrawList{}, err
 	}
 
-	// The culling viewport: the logical resolution divided by zoom, in
-	// world space, centered on the interpolated camera.
-	viewport := geom.RectFromCenterSize(camera.Position, geom.Vector2{
-		X: float64(ctx.LogicalWidth) / camera.Zoom,
-		Y: float64(ctx.LogicalHeight) / camera.Zoom,
-	})
+	viewport := camera.aabb
 
-	// The asset server resolves lazily: a frame whose drawables are
-	// all shapes never touches it, so a shape-only world needs no
-	// asset wiring at all.
 	var server *asset.Server
 	assetServer := func() (*asset.Server, error) {
 		if server == nil {
@@ -182,14 +185,11 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			transform.Scale.Y = 1
 		}
 
-		// Rotation and scale interpolate alongside position; size
-		// and culling below use the interpolated scale.
 		scale := prev.Scale.Lerp(transform.Scale, ctx.Alpha)
 		rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*ctx.Alpha
 
 		switch drawable := sprite.Drawable.(type) {
 		case nil:
-			// Style without a picture: legal, not drawn.
 			continue
 		case AtlasSource:
 			srv, err := assetServer()
@@ -206,7 +206,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			}
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
-				geom.Vector2{}, // sprites are centered on the position
+				geom.Vector2{},
 				geom.Vector2{
 					X: float64(region.W) * scale.X,
 					Y: float64(region.H) * scale.Y,
@@ -231,7 +231,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			}
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
-				geom.Vector2{}, // sprites are centered on the position
+				geom.Vector2{},
 				geom.Vector2{
 					X: float64(data.Width) * scale.X,
 					Y: float64(data.Height) * scale.Y,
@@ -247,7 +247,6 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 				})
 		case TextSource:
 			if drawable.Text == "" {
-				// Nothing to draw, like a nil drawable.
 				continue
 			}
 			srv, err := assetServer()
@@ -261,13 +260,11 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			textWidth, textHeight := font.Measure(drawable.Size, drawable.Text)
 			fill := sprite.Color
 			if fill == nil {
-				// Text defaults to white, not black: text on a screen
-				// has no authored color to inherit.
 				fill = color.White
 			}
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
-				geom.Vector2{}, // text is centered on the position
+				geom.Vector2{},
 				geom.Vector2{
 					X: textWidth * scale.X,
 					Y: textHeight * scale.Y,
@@ -285,7 +282,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		case RectShape:
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
-				geom.Vector2{}, // rects are centered on the position
+				geom.Vector2{},
 				geom.Vector2{
 					X: drawable.Size.X * scale.X,
 					Y: drawable.Size.Y * scale.Y,
@@ -294,16 +291,14 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		case CircleShape:
 			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
 				prev.Position, transform.Position,
-				geom.Vector2{}, // circles are centered on the position
+				geom.Vector2{},
 				geom.Vector2{
 					X: 2 * drawable.Radii.X * scale.X,
 					Y: 2 * drawable.Radii.Y * scale.Y,
 				},
 				shapeItem(sprite, rotation, scale, drawable))
 		case LineShape:
-			// The segment spans the two relative endpoints, so its
-			// culling bounds are the segment's own AABB, offset from
-			// the position by its center.
+
 			segment := geom.Segment{
 				Start: geom.Vector2{
 					X: drawable.From.X * scale.X,
@@ -338,6 +333,11 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 	for _, item := range c.working {
 		c.SortedItems = append(c.SortedItems, item.DrawItem)
 	}
+
+	if err := c.initializeView(ctx.World); err != nil {
+		return DrawList{}, err
+	}
+	*c.view = camera
 	return DrawList{Camera: camera, Items: c.SortedItems}, nil
 }
 
@@ -354,6 +354,31 @@ func (c *Collector) stage(viewport geom.Rect, alpha float64, layer uint8, sortOr
 		sortOrder: sortOrder,
 		worldY:    position.Y,
 	})
+}
+
+// initializeView resolves or creates the world's view resource on first use. An
+// existing resource - provided by an earlier collector or the game - is
+// adopted, so several collectors share the most-recently-drawn view.
+func (c *Collector) initializeView(world *core.World) error {
+	if c.view != nil {
+		return nil
+	}
+	existing, err := world.Resource[*CameraView]()
+	if err == nil {
+		c.view = existing
+		return nil
+	}
+	if !errors.Is(err, core.ErrResourceNotRegistered) {
+		return fmt.Errorf("castrum: collect: resolve existing camera view: %w", err)
+	}
+	view := &CameraView{}
+	if err := world.Provide(func(*core.World) (*CameraView, error) {
+		return view, nil
+	}); err != nil {
+		return fmt.Errorf("castrum: collect: provide camera view resource: %w", err)
+	}
+	c.view = view
+	return nil
 }
 
 func shapeItem(sprite Sprite, rotation float64, scale geom.Vector2, shape Shape) DrawItem {

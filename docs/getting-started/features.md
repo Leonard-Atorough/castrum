@@ -19,7 +19,7 @@ Timers, collision, and animation are optional systems; enable them individually 
 ## Render the game
 
 - **Sprites and drawables** support standalone textures, atlas regions, rectangles, circles, lines, and text from loaded fonts. See the [rendering guide](../guides/rendering.md) and [assets guide](../guides/assets.md).
-- **Cameras and ordering** support viewport culling, draw layers and sort order, Y ordering, and overlays. Position can be interpolated between simulation ticks. See the [rendering guide](../guides/rendering.md).
+- **Cameras and ordering** support interpolated position, rotation, uniform zoom, anchors, world bounds, viewport culling, draw layers and sort order, Y ordering, overlays, and the published resolved view for picking. See the [rendering guide](../guides/rendering.md).
 
 ## Add sound
 

@@ -253,21 +253,22 @@ The tank should move smoothly. Fixed ticks update the simulation while the rende
 
 ## Aiming the turret
 
-The turret needs the camera to aim at the mouse correctly. The cursor position is in screen coordinates, but the tank is in world coordinates. The camera's `Transform` tells us where the view is centered, and its `Camera` component tells us the zoom. `CameraView.ScreenToWorld` converts the cursor using both values.
+The turret needs the resolved camera view to aim at the mouse correctly. The cursor position is in screen coordinates, but the tank is in world coordinates. The renderer publishes the most recently drawn, interpolated view as a resource, so the aim matches the screen even between fixed ticks.
 
-Add `math` to the import block. Then add this turret system next to `moveSystem`. It keeps the turret mounted on the hull and rotates it toward the mouse:
+Add `errors` and `math` to the import block. Then add this turret system next to `moveSystem`. It keeps the turret mounted on the hull and rotates it toward the mouse:
 
 ```go
-func turretSystem(turret, hull, camera *core.Entity) core.System {
+func turretSystem(turret, hull *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		cameraData, _ := camera.Component[render.Camera](ctx.World)
-		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
-
-		cursor := render.CameraView{
-			Position: cameraTransform.Position,
-			Zoom:     cameraData.Zoom,
-		}.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		view, err := ctx.World.Resource[*render.CameraView]()
+		if errors.Is(err, core.ErrResourceNotRegistered) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		cursor := view.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
 		aim := cursor.Sub(hullTransform.Position)
 
 		return turret.Update(ctx.World, func(t *core.Transform) {
@@ -281,12 +282,12 @@ func turretSystem(turret, hull, camera *core.Entity) core.System {
 Register it after `player.hull.move`. The movement system writes the hull's position first, and the turret system reads that position in the same tick. `math.Atan2` produces the angle from the hull to the cursor; the negative Y argument keeps rotation zero pointed toward the top of the screen.
 
 ```go
-if err := g.AddSystem(core.PhaseFixed, "player.turret", turretSystem(turret, hull, g.MainCamera())); err != nil {
+if err := g.AddSystem(core.PhaseFixed, "player.turret", turretSystem(turret, hull)); err != nil {
 	return err
 }
 ```
 
-The engine spawns a default camera behind the scenes, and `g.MainCamera()` returns it - the turret reads its position and zoom without the game creating one.
+The engine spawns a default camera behind the scenes. On the first fixed tick it may not have drawn yet, so the system skips `core.ErrResourceNotRegistered`; it must not use `MustResource` for the view.
 
 Move the mouse around the window; the turret should follow while the hull drives independently. Drive forward while aiming: the turret stays pointed at the cursor because its aim is recomputed from the hull's position each tick. Compare this with the [input example](../../examples/input), which uses the same camera helpers with QE zoom.
 
@@ -375,10 +376,12 @@ Set the camera's zoom once at startup, then recenter it every tick. Declare the 
 	CameraZoom = 1.5
 ```
 
-Then set it, next to the system registrations. The zoom is a field on the camera's `Camera` component, so the write goes through the entity like any other component:
+Then set it, next to the system registrations. Camera zoom is uniform `Transform.Scale`, so update the main camera transform:
 
 ```go
-	if err := g.MainCamera().Update(g.World(), func(c *render.Camera) { c.Zoom = CameraZoom }); err != nil {
+	if err := g.MainCamera().Update(g.World(), func(t *core.Transform) {
+		t.Scale = geom.Vector2{X: CameraZoom, Y: CameraZoom}
+	}); err != nil {
 		return err
 	}
 ```
@@ -404,7 +407,7 @@ if err := g.AddSystem(core.PhaseFixed, "camera.follow", cameraSystem(g.MainCamer
 
 Register `camera.follow` after `player.turret` so it reads the hull's updated position. The renderer interpolates between ticks, smoothing the per-tick follow.
 
-The turret's aim already works under the new view: `turretSystem` converts the cursor with the camera's own position and zoom, so the tank keeps shooting where you point no matter where it drives.
+The turret's aim already works under the new view: `turretSystem` converts the cursor with the most recently drawn camera view, so the tank keeps shooting where you point no matter where it drives.
 
 Drive away from the start. Try a few changes:
 
@@ -513,10 +516,9 @@ func bulletsSystem(camera *core.Entity) core.System {
 		}
 		dt := ctx.DeltaTime.Seconds()
 
-		cameraData, _ := camera.Component[render.Camera](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraData.Zoom)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
+		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
+		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
 
 		for e := range live.Execute() {
 			e.Update(func(t *core.Transform) {
@@ -690,9 +692,9 @@ func spawnSystem(spawner, hull, camera *core.Entity) core.System {
 		}
 
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		cameraData, _ := camera.Component[render.Camera](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraData.Zoom)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
+		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
+		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
+		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
 
 		angle := rand.Float64() * 2 * math.Pi
 		radius := math.Hypot(halfW, halfH) + CullMargin
@@ -999,9 +1001,9 @@ func spawnSystem(spawner, hull, camera, stats *core.Entity) core.System {
 		}
 
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		cameraData, _ := camera.Component[render.Camera](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraData.Zoom)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraData.Zoom)
+		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
+		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
+		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
 
 		angle := rand.Float64() * 2 * math.Pi
 		radius := math.Hypot(halfW, halfH) + CullMargin

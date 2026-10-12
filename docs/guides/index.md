@@ -11,6 +11,7 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 ## Presentation
 
 - [Rendering](rendering.md) - sprites, shapes, text, cameras, overlays, ordering, and culling.
+- [Camera](camera.md) - framing the world: position, rotation, zoom, anchor, bounds, and the resolved view.
 - [Animation](animation.md) - atlas clips, playback state, looping, and control.
 
 ## Interaction and audio

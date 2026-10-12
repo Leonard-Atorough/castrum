@@ -51,7 +51,7 @@ render.Sprite{Color: color.White} // everything else zero, everything valid
 
 Some fields have no sensible zero, and the engine says so at spawn. An `audio.Source` with an empty `Audio` is a spawn error, and its `Volume` must be in (0, 1] - a silent play is a bug in the spawn, and the engine treats it like one. These components meet you halfway: a constructor supplies the minimal valid form (`audio.NewSource`), or the component is meaningless without one named field (for example, `Animation.Clip`).
 
-Between the two sit fields where zero means "the sensible default." A zero `Transform.Scale` axis reads as 1. A zero `PlaybackMultiplier` plays at the normal rate. The loop and pause enums name their zero value for the common case - `LoopNone`, `PauseHolds` - so the field reads truthfully at rest.
+Between the two sit fields where zero means "the sensible default." A zero `Transform.Scale` axis reads as 1. Camera zoom rides the paired transform's uniform scale, while `Camera` remains pure framing policy. A zero `PlaybackMultiplier` plays at the normal rate. The loop and pause enums name their zero value for the common case - `LoopNone`, `PauseHolds` - so the field reads truthfully at rest.
 
 The test for which class a field falls into: read the field's name at zero, and see whether it tells the truth.
 
