@@ -1,6 +1,7 @@
 package timer
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -8,8 +9,17 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
-// tick runs one fixed timer tick at the given tick number and
-// interval.
+func newTimerHarness(t *testing.T) (*core.World, core.System) {
+	t.Helper()
+	world := core.NewWorld()
+	if err := world.Provide(func(*core.World) (*Groups, error) {
+		return NewGroups(), nil
+	}); err != nil {
+		t.Fatalf("provide timer groups: %v", err)
+	}
+	return world, NewSystem()
+}
+
 func tick(t *testing.T, world *core.World, sys core.System, number uint64, dt time.Duration) {
 	t.Helper()
 	if err := sys.Update(&core.Context{World: world, Tick: number, DeltaTime: dt}); err != nil {
@@ -50,8 +60,6 @@ func TestTimerValidate(t *testing.T) {
 	}
 }
 
-// The Validatable hook fires through the public surface: spawn
-// rejects a non-positive duration, and a valid timer spawns running.
 func TestTimerValidationAtSpawn(t *testing.T) {
 	world := core.NewWorld()
 
@@ -69,12 +77,8 @@ func TestTimerValidationAtSpawn(t *testing.T) {
 	}
 }
 
-// A one-shot completes on the exact tick its duration elapses and
-// then freezes: no re-stamp, no further advance, the completion
-// readable forever.
 func TestSystem_OneShotCompletesOnBoundaryAndFreezes(t *testing.T) {
-	world := core.NewWorld()
-	sys := NewSystem()
+	world, sys := newTimerHarness(t)
 	dt := 100 * time.Millisecond
 
 	entity, err := world.NewEntity(NewTimer(2*dt, false))
@@ -109,11 +113,8 @@ func TestSystem_OneShotCompletesOnBoundaryAndFreezes(t *testing.T) {
 	}
 }
 
-// Restart resets a completed one-shot to its beginning, clearing the
-// completion stamp so "has it fired" reads false again.
 func TestSystem_RestartResetsOneShot(t *testing.T) {
-	world := core.NewWorld()
-	sys := NewSystem()
+	world, sys := newTimerHarness(t)
 	dt := 100 * time.Millisecond
 
 	entity, err := world.NewEntity(NewTimer(2*dt, false))
@@ -144,12 +145,8 @@ func TestSystem_RestartResetsOneShot(t *testing.T) {
 	}
 }
 
-// A repeating timer fires the instant its duration has fully
-// elapsed - the exact boundary counts - and carries the overshoot
-// into the next interval instead of dropping it.
 func TestSystem_RepeatingCarriesRemainder(t *testing.T) {
-	world := core.NewWorld()
-	sys := NewSystem()
+	world, sys := newTimerHarness(t)
 	dt := 2 * time.Millisecond
 	duration := 3 * time.Millisecond
 
@@ -185,11 +182,8 @@ func TestSystem_RepeatingCarriesRemainder(t *testing.T) {
 	}
 }
 
-// A repeating timer shorter than the tick interval completes once
-// per tick with its remainder bounded - it cannot accumulate drift.
 func TestSystem_RepeatingShorterThanTick(t *testing.T) {
-	world := core.NewWorld()
-	sys := NewSystem()
+	world, sys := newTimerHarness(t)
 	dt := 3 * time.Millisecond
 
 	entity, err := world.NewEntity(NewTimer(dt/3, true))
@@ -212,11 +206,8 @@ func TestSystem_RepeatingShorterThanTick(t *testing.T) {
 	}
 }
 
-// A stopped timer does not advance, and resuming by setting Running
-// continues from the same elapsed time.
 func TestSystem_StoppedTimerHoldsItsProgress(t *testing.T) {
-	world := core.NewWorld()
-	sys := NewSystem()
+	world, sys := newTimerHarness(t)
 	dt := 100 * time.Millisecond
 
 	entity, err := world.NewEntity(NewTimer(3*dt, false))
@@ -248,12 +239,8 @@ func TestSystem_StoppedTimerHoldsItsProgress(t *testing.T) {
 	}
 }
 
-// The multi-timer pattern: one actor with no Timer of its own, two
-// timer entities serving it, advancing independently - the actor's
-// cooldown and pulse coexist.
 func TestSystem_MultipleTimersPerActor(t *testing.T) {
-	world := core.NewWorld()
-	sys := NewSystem()
+	world, sys := newTimerHarness(t)
 	dt := 100 * time.Millisecond
 
 	actor, err := world.NewEntity(core.Transform{})
@@ -302,11 +289,8 @@ func TestSystem_MultipleTimersPerActor(t *testing.T) {
 	}
 }
 
-// The engine registers the reconciler for every game: a world
-// without timers ticks clean.
 func TestSystem_EmptyWorld(t *testing.T) {
-	world := core.NewWorld()
-	sys := NewSystem()
+	world, sys := newTimerHarness(t)
 	dt := 100 * time.Millisecond
 
 	tick(t, world, sys, 1, dt)
@@ -314,12 +298,8 @@ func TestSystem_EmptyWorld(t *testing.T) {
 	tick(t, world, sys, 3, dt)
 }
 
-// JustCompleted reads true only on the tick of the completion, while
-// HasCompleted keeps reading true after it - the record that stays
-// until Restart clears the stamp.
 func TestTimerCompletionReads(t *testing.T) {
-	world := core.NewWorld()
-	sys := NewSystem()
+	world, sys := newTimerHarness(t)
 	dt := 100 * time.Millisecond
 
 	entity, err := world.NewEntity(NewTimer(2*dt, false))
@@ -361,12 +341,8 @@ func TestTimerCompletionReads(t *testing.T) {
 	}
 }
 
-// A repeating timer never holds a completed state: it fires and
-// starts its next interval, so HasCompleted stays false while
-// JustCompleted reports each fire.
 func TestHasCompletedRepeatingNeverReadsCompleted(t *testing.T) {
-	world := core.NewWorld()
-	sys := NewSystem()
+	world, sys := newTimerHarness(t)
 	dt := 100 * time.Millisecond
 
 	entity, err := world.NewEntity(NewTimer(dt, true))
@@ -383,5 +359,168 @@ func TestHasCompletedRepeatingNeverReadsCompleted(t *testing.T) {
 		if timer.HasCompleted() {
 			t.Errorf("tick %d: a repeating timer never reads as completed", tickNumber)
 		}
+	}
+}
+
+func TestSystem_GroupPauseHoldsAndResumeContinues(t *testing.T) {
+	world, sys := newTimerHarness(t)
+	groups, err := world.Resource[*Groups]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dt := 100 * time.Millisecond
+	spawn := func(group string, running bool) *core.Entity {
+		timer := NewTimer(time.Second, false)
+		timer.Group = group
+		timer.Running = running
+		e, err := world.NewEntity(timer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return e
+	}
+	combat := spawn("combat", true)
+	ui := spawn("ui", true)
+	free := spawn("", true)
+	stopped := spawn("combat", false)
+
+	groups.Pause("combat")
+	for tickNumber := range 5 {
+		tick(t, world, sys, uint64(tickNumber+1), dt)
+	}
+	for name, e := range map[string]*core.Entity{
+		"combat": combat, "stopped in combat": stopped,
+	} {
+		if got := timerOf(t, world, e); got.Elapsed != 0 {
+			t.Errorf("%s elapsed = %v after 5 ticks of a paused group, want 0", name, got.Elapsed)
+		}
+	}
+	if want := 5 * dt; timerOf(t, world, ui).Elapsed != want || timerOf(t, world, free).Elapsed != want {
+		t.Errorf("ui = %v, ungrouped = %v, want both advancing at %v", timerOf(t, world, ui).Elapsed, timerOf(t, world, free).Elapsed, want)
+	}
+
+	groups.Resume("combat")
+	tick(t, world, sys, 6, dt)
+	if got := timerOf(t, world, combat); got.Elapsed != dt {
+		t.Errorf("combat elapsed = %v after resume, want %v - held time is not recovered", got.Elapsed, dt)
+	}
+	if got := timerOf(t, world, stopped); got.Running || got.Elapsed != 0 {
+		t.Errorf("per-timer stop did not survive the group cycle: running=%v elapsed=%v", got.Running, got.Elapsed)
+	}
+}
+
+func TestSystem_GroupScaleAdvancesProportionally(t *testing.T) {
+	world, sys := newTimerHarness(t)
+	groups, err := world.Resource[*Groups]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := groups.SetScale("slow", 0.5); err != nil {
+		t.Fatal(err)
+	}
+	if err := groups.SetScale("fast", 2); err != nil {
+		t.Fatal(err)
+	}
+	dt := 100 * time.Millisecond
+	slow := NewTimer(time.Second, false)
+	slow.Group = "slow"
+	slowEntity, err := world.NewEntity(slow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fast := NewTimer(time.Second, true)
+	fast.Group = "fast"
+	fastEntity, err := world.NewEntity(fast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	freeEntity, err := world.NewEntity(NewTimer(time.Second, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for tickNumber := range 5 {
+		tick(t, world, sys, uint64(tickNumber+1), dt)
+	}
+	if got := timerOf(t, world, slowEntity); got.Elapsed != 250*time.Millisecond || got.CompletedOn != 0 {
+		t.Errorf("half-speed one-shot = %v elapsed / tick %d, want %v / 0",
+			got.Elapsed, got.CompletedOn, 250*time.Millisecond)
+	}
+	fastTimer := timerOf(t, world, fastEntity)
+	if !fastTimer.JustCompleted(5) || fastTimer.Elapsed != 0 {
+		t.Errorf("double-speed repeating = tick %d elapsed %v, want completion on tick 5 with full carryover",
+			fastTimer.CompletedOn, fastTimer.Elapsed)
+	}
+	if got := timerOf(t, world, freeEntity); got.Elapsed != 5*dt || got.CompletedOn != 0 {
+		t.Errorf("ungrouped control = %v / tick %d, want %v / 0", got.Elapsed, got.CompletedOn, 5*dt)
+	}
+}
+
+func TestGroups_RegistryContract(t *testing.T) {
+	groups := NewGroups()
+	if groups.Paused("unknown") || groups.Scale("unknown") != 1 {
+		t.Error("unknown group should read unpaused at scale 1")
+	}
+	groups.Pause("combat")
+	if !groups.Paused("combat") {
+		t.Error("Pause should record the paused state")
+	}
+	groups.Resume("combat")
+	if groups.Paused("combat") {
+		t.Error("Resume should clear the paused state")
+	}
+	if err := groups.SetScale("combat", 0.5); err != nil || groups.Scale("combat") != 0.5 {
+		t.Errorf("SetScale(0.5) = %v, scale %v, want no error at 0.5", err, groups.Scale("combat"))
+	}
+	for name, bad := range map[string]float64{
+		"zero scale":     0,
+		"negative scale": -1,
+		"nan scale":      math.NaN(),
+		"infinite scale": math.Inf(1),
+	} {
+		if err := groups.SetScale("combat", bad); err == nil {
+			t.Errorf("SetScale with %s should fail", name)
+		}
+	}
+	if err := groups.SetScale("", 1); err == nil {
+		t.Error("SetScale with an empty name should fail")
+	}
+	if groups.Scale("combat") != 0.5 {
+		t.Errorf("scale after rejected values = %v, want 0.5 unchanged", groups.Scale("combat"))
+	}
+}
+
+func TestSystem_RequiresGroupsResource(t *testing.T) {
+	sys := NewSystem()
+	err := sys.Update(&core.Context{World: core.NewWorld(), Tick: 1, DeltaTime: time.Second})
+	if err == nil || !strings.Contains(err.Error(), "timer groups") {
+		t.Errorf("system without groups = %v, want an error naming the timer groups resource", err)
+	}
+}
+
+// A finite but enormous scale can still overflow the tick contribution
+// when multiplied out: the tick fails with an error naming the group
+// instead of converting an unrepresentable value into elapsed time.
+func TestSystem_UnrepresentableGroupScaleFailsTick(t *testing.T) {
+	world, sys := newTimerHarness(t)
+	groups, err := world.Resource[*Groups]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 1e12 * 100ms overflows int64 nanoseconds by three orders of
+	// magnitude. The scale is finite, so only the advancement guard
+	// catches it.
+	if err := groups.SetScale("huge", 1e12); err != nil {
+		t.Fatal(err)
+	}
+	huge := NewTimer(time.Second, false)
+	huge.Group = "huge"
+	if _, err := world.NewEntity(huge); err != nil {
+		t.Fatal(err)
+	}
+
+	err = sys.Update(&core.Context{World: world, Tick: 1, DeltaTime: 100 * time.Millisecond})
+	if err == nil || !strings.Contains(err.Error(), "not representable") {
+		t.Errorf("tick under an unrepresentable scale = %v, want an error naming the contribution", err)
 	}
 }

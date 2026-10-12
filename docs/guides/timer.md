@@ -49,6 +49,55 @@ if err != nil {
 }
 ```
 
+## Timer groups
+
+Use a timer's `Group` field to put it in one named group. The `timer.Groups` resource controls whether timers in each group accumulate time and at what rate. `castrum.WithTimer()` provides the resource along with the timer system; `castrum.WithDefaultSystems()` includes it too.
+
+Retrieve the resource after creating the game:
+
+```go
+groups := game.World().MustResource[*timer.Groups]()
+```
+
+`MustResource` is appropriate when the game was created with `WithTimer` or `WithDefaultSystems`, which provide the resource. If you register `timer.NewSystem()` yourself, provide a `*timer.Groups` resource (for example, one returned by `timer.NewGroups()`) as well; the timer system returns an error on its first update if it is missing.
+
+Use the groups resource from the game's single-threaded loop; it is not safe for concurrent access.
+
+### Assign timers to a group
+
+Set `Timer.Group` before storing the timer, or change it later with `Entity.Update`. An empty group name leaves the timer ungrouped. Group names need no registration, and each timer belongs to at most one group; groups do not nest.
+
+```go
+combatTimer := timer.NewTimer(2*time.Second, true)
+combatTimer.Group = "combat"
+combat, err := game.World().NewEntity(combatTimer)
+if err != nil {
+	return err
+}
+```
+
+### Pause or scale a group
+
+Pausing and resuming changes the group state, not individual `Timer` components:
+
+```go
+groups.Pause("combat")
+// Later:
+groups.Resume("combat")
+
+if err := groups.SetScale("ui", 0.5); err != nil {
+	return err
+}
+```
+
+A paused group does not accumulate time. When resumed, each running timer continues from its saved `Elapsed` value. A scale multiplies the fixed tick time accumulated by timers in that group; for example, `0.5` accumulates half as much time per tick. Use `Pause` to stop a group: `SetScale` returns an error for an empty group name or a scale of zero or less.
+
+`Paused` and `Scale` can read a group that has not been configured: they report `false` and `1`, respectively, without creating group state. `Pause`, `Resume`, and a valid `SetScale` call create or update that state as needed.
+
+Group settings do not override an individual timer's `Running` field. A timer with `Running == false` stays stopped even when its group resumes. Conversely, pausing a group holds an unfinished running timer without clearing `Running`. The timer system still needs to run on a fixed tick for any timer to advance.
+
+Group pause does not record a completion; any existing `CompletedOn` value remains. Scaling changes how quickly a timer reaches its duration, but completion is still recorded on the fixed tick when it occurs, and `JustCompleted(ctx.Tick)` still reports only that tick.
+
 ## Read progress and completion
 
 Read the stored component to inspect progress:

@@ -5,6 +5,7 @@ package timer
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/core"
@@ -31,6 +32,9 @@ type Timer struct {
 	// no completion has been recorded because game ticks start at one.
 	// [Timer.Restart] clears it.
 	CompletedOn uint64
+	// Group adds the timer to a named group, which can be paused or scaled
+	// independently of other groups.
+	Group string
 }
 
 // NewTimer returns a running timer with the given duration and repeat setting.
@@ -78,6 +82,91 @@ func (t Timer) HasCompleted() bool {
 	return !t.Repeating && t.CompletedOn != 0
 }
 
+// groupState holds the pause and scale state for a timer group.
+type groupState struct {
+	paused bool
+	scale  float64
+}
+
+// Groups manages the pause and scale state for named timer groups. Groups is
+// stored as a resource in the world and membership lives on [Timer.Group].
+// Timers without a group are ungrouped and not affected by any group's pause or
+// scale settings.
+//
+// Groups are safe under the single-threaded context of the game loop.
+type Groups struct {
+	groups map[string]*groupState
+}
+
+// NewGroups creates and returns a new Groups instance with no initial groups.
+func NewGroups() *Groups {
+	return &Groups{
+		groups: make(map[string]*groupState),
+	}
+}
+
+func (g *Groups) write(name string) *groupState {
+	if gs, ok := g.groups[name]; ok {
+		return gs
+	}
+	gs := &groupState{
+		paused: false,
+		scale:  1.0,
+	}
+	g.groups[name] = gs
+	return gs
+}
+
+// Pause stops the named group's timers from advancing. Pausing an unknown
+// group creates it paused.
+func (g *Groups) Pause(name string) {
+	g.write(name).paused = true
+}
+
+// Resume allows the named group's timers to advance. Resuming an unknown
+// group creates it unpaused.
+func (g *Groups) Resume(name string) {
+	g.write(name).paused = false
+}
+
+// Paused reports whether the named timer group is currently paused. Unknown
+// groups are considered unpaused.
+func (g *Groups) Paused(name string) bool {
+	s, ok := g.groups[name]
+	if !ok {
+		return false
+	}
+	return s.paused
+}
+
+// Scale returns the current time scale for the named timer group. Unknown
+// groups are considered to have a scale of 1.0.
+func (g *Groups) Scale(name string) float64 {
+	s, ok := g.groups[name]
+	if !ok {
+		return 1.0
+	}
+	return s.scale
+}
+
+// SetScale sets the named group's time scale, the multiplier applied to the
+// tick time its timers accumulate. It returns an error for an empty name or
+// a scale that is not a positive finite number; use Pause to stop a group.
+func (g *Groups) SetScale(name string, scale float64) error {
+	if name == "" {
+		return fmt.Errorf("timer group name cannot be empty")
+	}
+	if math.IsNaN(scale) || math.IsInf(scale, 0) {
+		return fmt.Errorf("timer group scale must be finite, got %v", scale)
+	}
+	if scale <= 0 {
+		return fmt.Errorf("timer group scale must be positive, got %v; use Pause to stop the group", scale)
+	}
+
+	g.write(name).scale = scale
+	return nil
+}
+
 // SystemName is the name used to register the timer system in the fixed
 // schedule.
 const SystemName = "engine.timer"
@@ -93,35 +182,65 @@ func NewSystem() core.System {
 
 type system struct {
 	timers *core.Query
+	groups *Groups
 }
 
 func (s *system) Update(ctx *core.Context) error {
 	if s.timers == nil {
 		s.timers = core.NewQuery(ctx.World).With(Timer{})
 	}
+	if s.groups == nil {
+		groups, err := ctx.World.Resource[*Groups]()
+		if err != nil {
+			return fmt.Errorf("timer system: resolve timer groups: %w; provide *timer.Groups to the world, typically timer.NewGroups() through World.Provide, or enable castrum.WithTimer", err)
+		}
+		s.groups = groups
+	}
 
+	var groupErr error
 	for e := range s.timers.Execute() {
+		if groupErr != nil {
+			break
+		}
 		e.Update(func(t *Timer) {
 			if t.HasCompleted() {
 				t.Running = false
 				return
 			}
+			if !t.Running {
+				return
+			}
 
-			if t.Running {
-				t.Elapsed += ctx.DeltaTime
-				for t.Elapsed >= t.Duration {
-					t.CompletedOn = ctx.Tick
+			dt := ctx.DeltaTime
+			if t.Group != "" {
+				if s.groups.Paused(t.Group) {
+					return
+				}
 
-					if t.Repeating {
-						t.Elapsed %= t.Duration
-					} else {
-						t.Elapsed = t.Duration
-						t.Running = false
-						break
-					}
+				scale := s.groups.Scale(t.Group)
+				contribution := float64(dt) * scale
+				if math.IsNaN(contribution) || math.IsInf(contribution, 0) ||
+					contribution > float64(math.MaxInt64) || contribution < float64(math.MinInt64) {
+					groupErr = fmt.Errorf("timer group %q scale %v: tick contribution %v is not representable",
+						t.Group, scale, contribution)
+					return
+				}
+				dt = time.Duration(contribution)
+			}
+
+			t.Elapsed += dt
+			for t.Elapsed >= t.Duration {
+				t.CompletedOn = ctx.Tick
+
+				if t.Repeating {
+					t.Elapsed %= t.Duration
+				} else {
+					t.Elapsed = t.Duration
+					t.Running = false
+					break
 				}
 			}
 		})
 	}
-	return nil
+	return groupErr
 }

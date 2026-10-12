@@ -165,10 +165,6 @@ func TestNoBindingsNoActionMap(t *testing.T) {
 	}
 }
 
-// MainCamera: New spawns the default camera - primary, zoom 1 at
-// the origin - and the accessor hands it out for follow systems.
-// The preference rule (user primaries win) is proven in core's
-// TestEngineCameraPreference.
 func TestMainCamera(t *testing.T) {
 	g, err := New()
 	if err != nil {
@@ -191,8 +187,6 @@ func TestMainCamera(t *testing.T) {
 	}
 }
 
-// The asset server is provided by New, before any runner exists, so
-// games register atlases at setup time.
 func TestNewProvidesAssetServer(t *testing.T) {
 	g, err := New()
 	if err != nil {
@@ -211,8 +205,6 @@ func TestNewProvidesAssetServer(t *testing.T) {
 	}
 }
 
-// The clip store is provided by New, before any runner exists, so
-// games Add clips at setup time.
 func TestNewProvidesClipStore(t *testing.T) {
 	g, err := New()
 	if err != nil {
@@ -249,9 +241,6 @@ func TestNewProvidesAudioMixer(t *testing.T) {
 	}
 }
 
-// The optional subsystem systems are opt-in: without their With*
-// option, their components sit inert. Each test proves both sides -
-// the option registers the system, and its absence leaves it out.
 func TestOptionalTimerSystems(t *testing.T) {
 	spawn := func(g *Game) {
 		if _, err := g.World().NewEntity(timer.NewTimer(2*g.Options().FixedDT(), false)); err != nil {
@@ -376,9 +365,6 @@ func TestOptionalAnimationSystem(t *testing.T) {
 	}
 }
 
-// The option bits are idempotent: WithDefaultSystems and a specific
-// With* together still register each system exactly once. A doubled
-// timer system would complete a two-tick timer after one tick.
 func TestWithDefaultSystemsIdempotent(t *testing.T) {
 	g, err := New(WithDefaultSystems(), WithTimer())
 	if err != nil {
@@ -402,5 +388,15 @@ func TestWithDefaultSystemsIdempotent(t *testing.T) {
 		if tm, _ := e.Component[timer.Timer](); tm.CompletedOn == 0 {
 			t.Fatalf("timer did not complete on its second tick: %+v", tm)
 		}
+	}
+}
+
+func TestWithTimerProvidesGroups(t *testing.T) {
+	g, err := New(WithTimer())
+	if err != nil {
+		t.Fatalf("New(WithTimer): %v", err)
+	}
+	if _, err := g.World().Resource[*timer.Groups](); err != nil {
+		t.Errorf("WithTimer should provide timer groups: %v", err)
 	}
 }
