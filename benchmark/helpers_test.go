@@ -118,8 +118,8 @@ func spriteWorld(b *testing.B, n int, shape bool, viewportFraction float64) (*co
 		b.Fatal(err)
 	}
 	if _, err := world.NewEntity(
-		core.Transform{Position: geom.Vector2{X: 640, Y: 360}},
-		render.Camera{Primary: true, Zoom: 1},
+		core.Transform{Position: geom.Vector2{X: 640, Y: 360}, Scale: geom.Vector2{X: 1, Y: 1}},
+		render.Camera{Primary: true},
 	); err != nil {
 		b.Fatal(err)
 	}
