@@ -1,6 +1,7 @@
 package timer
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -474,6 +475,8 @@ func TestGroups_RegistryContract(t *testing.T) {
 	for name, bad := range map[string]float64{
 		"zero scale":     0,
 		"negative scale": -1,
+		"nan scale":      math.NaN(),
+		"infinite scale": math.Inf(1),
 	} {
 		if err := groups.SetScale("combat", bad); err == nil {
 			t.Errorf("SetScale with %s should fail", name)
@@ -492,5 +495,32 @@ func TestSystem_RequiresGroupsResource(t *testing.T) {
 	err := sys.Update(&core.Context{World: core.NewWorld(), Tick: 1, DeltaTime: time.Second})
 	if err == nil || !strings.Contains(err.Error(), "timer groups") {
 		t.Errorf("system without groups = %v, want an error naming the timer groups resource", err)
+	}
+}
+
+// A finite but enormous scale can still overflow the tick contribution
+// when multiplied out: the tick fails with an error naming the group
+// instead of converting an unrepresentable value into elapsed time.
+func TestSystem_UnrepresentableGroupScaleFailsTick(t *testing.T) {
+	world, sys := newTimerHarness(t)
+	groups, err := world.Resource[*Groups]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 1e12 * 100ms overflows int64 nanoseconds by three orders of
+	// magnitude. The scale is finite, so only the advancement guard
+	// catches it.
+	if err := groups.SetScale("huge", 1e12); err != nil {
+		t.Fatal(err)
+	}
+	huge := NewTimer(time.Second, false)
+	huge.Group = "huge"
+	if _, err := world.NewEntity(huge); err != nil {
+		t.Fatal(err)
+	}
+
+	err = sys.Update(&core.Context{World: world, Tick: 1, DeltaTime: 100 * time.Millisecond})
+	if err == nil || !strings.Contains(err.Error(), "not representable") {
+		t.Errorf("tick under an unrepresentable scale = %v, want an error naming the contribution", err)
 	}
 }

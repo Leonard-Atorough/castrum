@@ -5,6 +5,7 @@ package timer
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/core"
@@ -149,11 +150,14 @@ func (g *Groups) Scale(name string) float64 {
 }
 
 // SetScale sets the named group's time scale, the multiplier applied to the
-// tick time its timers accumulate. It returns an error for an empty name
-// or a scale of zero or less; use Pause to stop a group.
+// tick time its timers accumulate. It returns an error for an empty name or
+// a scale that is not a positive finite number; use Pause to stop a group.
 func (g *Groups) SetScale(name string, scale float64) error {
 	if name == "" {
 		return fmt.Errorf("timer group name cannot be empty")
+	}
+	if math.IsNaN(scale) || math.IsInf(scale, 0) {
+		return fmt.Errorf("timer group scale must be finite, got %v", scale)
 	}
 	if scale <= 0 {
 		return fmt.Errorf("timer group scale must be positive, got %v; use Pause to stop the group", scale)
@@ -188,12 +192,16 @@ func (s *system) Update(ctx *core.Context) error {
 	if s.groups == nil {
 		groups, err := ctx.World.Resource[*Groups]()
 		if err != nil {
-			return fmt.Errorf("timer system: resolve timer groups: %w", err)
+			return fmt.Errorf("timer system: resolve timer groups: %w; provide *timer.Groups to the world, typically timer.NewGroups() through World.Provide, or enable castrum.WithTimer", err)
 		}
 		s.groups = groups
 	}
 
+	var groupErr error
 	for e := range s.timers.Execute() {
+		if groupErr != nil {
+			break
+		}
 		e.Update(func(t *Timer) {
 			if t.HasCompleted() {
 				t.Running = false
@@ -208,7 +216,16 @@ func (s *system) Update(ctx *core.Context) error {
 				if s.groups.Paused(t.Group) {
 					return
 				}
-				dt = time.Duration(float64(dt) * s.groups.Scale(t.Group))
+
+				scale := s.groups.Scale(t.Group)
+				contribution := float64(dt) * scale
+				if math.IsNaN(contribution) || math.IsInf(contribution, 0) ||
+					contribution > float64(math.MaxInt64) || contribution < float64(math.MinInt64) {
+					groupErr = fmt.Errorf("timer group %q scale %v: tick contribution %v is not representable",
+						t.Group, scale, contribution)
+					return
+				}
+				dt = time.Duration(contribution)
 			}
 
 			t.Elapsed += dt
@@ -225,5 +242,5 @@ func (s *system) Update(ctx *core.Context) error {
 			}
 		})
 	}
-	return nil
+	return groupErr
 }
