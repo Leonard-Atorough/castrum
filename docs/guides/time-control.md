@@ -33,6 +33,10 @@ and animation systems advance on fixed ticks, so they stop with the simulation
 when enabled. See the [timer](./timer.md) and [animation](./animation.md)
 guides for their setup and behavior.
 
+Caller-owned [tweens](tweening.md) follow the phase that advances them:
+fixed-phase movement pauses with simulation, while frame-phase tint or opacity
+can continue. Pass the phase's `DeltaTime` without applying time scale again.
+
 Pausing preserves the accumulator, so [`Game.Alpha`](../../castrum.go) stays
 at its current interpolation fraction while paused. A renderer using Alpha
 therefore keeps the last interpolated position until fixed updates resume.

@@ -1,5 +1,6 @@
 // Package geom provides [Vector2] and the shapes [Circle], [Rect], and
-// [Segment], with methods for common spatial calculations.
+// [Segment] for spatial calculations, along with [Lerp] and easing curves for
+// interpolation.
 package geom
 
 import (
