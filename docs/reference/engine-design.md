@@ -38,7 +38,7 @@ There is no separate privileged update path for ordinary engine behavior. The [s
 
 ## Shared state
 
-Cross-cutting services live as typed world resources. `Game.AssetServer`, `Game.Clips`, and `Game.Mixer` are setup conveniences for resources that systems can resolve through `World.Resource`. This gives each world its own service instances and avoids package globals.
+Cross-cutting services live as typed world resources. Resolve shared services such as `*asset.Server`, `*animation.ClipStore`, and `*audio.Mixer` through `g.World().Resource[T]()` during setup or `ctx.World.Resource[T]()` inside systems. This gives each world its own service instances and avoids package globals.
 
 The [world and storage](world-and-storage.md) page covers resource resolution and ownership. The [runner separation](runner-separation.md) explains which services are supplied only after a runner is constructed.
 

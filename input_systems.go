@@ -1,23 +1,34 @@
 package castrum
 
 import (
+	"fmt"
+
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
 )
 
-// newInputUpdateSystem returns the engine system that resolves one
-// frame of input into the action map. It closes over the map, so no
-// per-frame resource lookup runs and no resolution error path
-// exists: wireInput provides that same instance to the world, and
-// game systems reach it through the ActionMap resource.
-//
-// It must run FIRST in the frame phase - before any system reads the
-// map's frame view. Registered after a reader, the reader sees the
-// previous frame's view: one frame stale, silently. That is why
-// castrum.New registers it under [input.FrameSystemName] before any
-// user system can exist.
-//
-// castrum.New registers this system; games never register it themselves.
+func (g *Game) wireInput(bindings input.Bindings) error {
+	am, err := input.New(bindings, 0)
+	if err != nil {
+		return fmt.Errorf("castrum: input bindings: %w", err)
+	}
+
+	if err := g.world.Provide(func(*core.World) (*input.ActionMap, error) {
+		return am, nil
+	}); err != nil {
+		return fmt.Errorf("castrum: provide action map: %w", err)
+	}
+
+	if err := g.AddSystem(core.PhaseFrame, input.FrameSystemName, newInputUpdateSystem(am)); err != nil {
+		return err
+	}
+
+	g.Context().Actions = am
+	return g.AddSystem(core.PhaseFixed, input.TickSystemName, newInputTickSystem(am))
+}
+
+// Capturing the provided map avoids per-frame resource resolution.
+// New registers this before user frame systems so they see fresh actions.
 func newInputUpdateSystem(am *input.ActionMap) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		am.Update(ctx.Input, ctx.DeltaTime.Seconds())
@@ -25,19 +36,8 @@ func newInputUpdateSystem(am *input.ActionMap) core.System {
 	})
 }
 
-// newInputTickSystem returns the engine system that delivers the
-// press and release events accumulated since the last tick to the
-// tick view, so every system running in that tick reads the same
-// events.
-//
-// It must run FIRST in the fixed phase - before gameplay systems
-// read Pressed or Released. Registered after a gameplay system, that
-// system reads the previous tick's delivered events: one tick stale,
-// silently. castrum.New registers it under [input.TickSystemName]
-// right after the prev-transform capture, both ahead of every user
-// system.
-//
-// castrum.New registers this system; games never register it themselves.
+// New registers this before user fixed systems so they all see the same
+// press and release events delivered for the current tick.
 func newInputTickSystem(am *input.ActionMap) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		am.Tick()
