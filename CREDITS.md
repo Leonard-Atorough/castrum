@@ -4,13 +4,13 @@ Every asset shipped in this repository, acknowledged once per source. Each examp
 
 ## [ARPMedia](https://pixabay.com/users/arpmedia-56546950/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=577821) from [Pixabay](https://pixabay.com/music//?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=577821)
 
-- `arpmedia-retro-arcade-game-music-577821.mp3` (examples/audio, examples/your-first-game)
+- `arpmedia-retro-arcade-game-music-577821.mp3` (shared by examples/audio/playback, examples/audio/mixing, examples/audio/balance; also examples/your-first-game)
 
 ## [ShapeForms](https://shapeforms.itch.io)
 
 All sound effects, currently:
 
-- `Blade Recall Magic 02.wav` (examples/audio)
+- `Blade Recall Magic 02.wav` (shared by examples/audio/playback and examples/audio/mixing)
 - `GUNArtl_Rocket Launcher Fire_02.wav` (examples/your-first-game)
 
 ## [Jim Hatama](https://jimhatama.itch.io)
