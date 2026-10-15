@@ -2,6 +2,7 @@ package ebitrun
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 
@@ -36,7 +37,8 @@ type audioProvider struct {
 // release on completion: a Player never closes its source, so the
 // streaming path parks its open file here.
 type audioSession struct {
-	player *ebitaudio.Player
+	player  *ebitaudio.Player
+	balance balanceStream
 	// source is the open fs file behind a streaming play, if any;
 	// eager plays share server-cached bytes and have none.
 	source   io.Closer
@@ -110,8 +112,8 @@ func drain(s audioStream, sampleRate int) (asset.AudioData, error) {
 // Sync makes the playback of entityID match want, per the
 // [audio.Controller] contract. This runner bakes the loop and load
 // modes into the player at creation, so changing either in want
-// recreates the playback from the beginning. Volume applies on
-// every sync, including while held.
+// recreates the playback from the beginning. Volume and balance apply to
+// live sessions on every sync, including while held, without restarting.
 //
 // Note: variable-speed playback is not supported; a rate other
 // than 1 is an error. Errors name the audio source.
@@ -150,6 +152,10 @@ func (a *audioProvider) Sync(entityID core.EntityID, source asset.ID, want audio
 
 	if s.finished {
 		return false, nil
+	}
+
+	if err := s.balance.setBalance(want.Balance); err != nil {
+		return false, fmt.Errorf("castrum/ebiten: audio: source %q: %w", source, err)
 	}
 
 	if !want.Playing {
@@ -198,7 +204,7 @@ func (a *audioProvider) Sweep() error {
 	return nil
 }
 
-func (a *audioProvider) createPlayer(source asset.ID, want audio.Playback) (*audioSession, error) {
+func (a *audioProvider) createPlayer(source asset.ID, want audio.Playback) (_ *audioSession, err error) {
 	if want.Rate != 1 {
 		return nil, fmt.Errorf("castrum/ebiten: audio: playback rate %v is not supported by this runner", want.Rate)
 	}
@@ -207,57 +213,57 @@ func (a *audioProvider) createPlayer(source asset.ID, want audio.Playback) (*aud
 		loop: want.Loop,
 		load: want.Load,
 	}
+	defer func() {
+		if err != nil && session.source != nil {
+			if closeErr := session.source.Close(); closeErr != nil {
+				err = errors.Join(err, fmt.Errorf("castrum/ebiten: audio: close source %q: %w", source, closeErr))
+			}
+		}
+	}()
 
+	var reader io.ReadSeeker
+	var length int64
 	switch want.Load {
 	case audio.LoadEager:
 		data, err := a.server.Load[asset.AudioData](string(source))
 		if err != nil {
 			return nil, fmt.Errorf("castrum/ebiten: audio: load eager audio: %w", err)
 		}
-		var player *ebitaudio.Player
-		if want.Loop == audio.LoopForever {
-			player, err = a.audioCtx.NewPlayer(
-				ebitaudio.NewInfiniteLoop(bytes.NewReader(data.PCM), int64(len(data.PCM))),
-			)
-			if err != nil {
-				return nil, fmt.Errorf("castrum/ebiten: audio: create looping player: %w", err)
-			}
-		} else {
-			player = a.audioCtx.NewPlayerFromBytes(data.PCM)
-		}
-		player.SetVolume(want.Volume)
-		session.player = player
+		reader = bytes.NewReader(data.PCM)
+		length = int64(len(data.PCM))
 	case audio.LoadStream:
 		file, format, err := a.server.Open(string(source))
 		if err != nil {
 			return nil, fmt.Errorf("castrum/ebiten: audio: open stream source: %w", err)
 		}
+		session.source = file
 		decode, ok := streamDecoders[format]
 		if !ok {
-			file.Close()
 			return nil, fmt.Errorf("castrum/ebiten: audio: no stream decoder for format %q", format)
 		}
 		if _, ok := file.(io.Seeker); !ok {
-			file.Close()
 			return nil, fmt.Errorf("castrum/ebiten: audio: stream source %q is not seekable", source)
 		}
 		decoded, err := decode(a.audioCtx.SampleRate(), file)
 		if err != nil {
-			file.Close()
 			return nil, fmt.Errorf("castrum/ebiten: audio: decode stream: %w", err)
 		}
-		reader := io.Reader(decoded)
-		if want.Loop == audio.LoopForever {
-			reader = ebitaudio.NewInfiniteLoop(decoded, decoded.Length())
-		}
-		player, err := a.audioCtx.NewPlayer(reader)
-		if err != nil {
-			file.Close()
-			return nil, fmt.Errorf("castrum/ebiten: audio: create stream player: %w", err)
-		}
-		player.SetVolume(want.Volume)
-		session.player = player
-		session.source = file
+		reader = decoded
+		length = decoded.Length()
+	default:
+		return nil, fmt.Errorf("castrum/ebiten: audio: invalid load mode %d for source %q", want.Load, source)
 	}
+	if want.Loop == audio.LoopForever {
+		reader = ebitaudio.NewInfiniteLoop(reader, length)
+	}
+	session.balance, err = newBalanceReader(reader, want.Balance)
+	if err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: audio: source %q: %w", source, err)
+	}
+	session.player, err = a.audioCtx.NewPlayer(session.balance)
+	if err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: audio: create player for source %q: %w", source, err)
+	}
+	session.player.SetVolume(want.Volume)
 	return session, nil
 }

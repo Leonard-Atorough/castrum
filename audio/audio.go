@@ -79,7 +79,11 @@ type Source struct {
 	// Completed reports whether a [LoopNone] play has finished. The audio
 	// system owns this field: it sets it on completion and clears it on
 	// restart, including an Audio change.
-	Completed      bool
+	Completed bool
+	// Balance is the stereo panning of the source, where -1 is full left,
+	// 0 is center, and 1 is full right.
+	Balance float64
+
 	restarts       uint64
 	syncedRestarts uint64
 	syncedAudio    asset.ID
@@ -109,6 +113,9 @@ func (s Source) Validate() error {
 	}
 	if s.Group != GroupSFX && s.Group != GroupMusic {
 		return fmt.Errorf("audio: invalid group %d", s.Group)
+	}
+	if s.Balance < -1 || s.Balance > 1 {
+		return fmt.Errorf("audio: source balance must be in [-1, 1], got %v", s.Balance)
 	}
 	return nil
 }
@@ -218,6 +225,9 @@ type Playback struct {
 	Loop LoopMode
 	// Load selects eager decode or per-play streaming.
 	Load LoadMode
+	// Balance is the stereo panning of the source, where -1 is full left, 0
+	// is center, and 1 is full right.
+	Balance float64
 }
 
 // Controller applies resolved [Playback] state to backend players. Runners
@@ -329,6 +339,7 @@ func fold(s Source, mixer *Mixer) Playback {
 		Rate:    resolveMultiplier(s.PlaybackMultiplier),
 		Loop:    s.Loop,
 		Load:    s.Load,
+		Balance: s.Balance,
 	}
 }
 

@@ -364,7 +364,7 @@ if err := g.AddSystem(core.PhaseFrame, "player.sfx", sfxSystem()); err != nil {
 
 Click the left mouse button. Each click plays the effect once; holding the button does not retrigger it until you release and click again. `audio.OneShot` creates the temporary audio entity and removes it when playback finishes.
 
-The [audio guide](../guides/audio.md) covers volume controls, pause behavior, and the rest of the audio API. The [audio example](../../examples/audio) shows those controls in a complete program.
+The [audio guide](../guides/audio.md) covers volume controls, pause behavior, and the rest of the audio API. The [playback](../../examples/audio/playback), [mixing](../../examples/audio/mixing), and [balance](../../examples/audio/balance) examples demonstrate each aspect in a focused program.
 
 ### A camera that follows the tank
 

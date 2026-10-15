@@ -7,7 +7,15 @@ There are two common shapes:
 - Use `audio.OneShot` for a short effect that the engine should reclaim after it finishes.
 - Attach `audio.Source` to a game entity for music, ambience, or any play whose lifetime you control.
 
-The complete runnable example is [examples/audio](../../examples/audio). It plays an eager sound effect, streams looping music, adjusts mixer volumes, and demonstrates global pause behavior.
+Three focused examples share embedded recordings in [examples/audio](../../examples/audio):
+
+| Example | Run from the repository root | Focus |
+| --- | --- | --- |
+| [Playback](../../examples/audio/playback) | `go run ./examples/audio/playback` | Eager OneShots, streamed looping music, source pause and restart |
+| [Mixing](../../examples/audio/mixing) | `go run ./examples/audio/mixing` | Master/group volume and global pause policies |
+| [Balance](../../examples/audio/balance) | `go run ./examples/audio/balance` | Live stereo balance, updates while paused, and preservation on restart |
+
+The parent directory contains the shared asset package, not a runnable command. Each example binary embeds the recordings and needs no external asset directory. Attribution is in [CREDITS.md](../../CREDITS.md).
 
 ## Play a sound effect
 
@@ -97,6 +105,7 @@ Looping and position resets require a seek-capable file. Normal directory files 
 
 - `Audio` is the asset ID. It must not be empty.
 - `Volume` is the per-play level in `(0, 1]`. Use mixer levels for muting; zero is rejected at spawn.
+- `Balance` attenuates the opposite stereo channel: `-1` mutes the right, `1` mutes the left, and zero preserves the original mix. Values must be finite and in `[-1, 1]`.
 - `Group` selects `GroupSFX` or `GroupMusic`. The zero value is `GroupSFX`.
 - `Loop` selects `LoopNone` or `LoopForever`. The zero value is `LoopNone`.
 - `Pause` selects `PauseHolds` or `PauseContinues`. The zero value is `PauseHolds`.
@@ -129,6 +138,10 @@ for e := range sources.Execute() {
 ```
 
 `Paused` holds the current position. `Restart` rewinds to the beginning, clears `Completed`, and resumes the play. Changing `Audio` also starts the new asset from the beginning. A finished non-looping play sets `Completed`; it does not restart by itself. Call `Restart` or change `Audio` when the play should begin again.
+
+Changing `Balance` does not restart playback and applies independently of mixer volume, including while paused. It works with eager, streamed, and looping audio, and survives restarts. Balance does not move sound between channels: at either endpoint, content in the muted channel is lost. Already-buffered audio retains its previous balance, so updates are not instantaneous. Gain changes are not smoothed and abrupt changes can click.
+
+In the [balance example](../../examples/audio/balance), hold Left/Right to adjust balance or press 1/2/3 for left/center/right. Space pauses the source; change balance while paused, then resume with Space or restart with R. The displayed left/right gains are independent of source and mixer volume. Use headphones or stereo speakers to hear the difference.
 
 The backend currently used by `ebitrun` supports only a resolved playback rate of `1`. The audio component accepts positive multipliers and the engine resolves zero to `1`, but setting another multiplier with this runner returns an error when the player is created.
 
@@ -179,7 +192,9 @@ Create the runner before explicit audio preloads, and register required long-liv
 
 ## Where to go next
 
-- [examples/audio](../../examples/audio) - eager effects, streaming music, mixer controls, and global pause.
+- [Playback example](../../examples/audio/playback) - eager effects, streamed music, source pause and restart.
+- [Mixing example](../../examples/audio/mixing) - mixer volume and global pause policies.
+- [Balance example](../../examples/audio/balance) - live per-source stereo balance.
 - [Assets](assets.md) - audio formats, typed preloads, caching, and streaming files.
 - [Publishing your game](publishing-your-game.md) - embedding audio in a single binary.
 - [Conventions](conventions.md) - zero values, validation boundaries, and state-driven control.
