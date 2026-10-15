@@ -7,6 +7,7 @@ package audio
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
@@ -80,8 +81,9 @@ type Source struct {
 	// system owns this field: it sets it on completion and clears it on
 	// restart, including an Audio change.
 	Completed bool
-	// Balance is the stereo panning of the source, where -1 is full left,
-	// 0 is center, and 1 is full right.
+	// Balance attenuates the opposite stereo channel: -1 mutes the right,
+	// 1 mutes the left, and zero preserves the original mix.
+	// Values must be finite and in [-1, 1].
 	Balance float64
 
 	restarts       uint64
@@ -90,8 +92,9 @@ type Source struct {
 }
 
 // Validate reports an error if Audio is empty, Volume is less than or equal
-// to zero or greater than one, PlaybackMultiplier is negative, or Group,
-// Loop, Pause, or Load has an unsupported value.
+// to zero or greater than one, PlaybackMultiplier is negative, Balance is
+// non-finite or outside [-1, 1], or Group, Loop, Pause, or Load has an
+// unsupported value.
 func (s Source) Validate() error {
 	if s.Audio == "" {
 		return fmt.Errorf("audio: source audio ID must not be empty")
@@ -114,8 +117,8 @@ func (s Source) Validate() error {
 	if s.Group != GroupSFX && s.Group != GroupMusic {
 		return fmt.Errorf("audio: invalid group %d", s.Group)
 	}
-	if s.Balance < -1 || s.Balance > 1 {
-		return fmt.Errorf("audio: source balance must be in [-1, 1], got %v", s.Balance)
+	if math.IsNaN(s.Balance) || s.Balance < -1 || s.Balance > 1 {
+		return fmt.Errorf("audio: source balance must be finite and in [-1, 1], got %v", s.Balance)
 	}
 	return nil
 }
@@ -225,8 +228,8 @@ type Playback struct {
 	Loop LoopMode
 	// Load selects eager decode or per-play streaming.
 	Load LoadMode
-	// Balance is the stereo panning of the source, where -1 is full left, 0
-	// is center, and 1 is full right.
+	// Balance is the per-play channel attenuation from [Source.Balance],
+	// independent of Volume.
 	Balance float64
 }
 

@@ -2,6 +2,7 @@ package audio
 
 import (
 	"errors"
+	"math"
 	"strings"
 	"testing"
 
@@ -102,8 +103,60 @@ func TestSourceValidatedAtSpawn(t *testing.T) {
 	}
 }
 
+func TestSourceBalanceValidation(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		balance float64
+		valid   bool
+	}{
+		{"center", 0, true},
+		{"full left", -1, true},
+		{"full right", 1, true},
+		{"partial left", -0.5, true},
+		{"partial right", 0.5, true},
+		{"below range", math.Nextafter(-1, math.Inf(-1)), false},
+		{"above range", math.Nextafter(1, math.Inf(1)), false},
+		{"NaN", math.NaN(), false},
+		{"negative infinity", math.Inf(-1), false},
+		{"positive infinity", math.Inf(1), false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			source := NewSource("sfx/step.wav")
+			source.Balance = tt.balance
+			err := source.Validate()
+			if tt.valid {
+				if err != nil {
+					t.Fatalf("Validate() = %v, want nil", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "balance") {
+				t.Fatalf("Validate() = %v, want balance error", err)
+			}
+		})
+	}
+}
+
+func TestSourceBalanceValidatedAtSpawnAndUpdate(t *testing.T) {
+	world := core.NewWorld()
+	source := NewSource("sfx/step.wav")
+	source.Balance = math.NaN()
+	if _, err := world.NewEntity(source); err == nil || !strings.Contains(err.Error(), "balance") {
+		t.Fatalf("spawn error = %v, want balance error", err)
+	}
+	source.Balance = 0.5
+	entity, err := world.NewEntity(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := entity.Update(world, func(s *Source) { s.Balance = math.NaN() }); err == nil || !strings.Contains(err.Error(), "balance") {
+		t.Fatalf("update error = %v, want balance error", err)
+	}
+	if got, ok := entity.Component[Source](world); !ok || got.Balance != 0.5 {
+		t.Fatalf("invalid update changed stored source: %+v", got)
+	}
+}
+
 func TestSourceRestart(t *testing.T) {
-	s := Source{Audio: "sfx/step.wav", Volume: 1}
+	s := Source{Audio: "sfx/step.wav", Volume: 1, Balance: -0.5}
 
 	// Pausing and resuming are plain Paused writes.
 	s.Paused = true
@@ -129,6 +182,9 @@ func TestSourceRestart(t *testing.T) {
 	s.Restart()
 	if s.restarts != before+2 {
 		t.Fatalf("second Restart: restarts = %d, want %d", s.restarts, before+2)
+	}
+	if s.Balance != -0.5 {
+		t.Fatalf("Restart() changed balance to %v, want -0.5", s.Balance)
 	}
 }
 
@@ -255,6 +311,29 @@ func TestFold(t *testing.T) {
 				Group: GroupMusic, Loop: LoopForever, Load: LoadStream,
 			},
 			want: Playback{Playing: true, Volume: 1, Rate: 1, Loop: LoopForever, Load: LoadStream},
+		},
+		{
+			name:   "balance is independent of mixed volume",
+			source: Source{Audio: "sfx/step.wav", Volume: 0.5, Balance: -0.5},
+			mixer: func(m *Mixer) {
+				m.SetMaster(0.5)
+				m.SetGroupVolume(GroupSFX, 0.5)
+			},
+			want: Playback{Playing: true, Volume: 0.125, Rate: 1, Balance: -0.5},
+		},
+		{
+			name:   "balance survives source pause",
+			source: Source{Audio: "sfx/step.wav", Volume: 1, Balance: 0.5, Paused: true},
+			want:   Playback{Volume: 1, Rate: 1, Balance: 0.5},
+		},
+		{
+			name:   "balance survives mixer pause and mute",
+			source: Source{Audio: "sfx/step.wav", Volume: 1, Balance: -1},
+			mixer: func(m *Mixer) {
+				m.PauseAll()
+				m.SetMaster(0)
+			},
+			want: Playback{Rate: 1, Balance: -1},
 		},
 	}
 	for _, tt := range tests {
@@ -394,7 +473,7 @@ func TestSystemManualCompletedClearIsCorrected(t *testing.T) {
 }
 
 func TestSystemRestartEdgesClearCompleted(t *testing.T) {
-	entity, ctx := newAudioWorld(t, Source{Audio: "sfx/step.wav", Volume: 1})
+	entity, ctx := newAudioWorld(t, Source{Audio: "sfx/step.wav", Volume: 1, Balance: 0.5})
 	fake := &fakeController{live: false}
 	sys := NewAudioSystem(fake, NewMixer())
 
@@ -404,7 +483,9 @@ func TestSystemRestartEdgesClearCompleted(t *testing.T) {
 	if s := readSource(t, entity, ctx); !s.Completed {
 		t.Fatal("finished play must be completed")
 	}
-	entity.Update(ctx.World, func(s *Source) { s.Restart() })
+	if err := entity.Update(ctx.World, func(s *Source) { s.Restart() }); err != nil {
+		t.Fatal(err)
+	}
 	fake.live = true
 	runAudio(t, sys, ctx)
 	s := readSource(t, entity, ctx)
@@ -415,6 +496,9 @@ func TestSystemRestartEdgesClearCompleted(t *testing.T) {
 	if !last.want.Restart {
 		t.Fatal("a restarts bump must reach the provider as a restart")
 	}
+	if s.Balance != 0.5 || last.want.Balance != 0.5 {
+		t.Fatalf("restart balance: source=%v playback=%v, want 0.5", s.Balance, last.want.Balance)
+	}
 
 	// Complete again, then retarget to another source.
 	fake.live = false
@@ -422,7 +506,9 @@ func TestSystemRestartEdgesClearCompleted(t *testing.T) {
 	if s := readSource(t, entity, ctx); !s.Completed {
 		t.Fatal("finished play must be completed")
 	}
-	entity.Update(ctx.World, func(s *Source) { s.Audio = "sfx/other.wav" })
+	if err := entity.Update(ctx.World, func(s *Source) { s.Audio = "sfx/other.wav" }); err != nil {
+		t.Fatal(err)
+	}
 	fake.live = true
 	runAudio(t, sys, ctx)
 	s = readSource(t, entity, ctx)
@@ -432,6 +518,9 @@ func TestSystemRestartEdgesClearCompleted(t *testing.T) {
 	last = fake.syncs[len(fake.syncs)-1]
 	if !last.want.Restart || last.source != "sfx/other.wav" {
 		t.Fatalf("Audio change must reach the provider as a restart, got %+v", last)
+	}
+	if s.Balance != 0.5 || last.want.Balance != 0.5 {
+		t.Fatalf("audio change balance: source=%v playback=%v, want 0.5", s.Balance, last.want.Balance)
 	}
 }
 
@@ -501,8 +590,8 @@ func TestOneShotRejectsLoopForever(t *testing.T) {
 
 func TestNewSourceDefaults(t *testing.T) {
 	s := NewSource("sfx/step.wav")
-	if s.Audio != "sfx/step.wav" || s.Volume != 1 {
-		t.Fatalf("NewSource() = %+v, want the audio file at unity volume", s)
+	if s.Audio != "sfx/step.wav" || s.Volume != 1 || s.Balance != 0 {
+		t.Fatalf("NewSource() = %+v, want the audio file at unity volume and zero balance", s)
 	}
 	if err := s.Validate(); err != nil {
 		t.Fatalf("Validate() = %v, want nil: the constructor result must be a valid play as-is", err)
