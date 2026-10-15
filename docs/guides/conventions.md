@@ -142,7 +142,7 @@ Keep query component reads and writes limited to the types listed in `With`.
 
 Use a component for per-entity state and a resource for one world-owned instance. Register game resources with `World.Provide` during setup, then resolve them by type. Use `ProvideEager` and `ResolveEager` when a constructor must succeed before startup; ordinary `Provide` is lazy and resolves on the first `Resource` call.
 
-The engine exposes its shared services directly through `Game.AssetServer`, `Game.Clips`, and `Game.Mixer`, while the same instances are also world resources for systems. Prefer these accessors in setup code and the world resource API inside systems when that is the natural dependency boundary.
+The engine registers shared services such as `*asset.Server`, `*animation.ClipStore`, and `*audio.Mixer` as world resources. Resolve them through `g.World().Resource[T]()` during setup or `ctx.World.Resource[T]()` inside systems. Use `MustResource[T]()` only for resources guaranteed by the engine configuration.
 
 Use one filesystem root consistently. `WithFilesystem` accepts an `fs.FS`; the default resolves paths from the process working directory, while `embed.FS` makes the asset set part of a single binary. Register atlases and clips before entities or systems depend on them. The [assets](assets.md), [animation](animation.md), and [audio](audio.md) guides cover loading and streaming choices.
 
