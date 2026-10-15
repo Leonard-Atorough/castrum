@@ -109,7 +109,7 @@ The replacement takes effect on the next input update. `ctx.Actions.Bindings()` 
 
 ## Raw snapshots
 
-Use `ctx.Input` when you need a physical device directly or need continuous data such as cursor and wheel movement:
+Use `ctx.Input` when you need a physical device directly, such as cursor position or the current update's scroll offset:
 
 ```go
 if ctx.Input.KeyPressed(input.KeySpace) {
@@ -126,9 +126,26 @@ aim := ctx.Input.PadAxis(0, input.PadRightStickX)
 
 Snapshot reads are nil-safe and bounds-safe. A missing runner snapshot, an invalid key or button, and an out-of-range pad all read as inactive or zero. The runner owns the snapshot; systems should treat it as read-only. Raw snapshot methods include keyboard, mouse buttons, cursor, wheel, gamepad connection, gamepad buttons, and gamepad axes.
 
+## Mouse wheel: frame-scoped displacement
+
+The default runner polls the wheel once per runner update, before the frame phase. `ctx.Input.Wheel()` returns that update's signed X/Y scroll offsets, not a held state, velocity, or accumulated position. Offsets may be fractional or larger than one; do not assume one unit per wheel notch. Positive Y is scroll up and negative Y is scroll down. An update with no scrolling reports zero.
+
+Read `ctx.Input.Wheel()` in `PhaseFrame` for UI scrolling and other presentation controls. Reads do not consume the snapshot: every reader sees the same value. A runner update is not necessarily a rendered frame, so drawing the latest snapshot is useful for diagnostics but is not a lossless input handler.
+
+Ebitengine accumulates wheel offsets over its input sampling interval before the runner reads them. The snapshot therefore contains the net displacement, not just one wheel event. Opposite movements within that interval can cancel; event order is not preserved. Castrum copies this value rather than accumulating it again across updates.
+
+```go
+// Inside a PhaseFrame system:
+scroll := ctx.Input.Wheel()
+```
+
+Handle the displacement once per frame-phase update, without multiplying it by `DeltaTime` or time scale. The [input example](../../examples/input) does this for wheel zoom alongside rate-based Q/E controls. Frame systems continue running during `Game.Pause`, so mouse-based presentation controls need no special pause buffer or replay policy.
+
+The snapshot is frame-scoped even when read by fixed systems: catch-up ticks share it, while an update without a tick may be replaced before any fixed system reads it. Applying its wheel offset once per fixed tick would repeat movement during catch-up. That is not duplicate delivery by the poller. Castrum does not currently provide tick-scoped mouse input, wheel action bindings, or an ordered input-event queue.
+
 ## Pick world positions
 
-The cursor is in logical-screen coordinates. Convert it with the render-published view rather than reconstructing a `CameraView` from component state:
+The default runner reports the cursor in logical-screen coordinates, not window/device pixels, including when the window is scaled. Convert it with the render-published view rather than reconstructing a `CameraView` from component state:
 
 ```go
 func aimSystem() core.System {
