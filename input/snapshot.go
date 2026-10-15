@@ -11,7 +11,8 @@ type MouseSnapshot struct {
 	Cursor geom.Vector2
 	// Buttons stores the state of each [MouseButton].
 	Buttons [NumMouseButtons]State
-	// Wheel is the scroll movement reported for this snapshot.
+	// Wheel is the signed scroll offset reported for this runner update.
+	// Values may be fractional; they are not a held state or a velocity.
 	Wheel geom.Vector2
 }
 
@@ -77,7 +78,9 @@ func (s *Snapshot) Cursor() geom.Vector2 {
 	return s.Mouse.Cursor
 }
 
-// Wheel returns the scroll movement in this snapshot.
+// Wheel returns the signed scroll offset in this snapshot without consuming
+// it. Handle wheel movement in the frame phase: fixed catch-up ticks read
+// the same snapshot, not independently delivered offsets.
 func (s *Snapshot) Wheel() geom.Vector2 {
 	if s == nil {
 		return geom.Vector2{}

@@ -1,5 +1,5 @@
 // Command input demonstrates bindings-driven input: WASD, arrows, or
-// a stick drive a tank, the mouse aims the turret, QE zooms. The
+// a stick drive a tank, the mouse aims the turret, QE or the wheel zooms. The
 // ActionMap (named bindings, axis actions) and raw snapshot polling
 // run side by side, so both input styles are visible in one program.
 //
@@ -31,13 +31,14 @@ const (
 	fieldGap    = 150
 	circleRadii = 32
 
-	moveSpeed   = 300
-	turnSpeed   = 3
-	barrelLen   = 56
-	barrelWidth = 12
-	zoomSpeed   = 1.5
-	zoomMin     = 0.25
-	zoomMax     = 8
+	moveSpeed     = 300
+	turnSpeed     = 3
+	barrelLen     = 56
+	barrelWidth   = 12
+	zoomSpeed     = 1.5
+	wheelZoomStep = 0.1
+	zoomMin       = 0.25
+	zoomMax       = 8
 )
 
 func main() {
@@ -140,7 +141,8 @@ func run() error {
 		}
 	}
 
-	// system for camera movement and zoom
+	// Simulation follows the tank; presentation zoom runs once per frame,
+	// including while the simulation is paused.
 	if err := g.AddSystem(core.PhaseFixed, "input.tank_body", tankBodySystem(body)); err != nil {
 		return err
 	}
@@ -150,6 +152,9 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFixed, "input.camera", cameraSystem(camera, body)); err != nil {
 		return err
 	}
+	if err := g.AddSystem(core.PhaseFrame, "input.zoom", zoomSystem(camera)); err != nil {
+		return err
+	}
 
 	runner, err := ebitrun.New(g)
 	if err != nil {
@@ -157,7 +162,13 @@ func run() error {
 	}
 
 	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrint(screen, "castrum input - WASD or arrows or stick to drive, mouse aims the turret, QE zooms\nFPS: "+fmt.Sprintf("%.2f", ebiten.ActualFPS()))
+		cursor, wheel := ctx.Input.Cursor(), ctx.Input.Wheel()
+		ebitenutil.DebugPrint(screen, fmt.Sprintf(
+			"castrum input - WASD or arrows or stick to drive, mouse aims the turret, QE or wheel zooms\n"+
+				"Mouse position (logical screen): (%g, %g)\n"+
+				"Scroll delta (latest input snapshot): (%g, %g)\n"+
+				"FPS: %.2f",
+			cursor.X, cursor.Y, wheel.X, wheel.Y, ebiten.ActualFPS()))
 		return nil
 	})
 
@@ -171,22 +182,23 @@ func cameraSystem(camera *core.Entity, body *core.Entity) core.System {
 		hull, _ := body.Component[core.Transform](ctx.World)
 
 		// The camera follows the hull.
-		if err := camera.Update(ctx.World, func(t *core.Transform) {
+		return camera.Update(ctx.World, func(t *core.Transform) {
 			t.Position = hull.Position
-		}); err != nil {
-			return err
-		}
+		})
+	})
+}
 
-		if ctx.Actions.Held("zoom") {
-			if err := camera.Update(ctx.World, func(c *core.Transform) {
-				scaleChange := ctx.Actions.Axis("zoom") * zoomSpeed * ctx.DeltaTime.Seconds()
-				c.Scale.X = math.Max(zoomMin, math.Min(zoomMax, c.Scale.X+scaleChange))
-				c.Scale.Y = math.Max(zoomMin, math.Min(zoomMax, c.Scale.Y+scaleChange))
-			}); err != nil {
-				return err
-			}
+func zoomSystem(camera *core.Entity) core.System {
+	return core.SystemFunc(func(ctx *core.Context) error {
+		// Keys express a rate; wheel offsets already express movement.
+		scaleChange := ctx.Actions.Axis("zoom")*zoomSpeed*ctx.DeltaTime.Seconds() + ctx.Input.Wheel().Y*wheelZoomStep
+		if scaleChange == 0 {
+			return nil
 		}
-		return nil
+		return camera.Update(ctx.World, func(c *core.Transform) {
+			c.Scale.X = math.Max(zoomMin, math.Min(zoomMax, c.Scale.X+scaleChange))
+			c.Scale.Y = math.Max(zoomMin, math.Min(zoomMax, c.Scale.Y+scaleChange))
+		})
 	})
 }
 

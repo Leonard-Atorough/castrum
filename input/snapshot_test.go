@@ -71,7 +71,7 @@ func TestSnapshotReadback(t *testing.T) {
 	s.Keys[KeySpace] = State{Released: true}
 	s.Mouse = MouseSnapshot{
 		Cursor: geom.Vector2{X: 320, Y: 240},
-		Wheel:  geom.Vector2{X: 0, Y: -2},
+		Wheel:  geom.Vector2{X: 0.25, Y: -1.5},
 	}
 	s.Mouse.Buttons[MouseButtonLeft] = State{Held: true}
 	s.Pads[1] = PadSnapshot{Connected: true}
@@ -94,8 +94,10 @@ func TestSnapshotReadback(t *testing.T) {
 	if p.Cursor() != (geom.Vector2{X: 320, Y: 240}) {
 		t.Errorf("cursor = %v, want (320, 240)", p.Cursor())
 	}
-	if p.Wheel() != (geom.Vector2{X: 0, Y: -2}) {
-		t.Errorf("wheel = %v, want (0, -2)", p.Wheel())
+	for range 2 {
+		if p.Wheel() != (geom.Vector2{X: 0.25, Y: -1.5}) {
+			t.Errorf("wheel = %v, want (0.25, -1.5) on every read", p.Wheel())
+		}
 	}
 	if p.PadConnected(0) || !p.PadConnected(1) {
 		t.Errorf("pad 0/1 connected = %v/%v, want false/true",
@@ -114,7 +116,7 @@ func TestSnapshotReadback(t *testing.T) {
 	empty := &Snapshot{}
 	if empty.KeyHeld(KeyA) || empty.MouseHeld(MouseButtonLeft) ||
 		empty.PadConnected(0) || empty.PadAxis(0, PadLeftStickX) != 0 ||
-		empty.Cursor() != (geom.Vector2{}) {
+		empty.Cursor() != (geom.Vector2{}) || empty.Wheel() != (geom.Vector2{}) {
 		t.Error("zero Snapshot should read as all input off")
 	}
 }

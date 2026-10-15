@@ -3,6 +3,7 @@ package ebitrun
 import (
 	"testing"
 
+	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 )
 
@@ -42,11 +43,12 @@ func TestPadTablesComplete(t *testing.T) {
 
 func TestPollerSmoke(t *testing.T) {
 	p := &poller{}
+	p.snapshot.Mouse.Wheel = geom.Vector2{X: 0.25, Y: -1.5}
 	p.poll()
 	s := p.snapshotPtr()
 	if s.KeyHeld(input.KeyA) || s.MouseHeld(input.MouseButtonLeft) ||
 		s.PadConnected(0) || s.PadHeld(0, input.PadSouth) ||
-		s.PadAxis(0, input.PadLeftStickX) != 0 {
+		s.PadAxis(0, input.PadLeftStickX) != 0 || s.Wheel() != (geom.Vector2{}) {
 		t.Error("headless poll should report no input")
 	}
 }
