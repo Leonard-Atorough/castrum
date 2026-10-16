@@ -1,6 +1,6 @@
 # Audio
 
-Audio is state on the world. An `audio.Source` identifies an asset and describes how it should play; the engine reconciles that state with the runner's players. You do not call a backend player directly. Write the source state, and the runner catches up on the next tick.
+Audio is state on the world. An `audio.Source` identifies an asset and describes how it should play; the engine reconciles that state with the runner's players. You do not call a backend player directly. The default runner reconciles audio during frame updates, independently of simulation pause and time scale.
 
 There are two common shapes:
 
@@ -53,7 +53,7 @@ if err != nil {
 }
 ```
 
-The entity owns the playback state. Destroying it, removing its `Source`, or stopping the source causes the runner to release its player. An entity can also carry other components, making it useful for sounds attached to a character, vehicle, or zone.
+The entity owns the playback state. Destroying it or removing its `Source` causes the runner to release its player on the next reconciliation. A finished non-looping play also releases its playback resources, but its entity remains. An entity can carry other components, making it useful for sounds attached to a character, vehicle, or zone.
 
 ## Choose how audio loads
 
@@ -104,7 +104,7 @@ Looping and position resets require a seek-capable file. Normal directory files 
 `audio.Source` has one required field and several useful defaults:
 
 - `Audio` is the asset ID. It must not be empty.
-- `Volume` is the per-play level in `(0, 1]`. Use mixer levels for muting; zero is rejected at spawn.
+- `Volume` is the finite per-play level in `(0, 1]`. Use mixer levels for muting; zero and NaN are rejected.
 - `Balance` attenuates the opposite stereo channel: `-1` mutes the right, `1` mutes the left, and zero preserves the original mix. Values must be finite and in `[-1, 1]`.
 - `Group` selects `GroupSFX` or `GroupMusic`. The zero value is `GroupSFX`.
 - `Loop` selects `LoopNone` or `LoopForever`. The zero value is `LoopNone`.
@@ -157,27 +157,37 @@ Adjust the master or one group without rewriting every source:
 
 ```go
 mixer := g.World().MustResource[*audio.Mixer]()
-mixer.SetMaster(mixer.Master() - step)
-mixer.SetGroupVolume(
+if err := mixer.SetMaster(mixer.Master() - step); err != nil {
+	return err
+}
+if err := mixer.SetGroupVolume(
 	audio.GroupMusic,
 	mixer.GroupVolume(audio.GroupMusic)-step,
-)
+); err != nil {
+	return err
+}
 ```
 
-Mixer setters clamp their values to `[0, 1]`. An unmodified group starts at unity volume.
+Mixer setters clamp their values to `[0, 1]`, including infinities at the corresponding endpoints. NaN returns an error without changing the current value. An unmodified group starts at unity volume. Muting a bus does not pause its plays; silent playback can still finish.
 
 Use `PauseAll`, `ResumeAll`, or `TogglePause` for a global pause menu. Each source decides how that pause affects it:
 
 - `PauseHolds` freezes the play at its current position.
 - `PauseContinues` lets the play continue while the mixer is paused.
 
-The source's own `Paused` field and the mixer's pause state compose. This lets a pause menu hold music while allowing a UI confirmation effect to play through.
+The source's own `Paused` field always holds that play, including a `PauseContinues` source. Resuming the mixer does not clear individual source pauses.
+
+`Game.Pause` stops fixed simulation, not audio playback or reconciliation. Use the mixer separately when a game pause should hold audio. Simulation time scale does not change playback speed; see [Time control](time-control.md) for the simulation controls.
 
 ## Errors and lifecycle
 
 Return errors from setup and systems. Common failures include an empty asset ID, an invalid source field, a missing or malformed audio file, an unsupported format, and a stream that cannot seek.
 
 Create the runner before explicit audio preloads, and register required long-lived sources before `g.Run`. Audio errors from the runner are returned through the game loop and include the source involved. A source that is merely paused remains live; a finished `LoopNone` play becomes completed and stays that way until restarted or retargeted.
+
+The default runner releases a completed play's player, balance reader, and streaming file once it observes playback has stopped, not merely when decoding reaches EOF. It retains a finished-session record so later reconciliation does not replay the source. Restarting or changing the asset creates a fresh player and reopens streamed audio. Paused and looping plays retain their playback resources.
+
+Completion does not destroy an ordinary source entity. `OneShot` entities are destroyed during the reconciliation that observes completion; their playback resources are released then, and their finished-session records are swept on the following reconciliation.
 
 ## Best practices
 

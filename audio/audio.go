@@ -63,8 +63,7 @@ type Source struct {
 	Audio asset.ID
 	// Group is the volume bus the play mixes through.
 	Group Group
-	// Volume is the per-play level. [Source.Validate] rejects values less than
-	// or equal to zero or greater than one; use a bus to mute its plays.
+	// Volume is the finite per-play level in (0, 1]; use a bus to mute its plays.
 	Volume float64
 	// Loop is the repeat behavior after the last sample.
 	Loop LoopMode
@@ -91,16 +90,15 @@ type Source struct {
 	syncedAudio    asset.ID
 }
 
-// Validate reports an error if Audio is empty, Volume is less than or equal
-// to zero or greater than one, PlaybackMultiplier is negative, Balance is
-// non-finite or outside [-1, 1], or Group, Loop, Pause, or Load has an
-// unsupported value.
+// Validate reports an error if Audio is empty, Volume is non-finite or outside
+// (0, 1], PlaybackMultiplier is negative, Balance is non-finite or outside
+// [-1, 1], or Group, Loop, Pause, or Load has an unsupported value.
 func (s Source) Validate() error {
 	if s.Audio == "" {
 		return fmt.Errorf("audio: source audio ID must not be empty")
 	}
-	if s.Volume <= 0 || s.Volume > 1 {
-		return fmt.Errorf("audio: source volume must be in (0, 1], got %v", s.Volume)
+	if math.IsNaN(s.Volume) || s.Volume <= 0 || s.Volume > 1 {
+		return fmt.Errorf("audio: source volume must be finite and in (0, 1], got %v", s.Volume)
 	}
 	if s.PlaybackMultiplier < 0 {
 		return fmt.Errorf("audio: source playback multiplier must not be negative (0 is the normal rate), got %v", s.PlaybackMultiplier)
@@ -159,8 +157,14 @@ func (m *Mixer) Master() float64 {
 }
 
 // SetMaster sets the master volume, clamped to [0, 1].
-func (m *Mixer) SetMaster(volume float64) {
+//
+// It returns an error for NaN without changing the volume.
+func (m *Mixer) SetMaster(volume float64) error {
+	if math.IsNaN(volume) {
+		return fmt.Errorf("audio: master volume must not be NaN")
+	}
 	m.master = clamp01(volume)
+	return nil
 }
 
 // GroupVolume returns the group's volume, from 0 (silence) to 1
@@ -173,8 +177,14 @@ func (m *Mixer) GroupVolume(group Group) float64 {
 }
 
 // SetGroupVolume sets the group's volume, clamped to [0, 1].
-func (m *Mixer) SetGroupVolume(group Group, volume float64) {
+//
+// It returns an error for NaN without changing the volume.
+func (m *Mixer) SetGroupVolume(group Group, volume float64) error {
+	if math.IsNaN(volume) {
+		return fmt.Errorf("audio: group volume must not be NaN")
+	}
 	m.groups[group] = clamp01(volume)
+	return nil
 }
 
 // Paused reports whether the mixer is globally paused. Each play's
