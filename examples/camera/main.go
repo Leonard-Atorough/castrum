@@ -1,8 +1,8 @@
 // Command camera demonstrates camera rotation, zoom, and bounds.
 // Use the arrow keys to pan, A and D to rotate, and W and S to zoom.
 // The camera uses the level rectangle as its bounds. The engine clamps
-// the final view to that rectangle, while the controls keep the camera
-// position within the area where the view can move.
+// the final view to that rectangle, while Camera.MovePosition keeps the
+// controls within the area where the view can move.
 //
 // Run from the repository root:
 //
@@ -163,68 +163,52 @@ func run() error {
 		return err
 	}
 
-	// This system updates the camera's position, rotation, and zoom.
-	// The engine resolves the final view and clamps it to the camera
-	// bounds; this system keeps the position within the corresponding
-	// movement window.
 	if err := g.AddSystem(core.PhaseFixed, "camera.controls", core.SystemFunc(func(ctx *core.Context) error {
 		dt := ctx.DeltaTime.Seconds()
-		return camera.Update(ctx.World, func(t *core.Transform) {
-			// Pan relative to the screen by rotating the input direction
-			// into world space. Normalizing the vector keeps diagonal
-			// movement at the same speed as horizontal or vertical
-			// movement.
-			pan := geom.Vector2{}
-			if ctx.Actions.Held("pan_left") {
-				pan.X -= 1
-			}
-			if ctx.Actions.Held("pan_right") {
-				pan.X += 1
-			}
-			if ctx.Actions.Held("pan_up") {
-				pan.Y -= 1
-			}
-			if ctx.Actions.Held("pan_down") {
-				pan.Y += 1
-			}
-			if !pan.IsZero() {
-				t.Position = t.Position.Add(pan.Normalize().Mul(panSpeed * dt).Rotate(t.Rotation))
-			}
-			if ctx.Actions.Held("rotate_left") {
-				t.Rotation -= rotateSpeed * dt
-			}
-			if ctx.Actions.Held("rotate_right") {
-				t.Rotation += rotateSpeed * dt
-			}
-			if ctx.Actions.Held("zoom") {
-				change := ctx.Actions.Axis("zoom") * zoomRate * dt
-				t.Scale.X = math.Max(zoomMin, math.Min(zoomMax, t.Scale.X+change))
-				t.Scale.Y = t.Scale.X
-			}
-
-			// Keep the position inside the movement window used by the
-			// engine when it clamps the view. The window is based on the
-			// view's circumscribed half-extents at the current zoom and
-			// rotation. If the position leaves this window, the view
-			// stays pinned until the position catches up. When zooming
-			// out makes the view larger than the bounds, the window is
-			// empty, so both the view and position stay at the center.
-			halfW := float64(ctx.LogicalWidth) / (2 * t.Scale.X)
-			halfH := float64(ctx.LogicalHeight) / (2 * t.Scale.Y)
-			s, c := math.Abs(math.Sin(t.Rotation)), math.Abs(math.Cos(t.Rotation))
-			extentX := c*halfW + s*halfH
-			extentY := s*halfW + c*halfH
-			if extentX >= float64(levelW)/2 {
-				t.Position.X = center.X
-			} else {
-				t.Position.X = clamp(t.Position.X, extentX, float64(levelW)-extentX)
-			}
-			if extentY >= float64(levelH)/2 {
-				t.Position.Y = center.Y
-			} else {
-				t.Position.Y = clamp(t.Position.Y, extentY, float64(levelH)-extentY)
-			}
-		})
+		cam, ok := camera.Component[render.Camera](ctx.World)
+		if !ok {
+			return fmt.Errorf("camera controls: missing Camera component")
+		}
+		t, ok := camera.Component[core.Transform](ctx.World)
+		if !ok {
+			return fmt.Errorf("camera controls: missing Transform component")
+		}
+		// Rotate screen-relative input into world space. Normalizing keeps
+		// diagonal movement at the same speed as movement along one axis.
+		pan := geom.Vector2{}
+		if ctx.Actions.Held("pan_left") {
+			pan.X -= 1
+		}
+		if ctx.Actions.Held("pan_right") {
+			pan.X += 1
+		}
+		if ctx.Actions.Held("pan_up") {
+			pan.Y -= 1
+		}
+		if ctx.Actions.Held("pan_down") {
+			pan.Y += 1
+		}
+		displacement := geom.Vector2{}
+		if !pan.IsZero() {
+			displacement = pan.Normalize().Mul(panSpeed * dt).Rotate(t.Rotation)
+		}
+		if ctx.Actions.Held("rotate_left") {
+			t.Rotation -= rotateSpeed * dt
+		}
+		if ctx.Actions.Held("rotate_right") {
+			t.Rotation += rotateSpeed * dt
+		}
+		if ctx.Actions.Held("zoom") {
+			change := ctx.Actions.Axis("zoom") * zoomRate * dt
+			t.Scale.X = math.Max(zoomMin, math.Min(zoomMax, t.Scale.X+change))
+			t.Scale.Y = t.Scale.X
+		}
+		position, err := cam.MovePosition(t, displacement, ctx.LogicalWidth, ctx.LogicalHeight)
+		if err != nil {
+			return err
+		}
+		t.Position = position
+		return camera.SetComponent(ctx.World, t)
 	})); err != nil {
 		return err
 	}
@@ -251,14 +235,4 @@ func run() error {
 	}
 
 	return g.Run(runner)
-}
-
-func clamp(value, min, max float64) float64 {
-	if value < min {
-		return min
-	}
-	if value > max {
-		return max
-	}
-	return value
 }

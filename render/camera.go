@@ -35,6 +35,62 @@ func (c Camera) Validate() error {
 	return nil
 }
 
+// MovePosition returns the position reached by moving transform by a
+// world-space displacement, without modifying transform.
+//
+// It constrains both the starting position and the destination to [Camera.Bounds],
+// accounting for the logical viewport width and height in pixels, zoom,
+// rotation, and anchor. A zero displacement only constrains the position.
+// Empty bounds leave movement unbounded. If the view cannot fit on an axis,
+// its center is pinned to the bounds center on that axis.
+//
+// MovePosition returns an error for a nonpositive viewport size, invalid anchor
+// or zoom, non-finite position, displacement, or rotation, or a non-finite result.
+func (c Camera) MovePosition(transform core.Transform, displacement geom.Vector2, width, height int) (geom.Vector2, error) {
+	if width <= 0 || height <= 0 {
+		return geom.Vector2{}, fmt.Errorf("camera movement: logical viewport must be positive, got %dx%d", width, height)
+	}
+	if err := c.Validate(); err != nil {
+		return geom.Vector2{}, err
+	}
+	for _, value := range []struct {
+		name  string
+		value float64
+	}{
+		{"position X", transform.Position.X},
+		{"position Y", transform.Position.Y},
+		{"displacement X", displacement.X},
+		{"displacement Y", displacement.Y},
+		{"rotation", transform.Rotation},
+	} {
+		if math.IsNaN(value.value) || math.IsInf(value.value, 0) {
+			return geom.Vector2{}, fmt.Errorf("camera movement: %s must be finite, got %v", value.name, value.value)
+		}
+	}
+	zoom, err := cameraZoom(transform.Scale, transform.Scale, 1)
+	if err != nil {
+		return geom.Vector2{}, err
+	}
+	view := CameraView{
+		Position: transform.Position,
+		Zoom:     zoom,
+		Rotation: transform.Rotation,
+		Anchor:   c.Anchor,
+	}
+	if !c.Bounds.IsEmpty() {
+		view.clampToBounds(c.Bounds, width, height)
+	}
+	view.Position = view.Position.Add(displacement)
+	if !c.Bounds.IsEmpty() {
+		view.clampToBounds(c.Bounds, width, height)
+	}
+	if math.IsNaN(view.Position.X) || math.IsInf(view.Position.X, 0) ||
+		math.IsNaN(view.Position.Y) || math.IsInf(view.Position.Y, 0) {
+		return geom.Vector2{}, fmt.Errorf("camera movement: resulting position must be finite, got %v", view.Position)
+	}
+	return view.Position, nil
+}
+
 // SpawnCamera creates a camera entity in w at position with the given zoom.
 // A zoom of zero means 1. It returns an error for an invalid anchor or a
 // negative or non-finite zoom.
@@ -54,8 +110,7 @@ func SpawnCamera(w *core.World, cam Camera, position geom.Vector2, zoom float64)
 	)
 }
 
-// engineCamera is a marker component used to distinguish the engine's
-// default camera from user-spawned cameras.
+// engineCamera lets the collector prefer user cameras over the default camera.
 type engineCamera struct{}
 
 // SpawnEngineCamera creates the engine's default primary camera at the world
@@ -71,10 +126,10 @@ func SpawnEngineCamera(w *core.World) (*core.Entity, error) {
 
 // CameraView is the resolved framing of a camera for one collected frame.
 //
-// A [Collector] publishes it as the world's [*CameraView] resource. Frame-phase
-// readers see the previous frame's view.
+// A [Collector] publishes it as the world's *CameraView resource after
+// successful collection. Systems see the most recently collected view.
 type CameraView struct {
-	// Position is the interpolated camera position in world space.
+	// Position is the camera position in world space after interpolation and bounds.
 	Position geom.Vector2
 	// Zoom is the scale used to project between world and screen coordinates.
 	Zoom float64
@@ -192,9 +247,6 @@ func (v CameraView) cullRect(width, height int) geom.Rect {
 	return geom.RectFromCenterSize(v.Position.Add(offset), half.Mul(2))
 }
 
-// clampToBounds constrains the anchored view to bounds. If the view cannot
-// fit, it pins the camera to the bounds center; rotated views use conservative
-// extents.
 func (v *CameraView) clampToBounds(bounds geom.Rect, width, height int) {
 	offset, half := v.viewGeometry(width, height)
 	center := v.Position.Add(offset)
