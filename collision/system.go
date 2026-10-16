@@ -34,22 +34,31 @@ const SystemName = "engine.collision"
 // to report when a contact ends.
 func NewSystem() core.System {
 	return &system{
-		proxies:     make(map[core.EntityID]proxy),
-		dirty:       make(map[core.EntityID]struct{}),
-		seen:        make(map[core.EntityID]struct{}),
-		oldContacts: make(map[core.EntityID][]Contact),
-		newContacts: make(map[core.EntityID][]Contact),
-		tested:      make(map[pairKey]struct{}),
-		nearby:      make([]core.EntityID, 0, 16),
-		attachIDs:   make([]core.EntityID, 0, 16),
+		proxies:   make(map[core.EntityID]*proxy),
+		contacts:  make(map[core.EntityID]*contactBuffers),
+		tested:    make(map[pairKey]struct{}),
+		nearby:    make([]core.EntityID, 0, 16),
+		attachIDs: make([]core.EntityID, 0, 16),
 	}
 }
 
 // Equal proxies need no broad-phase update or re-test.
 type proxy struct {
+	id       core.EntityID
 	collider Collider
+	position geom.Vector2
+	rotation float64
 	shape    worldShape
 	bounds   geom.Rect
+	seen     uint64
+}
+
+// The spare buffer is two ticks old, so building this tick cannot overwrite
+// either slice currently exposed through Contacts.
+type contactBuffers struct {
+	current  []Contact
+	previous []Contact
+	spare    []Contact
 }
 
 // pairKey identifies an unordered pair; use [canonicalPair] to keep its order
@@ -74,15 +83,16 @@ type system struct {
 	orphans [2]*core.Query
 	grid    *spatial.Grid
 
-	proxies     map[core.EntityID]proxy
-	dirty       map[core.EntityID]struct{}
-	seen        map[core.EntityID]struct{}
-	oldContacts map[core.EntityID][]Contact
-	newContacts map[core.EntityID][]Contact
-	tested      map[pairKey]struct{}
-	candidates  []pairKey
-	nearby      []core.EntityID
-	attachIDs   []core.EntityID
+	proxies    map[core.EntityID]*proxy
+	active     []*proxy
+	nextActive []*proxy
+	contacts   map[core.EntityID]*contactBuffers
+	tick       uint64
+	dirty      []core.EntityID
+	tested     map[pairKey]struct{}
+	candidates []pairKey
+	nearby     []core.EntityID
+	attachIDs  []core.EntityID
 }
 
 // Update runs one fixed tick of collision detection: reconcile the
@@ -108,18 +118,26 @@ func (s *system) Update(ctx *core.Context) error {
 		return err
 	}
 	if err := s.syncProxies(); err != nil {
+		// A failed pass may already have indexed new proxies. Keep them in the
+		// row cache so a retry can also remove any that have since disappeared.
+		s.active = s.active[:0]
+		for _, p := range s.proxies {
+			s.active = append(s.active, p)
+		}
 		return err
 	}
 	s.collectCandidates()
 	s.narrowPhase()
-	return s.writeContacts()
+	return s.writeContacts(ctx.World)
 }
 
 func (s *system) resetTick() {
-	clear(s.dirty)
-	clear(s.seen)
-	clear(s.oldContacts)
-	clear(s.newContacts)
+	s.tick++
+	s.dirty = s.dirty[:0]
+	s.nextActive = s.nextActive[:0]
+	for _, buffers := range s.contacts {
+		buffers.spare = buffers.spare[:0]
+	}
 	clear(s.tested)
 	s.candidates = s.candidates[:0]
 }
@@ -135,6 +153,7 @@ func (s *system) reconcileContacts(world *core.World) error {
 		if err := core.NewEntity(id).AddComponent(world, Contacts{}); err != nil {
 			return fmt.Errorf("collision: attach contacts to entity %d: %w", id, err)
 		}
+		delete(s.contacts, id)
 	}
 
 	for _, orphan := range s.orphans {
@@ -146,63 +165,103 @@ func (s *system) reconcileContacts(world *core.World) error {
 			if err := core.NewEntity(id).RemoveComponent[Contacts](world); err != nil {
 				return fmt.Errorf("collision: detach contacts from entity %d: %w", id, err)
 			}
+			delete(s.contacts, id)
 		}
 	}
 	return nil
 }
 
 func (s *system) syncProxies() error {
+	retained := 0
 	for e := range s.update.Execute() {
 		id := e.ID()
 		collider, _ := e.Component[Collider]()
 		transform, _ := e.Component[core.Transform]()
-		contacts, _ := e.Component[Contacts]()
-		s.oldContacts[id] = contacts.Current
-
 		if !collider.Active {
 			continue
 		}
-		shape := transformShape(collider.Shape, collider.Offset, transform)
-		if shape.shape == nil {
-			return fmt.Errorf("collision: entity %d has no usable collider shape", id)
+		// Query order is stable until structure changes; verify the ID before
+		// reusing the prior row's proxy and fall back to lookup after migration.
+		var p *proxy
+		if i := len(s.nextActive); i < len(s.active) && s.active[i].id == id {
+			p = s.active[i]
+		} else {
+			p = s.proxies[id]
 		}
-		p := proxy{collider: collider, shape: shape.shape, bounds: shape.bounds}
-		if last, ok := s.proxies[id]; !ok || last != p {
-			if err := s.grid.Update(id, shape.bounds); err != nil {
-				return fmt.Errorf("collision: entity %d: %w", id, err)
+		exists := p != nil
+		if exists {
+			retained++
+		}
+		if exists && p.position == transform.Position && p.rotation == transform.Rotation && p.collider == collider {
+			p.seen = s.tick
+			s.nextActive = append(s.nextActive, p)
+			continue
+		}
+		if !exists {
+			p = &proxy{id: id}
+		}
+		geometryChanged := !exists || p.position != transform.Position ||
+			p.rotation != transform.Rotation || p.collider.Shape != collider.Shape ||
+			p.collider.Offset != collider.Offset
+		changed := geometryChanged || p.collider != collider
+		if geometryChanged {
+			shape := transformShape(collider.Shape, collider.Offset, transform)
+			if shape.shape == nil {
+				return fmt.Errorf("collision: entity %d has no usable collider shape", id)
 			}
-			s.proxies[id] = p
-			s.dirty[id] = struct{}{}
+			if !exists || p.bounds != shape.bounds {
+				if err := s.grid.Update(id, shape.bounds); err != nil {
+					return fmt.Errorf("collision: entity %d: %w", id, err)
+				}
+			}
+			p.shape, p.bounds = shape.shape, shape.bounds
+			p.position, p.rotation = transform.Position, transform.Rotation
 		}
-		s.seen[id] = struct{}{}
+		p.collider, p.seen = collider, s.tick
+		if !exists {
+			s.proxies[id] = p
+		}
+		s.nextActive = append(s.nextActive, p)
+		if changed {
+			s.dirty = append(s.dirty, id)
+		}
 	}
 
-	for id := range s.proxies {
-		if _, ok := s.seen[id]; !ok {
-			s.grid.Remove(id)
-			delete(s.proxies, id)
-			delete(s.dirty, id)
+	if retained != len(s.active) {
+		for _, p := range s.active {
+			if p.seen != s.tick {
+				s.grid.Remove(p.id)
+				delete(s.proxies, p.id)
+			}
 		}
 	}
+	clear(s.active)
+	s.active, s.nextActive = s.nextActive, s.active
 	return nil
 }
 
 // collectCandidates includes existing pairs so separating colliders are
 // retested and their exits are observed even when neither proxy changed.
 func (s *system) collectCandidates() {
-	for id := range s.dirty {
+	for _, id := range s.dirty {
 		p := s.proxies[id]
-		s.nearby = s.grid.QueryInto(p.bounds, s.nearby[:0])
+		s.nearby = s.grid.QueryOverlapsInto(p.bounds, s.nearby[:0])
 		for _, neighbor := range s.nearby {
 			if neighbor == id {
+				continue
+			}
+			other := s.proxies[neighbor]
+			if !p.collider.CanCollideWith(other.collider) {
 				continue
 			}
 			s.addCandidate(canonicalPair(id, neighbor))
 		}
 	}
-	for id, contacts := range s.oldContacts {
-		for _, c := range contacts {
-			s.addCandidate(canonicalPair(id, c.Other))
+	for id, buffers := range s.contacts {
+		for _, c := range buffers.current {
+			if id < c.Other {
+				s.addCandidate(pairKey{id, c.Other})
+			}
 		}
 	}
 }
@@ -230,14 +289,14 @@ func (s *system) narrowPhase() {
 			continue
 		}
 		trigger := a.collider.Trigger || b.collider.Trigger
-		s.newContacts[pair.a] = append(s.newContacts[pair.a], Contact{
+		s.appendContact(pair.a, Contact{
 			Other:       pair.b,
 			Point:       hit.point,
 			Normal:      hit.normal,
 			Penetration: hit.penetration,
 			Trigger:     trigger,
 		})
-		s.newContacts[pair.b] = append(s.newContacts[pair.b], Contact{
+		s.appendContact(pair.b, Contact{
 			Other:       pair.a,
 			Point:       hit.point,
 			Normal:      hit.normal.Mul(-1),
@@ -247,22 +306,37 @@ func (s *system) narrowPhase() {
 	}
 }
 
-func (s *system) writeContacts() error {
-	for id := range s.newContacts {
-		contacts := s.newContacts[id]
-		slices.SortFunc(contacts, func(x, y Contact) int {
+func (s *system) appendContact(id core.EntityID, c Contact) {
+	buffers := s.contacts[id]
+	if buffers == nil {
+		buffers = &contactBuffers{}
+		s.contacts[id] = buffers
+	}
+	buffers.spare = append(buffers.spare, c)
+}
+
+func (s *system) writeContacts(world *core.World) error {
+	for id, buffers := range s.contacts {
+		entity := core.NewEntity(id)
+		if !entity.HasComponent[Contacts](world) {
+			delete(s.contacts, id)
+			continue
+		}
+		slices.SortFunc(buffers.spare, func(x, y Contact) int {
 			return cmp.Compare(x.Other, y.Other)
 		})
-	}
-
-	for e := range s.update.Execute() {
-		id := e.ID()
-		current := s.newContacts[id]
-		previous := s.oldContacts[id]
-		e.Update(func(c *Contacts) {
-			c.Previous = previous
-			c.Current = current
-		})
+		current, previous := buffers.spare, buffers.current
+		if slices.Equal(current, buffers.current) && slices.Equal(previous, buffers.previous) {
+			continue
+		}
+		if err := entity.SetComponent(world, Contacts{Current: current, Previous: previous}); err != nil {
+			return fmt.Errorf("collision: write contacts to entity %d: %w", id, err)
+		}
+		buffers.spare = buffers.previous
+		buffers.previous, buffers.current = previous, current
+		if len(current) == 0 && len(previous) == 0 {
+			delete(s.contacts, id)
+		}
 	}
 	return nil
 }

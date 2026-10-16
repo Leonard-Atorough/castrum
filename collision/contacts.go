@@ -35,7 +35,8 @@ type Contact struct {
 //
 // Both slices are sorted by [Contact.Other]. A game derives its own
 // enter/stay/exit reactions by comparing the two; the engine emits
-// no events.
+// no events. The slices are read-only and valid until the next collision
+// update; copy them to retain contact history across ticks.
 //
 // The collision system attaches Contacts to every entity that
 // carries a Collider, maintains it while the collider participates,

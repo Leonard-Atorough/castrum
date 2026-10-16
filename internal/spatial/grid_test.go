@@ -2,6 +2,8 @@ package spatial
 
 import (
 	"math"
+	"math/rand/v2"
+	"slices"
 	"testing"
 
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -41,12 +43,13 @@ func TestGridUpdateIndexesEveryOverlappedCell(t *testing.T) {
 
 	for x := -1; x <= 2; x++ {
 		for y := 0; y <= 1; y++ {
-			if _, ok := idx.cells[GridCell{X: x, Y: y}][1]; !ok {
+			if !slices.Contains(idx.cells[GridCell{X: x, Y: y}], idx.entities[1]) {
 				t.Errorf("entity missing from cell (%d, %d)", x, y)
 			}
 		}
 	}
-	if got := len(idx.entities[1]); got != 8 {
+	entry := idx.entities[1]
+	if got := (entry.max.X - entry.min.X + 1) * (entry.max.Y - entry.min.Y + 1); got != 8 {
 		t.Errorf("entity occupies %d cells, want 8", got)
 	}
 }
@@ -66,7 +69,7 @@ func TestGridUpdateRemovesStaleCells(t *testing.T) {
 	if _, ok := idx.cells[GridCell{X: 0, Y: 0}]; ok {
 		t.Error("stale cell (0, 0) remains after update")
 	}
-	if _, ok := idx.cells[GridCell{X: 3, Y: 3}][1]; !ok {
+	if !slices.Contains(idx.cells[GridCell{X: 3, Y: 3}], idx.entities[1]) {
 		t.Error("entity missing from updated cell (3, 3)")
 	}
 }
@@ -148,13 +151,114 @@ func TestGridLargeDataset(t *testing.T) {
 		if err := idx.Update(ecs.EntityID(i), bounds); err != nil {
 			t.Fatal(err)
 		}
-	}
 
+	}
 	results := idx.Query(geom.Rect{Min: geom.Vector2{X: 50, Y: 25}, Max: geom.Vector2{X: 100, Y: 45}})
 	if len(results) == 0 {
 		t.Error("Query() returned no results for populated dataset")
 	}
 	if len(idx.entities) != 1000 {
 		t.Errorf("index has %d entities, want 1000", len(idx.entities))
+	}
+}
+
+func TestGridUpdatePreservesSharedCells(t *testing.T) {
+	idx, _ := NewGrid(10)
+	first := geom.Rect{Min: geom.Vector2{X: -5, Y: -5}, Max: geom.Vector2{X: 15, Y: 15}}
+	if err := idx.Update(1, first); err != nil {
+		t.Fatal(err)
+	}
+	entry := idx.entities[1]
+	shared := idx.cells[GridCell{}]
+	second := geom.Rect{Min: geom.Vector2{X: 1, Y: 1}, Max: geom.Vector2{X: 25, Y: 25}}
+	if err := idx.Update(1, second); err != nil {
+		t.Fatal(err)
+	}
+	if idx.entities[1] != entry || &idx.cells[GridCell{}][0] != &shared[0] {
+		t.Fatal("shared memberships were replaced")
+	}
+	if _, exists := idx.cells[GridCell{X: -1, Y: -1}]; exists {
+		t.Fatal("old membership remains")
+	}
+	if !slices.Contains(idx.cells[GridCell{X: 2, Y: 2}], entry) {
+		t.Fatal("new membership missing")
+	}
+	if err := idx.Update(1, geom.Rect{Min: geom.Vector2{X: math.NaN()}}); err == nil {
+		t.Fatal("invalid update succeeded")
+	}
+	if entry.min != (GridCell{}) || entry.max != (GridCell{X: 2, Y: 2}) {
+		t.Fatal("invalid update changed memberships")
+	}
+}
+
+func TestGridSameRangeAndQueriesAllocateNothing(t *testing.T) {
+	idx, _ := NewGrid(10)
+	bounds := geom.Rect{Min: geom.Vector2{X: -5, Y: -5}, Max: geom.Vector2{X: 15, Y: 15}}
+	if err := idx.Update(1, bounds); err != nil {
+		t.Fatal(err)
+	}
+	buffer := make([]ecs.EntityID, 0, 4)
+	if allocs := testing.AllocsPerRun(20, func() {
+		if err := idx.Update(1, bounds); err != nil {
+			t.Fatal(err)
+		}
+		buffer = idx.QueryInto(bounds, buffer)
+	}); allocs != 0 {
+		t.Fatalf("same-range update and query allocated %v times", allocs)
+	}
+	if len(buffer) != 1 || buffer[0] != 1 {
+		t.Fatalf("multi-cell query = %v, want [1]", buffer)
+	}
+}
+
+func TestGridQueriesMatchCellRangesAfterUpdates(t *testing.T) {
+	idx, _ := NewGrid(10)
+	rng := rand.New(rand.NewPCG(72, 2))
+	bounds := make(map[ecs.EntityID]geom.Rect)
+	randomBounds := func() geom.Rect {
+		min := geom.Vector2{X: rng.Float64()*100 - 50, Y: rng.Float64()*100 - 50}
+		return geom.Rect{Min: min, Max: min.Add(geom.Vector2{X: rng.Float64() * 30, Y: rng.Float64() * 30})}
+	}
+	for range 200 {
+		id := ecs.EntityID(rng.IntN(30))
+		if rng.IntN(5) == 0 {
+			idx.Remove(id)
+			delete(bounds, id)
+		} else {
+			rect := randomBounds()
+			if err := idx.Update(id, rect); err != nil {
+				t.Fatal(err)
+			}
+			bounds[id] = rect
+		}
+		query := randomBounds()
+		qmin, qmax := idx.worldToGrid(query.Min), idx.worldToGrid(query.Max)
+		var want, wantOverlaps []ecs.EntityID
+		for id, rect := range bounds {
+			min, max := idx.worldToGrid(rect.Min), idx.worldToGrid(rect.Max)
+			if min.X <= qmax.X && max.X >= qmin.X && min.Y <= qmax.Y && max.Y >= qmin.Y {
+				want = append(want, id)
+			}
+			if rect.OverlapsOrTouches(query) {
+				wantOverlaps = append(wantOverlaps, id)
+			}
+		}
+		got := idx.Query(query)
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Fatalf("Query(%v) = %v, want %v", query, got, want)
+		}
+		gotOverlaps := idx.QueryOverlapsInto(query, nil)
+		slices.Sort(gotOverlaps)
+		slices.Sort(wantOverlaps)
+		if !slices.Equal(gotOverlaps, wantOverlaps) {
+			t.Fatalf("QueryOverlapsInto(%v) = %v, want %v", query, gotOverlaps, wantOverlaps)
+		}
+		for cell, entries := range idx.cells {
+			if len(entries) == 0 {
+				t.Fatalf("empty cell retained: %v", cell)
+			}
+		}
 	}
 }

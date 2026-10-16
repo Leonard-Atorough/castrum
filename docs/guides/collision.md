@@ -74,13 +74,15 @@ For a circle fully inside a rectangle, penetration is the distance from the circ
 
 ## Read the contact lifecycle
 
-The collision system attaches and owns `Contacts` for entities with both a collider and a transform. It writes the component each fixed tick and removes it if the collider or transform is removed. Game code should read `Contacts`; it should not attach, mutate, or remove it.
+The collision system attaches and owns `Contacts` for entities with both a collider and a transform. It maintains the component each fixed tick and removes it if the collider or transform is removed. Game code should read `Contacts`; it should not attach, mutate, or remove it.
 
 `Contacts.Current` contains this tick's contacts, while `Contacts.Previous` contains the prior tick's. Both slices are sorted by `Contact.Other`. Compare the `Other` IDs to derive lifecycle edges:
 
 - **Enter:** in `Current`, not in `Previous`.
 - **Stay:** in both.
 - **Exit:** in `Previous`, not in `Current`.
+
+Contact slices are borrowed, read-only views valid until the next collision update. Copy a slice with `slices.Clone` if you need to retain it across ticks; copying the `Contacts` struct alone does not copy its backing arrays.
 
 For example, an enter helper can return the new contacts for a system to process:
 
@@ -113,4 +115,4 @@ A trigger is still an overlap: it produces ordinary contact data with `Trigger` 
 
 ## Where to go next
 
-The [collision example](../../examples/collision/main.go) shows layered walls, rotating hazards, trigger pickups, and enter-edge handling in one game. For the component ownership and system-ordering rules behind `Collider` and `Contacts`, see [The ECS in depth](ecs.md). For broader fixed-phase and query-cost decisions, see [Performance](performance.md).
+The [collision example](../../examples/collision/main.go) shows layered walls, rotating hazards, trigger pickups, and enter-edge handling in one game. For the component ownership and system-ordering rules behind `Collider` and `Contacts`, see [The ECS in depth](ecs.md). For broader fixed-phase and query-cost decisions, see [Performance](performance.md). The [spatial architecture reference](../reference/spatial-architecture.md) explains the internal grid, proxy cache, and contact buffers.
