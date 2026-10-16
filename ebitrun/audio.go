@@ -33,9 +33,8 @@ type audioProvider struct {
 	touched  map[core.EntityID]struct{}
 }
 
-// audioSession is one entity's player plus what the provider must
-// release on completion: a Player never closes its source, so the
-// streaming path parks its open file here.
+// audioSession retains finished metadata after releasing playback resources
+// so reconciliation cannot implicitly replay a completed source.
 type audioSession struct {
 	player  *ebitaudio.Player
 	balance balanceStream
@@ -46,6 +45,21 @@ type audioSession struct {
 	load     audio.LoadMode
 	held     bool
 	finished bool
+}
+
+func (s *audioSession) release() error {
+	s.finished = true
+	if s.player != nil {
+		s.player.PauseAndStopReading()
+		s.player = nil
+	}
+	s.balance = nil
+	if s.source == nil {
+		return nil
+	}
+	source := s.source
+	s.source = nil
+	return source.Close()
 }
 
 func newAudioProvider(audioCtx *ebitaudio.Context, server *asset.Server) *audioProvider {
@@ -114,6 +128,8 @@ func drain(s audioStream, sampleRate int) (asset.AudioData, error) {
 // modes into the player at creation, so changing either in want
 // recreates the playback from the beginning. Volume and balance apply to
 // live sessions on every sync, including while held, without restarting.
+// Finished sessions release playback resources but remain recorded until
+// rebuilt or swept.
 //
 // Note: variable-speed playback is not supported; a rate other
 // than 1 is an error. Errors name the audio source.
@@ -126,11 +142,8 @@ func (a *audioProvider) Sync(entityID core.EntityID, source asset.ID, want audio
 	a.touched[entityID] = struct{}{}
 
 	if exists && (want.Restart || want.Loop != s.loop || want.Load != s.load) {
-		s.player.PauseAndStopReading()
-		if s.source != nil {
-			if err := s.source.Close(); err != nil {
-				return false, fmt.Errorf("castrum/ebiten: audio: close source: %w", err)
-			}
+		if err := s.release(); err != nil {
+			return false, fmt.Errorf("castrum/ebiten: audio: release source %q: %w", source, err)
 		}
 		delete(a.players, entityID)
 		exists = false
@@ -173,7 +186,9 @@ func (a *audioProvider) Sync(entityID core.EntityID, source asset.ID, want audio
 	}
 
 	if !s.player.IsPlaying() {
-		s.finished = true
+		if err := s.release(); err != nil {
+			return false, fmt.Errorf("castrum/ebiten: audio: complete source %q: %w", source, err)
+		}
 		return false, nil
 	}
 
@@ -192,11 +207,8 @@ func (a *audioProvider) Sweep() error {
 		if _, ok := a.touched[id]; ok {
 			continue
 		}
-		s.player.PauseAndStopReading()
-		if s.source != nil {
-			if err := s.source.Close(); err != nil {
-				return fmt.Errorf("castrum/ebiten: audio: sweep: close source: %w", err)
-			}
+		if err := s.release(); err != nil {
+			return fmt.Errorf("castrum/ebiten: audio: sweep: release entity %d: %w", id, err)
 		}
 		delete(a.players, id)
 	}

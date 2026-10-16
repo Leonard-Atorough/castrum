@@ -3,6 +3,7 @@ package ebitrun
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -242,6 +243,7 @@ func TestSyncBalanceUpdatesAndRebuilds(t *testing.T) {
 					t.Fatalf("volume = %v, want %v", got, want.Volume)
 				}
 			}
+			firstSource := first.source
 			want.Restart = true
 			want.Balance = -1
 			if live, err := p.Sync(id, asset.ID(source), want); err != nil || !live {
@@ -255,7 +257,7 @@ func TestSyncBalanceUpdatesAndRebuilds(t *testing.T) {
 				t.Fatalf("restart balance = %v, want -1", got)
 			}
 			if load == audio.LoadStream {
-				if err := first.source.Close(); err == nil {
+				if err := firstSource.Close(); err == nil {
 					t.Fatal("restart did not close old stream")
 				}
 			}
@@ -442,7 +444,7 @@ func TestSweepReleasesUnsyncedSessions(t *testing.T) {
 		t.Fatal("both sessions were synced; sweep must keep both")
 	}
 
-	stale := p.players[id2]
+	staleSource := p.players[id2].source
 	if _, err := p.Sync(id1, asset.ID(source), audio.Playback{Playing: false, Volume: 1, Rate: 1}); err != nil {
 		t.Fatalf("touch id1: %v", err)
 	}
@@ -455,7 +457,7 @@ func TestSweepReleasesUnsyncedSessions(t *testing.T) {
 	if p.players[id1] == nil {
 		t.Fatal("synced session must survive the sweep")
 	}
-	if err := stale.source.Close(); err == nil {
+	if err := staleSource.Close(); err == nil {
 		t.Fatal("sweep must have closed the swept session's parked file")
 	}
 }
@@ -479,12 +481,13 @@ func (c closeTrackingFS) Open(name string) (fs.File, error) {
 
 type trackingFile struct {
 	fs.File
-	closes *int
+	closes   *int
+	closeErr error
 }
 
 func (f *trackingFile) Close() error {
 	*f.closes++
-	return f.File.Close()
+	return errors.Join(f.File.Close(), f.closeErr)
 }
 
 // Seek forwards to the wrapped file so the streaming path sees the
@@ -557,6 +560,12 @@ func TestDefaultRunnerAudioPlaybackAndCleanup(t *testing.T) {
 	if !ok {
 		t.Fatalf("controller = %T, want the runner's audioProvider", controller)
 	}
+	t.Cleanup(func() {
+		clear(provider.touched)
+		if err := provider.Sweep(); err != nil {
+			t.Error(err)
+		}
+	})
 
 	// Both load modes play: the eager session owns no file, the
 	// streaming session parks its open one.
@@ -636,5 +645,97 @@ func TestDefaultRunnerAudioPlaybackAndCleanup(t *testing.T) {
 	advance(2)
 	if _, still := provider.players[shotEntity.ID()]; still {
 		t.Error("destroyed eager play should release its session")
+	}
+
+	stream := audio.NewSource("tone.wav")
+	stream.Load = audio.LoadStream
+	stream.Balance = -0.5
+	persistent, err := world.NewEntity(stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oneShot, err := audio.OneShot(world, stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.Pause()
+	tick := g.Context().Tick
+	advance(1)
+	sessions := make(map[core.EntityID]*audioSession)
+	for _, entity := range []*core.Entity{persistent, oneShot} {
+		s := provider.players[entity.ID()]
+		if s == nil || s.held || !s.player.IsPlaying() || s.source == nil {
+			t.Fatalf("simulation pause held or prevented audio: %+v", s)
+		}
+		sessions[entity.ID()] = s
+		// Simulate the backend reporting playback stopped, without waiting
+		// for an audio device or depending on wall-clock playback.
+		s.player.PauseAndStopReading()
+	}
+	advance(1)
+	if source, ok := persistent.Component[audio.Source](world); !ok || !source.Completed || !persistent.IsAlive() {
+		t.Fatalf("completed persistent source = %+v, present=%v", source, ok)
+	}
+	if oneShot.IsAlive() {
+		t.Fatal("completed one-shot was not reclaimed during simulation pause")
+	}
+	for id, s := range sessions {
+		if provider.players[id] != s || !s.finished || s.player != nil || s.balance != nil || s.source != nil {
+			t.Fatalf("completed session %d retained playback resources or lost its tombstone: %+v", id, s)
+		}
+	}
+	if open := opens - closes; open != 0 {
+		t.Fatalf("open files after completion = %d, want 0", open)
+	}
+	completedOpens, completedCloses := opens, closes
+	advance(1)
+	if provider.players[oneShot.ID()] != nil {
+		t.Fatal("one-shot tombstone was not swept on the next frame")
+	}
+	if provider.players[persistent.ID()] != sessions[persistent.ID()] ||
+		opens != completedOpens || closes != completedCloses {
+		t.Fatal("completed source replayed or its resources were released twice")
+	}
+	if g.Context().Tick != tick {
+		t.Fatal("audio completion required simulation ticks")
+	}
+	if err := persistent.Update(world, func(s *audio.Source) { s.Restart() }); err != nil {
+		t.Fatal(err)
+	}
+	advance(1)
+	fresh := provider.players[persistent.ID()]
+	if fresh == nil || fresh == sessions[persistent.ID()] || fresh.finished ||
+		fresh.source == nil || !fresh.player.IsPlaying() {
+		t.Fatalf("restart did not create fresh streaming playback: %+v", fresh)
+	}
+	if source, _ := persistent.Component[audio.Source](world); source.Completed {
+		t.Fatal("restart left the persistent source completed")
+	}
+	if got := math.Float64frombits(fresh.balance.(*seekableBalanceReader).balance.Load()); got != stream.Balance {
+		t.Fatalf("restart balance = %v, want %v", got, stream.Balance)
+	}
+	if opens != completedOpens+1 || opens-closes != 1 {
+		t.Fatalf("restart opens=%d closes=%d, want one new open stream", opens, closes)
+	}
+	closeErr := errors.New("stream close failed")
+	file, ok := fresh.source.(*trackingFile)
+	if !ok {
+		t.Fatalf("stream source = %T, want trackingFile", fresh.source)
+	}
+	file.closeErr = closeErr
+	fresh.player.PauseAndStopReading()
+	if err := g.Advance(17 * time.Millisecond); !errors.Is(err, closeErr) || !strings.Contains(err.Error(), "tone.wav") {
+		t.Fatalf("completion close error = %v, want wrapped source-specific error", err)
+	}
+	advance(1)
+	if err := world.DestroyEntity(persistent); err != nil {
+		t.Fatal(err)
+	}
+	advance(1)
+	if opens != closes {
+		t.Fatalf("open files after restarted source destruction = %d, want 0", opens-closes)
+	}
+	if closes != completedCloses+1 {
+		t.Fatal("failed close was attempted more than once")
 	}
 }

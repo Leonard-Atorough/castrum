@@ -47,6 +47,11 @@ func TestSourceValidate(t *testing.T) {
 			wantErr: "volume",
 		},
 		{
+			name:    "nan volume",
+			source:  Source{Audio: "sfx/step.wav", Volume: math.NaN()},
+			wantErr: "volume",
+		},
+		{
 			name:   "zero multiplier is the normal rate",
 			source: Source{Audio: "sfx/step.wav", Volume: 1, PlaybackMultiplier: 2},
 		},
@@ -197,29 +202,48 @@ func TestMixerDefaultsClampingAndPause(t *testing.T) {
 		t.Fatalf("GroupVolume(music) = %v, want 1 (unity default)", m.GroupVolume(GroupMusic))
 	}
 
-	m.SetMaster(1.5)
+	if err := m.SetMaster(1.5); err != nil {
+		t.Fatal(err)
+	}
 	if m.Master() != 1 {
 		t.Fatalf("Master() after 1.5 = %v, want clamped to 1", m.Master())
 	}
-	m.SetMaster(-1)
+	if err := m.SetMaster(-1); err != nil {
+		t.Fatal(err)
+	}
 	if m.Master() != 0 {
 		t.Fatalf("Master() after -1 = %v, want clamped to 0", m.Master())
 	}
-	m.SetMaster(0.25)
+	if err := m.SetMaster(0.25); err != nil {
+		t.Fatal(err)
+	}
 	if m.Master() != 0.25 {
 		t.Fatalf("Master() = %v, want 0.25", m.Master())
 	}
 
-	m.SetGroupVolume(GroupSFX, 2)
+	if err := m.SetGroupVolume(GroupSFX, 2); err != nil {
+		t.Fatal(err)
+	}
 	if m.GroupVolume(GroupSFX) != 1 {
 		t.Fatalf("GroupVolume(sfx) after 2 = %v, want clamped to 1", m.GroupVolume(GroupSFX))
 	}
-	m.SetGroupVolume(GroupSFX, 0.25)
+	if err := m.SetGroupVolume(GroupSFX, 0.25); err != nil {
+		t.Fatal(err)
+	}
 	if m.GroupVolume(GroupSFX) != 0.25 {
 		t.Fatalf("GroupVolume(sfx) = %v, want 0.25", m.GroupVolume(GroupSFX))
 	}
 	if m.GroupVolume(GroupMusic) != 1 {
 		t.Fatalf("GroupVolume(music) = %v, want 1 (unoverridden group)", m.GroupVolume(GroupMusic))
+	}
+	if err := m.SetMaster(math.NaN()); err == nil || m.Master() != 0.25 {
+		t.Fatalf("NaN master: error=%v volume=%v, want error and unchanged volume", err, m.Master())
+	}
+	if err := m.SetGroupVolume(GroupSFX, math.NaN()); err == nil || m.GroupVolume(GroupSFX) != 0.25 {
+		t.Fatalf("NaN group: error=%v volume=%v, want error and unchanged volume", err, m.GroupVolume(GroupSFX))
+	}
+	if err := m.SetGroupVolume(GroupMusic, math.NaN()); err == nil || m.GroupVolume(GroupMusic) != 1 {
+		t.Fatalf("NaN default group: error=%v volume=%v, want error and unity volume", err, m.GroupVolume(GroupMusic))
 	}
 
 	if m.Paused() {
@@ -252,7 +276,7 @@ func TestFold(t *testing.T) {
 	tests := []struct {
 		name   string
 		source Source
-		mixer  func(*Mixer)
+		mixer  func(*Mixer) error
 		want   Playback
 	}{
 		{
@@ -263,17 +287,19 @@ func TestFold(t *testing.T) {
 		{
 			name:   "mix is multiplicative",
 			source: Source{Audio: "sfx/step.wav", Volume: 0.5, Group: GroupSFX},
-			mixer: func(m *Mixer) {
-				m.SetMaster(0.5)
-				m.SetGroupVolume(GroupSFX, 0.5)
+			mixer: func(m *Mixer) error {
+				if err := m.SetMaster(0.5); err != nil {
+					return err
+				}
+				return m.SetGroupVolume(GroupSFX, 0.5)
 			},
 			want: Playback{Playing: true, Volume: 0.125, Rate: 1},
 		},
 		{
 			name:   "unoverridden group reads unity",
 			source: Source{Audio: "sfx/step.wav", Volume: 1, Group: GroupMusic},
-			mixer: func(m *Mixer) {
-				m.SetGroupVolume(GroupSFX, 0.25)
+			mixer: func(m *Mixer) error {
+				return m.SetGroupVolume(GroupSFX, 0.25)
 			},
 			want: Playback{Playing: true, Volume: 1, Rate: 1},
 		},
@@ -285,14 +311,20 @@ func TestFold(t *testing.T) {
 		{
 			name:   "mixer pause holds a PauseHolds play",
 			source: Source{Audio: "sfx/step.wav", Volume: 1, Pause: PauseHolds},
-			mixer:  func(m *Mixer) { m.PauseAll() },
+			mixer:  func(m *Mixer) error { m.PauseAll(); return nil },
 			want:   Playback{Playing: false, Volume: 1, Rate: 1},
 		},
 		{
 			name:   "mixer pause does not hold a PauseContinues play",
 			source: Source{Audio: "ui/click.wav", Volume: 1, Pause: PauseContinues},
-			mixer:  func(m *Mixer) { m.PauseAll() },
+			mixer:  func(m *Mixer) error { m.PauseAll(); return nil },
 			want:   Playback{Playing: true, Volume: 1, Rate: 1},
+		},
+		{
+			name:   "source pause overrides PauseContinues",
+			source: Source{Audio: "ui/click.wav", Volume: 1, Pause: PauseContinues, Paused: true},
+			mixer:  func(m *Mixer) error { m.PauseAll(); return nil },
+			want:   Playback{Playing: false, Volume: 1, Rate: 1},
 		},
 		{
 			name:   "authored multiplier zero resolves to the normal rate",
@@ -315,9 +347,11 @@ func TestFold(t *testing.T) {
 		{
 			name:   "balance is independent of mixed volume",
 			source: Source{Audio: "sfx/step.wav", Volume: 0.5, Balance: -0.5},
-			mixer: func(m *Mixer) {
-				m.SetMaster(0.5)
-				m.SetGroupVolume(GroupSFX, 0.5)
+			mixer: func(m *Mixer) error {
+				if err := m.SetMaster(0.5); err != nil {
+					return err
+				}
+				return m.SetGroupVolume(GroupSFX, 0.5)
 			},
 			want: Playback{Playing: true, Volume: 0.125, Rate: 1, Balance: -0.5},
 		},
@@ -329,18 +363,26 @@ func TestFold(t *testing.T) {
 		{
 			name:   "balance survives mixer pause and mute",
 			source: Source{Audio: "sfx/step.wav", Volume: 1, Balance: -1},
-			mixer: func(m *Mixer) {
+			mixer: func(m *Mixer) error {
 				m.PauseAll()
-				m.SetMaster(0)
+				return m.SetMaster(0)
 			},
 			want: Playback{Rate: 1, Balance: -1},
+		},
+		{
+			name:   "mute does not pause",
+			source: Source{Audio: "sfx/step.wav", Volume: 1},
+			mixer:  func(m *Mixer) error { return m.SetMaster(0) },
+			want:   Playback{Playing: true, Rate: 1},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := NewMixer()
 			if tt.mixer != nil {
-				tt.mixer(m)
+				if err := tt.mixer(m); err != nil {
+					t.Fatal(err)
+				}
 			}
 			got := fold(tt.source, m)
 			if got != tt.want {

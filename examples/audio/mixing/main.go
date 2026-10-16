@@ -73,16 +73,24 @@ func mixingSystem(mixer *audio.Mixer) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		step := volumeSpeed * ctx.DeltaTime.Seconds()
 		if ctx.Input.KeyHeld(input.KeyArrowUp) {
-			mixer.SetMaster(mixer.Master() + step)
+			if err := mixer.SetMaster(mixer.Master() + step); err != nil {
+				return err
+			}
 		}
 		if ctx.Input.KeyHeld(input.KeyArrowDown) {
-			mixer.SetMaster(mixer.Master() - step)
+			if err := mixer.SetMaster(mixer.Master() - step); err != nil {
+				return err
+			}
 		}
 		if ctx.Input.KeyHeld(input.KeyArrowRight) {
-			mixer.SetGroupVolume(audio.GroupMusic, mixer.GroupVolume(audio.GroupMusic)+step)
+			if err := mixer.SetGroupVolume(audio.GroupMusic, mixer.GroupVolume(audio.GroupMusic)+step); err != nil {
+				return err
+			}
 		}
 		if ctx.Input.KeyHeld(input.KeyArrowLeft) {
-			mixer.SetGroupVolume(audio.GroupMusic, mixer.GroupVolume(audio.GroupMusic)-step)
+			if err := mixer.SetGroupVolume(audio.GroupMusic, mixer.GroupVolume(audio.GroupMusic)-step); err != nil {
+				return err
+			}
 		}
 		if ctx.Input.KeyPressed(input.KeyEnter) {
 			mixer.TogglePause()
