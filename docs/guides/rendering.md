@@ -120,7 +120,7 @@ The engine measures each text sprite with the font's own metrics - the measured 
 
 The renderer centers texture sprites, rectangles, and circles on `Position`. A line's position is its declared endpoint origin plus its `From` and `To` offsets. Texture sprites and shapes can be scaled independently on each axis; only texture sources respond to `FlipH` and `FlipV`.
 
-Move entities in fixed-phase systems. The engine captures the previous position before user fixed systems run, then interpolates from that position to the current one for display. This keeps motion smooth when the display rate and fixed simulation rate differ:
+Move entities in fixed-phase systems. The engine captures the previous transform before user fixed systems run, then interpolates position, rotation, and scale toward the current transform for display. This keeps motion smooth when the display rate and fixed simulation rate differ:
 
 ```go
 if err := g.AddSystem(core.PhaseFixed, "player.move", core.SystemFunc(func(ctx *core.Context) error {
@@ -132,10 +132,9 @@ if err := g.AddSystem(core.PhaseFixed, "player.move", core.SystemFunc(func(ctx *
 }
 ```
 
-<!-- TODO(#106): document the interpolation contract pinned by the render
-     tests: rotation lerps numerically across negative angles and angles
-     beyond 2pi, scale interpolates per axis, and the rounded WorldToScreen
-     projection snaps the interpolated position to whole pixels. -->
+Position, rotation, and scale interpolate linearly between fixed ticks, with each scale axis handled independently. Rotation does not automatically take the shortest path across an angle boundary. Keep rotation values continuous rather than wrapping them each tick to avoid an unintended spin.
+
+The camera rounds projected positions to whole logical pixels, so slow movement can still appear in one-pixel steps. This affects display placement, not the entity's world position. See [Pixel snapping](../reference/coordinate-system.md#pixel-snapping) for details.
 
 ## Style and draw order
 
