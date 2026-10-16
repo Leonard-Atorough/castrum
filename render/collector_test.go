@@ -599,22 +599,22 @@ func TestCollectSortsLayerThenOrderThenY(t *testing.T) {
 		spawnTextureSprite(t, w, texture, geom.Vector2{Y: y}, geom.Vector2{Y: y}, sprite)
 	}
 
-	at("tex.png", -10, Sprite{Layer: 0})               // A
-	at("tex.png", 10, Sprite{Layer: 0})                // B
-	at("tex.png", -10, Sprite{Layer: 1})               // C
-	at("tex.png", -10, Sprite{Layer: 0, SortOrder: 1}) // D
-	at("tex.png", 10, Sprite{Layer: 0, SortOrder: -1}) // E
-	at("tex.png", 0, Sprite{Layer: 2})                 // tie 1
-	at("tex2.png", 0, Sprite{Layer: 2})                // tie 2
+	at("tex.png", -10, Sprite{Layer: 0})
+	at("tex.png", 10, Sprite{Layer: 0})
+	at("tex.png", -10, Sprite{Layer: 1})
+	at("tex.png", -10, Sprite{Layer: 0, SortOrder: 1})
+	at("tex.png", 10, Sprite{Layer: 0, SortOrder: -1})
+	at("tex.png", 0, Sprite{Layer: 2})
+	at("tex2.png", 0, Sprite{Layer: 2})
 
 	want := []asset.ID{
-		"tex.png",  // E
-		"tex.png",  // A
-		"tex.png",  // B
-		"tex.png",  // D
-		"tex.png",  // C
-		"tex.png",  // tie 1
-		"tex2.png", // tie 2
+		"tex.png",
+		"tex.png",
+		"tex.png",
+		"tex.png",
+		"tex.png",
+		"tex.png",
+		"tex2.png",
 	}
 
 	list := collect(t, NewCollector(w), drawContext(w, 0))
