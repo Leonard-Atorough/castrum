@@ -106,14 +106,42 @@ orange and blue, then writes `render.Sprite.Color`. Its transform stays fixed.
 The selected curve is bounded, so the resulting channels stay within the
 color's byte range.
 
-Do not use frame-phase transform writes as a shortcut for presentation motion.
-The renderer interpolates `PrevTransform` and `Transform`, whose snapshots
-belong to the fixed loop. Tween progress covers the whole transition;
-`ctx.Alpha` only covers the remainder between ticks. Keep render interpolation
-linear rather than applying the easing curve to alpha.
+## Keep tweening separate from render interpolation
 
-Scalar rotation interpolation preserves numeric turns. It does not select a
-shortest arc; a transition from zero to `4*math.Pi` represents two turns.
+Advance movement tweens in the fixed phase and write their results to
+`core.Transform`, as above. The renderer already smooths position, rotation,
+and scale between ticks; you do not need another tween in the draw step.
+
+Use the easing curve for the whole transition, not for `ctx.Alpha`. Alpha
+only blends the last two fixed states and should stay linear. Leave
+`core.PrevTransform` to the engine, and avoid frame-phase transform writes:
+they bypass the fixed-tick workflow that this smoothing relies on.
+
+For a change that should continue while paused, tween a property such as tint
+in the frame phase instead. See the
+[scheduler reference](../reference/the-scheduler.md) for how snapshots and
+alpha work.
+
+## Preserve turns when tweening rotation
+
+To spin an entity, interpolate its rotation in radians with `geom.Lerp`.
+In the fixed-phase system above, replace the position update with this
+two-turn spin:
+
+```go
+return body.Update(ctx.World, func(t *core.Transform) {
+	t.Rotation = geom.Lerp(0, 4*math.Pi, weight)
+})
+```
+
+Add the `math` import and use a non-square `render.RectShape` so the spin is
+visible; the example's circle looks the same at every angle.
+
+Angles preserve turns rather than choosing the shortest arc. Choose a target
+angle that describes the direction and number of turns you want, and keep
+the start angle fixed throughout the tween. Do not wrap each result into
+`[0, 2*math.Pi)`: crossing that boundary can make render interpolation show
+an unintended turn. The same advice applies to camera rotation.
 
 ## Observe completion and restart
 

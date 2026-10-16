@@ -132,6 +132,11 @@ if err := g.AddSystem(core.PhaseFixed, "player.move", core.SystemFunc(func(ctx *
 }
 ```
 
+<!-- TODO(#106): document the interpolation contract pinned by the render
+     tests: rotation lerps numerically across negative angles and angles
+     beyond 2pi, scale interpolates per axis, and the rounded WorldToScreen
+     projection snaps the interpolated position to whole pixels. -->
+
 ## Style and draw order
 
 The `Sprite` fields control presentation without changing the drawable:
