@@ -51,6 +51,183 @@ func TestCameraSpawnsComposedWithTransform(t *testing.T) {
 	}
 }
 
+func TestCameraMovePosition(t *testing.T) {
+	bounded := Camera{Bounds: geom.RectFromMinMax(geom.Vector2{}, geom.Vector2{X: 150, Y: 200})}
+	for _, tc := range []struct {
+		name         string
+		camera       Camera
+		transform    core.Transform
+		displacement geom.Vector2
+		want         geom.Vector2
+	}{
+		{
+			name: "inside bounds", camera: bounded,
+			transform:    core.Transform{Position: geom.Vector2{X: 75, Y: 100}},
+			displacement: geom.Vector2{X: 5, Y: 5},
+			want:         geom.Vector2{X: 80, Y: 105},
+		},
+		{
+			name: "resume from right boundary", camera: bounded,
+			transform:    core.Transform{Position: geom.Vector2{X: 140, Y: 100}},
+			displacement: geom.Vector2{X: -5},
+			want:         geom.Vector2{X: 95, Y: 100},
+		},
+		{
+			name: "resume from left boundary", camera: bounded,
+			transform:    core.Transform{Position: geom.Vector2{X: -20, Y: 100}},
+			displacement: geom.Vector2{X: 5},
+			want:         geom.Vector2{X: 55, Y: 100},
+		},
+		{
+			name: "outward movement stays at boundary", camera: bounded,
+			transform:    core.Transform{Position: geom.Vector2{X: 140, Y: 100}},
+			displacement: geom.Vector2{X: 5},
+			want:         geom.Vector2{X: 100, Y: 100},
+		},
+		{
+			name: "destination stops at boundary", camera: bounded,
+			transform:    core.Transform{Position: geom.Vector2{X: 95, Y: 100}},
+			displacement: geom.Vector2{X: 40},
+			want:         geom.Vector2{X: 100, Y: 100},
+		},
+		{
+			name: "slide along boundary", camera: bounded,
+			transform:    core.Transform{Position: geom.Vector2{X: 95, Y: 100}},
+			displacement: geom.Vector2{X: 20, Y: -10},
+			want:         geom.Vector2{X: 100, Y: 90},
+		},
+		{
+			name: "zero displacement constrains position", camera: bounded,
+			transform: core.Transform{Position: geom.Vector2{X: 140, Y: 100}},
+			want:      geom.Vector2{X: 100, Y: 100},
+		},
+		{
+			name:         "unbounded",
+			transform:    core.Transform{Position: geom.Vector2{X: 140, Y: 100}, Offset: geom.Vector2{X: 30}},
+			displacement: geom.Vector2{X: -5, Y: 10},
+			want:         geom.Vector2{X: 135, Y: 110},
+		},
+		{
+			name: "zoom", camera: bounded,
+			transform:    core.Transform{Position: geom.Vector2{X: 140, Y: 100}, Scale: geom.Vector2{X: 2, Y: 2}},
+			displacement: geom.Vector2{X: 5},
+			want:         geom.Vector2{X: 125, Y: 100},
+		},
+		{
+			name: "rotation", camera: bounded,
+			transform:    core.Transform{Position: geom.Vector2{X: 140, Y: 100}, Rotation: math.Pi / 4},
+			displacement: geom.Vector2{X: -5},
+			want:         geom.Vector2{X: 150 - 50*math.Sqrt2 - 5, Y: 100},
+		},
+		{
+			name:         "top-left anchor",
+			camera:       Camera{Bounds: bounded.Bounds, Anchor: geom.Vector2{X: -0.5, Y: -0.5}},
+			transform:    core.Transform{Position: geom.Vector2{X: 140, Y: 100}},
+			displacement: geom.Vector2{X: -5, Y: -5},
+			want:         geom.Vector2{X: 45, Y: 95},
+		},
+		{
+			name: "undersized bounds with anchor",
+			camera: Camera{
+				Bounds: geom.RectFromMinMax(geom.Vector2{}, geom.Vector2{X: 40, Y: 200}),
+				Anchor: geom.Vector2{X: -0.5, Y: -0.5},
+			},
+			transform:    core.Transform{Position: geom.Vector2{X: 140, Y: 100}},
+			displacement: geom.Vector2{X: 5, Y: -5},
+			want:         geom.Vector2{X: -30, Y: 95},
+		},
+		{
+			name: "offset bounds",
+			camera: Camera{Bounds: geom.RectFromMinMax(
+				geom.Vector2{X: -100, Y: -200}, geom.Vector2{X: 50},
+			)},
+			transform:    core.Transform{Position: geom.Vector2{X: 140, Y: 100}},
+			displacement: geom.Vector2{X: -5, Y: -5},
+			want:         geom.Vector2{X: -5, Y: -55},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := tc.transform
+			got, err := tc.camera.MovePosition(tc.transform, tc.displacement, 100, 100)
+			if err != nil {
+				t.Fatalf("MovePosition: %v", err)
+			}
+			if !got.AlmostEqual(tc.want, 1e-9) {
+				t.Errorf("position = %v, want %v", got, tc.want)
+			}
+			if tc.transform != before {
+				t.Errorf("transform changed: got %v, want %v", tc.transform, before)
+			}
+		})
+	}
+}
+
+func TestCameraMovePositionUsesCurrentViewport(t *testing.T) {
+	cam := Camera{Bounds: geom.RectFromMinMax(geom.Vector2{}, geom.Vector2{X: 150, Y: 200})}
+	transform := core.Transform{Position: geom.Vector2{X: 95, Y: 100}}
+	for _, tc := range []struct {
+		width int
+		wantX float64
+	}{
+		{100, 95},
+		{150, 75},
+	} {
+		got, err := cam.MovePosition(transform, geom.Vector2{}, tc.width, 100)
+		if err != nil {
+			t.Fatalf("MovePosition with width %d: %v", tc.width, err)
+		}
+		if want := (geom.Vector2{X: tc.wantX, Y: 100}); got != want {
+			t.Errorf("width %d: position = %v, want %v", tc.width, got, want)
+		}
+	}
+}
+
+func TestCameraMovePositionRejectsInvalidInputs(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		camera        Camera
+		transform     core.Transform
+		displacement  geom.Vector2
+		width, height int
+	}{
+		{name: "zero width", height: 100},
+		{name: "negative width", width: -1, height: 100},
+		{name: "zero height", width: 100},
+		{name: "negative height", width: 100, height: -1},
+		{name: "invalid anchor", camera: Camera{Anchor: geom.Vector2{X: 1}}, width: 100, height: 100},
+		{name: "negative zoom", transform: core.Transform{Scale: geom.Vector2{X: -1, Y: -1}}, width: 100, height: 100},
+		{name: "nonuniform zoom", transform: core.Transform{Scale: geom.Vector2{X: 1, Y: 2}}, width: 100, height: 100},
+		{name: "nan zoom", transform: core.Transform{Scale: geom.Vector2{X: math.NaN()}}, width: 100, height: 100},
+		{name: "infinite zoom", transform: core.Transform{Scale: geom.Vector2{X: math.Inf(1)}}, width: 100, height: 100},
+		{name: "nan position", transform: core.Transform{Position: geom.Vector2{X: math.NaN()}}, width: 100, height: 100},
+		{name: "infinite position", transform: core.Transform{Position: geom.Vector2{Y: math.Inf(1)}}, width: 100, height: 100},
+		{name: "nan displacement", displacement: geom.Vector2{Y: math.NaN()}, width: 100, height: 100},
+		{name: "infinite displacement", displacement: geom.Vector2{X: math.Inf(1)}, width: 100, height: 100},
+		{name: "nan rotation", transform: core.Transform{Rotation: math.NaN()}, width: 100, height: 100},
+		{name: "infinite rotation", transform: core.Transform{Rotation: math.Inf(1)}, width: 100, height: 100},
+		{
+			name:         "movement overflow",
+			transform:    core.Transform{Position: geom.Vector2{X: math.MaxFloat64}},
+			displacement: geom.Vector2{X: math.MaxFloat64},
+			width:        100,
+			height:       100,
+		},
+		{
+			name:      "viewport extent overflow",
+			camera:    Camera{Bounds: geom.RectFromMinMax(geom.Vector2{}, geom.Vector2{X: 150, Y: 200})},
+			transform: core.Transform{Scale: geom.Vector2{X: math.SmallestNonzeroFloat64, Y: math.SmallestNonzeroFloat64}},
+			width:     100,
+			height:    100,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := tc.camera.MovePosition(tc.transform, tc.displacement, tc.width, tc.height); err == nil {
+				t.Fatal("MovePosition should reject invalid input")
+			}
+		})
+	}
+}
+
 func TestWorldToScreen(t *testing.T) {
 	for _, tc := range []struct {
 		name          string

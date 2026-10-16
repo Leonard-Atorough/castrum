@@ -133,36 +133,50 @@ Rotated views have two practical consequences:
   rotation. See [the coordinate system](../reference/coordinate-system.md)
   for the projection details and pixel-snapping rules.
 
-## Keep a bounded camera responsive
+## Camera bounds
 
 `Camera.Bounds` is an optional world-space rectangle. A zero or empty
 rectangle leaves the view unbounded. Otherwise, the renderer clamps the
-resolved view to the rectangle after interpolation and before projection.
+resolved view after interpolation and before projection. This does not
+change the camera entity's transform.
 
-When the view fits inside the bounds, its center can move through the bounds
-shrunken by the view's half-extents. If the view is larger than the bounds on
-an axis, its center pins to the bounds center. For rotated views, the
-renderer uses circumscribed half-extents, so the camera stops slightly before
-the exact visible edge.
+For relative movement, use `Camera.MovePosition`. It constrains the starting
+position to the camera's movement window, applies a world-space displacement,
+and constrains the destination. Movement therefore starts from the boundary
+when the stored position is outside the window, rather than accumulating
+off-screen travel. The method returns a position without modifying the
+supplied components.
 
-The renderer clamps the view, not the camera entity's position. If a game
-continues moving the position beyond the renderer's movement window, the view
-pins while the position keeps moving. Reversing direction then appears to lag
-until the position returns to the window. A controls system for a bounded
-camera should apply the same limit to the position:
+With `cam` and `transform` read from the camera entity's `render.Camera` and
+`core.Transform` components, apply the returned position explicitly:
 
 ```go
-halfW := float64(ctx.LogicalWidth) / (2 * t.Scale.X)
-halfH := float64(ctx.LogicalHeight) / (2 * t.Scale.Y)
-s, c := math.Abs(math.Sin(t.Rotation)), math.Abs(math.Cos(t.Rotation))
-extentX := c*halfW + s*halfH
-extentY := s*halfW + c*halfH
+position, err := cam.MovePosition(transform, displacement, ctx.LogicalWidth, ctx.LogicalHeight)
+if err != nil {
+	return err
+}
+transform.Position = position
+return camera.SetComponent(ctx.World, transform)
 ```
 
-Clamp each position axis to `[extent, boundsSize - extent]`. If the interval
-is empty, pin that axis to the bounds center. The
-[camera example](../../examples/camera/main.go) applies this rule while it
-handles keyboard movement.
+The caller controls speed and elapsed-time scaling. Rotate screen-relative
+movement into world space before passing it, and apply zoom and rotation
+changes to the transform before calling the method. A zero displacement still
+constrains the position, so the same call handles changes to framing without
+pan input. Invalid anchors, zoom, non-finite movement values, and nonpositive
+logical viewport dimensions return an error at the call.
+
+The movement window uses the renderer's bounds calculation, accounting for
+zoom, rotation, anchor, and logical viewport size. The view's half-extents
+shrink the region its center can move through. Rotated views use conservative
+circumscribed extents; if the view cannot fit on an axis, its center pins to
+the bounds center on that axis. Empty bounds leave relative movement unbounded.
+
+`MovePosition` is opt-in: assigning an absolute position or following a target
+does not invoke it. It leaves `PrevTransform` and interpolation unchanged, so
+an already out-of-bounds previous snapshot can still pin the view during the
+transition. See the [camera example](../../examples/camera/main.go) for
+panning, rotation, and zoom using this operation.
 
 ## Read the rendered view
 
