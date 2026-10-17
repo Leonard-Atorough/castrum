@@ -3,6 +3,7 @@ package ecs
 import (
 	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 )
 
@@ -318,6 +319,119 @@ func TestServiceRemoveComponentsSwapFixup(t *testing.T) {
 	}
 }
 
+func TestServiceStructuralChangesOnlyInvalidateArchetypeSet(t *testing.T) {
+	position := reflect.TypeFor[Position]()
+	velocity := reflect.TypeFor[Velocity]()
+	tests := []struct {
+		name string
+		ids  [2]EntityID
+		run  func(*Service, EntityID) Result
+	}{
+		{name: "destroy", ids: [2]EntityID{1, 2}, run: (*Service).Destroy},
+		{name: "add", ids: [2]EntityID{1, 2}, run: func(s *Service, id EntityID) Result {
+			return s.AddComponents(id, []reflect.Type{velocity}, []any{Velocity{X: 5}})
+		}},
+		{name: "remove", ids: [2]EntityID{3, 4}, run: func(s *Service, id EntityID) Result {
+			return s.RemoveComponents(id, []reflect.Type{velocity})
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewService()
+			for id := EntityID(1); id <= 4; id++ {
+				types := []reflect.Type{position}
+				values := []any{Position{X: int(id)}}
+				if id >= 3 {
+					types = append(types, velocity)
+					values = append(values, Velocity{X: int(id)})
+				}
+				if err := svc.Create(id, types, values); err != nil {
+					t.Fatalf("Create: %v", err)
+				}
+			}
+			sourceID := svc.locations[tt.ids[0]].ArchetypeID
+			source, _ := svc.store.get(sourceID)
+			generation := svc.Generation()
+
+			if result := tt.run(svc, tt.ids[0]); result.Error != nil {
+				t.Fatalf("first operation: %v", result.Error)
+			}
+			if got := svc.Generation(); got != generation {
+				t.Errorf("generation changed without an archetype change: got %d, want %d", got, generation)
+			}
+			if svc.store.Len() != 2 {
+				t.Errorf("nonempty source should remain; got %d archetypes, want 2", svc.store.Len())
+			}
+
+			if result := tt.run(svc, tt.ids[1]); result.Error != nil {
+				t.Fatalf("second operation: %v", result.Error)
+			}
+			if got := svc.Generation(); got != generation+1 {
+				t.Errorf("deleting source generation = %d, want %d", got, generation+1)
+			}
+			if _, ok := svc.store.get(sourceID); ok {
+				t.Error("empty source archetype was retained")
+			}
+			if _, ok := svc.store.byHash[source.Key().hash()]; ok {
+				t.Error("empty source hash registration was retained")
+			}
+			if svc.store.Len() != 1 {
+				t.Errorf("destination should remain; got %d archetypes, want 1", svc.store.Len())
+			}
+		})
+	}
+}
+
+// BenchmarkServiceStructuralArchetypes varies unrelated archetype count while
+// keeping both migration archetypes populated.
+func BenchmarkServiceStructuralArchetypes(b *testing.B) {
+	position := reflect.TypeFor[Position]()
+	velocity := reflect.TypeFor[Velocity]()
+	for _, operation := range []string{"DestroyCreate", "AddRemove"} {
+		for _, unrelated := range []int{0, 10, 100, 1000} {
+			b.Run(operation+"/"+strconv.Itoa(unrelated), func(b *testing.B) {
+				svc := NewService()
+				for i := range unrelated {
+					typ := reflect.ArrayOf(i+1, reflect.TypeFor[struct{}]())
+					if err := svc.Create(EntityID(i+4), []reflect.Type{typ}, []any{reflect.Zero(typ).Interface()}); err != nil {
+						b.Fatal(err)
+					}
+				}
+				types := []reflect.Type{position}
+				values := []any{Position{X: 1}}
+				for _, id := range []EntityID{1, 3} {
+					if err := svc.Create(id, types, values); err != nil {
+						b.Fatal(err)
+					}
+				}
+				if err := svc.Create(2, []reflect.Type{position, velocity}, []any{Position{X: 2}, Velocity{X: 2}}); err != nil {
+					b.Fatal(err)
+				}
+				b.ReportAllocs()
+				if operation == "DestroyCreate" {
+					for b.Loop() {
+						if result := svc.Destroy(3); result.Error != nil {
+							b.Fatal(result.Error)
+						}
+						if err := svc.Create(3, types, values); err != nil {
+							b.Fatal(err)
+						}
+					}
+				} else {
+					for b.Loop() {
+						if result := svc.AddComponents(3, []reflect.Type{velocity}, []any{Velocity{X: 3}}); result.Error != nil {
+							b.Fatal(result.Error)
+						}
+						if result := svc.RemoveComponents(3, []reflect.Type{velocity}); result.Error != nil {
+							b.Fatal(result.Error)
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestServiceRemove(t *testing.T) {
 	svc := NewService()
 
@@ -494,13 +608,38 @@ func TestStoreCleanupEmptyPreservesCollidingRegistration(t *testing.T) {
 	positionHash := newKey(position).hash()
 	s.byHash[positionHash] = velocityArchetype.ID() // collision: slot names another archetype
 
-	s.cleanupEmpty()
+	s.cleanupEmpty(positionArchetype)
 
 	if _, ok := s.get(positionArchetype.ID()); ok {
 		t.Error("empty archetype should have been removed")
 	}
 	if s.byHash[positionHash] != velocityArchetype.ID() {
 		t.Error("cleanup must not unregister a hash slot naming another archetype")
+	}
+}
+
+func TestStoreCleanupEmptyOnlyRemovesSource(t *testing.T) {
+	s := newArchetypes()
+	source := s.getOrCreate(reflect.TypeFor[Position]())
+	other := s.getOrCreate(reflect.TypeFor[Velocity]())
+	generation := s.generation
+
+	s.cleanupEmpty(source)
+
+	if _, ok := s.get(source.ID()); ok {
+		t.Error("empty source archetype should be removed")
+	}
+	if _, ok := s.byHash[source.Key().hash()]; ok {
+		t.Error("source hash registration should be removed")
+	}
+	if got, ok := s.get(other.ID()); !ok || got != other {
+		t.Error("cleanup should not inspect or remove another empty archetype")
+	}
+	if s.byHash[other.Key().hash()] != other.ID() {
+		t.Error("unrelated hash registration should remain")
+	}
+	if s.generation != generation+1 {
+		t.Errorf("generation = %d, want %d", s.generation, generation+1)
 	}
 }
 

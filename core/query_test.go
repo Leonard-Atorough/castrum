@@ -116,7 +116,7 @@ func TestQueryEarlyStop(t *testing.T) {
 
 func TestQueryGenerationInvalidation(t *testing.T) {
 	w := NewWorld()
-	_, _ = w.NewEntity(queryPos{X: 1, Y: 1}, queryVel{X: 1, Y: 1})
+	first, _ := w.NewEntity(queryPos{X: 1, Y: 1}, queryVel{X: 1, Y: 1})
 
 	q := NewQuery(w).
 		With(queryPos{}, queryVel{})
@@ -131,7 +131,7 @@ func TestQueryGenerationInvalidation(t *testing.T) {
 
 	// Same-key spawn adds no archetype: the cached matches stay valid and
 	// the new entity is still seen because iteration reads live storage.
-	_, _ = w.NewEntity(queryPos{X: 2, Y: 2}, queryVel{X: 2, Y: 2})
+	second, _ := w.NewEntity(queryPos{X: 2, Y: 2}, queryVel{X: 2, Y: 2})
 	count = 0
 	for range q.Execute() {
 		count++
@@ -149,6 +149,74 @@ func TestQueryGenerationInvalidation(t *testing.T) {
 	}
 	if count != 3 {
 		t.Fatalf("after new archetype, Execute yielded %d, want 3", count)
+	}
+
+	generation := w.archetypes.Generation()
+	for i, entity := range []*Entity{first, second} {
+		if err := w.DestroyEntity(entity); err != nil {
+			t.Fatalf("DestroyEntity: %v", err)
+		}
+		if got := w.archetypes.Generation(); got != generation+uint64(i) {
+			t.Errorf("generation after destruction %d = %d, want %d", i+1, got, generation+uint64(i))
+		}
+		count = 0
+		for entry := range q.Execute() {
+			if entry.ID() == first.ID() || (i == 1 && entry.ID() == second.ID()) {
+				t.Errorf("query yielded destroyed entity %d", entry.ID())
+			}
+			count++
+		}
+		if count != 2-i {
+			t.Fatalf("after destruction %d, Execute yielded %d, want %d", i+1, count, 2-i)
+		}
+	}
+
+	recreated, err := w.NewEntity(queryPos{X: 4, Y: 4}, queryVel{X: 4, Y: 4})
+	if err != nil {
+		t.Fatalf("NewEntity: %v", err)
+	}
+	count = 0
+	found := false
+	for entry := range q.Execute() {
+		count++
+		if entry.ID() == recreated.ID() {
+			found = true
+			if pos, ok := entry.Component[queryPos](); !ok || pos.X != 4 {
+				t.Errorf("recreated archetype component = %v, %v, want X=4", pos, ok)
+			}
+		}
+	}
+	if count != 2 || !found {
+		t.Fatalf("after archetype recreation, Execute yielded %d, found new entity=%v", count, found)
+	}
+
+	if _, err := w.NewEntity(queryPos{X: 5, Y: 5}, queryVel{X: 5, Y: 5}); err != nil {
+		t.Fatalf("NewEntity: %v", err)
+	}
+	generation = w.archetypes.Generation()
+	for _, migrate := range []func() error{
+		func() error { return recreated.AddComponent(w, queryTag{}) },
+		func() error { return recreated.RemoveComponent[queryTag](w) },
+	} {
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		if got := w.archetypes.Generation(); got != generation {
+			t.Errorf("migration between populated archetypes changed generation: got %d, want %d", got, generation)
+		}
+		count = 0
+		var sum float64
+		for entry := range q.Execute() {
+			pos, ok := entry.Component[queryPos]()
+			if !ok {
+				t.Fatal("migrated query entry has no position")
+			}
+			sum += pos.X
+			count++
+		}
+		if count != 3 || sum != 12 {
+			t.Fatalf("after migration, Execute yielded %d entities with position sum %v, want 3 and 12", count, sum)
+		}
 	}
 }
 
