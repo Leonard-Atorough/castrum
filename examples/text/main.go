@@ -4,7 +4,7 @@
 // lives on a Sprite with a Transform, so it culls, sorts, moves,
 // and fades exactly like a shape or a texture.
 //
-// The font is a regular ttf loaded through the asset server from an
+// The font is a regular ttf loaded through the asset loader from an
 // embedded filesystem; nothing registers at draw time - the sprite
 // names the font, the collector measures it, the runner draws it.
 //

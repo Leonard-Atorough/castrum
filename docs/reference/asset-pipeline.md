@@ -4,7 +4,7 @@ An asset ID is a slash-separated path resolved against the `fs.FS` owned by the 
 
 ## Typed loading and cache identity
 
-`Server.Load[T]` opens the path, selects a decoder from the format, decodes a value of type `T`, and caches it. The cache identity combines the asset ID, target type, and format. The same file can therefore have multiple typed representations, while two different files loaded with the same explicit ID, type, and format collide by design.
+`loader.Load[T]` opens the path, selects a decoder from the format, decodes a value of type `T`, and caches it. The cache identity combines the asset ID, target type, and format. The same file can therefore have multiple typed representations, while two different files loaded with the same explicit ID, type, and format collide by design.
 
 Repeated loads return the cached value. Concurrent loads of the same identity share one in-flight decode. `LoadReader` uses an explicitly supplied format but does not cache or deduplicate the result; it also does not close the caller's reader.
 
@@ -20,7 +20,7 @@ A missing file, missing decoder, or decoder failure returns an `AssetError` desc
 
 ## Atlases
 
-The server owns one atlas store. `RegisterGridAtlas` loads a texture, divides it into row-major tiles, and registers names such as `prefix_0`. `RegisterAtlasFromSidecar` loads irregular regions from a JSON sidecar. Registration validates the source and region bounds before storing the atlas.
+The loader owns one atlas store. `RegisterGridAtlas` loads a texture, divides it into row-major tiles, and registers names such as `prefix_0`. `RegisterAtlasFromSidecar` loads irregular regions from a JSON sidecar. Registration validates the source and region bounds before storing the atlas.
 
 A sprite refers to an atlas and region by ID. The collector resolves that pair when it collects a drawable, so an unknown atlas or region can fail on the first rendered frame even if the sprite component itself passed validation. Register atlases during setup to move predictable failures earlier.
 

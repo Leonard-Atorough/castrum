@@ -4,7 +4,7 @@ The engine follows a handful of rules everywhere. Learn them once, here, and you
 
 ## Finish setup before the loop
 
-`castrum.New` applies defaults, validates options, creates the world, and provides the engine's asset server, clip store, and audio mixer. Use that setup window to register assets and clips, spawn initial entities, configure the camera, and register systems. The runner should be the last setup step:
+`castrum.New` applies defaults, validates options, creates the world, and provides the engine's asset loader, clip store, and audio mixer. Use that setup window to register assets and clips, spawn initial entities, configure the camera, and register systems. The runner should be the last setup step:
 
 ```go
 func run() error {

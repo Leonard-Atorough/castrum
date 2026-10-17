@@ -143,7 +143,7 @@ cfg, err := w.Resource[*GameConfig]()
 
 `Resource` returns an error for a type nobody provided. Provide before the startup phase so systems can rely on finding it.
 
-The engine provides resources of its own - the asset server, the clip store, and the audio mixer. The guides reach them through the world's resource locator: `g.World().MustResource[*asset.Loader]()` fetches the engine-provided server, and the clip store and audio mixer work the same way.
+The engine provides resources of its own - the asset loader, the clip store, and the audio mixer. The guides reach them through the world's resource locator: `g.World().MustResource[*asset.Loader]()` fetches the engine-provided loader, and the clip store and audio mixer work the same way.
 
 ## Glossary
 

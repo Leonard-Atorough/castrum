@@ -59,11 +59,11 @@ func New(opts ...option) (*Game, error) {
 	}
 	g.ctx.World = g.world
 
-	server := asset.NewLoader(options.Filesystem)
+	loader := asset.NewLoader(options.Filesystem)
 	if err := g.world.Provide(func(*core.World) (*asset.Loader, error) {
-		return server, nil
+		return loader, nil
 	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide asset server: %w", err)
+		return nil, fmt.Errorf("castrum: provide asset loader: %w", err)
 	}
 
 	if err := g.AddSystem(core.PhaseFixed, core.PrevTransformSystemName, core.NewPrevTransformCapture()); err != nil {

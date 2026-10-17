@@ -35,23 +35,23 @@ func TestNewWiresAssetPipeline(t *testing.T) {
 	}
 	_ = r
 
-	// The server and provider are locator resources, resolvable through
+	// The loader and provider are locator resources, resolvable through
 	// the world the way systems and DrawFuncs will resolve them.
-	server, err := g.World().Resource[*asset.Loader]()
+	loader, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
 		t.Fatalf("Resource[*asset.Loader]: %v", err)
 	}
 	again, _ := g.World().Resource[*asset.Loader]()
-	if again != server {
-		t.Fatal("Resource must return the same server instance")
+	if again != loader {
+		t.Fatal("Resource must return the same loader instance")
 	}
 
 	provider, err := g.World().Resource[*TextureProvider]()
 	if err != nil {
 		t.Fatalf("Resource[*TextureProvider]: %v", err)
 	}
-	if provider.server != server {
-		t.Fatal("provider must be wired to the same server")
+	if provider.loader != loader {
+		t.Fatal("provider must be wired to the same loader")
 	}
 }
 
@@ -62,16 +62,16 @@ func TestNewWiresConfiguredFilesystem(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	server, err := g.World().Resource[*asset.Loader]()
+	loader, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
 		t.Fatalf("Resource[*asset.Loader]: %v", err)
 	}
 	// The embedded-fs story: any fs.FS flows through, and paths resolve
 	// against it.
-	if _, err := server.Load[asset.TextureData]("tex.png"); err != nil {
+	if _, err := loader.Load[asset.TextureData]("tex.png"); err != nil {
 		t.Fatalf("Load through the wired filesystem: %v", err)
 	}
-	if _, err := server.Load[asset.TextureData]("missing.png"); err == nil {
+	if _, err := loader.Load[asset.TextureData]("missing.png"); err == nil {
 		t.Fatal("Load of a file outside the wired filesystem should error")
 	}
 }
@@ -82,11 +82,11 @@ func TestSubImageResolvesAndCaches(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	server, err := g.World().Resource[*asset.Loader]()
+	loader, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
 		t.Fatalf("Resource[*asset.Loader]: %v", err)
 	}
-	if err := server.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
+	if err := loader.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
 		t.Fatalf("RegisterAtlasFromSidecar: %v", err)
 	}
 	provider, err := g.World().Resource[*TextureProvider]()
@@ -174,11 +174,11 @@ func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 	if _, err := New(g); err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	server, err := g.World().Resource[*asset.Loader]()
+	loader, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
 		t.Fatalf("Resource[*asset.Loader]: %v", err)
 	}
-	if err := server.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
+	if err := loader.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
 		t.Fatalf("RegisterAtlasFromSidecar: %v", err)
 	}
 	provider, err := g.World().Resource[*TextureProvider]()

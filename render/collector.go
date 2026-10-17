@@ -159,16 +159,16 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 
 	viewport := camera.aabb
 
-	var server *asset.Loader
-	assetServer := func() (*asset.Loader, error) {
-		if server == nil {
+	var loader *asset.Loader
+	assetLoader := func() (*asset.Loader, error) {
+		if loader == nil {
 			s, err := ctx.World.Resource[*asset.Loader]()
 			if err != nil {
-				return nil, fmt.Errorf("castrum: collect: resolve asset server: %w", err)
+				return nil, fmt.Errorf("castrum: collect: resolve asset loader: %w", err)
 			}
-			server = s
+			loader = s
 		}
-		return server, nil
+		return loader, nil
 	}
 
 	c.working = c.working[:0]
@@ -192,7 +192,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		case nil:
 			continue
 		case AtlasSource:
-			srv, err := assetServer()
+			srv, err := assetLoader()
 			if err != nil {
 				return DrawList{}, err
 			}
@@ -221,7 +221,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 					Color:    sprite.Color,
 				})
 		case TextureSource:
-			srv, err := assetServer()
+			srv, err := assetLoader()
 			if err != nil {
 				return DrawList{}, err
 			}
@@ -249,7 +249,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			if drawable.Text == "" {
 				continue
 			}
-			srv, err := assetServer()
+			srv, err := assetLoader()
 			if err != nil {
 				return DrawList{}, err
 			}

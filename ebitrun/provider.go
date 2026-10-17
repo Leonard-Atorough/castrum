@@ -14,7 +14,7 @@ import (
 // converts decoded textures to ebiten images at most once per texture
 // path and materializes subimages at most once per path and rect.
 // Registration already decoded each atlas texture through the
-// server's cache, so the provider's loads are hits.
+// loader's cache, so the provider's loads are hits.
 //
 // Texture and SubImageRect map one-to-one onto the DrawItem source
 // variants the collector produces: an empty Rect routes to
@@ -23,7 +23,7 @@ import (
 // [New] provides the provider as a resource; the engine renderer and
 // user DrawFuncs resolve it through the locator.
 type TextureProvider struct {
-	server *asset.Loader
+	loader *asset.Loader
 	mu     sync.RWMutex
 	images map[asset.ID]*ebiten.Image // one GPU image per texture path
 	subs   map[subKey]*ebiten.Image   // one subimage per texture path and rect
@@ -34,16 +34,16 @@ type subKey struct {
 	rect        image.Rectangle
 }
 
-func newTextureProvider(server *asset.Loader) *TextureProvider {
+func newTextureProvider(loader *asset.Loader) *TextureProvider {
 	return &TextureProvider{
-		server: server,
+		loader: loader,
 		images: make(map[asset.ID]*ebiten.Image),
 		subs:   make(map[subKey]*ebiten.Image),
 	}
 }
 
 // Texture returns the whole GPU image for a texture path, converting it
-// from the server's decoded cache on first use. Errors name the path.
+// from the loader's decoded cache on first use. Errors name the path.
 func (p *TextureProvider) Texture(path asset.ID) (*ebiten.Image, error) {
 	return p.texture(path)
 }
@@ -88,7 +88,7 @@ func (p *TextureProvider) SubImageRect(texturePath asset.ID, rect image.Rectangl
 // texture is converted on first use and shared by all its regions;
 // errors name the atlas, region, and texture path.
 func (p *TextureProvider) SubImage(atlasID asset.AtlasID, regionName string) (*ebiten.Image, error) {
-	atlas, err := p.server.Atlas(atlasID)
+	atlas, err := p.loader.Atlas(atlasID)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (p *TextureProvider) SubImage(atlasID asset.AtlasID, regionName string) (*e
 }
 
 // texture returns the GPU image for a texture path, converting it from
-// the server's decoded cache on first use.
+// the loader's decoded cache on first use.
 func (p *TextureProvider) texture(path asset.ID) (*ebiten.Image, error) {
 	p.mu.RLock()
 	image, ok := p.images[path]
@@ -113,7 +113,7 @@ func (p *TextureProvider) texture(path asset.ID) (*ebiten.Image, error) {
 		return image, nil
 	}
 
-	data, err := p.server.Load[asset.TextureData](string(path))
+	data, err := p.loader.Load[asset.TextureData](string(path))
 	if err != nil {
 		return nil, err
 	}

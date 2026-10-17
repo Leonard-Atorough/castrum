@@ -187,20 +187,20 @@ func TestMainCamera(t *testing.T) {
 	}
 }
 
-func TestNewProvidesAssetServer(t *testing.T) {
+func TestNewProvidesAssetLoader(t *testing.T) {
 	g, err := New()
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	server := g.World().MustResource[*asset.Loader]()
-	if server == nil {
-		t.Fatal("MustResource should return the engine-provided server")
+	loader := g.World().MustResource[*asset.Loader]()
+	if loader == nil {
+		t.Fatal("MustResource should return the engine-provided loader")
 	}
 	byErr, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
 		t.Fatalf("Resource[*asset.Loader] right after New: %v", err)
 	}
-	if server != byErr {
+	if loader != byErr {
 		t.Fatal("MustResource and Resource must be the same instance")
 	}
 }

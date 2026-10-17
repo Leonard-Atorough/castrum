@@ -124,7 +124,7 @@ func NewAtlas(id AtlasID, texturePath ID, texW, texH int, regions map[string]Atl
 	}, nil
 }
 
-// atlasRegistry holds the server's registered atlases. It is safe for
+// atlasRegistry holds the loader's registered atlases. It is safe for
 // concurrent use. Registration rejects duplicates, so a registered atlas's
 // regions never change.
 type atlasRegistry struct {

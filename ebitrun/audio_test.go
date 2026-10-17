@@ -27,15 +27,15 @@ func TestNewRegistersAudioCodecs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	server, err := r.g.World().Resource[*asset.Loader]()
+	loader, err := r.g.World().Resource[*asset.Loader]()
 	if err != nil {
-		t.Fatalf("asset server: %v", err)
+		t.Fatalf("asset loader: %v", err)
 	}
 	noop := func(r io.Reader) (asset.AudioData, error) {
 		return asset.AudioData{}, nil
 	}
 	for _, format := range []asset.Format{asset.FormatMP3, asset.FormatWAV, asset.FormatOGG} {
-		err := server.RegisterDecoder(format, noop, false)
+		err := loader.RegisterDecoder(format, noop, false)
 		if err == nil || !strings.Contains(err.Error(), "already exists") {
 			t.Errorf("format %s: RegisterDecoder = %v, want already-exists error (codec not registered)", format, err)
 		}
@@ -190,7 +190,7 @@ func TestCreatePlayerBalance(t *testing.T) {
 						}
 					}
 					if load == audio.LoadEager {
-						data, err := p.server.Load[asset.AudioData](source)
+						data, err := p.loader.Load[asset.AudioData](source)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -331,8 +331,8 @@ func TestInvalidBalanceClosesStream(t *testing.T) {
 	}
 	var opens, closes int
 	p, _ := newStreamTestProvider(t)
-	p.server = asset.NewLoader(closeTrackingFS{fsys: os.DirFS(dir), opens: &opens, closes: &closes})
-	registerAudioCodecs(p.server, p.audioCtx.SampleRate())
+	p.loader = asset.NewLoader(closeTrackingFS{fsys: os.DirFS(dir), opens: &opens, closes: &closes})
+	registerAudioCodecs(p.loader, p.audioCtx.SampleRate())
 	if _, err := p.createPlayer("tone.wav", audio.Playback{
 		Volume: 1, Rate: 1, Load: audio.LoadStream, Balance: math.NaN(),
 	}); err == nil {

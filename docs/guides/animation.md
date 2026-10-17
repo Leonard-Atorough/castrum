@@ -24,7 +24,7 @@ The atlas owns frame geometry, the clip owns frame order, and the component owns
 
 ## Prepare the frames
 
-An animation frame is an atlas region. The animation package does not load image files or divide spritesheets itself. Register the atlas through the asset server first.
+An animation frame is an atlas region. The animation package does not load image files or divide spritesheets itself. Register the atlas through the asset loader first.
 
 For a regular spritesheet, use `RegisterGridAtlas`. The tile dimensions must divide the image dimensions evenly, and the generated regions are named in row-major order using the prefix:
 

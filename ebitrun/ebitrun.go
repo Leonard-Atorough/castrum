@@ -101,8 +101,8 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, err
 	}
 
-	server := g.World().MustResource[*asset.Loader]()
-	provider := newTextureProvider(server)
+	loader := g.World().MustResource[*asset.Loader]()
+	provider := newTextureProvider(loader)
 	if err := g.World().ProvideEager(func(*core.World) (*TextureProvider, error) {
 		return provider, nil
 	}); err != nil {
@@ -113,7 +113,7 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	if audioCtx == nil {
 		audioCtx = ebitaudio.NewContext(options.SampleRate)
 	}
-	controller := newAudioProvider(audioCtx, server)
+	controller := newAudioProvider(audioCtx, loader)
 	if err := g.World().ProvideEager(func(*core.World) (audio.Controller, error) {
 		return controller, nil
 	}); err != nil {
@@ -128,7 +128,7 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	g.Context().LogicalHeight = options.Logical.Height
 
 	collector := render.NewCollector(g.World())
-	fonts := newFontProvider(server)
+	fonts := newFontProvider(loader)
 	if err := g.World().ProvideEager(func(*core.World) (*FontProvider, error) {
 		return fonts, nil
 	}); err != nil {

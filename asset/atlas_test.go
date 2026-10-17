@@ -143,10 +143,10 @@ func TestLoaderRegisterAndResolveAtlas(t *testing.T) {
 		t.Errorf("Atlas miss = %v, want an error naming the id", err)
 	}
 
-	// Each server owns its registry: a registration in one never
+	// Each loader owns its registry: a registration in one never
 	// resolves in another.
 	if b := NewLoader(nil); func() bool { _, err := b.Atlas("atlas"); return err == nil }() {
-		t.Error("two servers must not share an atlas registry")
+		t.Error("two loaders must not share an atlas registry")
 	}
 }
 

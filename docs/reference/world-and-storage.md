@@ -37,7 +37,7 @@ Entries expose only the component types listed in `With`. Keep the query reusabl
 
 `World.Provide` registers a typed constructor for lazy resolution. The first `World.Resource[T]` call resolves it and caches the instance. `ProvideEager` marks a constructor for eager resolution; `World.ResolveEager` resolves all such resources and returns the first error.
 
-`castrum.Game` provides the engine's asset server, clip store, and mixer during construction. The runner adds backend resources such as texture and audio providers. Resource registration must happen before startup when a startup system depends on it.
+`castrum.Game` provides the engine's asset loader, clip store, and mixer during construction. The runner adds backend resources such as texture and audio providers. Resource registration must happen before startup when a startup system depends on it.
 
 Only one resource of a given type can be registered in a world. Constructors receive the world, so they can depend on other resources, but circular resolution returns an error.
 

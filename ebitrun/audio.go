@@ -28,7 +28,7 @@ type audioStream interface {
 // [audio.Playback] state to them, one session per synced entity.
 type audioProvider struct {
 	audioCtx *ebitaudio.Context
-	server   *asset.Loader
+	loader   *asset.Loader
 	players  map[core.EntityID]*audioSession
 	touched  map[core.EntityID]struct{}
 }
@@ -39,7 +39,7 @@ type audioSession struct {
 	player  *ebitaudio.Player
 	balance balanceStream
 	// source is the open fs file behind a streaming play, if any;
-	// eager plays share server-cached bytes and have none.
+	// eager plays share loader-cached bytes and have none.
 	source   io.Closer
 	loop     audio.LoopMode
 	load     audio.LoadMode
@@ -62,18 +62,18 @@ func (s *audioSession) release() error {
 	return source.Close()
 }
 
-func newAudioProvider(audioCtx *ebitaudio.Context, server *asset.Loader) *audioProvider {
-	registerAudioCodecs(server, audioCtx.SampleRate())
+func newAudioProvider(audioCtx *ebitaudio.Context, loader *asset.Loader) *audioProvider {
+	registerAudioCodecs(loader, audioCtx.SampleRate())
 	return &audioProvider{
 		audioCtx: audioCtx,
-		server:   server,
+		loader:   loader,
 		players:  make(map[core.EntityID]*audioSession),
 		touched:  make(map[core.EntityID]struct{}),
 	}
 }
 
 // streamDecoders is the format-to-decoder table: one table, two
-// consumers — the eager codecs registered into the asset server, and
+// consumers — the eager codecs registered into the asset loader, and
 // the streaming path's per-player decode.
 var streamDecoders = map[asset.Format]func(int, io.Reader) (audioStream, error){
 	asset.FormatMP3: func(rate int, r io.Reader) (audioStream, error) {
@@ -97,9 +97,9 @@ var streamDecoders = map[asset.Format]func(int, io.Reader) (audioStream, error){
 // static table), so it panics: no caller is positioned to recover.
 // The override flag makes a re-registration idempotent; a second
 // Runner for one game is rejected by the resource provide, not here.
-func registerAudioCodecs(server *asset.Loader, sampleRate int) {
+func registerAudioCodecs(loader *asset.Loader, sampleRate int) {
 	for format, decode := range streamDecoders {
-		err := server.RegisterDecoder(format, func(r io.Reader) (asset.AudioData, error) {
+		err := loader.RegisterDecoder(format, func(r io.Reader) (asset.AudioData, error) {
 			stream, err := decode(sampleRate, r)
 			if err != nil {
 				return asset.AudioData{}, err
@@ -237,14 +237,14 @@ func (a *audioProvider) createPlayer(source asset.ID, want audio.Playback) (_ *a
 	var length int64
 	switch want.Load {
 	case audio.LoadEager:
-		data, err := a.server.Load[asset.AudioData](string(source))
+		data, err := a.loader.Load[asset.AudioData](string(source))
 		if err != nil {
 			return nil, fmt.Errorf("castrum/ebiten: audio: load eager audio: %w", err)
 		}
 		reader = bytes.NewReader(data.PCM)
 		length = int64(len(data.PCM))
 	case audio.LoadStream:
-		file, format, err := a.server.Open(string(source))
+		file, format, err := a.loader.Open(string(source))
 		if err != nil {
 			return nil, fmt.Errorf("castrum/ebiten: audio: open stream source: %w", err)
 		}

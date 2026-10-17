@@ -44,8 +44,8 @@ The zero `Sprite` is valid but invisible: a nil `Drawable` declares style withou
 Register an atlas before creating sprites that depend on it, then point the sprite at a named region:
 
 ```go
-server := g.World().MustResource[*asset.Loader]()
-if err := server.RegisterGridAtlas("characters", "char.png", 16, 16, "char"); err != nil {
+loader := g.World().MustResource[*asset.Loader]()
+if err := loader.RegisterGridAtlas("characters", "char.png", 16, 16, "char"); err != nil {
 	return err
 }
 
@@ -71,7 +71,7 @@ Use `TextureSource` when the entity should draw the entire image rather than a n
 render.Sprite{Drawable: render.TextureSource{Texture: "sprites/player.png"}}
 ```
 
-The texture is loaded through the asset server when the collector resolves it. Preload it during setup if a missing or malformed image should prevent the game from starting:
+The texture is loaded through the asset loader when the collector resolves it. Preload it during setup if a missing or malformed image should prevent the game from starting:
 
 ```go
 if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData]("sprites/player.png"); err != nil {
@@ -96,7 +96,7 @@ Shapes can be filled or outlined. Set `Outline: true` and provide a positive `St
 
 ### Text
 
-Text renders through a font loaded by the asset server. Point the sprite at the font file and give it a size in pixels:
+Text renders through a font loaded by the asset loader. Point the sprite at the font file and give it a size in pixels:
 
 ```go
 render.Sprite{
@@ -254,7 +254,7 @@ The collector culls drawable bounds against the active camera viewport before so
 
 If no primary camera exists, the world draw list is empty and overlays still run. The engine camera normally prevents that case.
 
-Rendering errors usually mean a reference could not be resolved: a texture could not load, or an atlas or region was not registered. Texture, atlas, and text drawables resolve through the world's asset server, which `castrum.New` always provides; a core-only headless world that draws them provides its own through `World.Provide`. Shapes are the exception - they draw with no server and no loaded assets, so a shape-only world needs no asset wiring at all. Return errors from setup when you preload or register assets, and keep the first-frame resolution behavior in mind for assets you load lazily.
+Rendering errors usually mean a reference could not be resolved: a texture could not load, or an atlas or region was not registered. Texture, atlas, and text drawables resolve through the world's asset loader, which `castrum.New` always provides; a core-only headless world that draws them provides its own through `World.Provide`. Shapes are the exception - they draw with no loader and no loaded assets, so a shape-only world needs no asset wiring at all. Return errors from setup when you preload or register assets, and keep the first-frame resolution behavior in mind for assets you load lazily.
 
 ## Where to go next
 

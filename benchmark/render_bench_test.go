@@ -26,7 +26,7 @@ func BenchmarkCollectShapes(b *testing.B) {
 }
 
 // BenchmarkCollectTextures adds texture sprites: each item resolves
-// through the asset server's warm cache, the realistic per-frame
+// through the asset loader's warm cache, the realistic per-frame
 // path for sprite-heavy scenes.
 func BenchmarkCollectTextures(b *testing.B) {
 	for _, n := range benchSizes {

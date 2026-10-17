@@ -17,7 +17,7 @@ import (
 // [New] provides FontProvider as a resource for the engine renderer and
 // user draw functions.
 type FontProvider struct {
-	server *asset.Loader
+	loader *asset.Loader
 	// mu protects both caches.
 	mu      sync.RWMutex
 	sources map[asset.ID]*text.GoTextFaceSource
@@ -29,9 +29,9 @@ type faceKey struct {
 	size float64
 }
 
-func newFontProvider(server *asset.Loader) *FontProvider {
+func newFontProvider(loader *asset.Loader) *FontProvider {
 	return &FontProvider{
-		server:  server,
+		loader:  loader,
 		sources: make(map[asset.ID]*text.GoTextFaceSource),
 		faces:   make(map[faceKey]*text.GoTextFace),
 	}
@@ -71,7 +71,7 @@ func (p *FontProvider) source(font asset.ID) (*text.GoTextFaceSource, error) {
 		return source, nil
 	}
 
-	data, err := p.server.Load[asset.FontData](string(font))
+	data, err := p.loader.Load[asset.FontData](string(font))
 	if err != nil {
 		return nil, fmt.Errorf("font %q: %w", font, err)
 	}
