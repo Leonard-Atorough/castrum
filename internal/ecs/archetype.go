@@ -525,9 +525,9 @@ func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Resu
 		}
 	}
 
-	// Snapshot current values before the swap-remove reuses the row.
-	oldValues := make([]any, from.key.Len())
-	for i, t := range from.key {
+	// Snapshot surviving values in type order before swap-removal reuses the row.
+	oldValues := make([]any, remaining.Len())
+	for i, t := range remaining {
 		oldValues[i] = from.component(loc.Index, t)
 	}
 

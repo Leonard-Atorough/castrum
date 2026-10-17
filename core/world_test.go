@@ -412,6 +412,28 @@ func TestEntityMintedFromIDResolvesComponents(t *testing.T) {
 	}
 }
 
+func TestEntityRemoveComponentPreservesRemainingValues(t *testing.T) {
+	w := NewWorld()
+	want := queryVel{X: 5, Y: 6}
+	e, err := w.NewEntity(queryPos{X: 1, Y: 2}, want)
+	if err != nil {
+		t.Fatalf("NewEntity: %v", err)
+	}
+
+	if err := e.RemoveComponent[queryPos](w); err != nil {
+		t.Fatalf("RemoveComponent: %v", err)
+	}
+	if e.HasComponent[queryPos](w) {
+		t.Error("removed component should not be present")
+	}
+	if _, ok := e.Component[queryPos](w); ok {
+		t.Error("removed component should not be readable")
+	}
+	if got, ok := e.Component[queryVel](w); !ok || got != want {
+		t.Errorf("remaining component = %v, %v; want %v, true", got, ok, want)
+	}
+}
+
 func TestEntitySetComponentMissingErrors(t *testing.T) {
 	w := NewWorld()
 	e, _ := w.NewEntity(queryPos{X: 1, Y: 1})
