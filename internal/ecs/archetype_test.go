@@ -2,6 +2,7 @@ package ecs
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -220,6 +221,70 @@ func TestServiceRemoveComponents(t *testing.T) {
 	// Nil type
 	if result := svc.RemoveComponents(1, []reflect.Type{nil}); result.Error == nil {
 		t.Error("RemoveComponents should fail for nil type")
+	}
+}
+
+func TestServiceRemoveComponentsPreservesValues(t *testing.T) {
+	types := []reflect.Type{
+		reflect.TypeFor[Health](),
+		reflect.TypeFor[Position](),
+		reflect.TypeFor[Velocity](),
+	}
+	tests := []struct {
+		name      string
+		remove    []reflect.Type
+		wantMoved bool
+	}{
+		{name: "first", remove: types[:1], wantMoved: true},
+		{name: "middle", remove: types[1:2], wantMoved: true},
+		{name: "last", remove: types[2:], wantMoved: true},
+		{name: "non-contiguous", remove: []reflect.Type{types[0], types[2]}, wantMoved: true},
+		{name: "all", remove: types, wantMoved: true},
+		{name: "absent", remove: []reflect.Type{reflect.TypeFor[struct{}]()}},
+		{name: "empty"},
+		{name: "present-and-absent", remove: []reflect.Type{types[0], reflect.TypeFor[struct{}]()}, wantMoved: true},
+		{name: "duplicate", remove: []reflect.Type{types[0], types[0]}, wantMoved: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewService()
+			values := [][]any{
+				{Health{Value: 11}, Position{X: 12, Y: 13}, Velocity{X: 14, Y: 15}},
+				{Health{Value: 21}, Position{X: 22, Y: 23}, Velocity{X: 24, Y: 25}},
+				{Health{Value: 31}, Position{X: 32, Y: 33}, Velocity{X: 34, Y: 35}},
+			}
+			for i, row := range values {
+				if err := svc.Create(EntityID(i+1), types, row); err != nil {
+					t.Fatalf("Create: %v", err)
+				}
+			}
+
+			result := svc.RemoveComponents(1, tt.remove)
+			if result.Error != nil {
+				t.Fatalf("RemoveComponents: %v", result.Error)
+			}
+			if result.Moved != tt.wantMoved || (tt.wantMoved && result.MovedID != 1) {
+				t.Errorf("RemoveComponents = %+v, want Moved=%v for entity 1", result, tt.wantMoved)
+			}
+
+			for i, row := range values {
+				id := EntityID(i + 1)
+				for j, typ := range types {
+					wantPresent := id != 1 || !slices.Contains(tt.remove, typ)
+					got, ok := svc.Component(id, typ)
+					if ok != wantPresent || (wantPresent && !reflect.DeepEqual(got, row[j])) {
+						t.Errorf("entity %d component %v = %v, %v; want %v, present=%v",
+							id, typ, got, ok, row[j], wantPresent)
+					}
+					if got := svc.HasComponent(id, typ); got != wantPresent {
+						t.Errorf("entity %d HasComponent(%v) = %v, want %v", id, typ, got, wantPresent)
+					}
+				}
+			}
+			if result := svc.Destroy(1); result.Error != nil {
+				t.Errorf("Destroy migrated entity: %v", result.Error)
+			}
+		})
 	}
 }
 
