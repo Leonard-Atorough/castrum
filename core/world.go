@@ -157,7 +157,7 @@ func (w *World) resolve(key reflect.Type) error {
 // provided.
 func (w *World) NewEntity(components ...any) (*Entity, error) {
 	components = createPreviousTransformComponents(components)
-	
+
 	if err := validateComponents(components); err != nil {
 		return nil, fmt.Errorf("castrum: NewEntity: %w", err)
 	}
