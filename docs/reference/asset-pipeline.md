@@ -1,6 +1,6 @@
 # The asset pipeline
 
-An asset ID is a slash-separated path resolved against the `fs.FS` owned by the world's `asset.Server`. The default filesystem is the process working directory; `WithFilesystem` can supply `embed.FS` or another filesystem. Paths are normalized before loading.
+An asset ID is a slash-separated path resolved against the `fs.FS` owned by the world's `asset.Loader`. The default filesystem is the process working directory; `WithFilesystem` can supply `embed.FS` or another filesystem. Paths are normalized before loading.
 
 ## Typed loading and cache identity
 

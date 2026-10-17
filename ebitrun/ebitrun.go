@@ -89,7 +89,7 @@ const AudioSystemName = "engine.audio"
 // error for invalid options or if the runner's resources or audio system
 // cannot be registered.
 //
-// g must come from [castrum.New], which provides the game's [asset.Server].
+// g must come from [castrum.New], which provides the game's [asset.Loader].
 // New registers the [TextureProvider], [FontProvider], and audio provider as
 // eager resources, and adds the audio reconciler to the frame schedule.
 func New(g *castrum.Game, opts ...option) (*Runner, error) {
@@ -101,7 +101,7 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, err
 	}
 
-	server := g.World().MustResource[*asset.Server]()
+	server := g.World().MustResource[*asset.Loader]()
 	provider := newTextureProvider(server)
 	if err := g.World().ProvideEager(func(*core.World) (*TextureProvider, error) {
 		return provider, nil

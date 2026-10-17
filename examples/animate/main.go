@@ -54,7 +54,7 @@ func run() error {
 		return err
 	}
 
-	if err := g.World().MustResource[*asset.Server]().RegisterGridAtlas(AssetTorchLight, "torch_light.png", 16, 28, "torch_light"); err != nil {
+	if err := g.World().MustResource[*asset.Loader]().RegisterGridAtlas(AssetTorchLight, "torch_light.png", 16, 28, "torch_light"); err != nil {
 		return err
 	}
 

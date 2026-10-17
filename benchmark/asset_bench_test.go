@@ -10,9 +10,9 @@ import (
 )
 
 // benchServer builds a server over the benchmark assets.
-func benchServer(b *testing.B) *asset.Server {
+func benchServer(b *testing.B) *asset.Loader {
 	b.Helper()
-	return asset.New(benchFS(b))
+	return asset.NewLoader(benchFS(b))
 }
 
 // BenchmarkLoadWarmTexture reports the cache-hit load the collector

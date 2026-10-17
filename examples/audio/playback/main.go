@@ -41,7 +41,7 @@ func run() error {
 	}
 	// Register codecs through the runner before preloading. The first effect
 	// then has no decode latency; overlapping plays share cached PCM.
-	if _, err := g.World().MustResource[*asset.Server]().Load[asset.AudioData](audioassets.Magic); err != nil {
+	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](audioassets.Magic); err != nil {
 		return err
 	}
 	music := audio.NewSource(audioassets.Music)

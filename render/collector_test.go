@@ -36,12 +36,12 @@ func newCollectorWorld(t *testing.T) *core.World {
 			`{"regions":[{"name":"player","x":0,"y":0,"w":2,"h":2},{"name":"enemy","x":2,"y":2,"w":2,"h":2}]}`)},
 	}
 	w := core.NewWorld()
-	if err := w.Provide(func(*core.World) (*asset.Server, error) {
-		return asset.New(files), nil
+	if err := w.Provide(func(*core.World) (*asset.Loader, error) {
+		return asset.NewLoader(files), nil
 	}); err != nil {
 		t.Fatalf("provide asset server: %v", err)
 	}
-	server, err := w.Resource[*asset.Server]()
+	server, err := w.Resource[*asset.Loader]()
 	if err != nil {
 		t.Fatalf("resolve asset server: %v", err)
 	}
@@ -57,8 +57,8 @@ func newFontWorld(t *testing.T) *core.World {
 		"fonts/go.ttf": &fstest.MapFile{Data: goregular.TTF},
 	}
 	w := core.NewWorld()
-	if err := w.Provide(func(*core.World) (*asset.Server, error) {
-		return asset.New(files), nil
+	if err := w.Provide(func(*core.World) (*asset.Loader, error) {
+		return asset.NewLoader(files), nil
 	}); err != nil {
 		t.Fatalf("provide asset server: %v", err)
 	}

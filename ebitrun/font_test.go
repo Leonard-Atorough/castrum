@@ -12,8 +12,8 @@ import (
 	"golang.org/x/image/font/gofont/goregular"
 )
 
-func newFontServer() *asset.Server {
-	return asset.New(fstest.MapFS{"fonts/go.ttf": &fstest.MapFile{Data: goregular.TTF}})
+func newFontServer() *asset.Loader {
+	return asset.NewLoader(fstest.MapFS{"fonts/go.ttf": &fstest.MapFile{Data: goregular.TTF}})
 }
 
 func TestFontProviderFaceCaches(t *testing.T) {

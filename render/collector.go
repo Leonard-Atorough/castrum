@@ -159,10 +159,10 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 
 	viewport := camera.aabb
 
-	var server *asset.Server
-	assetServer := func() (*asset.Server, error) {
+	var server *asset.Loader
+	assetServer := func() (*asset.Loader, error) {
 		if server == nil {
-			s, err := ctx.World.Resource[*asset.Server]()
+			s, err := ctx.World.Resource[*asset.Loader]()
 			if err != nil {
 				return nil, fmt.Errorf("castrum: collect: resolve asset server: %w", err)
 			}

@@ -111,8 +111,8 @@ func drawCtx(world *core.World, alpha float64) *core.Context {
 func spriteWorld(b *testing.B, n int, shape bool, viewportFraction float64) (*core.World, *render.Collector) {
 	b.Helper()
 	world := core.NewWorld()
-	server := asset.New(benchFS(b))
-	if err := world.Provide(func(*core.World) (*asset.Server, error) {
+	server := asset.NewLoader(benchFS(b))
+	if err := world.Provide(func(*core.World) (*asset.Loader, error) {
 		return server, nil
 	}); err != nil {
 		b.Fatal(err)

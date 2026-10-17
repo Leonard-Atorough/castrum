@@ -260,16 +260,16 @@ func run() error {
 	// Preload every asset with a path, so a missing or invalid file
 	// fails during setup rather than mid-game. Textures and fonts
 	// are different asset types: load each with its own.
-	if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetHull); err != nil {
+	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData](AssetHull); err != nil {
 		return err
 	}
-	if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetTurret); err != nil {
+	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData](AssetTurret); err != nil {
 		return err
 	}
-	if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetEnemy); err != nil {
+	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData](AssetEnemy); err != nil {
 		return err
 	}
-	if _, err := g.World().MustResource[*asset.Server]().Load[asset.FontData](AssetFont); err != nil {
+	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.FontData](AssetFont); err != nil {
 		return err
 	}
 
@@ -277,7 +277,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if _, err := g.World().MustResource[*asset.Server]().Load[asset.AudioData](AssetSFX); err != nil {
+	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](AssetSFX); err != nil {
 		return err
 	}
 

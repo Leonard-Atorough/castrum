@@ -4,8 +4,8 @@ import "fmt"
 
 // registerDefaults treats duplicate built-in registrations as an engine
 // authoring error and panics. User codecs go through
-// [Server.RegisterDecoder] and return errors instead.
-func (s *Server) registerDefaults() {
+// [Loader.RegisterDecoder] and return errors instead.
+func (s *Loader) registerDefaults() {
 	for _, format := range []Format{FormatPNG, FormatJPG, FormatJPEG} {
 		mustRegister(s.RegisterDecoder(format, decodeTexture, false))
 	}

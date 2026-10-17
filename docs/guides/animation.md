@@ -29,7 +29,7 @@ An animation frame is an atlas region. The animation package does not load image
 For a regular spritesheet, use `RegisterGridAtlas`. The tile dimensions must divide the image dimensions evenly, and the generated regions are named in row-major order using the prefix:
 
 ```go
-if err := g.World().MustResource[*asset.Server]().RegisterGridAtlas(
+if err := g.World().MustResource[*asset.Loader]().RegisterGridAtlas(
 	"torch_light",
 	"torch_light.png",
 	16, 28,

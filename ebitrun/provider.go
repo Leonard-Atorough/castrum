@@ -23,7 +23,7 @@ import (
 // [New] provides the provider as a resource; the engine renderer and
 // user DrawFuncs resolve it through the locator.
 type TextureProvider struct {
-	server *asset.Server
+	server *asset.Loader
 	mu     sync.RWMutex
 	images map[asset.ID]*ebiten.Image // one GPU image per texture path
 	subs   map[subKey]*ebiten.Image   // one subimage per texture path and rect
@@ -34,7 +34,7 @@ type subKey struct {
 	rect        image.Rectangle
 }
 
-func newTextureProvider(server *asset.Server) *TextureProvider {
+func newTextureProvider(server *asset.Loader) *TextureProvider {
 	return &TextureProvider{
 		server: server,
 		images: make(map[asset.ID]*ebiten.Image),

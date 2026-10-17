@@ -10,7 +10,7 @@ func TestNewRegistersDefaultDecoders(t *testing.T) {
 	// Defaults wired end to end through the public surface: real png
 	// decode, real json decode, cache and format inference included.
 	pngBytes := encodeTestPNG(t, 4, 3)
-	a := New(newTestFS(map[string]string{
+	a := NewLoader(newTestFS(map[string]string{
 		"tex.png":    string(pngBytes),
 		"atlas.json": `{"regions":[{"name":"player","x":0,"y":0,"w":4,"h":3}]}`,
 	}))
@@ -33,7 +33,7 @@ func TestNewRegistersDefaultDecoders(t *testing.T) {
 }
 
 func TestDefaultDecodersAnswerToUserRegistration(t *testing.T) {
-	a := New(nil)
+	a := NewLoader(nil)
 
 	// A user duplicating a default gets an error - the Must-panic is
 	// reserved for the engine's own static table.

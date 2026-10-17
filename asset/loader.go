@@ -30,7 +30,7 @@ type ID string
 type Format string
 
 // Format constants identify common asset encodings. Register a decoder for a
-// format with [Server.RegisterDecoder].
+// format with [Loader.RegisterDecoder].
 const (
 	// FormatJSON is the JSON format.
 	FormatJSON Format = "json"
@@ -59,9 +59,9 @@ const (
 // Decoder decodes a value of type T from a reader.
 type Decoder[T any] func(reader io.Reader) (T, error)
 
-// Server loads assets from a filesystem, decodes them with registered
+// Loader loads assets from a filesystem, decodes them with registered
 // decoders, and caches the results. It also owns the atlas registry.
-type Server struct {
+type Loader struct {
 	fs        fs.FS
 	mu        sync.RWMutex // guards decoders
 	decoders  map[codecKey]decoderFunc
@@ -70,14 +70,14 @@ type Server struct {
 	atlases   *atlasRegistry
 }
 
-// New creates a Server backed by filesystem. If filesystem is nil, assets are
+// New creates a Loader backed by filesystem. If filesystem is nil, assets are
 // read from the current working directory. Loading is lazy and begins on the
-// first call to [Server.Load].
-func New(filesystem fs.FS) *Server {
+// first call to [Loader.Load].
+func NewLoader(filesystem fs.FS) *Loader {
 	if filesystem == nil {
 		filesystem = os.DirFS(".")
 	}
-	a := &Server{
+	a := &Loader{
 		fs:        filesystem,
 		decoders:  make(map[codecKey]decoderFunc),
 		cache:     newCache(),
@@ -93,7 +93,7 @@ func New(filesystem fs.FS) *Server {
 //
 // The format defaults to the lowercased file extension; [WithFormat] and
 // [WithID] override the format and cache identity, respectively.
-func (s *Server) Load[T any](fpath string, opts ...loadOption) (T, error) {
+func (s *Loader) Load[T any](fpath string, opts ...loadOption) (T, error) {
 	var zero T
 	fpath = normalizeAssetPath(fpath)
 	typ := reflect.TypeFor[T]()
@@ -143,12 +143,12 @@ func (s *Server) Load[T any](fpath string, opts ...loadOption) (T, error) {
 }
 
 // Open opens the asset at name as a raw file and returns its inferred format.
-// Unlike [Server.Load], it does not decode or cache the asset. The caller
+// Unlike [Loader.Load], it does not decode or cache the asset. The caller
 // owns the file and must close it.
 //
 // Consumers that need seeking for looping or position resets must verify that
 // the returned file supports it.
-func (s *Server) Open(fpath string) (fs.File, Format, error) {
+func (s *Loader) Open(fpath string) (fs.File, Format, error) {
 	if fpath == "" {
 		return nil, "", &AssetError{Op: "Open", ID: ID(fpath),
 			Err: fmt.Errorf("asset path must not be empty")}
@@ -165,9 +165,9 @@ func (s *Server) Open(fpath string) (fs.File, Format, error) {
 // LoadReader decodes a value of type T from reader using the decoder
 // registered for format. The format must be supplied explicitly.
 //
-// Unlike [Server.Load], LoadReader does not cache and does not
+// Unlike [Loader.Load], LoadReader does not cache and does not
 // deduplicate concurrent decodes. It does not close reader; the caller owns it.
-func (s *Server) LoadReader[T any](reader io.Reader, format Format) (T, error) {
+func (s *Loader) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 	var zero T
 	typ := reflect.TypeFor[T]()
 
@@ -191,7 +191,7 @@ func (s *Server) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 // RegisterDecoder registers d for values of type T in format. It returns an
 // error if d is nil or format is empty. If a decoder already exists for that
 // type and format, override must be true to replace it.
-func (s *Server) RegisterDecoder[T any](format Format, d Decoder[T], override bool) error {
+func (s *Loader) RegisterDecoder[T any](format Format, d Decoder[T], override bool) error {
 	if d == nil {
 		return fmt.Errorf("decoder cannot be nil")
 	}
@@ -326,7 +326,7 @@ type codecKey struct {
 }
 
 // decoderFunc is the type-erased form a registered Decoder[T] is stored
-// as. Only [Server.RegisterDecoder] builds one, boxing the value as T.
+// as. Only [Loader.RegisterDecoder] builds one, boxing the value as T.
 type decoderFunc func(reader io.Reader) (any, error)
 
 type loadOption interface {

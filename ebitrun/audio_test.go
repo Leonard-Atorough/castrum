@@ -27,7 +27,7 @@ func TestNewRegistersAudioCodecs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	server, err := r.g.World().Resource[*asset.Server]()
+	server, err := r.g.World().Resource[*asset.Loader]()
 	if err != nil {
 		t.Fatalf("asset server: %v", err)
 	}
@@ -77,7 +77,7 @@ func newStreamTestProvider(t *testing.T) (*audioProvider, string) {
 	if audioCtx == nil {
 		audioCtx = ebitaudio.NewContext(44100)
 	}
-	return newAudioProvider(audioCtx, asset.New(os.DirFS(dir))), "tone.wav"
+	return newAudioProvider(audioCtx, asset.NewLoader(os.DirFS(dir))), "tone.wav"
 }
 
 func TestCreatePlayerEager(t *testing.T) {
@@ -331,7 +331,7 @@ func TestInvalidBalanceClosesStream(t *testing.T) {
 	}
 	var opens, closes int
 	p, _ := newStreamTestProvider(t)
-	p.server = asset.New(closeTrackingFS{fsys: os.DirFS(dir), opens: &opens, closes: &closes})
+	p.server = asset.NewLoader(closeTrackingFS{fsys: os.DirFS(dir), opens: &opens, closes: &closes})
 	registerAudioCodecs(p.server, p.audioCtx.SampleRate())
 	if _, err := p.createPlayer("tone.wav", audio.Playback{
 		Volume: 1, Rate: 1, Load: audio.LoadStream, Balance: math.NaN(),

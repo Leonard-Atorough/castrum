@@ -59,8 +59,8 @@ func New(opts ...option) (*Game, error) {
 	}
 	g.ctx.World = g.world
 
-	server := asset.New(options.Filesystem)
-	if err := g.world.Provide(func(*core.World) (*asset.Server, error) {
+	server := asset.NewLoader(options.Filesystem)
+	if err := g.world.Provide(func(*core.World) (*asset.Loader, error) {
 		return server, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide asset server: %w", err)

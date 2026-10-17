@@ -28,7 +28,7 @@ type audioStream interface {
 // [audio.Playback] state to them, one session per synced entity.
 type audioProvider struct {
 	audioCtx *ebitaudio.Context
-	server   *asset.Server
+	server   *asset.Loader
 	players  map[core.EntityID]*audioSession
 	touched  map[core.EntityID]struct{}
 }
@@ -62,7 +62,7 @@ func (s *audioSession) release() error {
 	return source.Close()
 }
 
-func newAudioProvider(audioCtx *ebitaudio.Context, server *asset.Server) *audioProvider {
+func newAudioProvider(audioCtx *ebitaudio.Context, server *asset.Loader) *audioProvider {
 	registerAudioCodecs(server, audioCtx.SampleRate())
 	return &audioProvider{
 		audioCtx: audioCtx,
@@ -97,7 +97,7 @@ var streamDecoders = map[asset.Format]func(int, io.Reader) (audioStream, error){
 // static table), so it panics: no caller is positioned to recover.
 // The override flag makes a re-registration idempotent; a second
 // Runner for one game is rejected by the resource provide, not here.
-func registerAudioCodecs(server *asset.Server, sampleRate int) {
+func registerAudioCodecs(server *asset.Loader, sampleRate int) {
 	for format, decode := range streamDecoders {
 		err := server.RegisterDecoder(format, func(r io.Reader) (asset.AudioData, error) {
 			stream, err := decode(sampleRate, r)

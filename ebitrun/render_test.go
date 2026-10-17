@@ -68,7 +68,7 @@ func TestEngineDrawFailsFast(t *testing.T) {
 // reads do not, so assert no error and no panic - nothing visual.
 func TestEngineDrawSmoke(t *testing.T) {
 	g, r := newSpriteGame(t)
-	server, err := g.World().Resource[*asset.Server]()
+	server, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
 		t.Fatalf("resolve asset server: %v", err)
 	}

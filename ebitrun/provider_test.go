@@ -37,11 +37,11 @@ func TestNewWiresAssetPipeline(t *testing.T) {
 
 	// The server and provider are locator resources, resolvable through
 	// the world the way systems and DrawFuncs will resolve them.
-	server, err := g.World().Resource[*asset.Server]()
+	server, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
-		t.Fatalf("Resource[*asset.Server]: %v", err)
+		t.Fatalf("Resource[*asset.Loader]: %v", err)
 	}
-	again, _ := g.World().Resource[*asset.Server]()
+	again, _ := g.World().Resource[*asset.Loader]()
 	if again != server {
 		t.Fatal("Resource must return the same server instance")
 	}
@@ -62,9 +62,9 @@ func TestNewWiresConfiguredFilesystem(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	server, err := g.World().Resource[*asset.Server]()
+	server, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
-		t.Fatalf("Resource[*asset.Server]: %v", err)
+		t.Fatalf("Resource[*asset.Loader]: %v", err)
 	}
 	// The embedded-fs story: any fs.FS flows through, and paths resolve
 	// against it.
@@ -82,9 +82,9 @@ func TestSubImageResolvesAndCaches(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	server, err := g.World().Resource[*asset.Server]()
+	server, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
-		t.Fatalf("Resource[*asset.Server]: %v", err)
+		t.Fatalf("Resource[*asset.Loader]: %v", err)
 	}
 	if err := server.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
 		t.Fatalf("RegisterAtlasFromSidecar: %v", err)
@@ -174,9 +174,9 @@ func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 	if _, err := New(g); err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	server, err := g.World().Resource[*asset.Server]()
+	server, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
-		t.Fatalf("Resource[*asset.Server]: %v", err)
+		t.Fatalf("Resource[*asset.Loader]: %v", err)
 	}
 	if err := server.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
 		t.Fatalf("RegisterAtlasFromSidecar: %v", err)

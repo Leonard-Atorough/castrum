@@ -57,7 +57,7 @@ func run() error {
 	// Register the atlas at setup, before the window opens: a bad path
 	// or uneven tile division fails the launch, not the first frame.
 	// The engine provides the server at New.
-	if err := g.World().MustResource[*asset.Server]().RegisterGridAtlas("characters", "Dungeon_Character_2.png", 16, 16, "char"); err != nil {
+	if err := g.World().MustResource[*asset.Loader]().RegisterGridAtlas("characters", "Dungeon_Character_2.png", 16, 16, "char"); err != nil {
 		return err
 	}
 

@@ -192,13 +192,13 @@ func TestNewProvidesAssetServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	server := g.World().MustResource[*asset.Server]()
+	server := g.World().MustResource[*asset.Loader]()
 	if server == nil {
 		t.Fatal("MustResource should return the engine-provided server")
 	}
-	byErr, err := g.World().Resource[*asset.Server]()
+	byErr, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
-		t.Fatalf("Resource[*asset.Server] right after New: %v", err)
+		t.Fatalf("Resource[*asset.Loader] right after New: %v", err)
 	}
 	if server != byErr {
 		t.Fatal("MustResource and Resource must be the same instance")
