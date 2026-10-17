@@ -125,6 +125,8 @@ Each participating proxy receives the system's internal update stamp. If fewer o
 
 A failed synchronisation can already have indexed some new proxies. Before returning that error, the system rebuilds its active cache from the proxy map so a retry can also remove those proxies if their entities disappear. This is recovery bookkeeping, not a promise that failed updates roll back all internal state.
 
+Each proxy retains its dirty flag until candidate collection consumes it. If synchronisation fails, later updates requeue pending proxies even when their cached inputs already match the world. Removed or inactive proxies are discarded rather than replayed.
+
 Synchronisation discovers input changes by scanning the collider query every update. Proxy reuse avoids geometry work for unchanged inputs; it does not eliminate this scan.
 
 ## Candidate pairs and exact tests

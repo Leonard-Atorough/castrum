@@ -42,7 +42,7 @@ func NewSystem() core.System {
 	}
 }
 
-// Equal proxies need no broad-phase update or re-test.
+// A failed sync can cache inputs before their candidates are collected.
 type proxy struct {
 	id       core.EntityID
 	collider Collider
@@ -51,6 +51,7 @@ type proxy struct {
 	shape    worldShape
 	bounds   geom.Rect
 	seen     uint64
+	dirty    bool
 }
 
 // The spare buffer is two ticks old, so building this tick cannot overwrite
@@ -195,6 +196,9 @@ func (s *system) syncProxies() error {
 		if exists && p.position == transform.Position && p.rotation == transform.Rotation && p.collider == collider {
 			p.seen = s.tick
 			s.nextActive = append(s.nextActive, p)
+			if p.dirty {
+				s.dirty = append(s.dirty, id)
+			}
 			continue
 		}
 		if !exists {
@@ -218,11 +222,12 @@ func (s *system) syncProxies() error {
 			p.position, p.rotation = transform.Position, transform.Rotation
 		}
 		p.collider, p.seen = collider, s.tick
+		p.dirty = p.dirty || changed
 		if !exists {
 			s.proxies[id] = p
 		}
 		s.nextActive = append(s.nextActive, p)
-		if changed {
+		if p.dirty {
 			s.dirty = append(s.dirty, id)
 		}
 	}
@@ -256,6 +261,7 @@ func (s *system) collectCandidates() {
 			}
 			s.addCandidate(canonicalPair(id, neighbor))
 		}
+		p.dirty = false
 	}
 	for id, buffers := range s.contacts {
 		for _, c := range buffers.current {

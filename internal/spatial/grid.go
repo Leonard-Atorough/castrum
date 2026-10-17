@@ -25,9 +25,9 @@ type GridCell struct {
 type Grid struct {
 	// cellSize is the width and height of each cell in world units.
 	cellSize float64
-	// cells maps each occupied cell to its entity IDs.
+	// cells maps occupied cells to pointers to entries owned by entities.
 	cells map[GridCell][]*gridEntry
-	// entities maps each indexed entity to its occupied cell range.
+	// entities owns the indexed entries, keyed by entity ID.
 	entities map[ecs.EntityID]*gridEntry
 }
 
