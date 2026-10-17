@@ -70,7 +70,7 @@ type Loader struct {
 	atlases   *atlasRegistry
 }
 
-// New creates a Loader backed by filesystem. If filesystem is nil, assets are
+// NewLoader creates a Loader backed by filesystem. If filesystem is nil, assets are
 // read from the current working directory. Loading is lazy and begins on the
 // first call to [Loader.Load].
 func NewLoader(filesystem fs.FS) *Loader {
