@@ -113,8 +113,8 @@ func TestAtlasAccessorsAndLookup(t *testing.T) {
 	}
 }
 
-func TestServerRegisterAndResolveAtlas(t *testing.T) {
-	a := New(nil)
+func TestLoaderRegisterAndResolveAtlas(t *testing.T) {
+	a := NewLoader(nil)
 	atlas, err := NewAtlas("atlas", "tex.png", 4, 3, map[string]AtlasRegion{
 		"player": {X: 0, Y: 0, W: 4, H: 3},
 	})
@@ -143,15 +143,15 @@ func TestServerRegisterAndResolveAtlas(t *testing.T) {
 		t.Errorf("Atlas miss = %v, want an error naming the id", err)
 	}
 
-	// Each server owns its registry: a registration in one never
+	// Each loader owns its registry: a registration in one never
 	// resolves in another.
-	if b := New(nil); func() bool { _, err := b.Atlas("atlas"); return err == nil }() {
-		t.Error("two servers must not share an atlas registry")
+	if b := NewLoader(nil); func() bool { _, err := b.Atlas("atlas"); return err == nil }() {
+		t.Error("two loaders must not share an atlas registry")
 	}
 }
 
 func TestRegisterAtlasFromSidecar(t *testing.T) {
-	a := New(newTestFS(map[string]string{
+	a := NewLoader(newTestFS(map[string]string{
 		"tex.png":    string(encodeTestPNG(t, 4, 3)),
 		"atlas.json": `{"regions":[{"name":"player","x":0,"y":0,"w":4,"h":3}]}`,
 	}))
@@ -169,7 +169,7 @@ func TestRegisterAtlasFromSidecar(t *testing.T) {
 
 	// Failure leaves the store untouched: nothing registers under a
 	// name whose sidecar is broken.
-	bad := New(newTestFS(map[string]string{
+	bad := NewLoader(newTestFS(map[string]string{
 		"tex.png":    string(encodeTestPNG(t, 4, 3)),
 		"atlas.json": `{"regions":[{"name":"player","x":0,"y":0,"w":99,"h":3}]}`,
 	}))
@@ -182,7 +182,7 @@ func TestRegisterAtlasFromSidecar(t *testing.T) {
 }
 
 func TestRegisterAtlasFromSidecarEmptyRegions(t *testing.T) {
-	a := New(newTestFS(map[string]string{
+	a := NewLoader(newTestFS(map[string]string{
 		"tex.png":    string(encodeTestPNG(t, 4, 3)),
 		"atlas.json": `{"regions":[]}`,
 	}))
@@ -195,7 +195,7 @@ func TestRegisterAtlasFromSidecarEmptyRegions(t *testing.T) {
 }
 
 func TestRegisterAtlasFromSidecarDuplicateRegion(t *testing.T) {
-	a := New(newTestFS(map[string]string{
+	a := NewLoader(newTestFS(map[string]string{
 		"tex.png": string(encodeTestPNG(t, 4, 3)),
 		"atlas.json": `{"regions":[` +
 			`{"name":"player","x":0,"y":0,"w":2,"h":3},` +
@@ -207,7 +207,7 @@ func TestRegisterAtlasFromSidecarDuplicateRegion(t *testing.T) {
 }
 
 func TestRegisterAtlasFromSidecarMissingFile(t *testing.T) {
-	a := New(newTestFS(map[string]string{
+	a := NewLoader(newTestFS(map[string]string{
 		"atlas.json": `{"regions":[]}`,
 	}))
 	err := a.RegisterAtlasFromSidecar("sprites", "missing.png", "atlas.json")
@@ -220,7 +220,7 @@ func TestRegisterAtlasFromSidecarMissingFile(t *testing.T) {
 }
 
 func TestRegisterGridAtlas(t *testing.T) {
-	a := New(newTestFS(map[string]string{
+	a := NewLoader(newTestFS(map[string]string{
 		"tiles.png": string(encodeTestPNG(t, 4, 4)),
 	}))
 
@@ -251,7 +251,7 @@ func TestRegisterGridAtlas(t *testing.T) {
 
 	// Uneven division, bad tile dims, and an empty prefix all error and
 	// leave the store untouched.
-	bad := New(newTestFS(map[string]string{"tiles.png": string(encodeTestPNG(t, 5, 4))}))
+	bad := NewLoader(newTestFS(map[string]string{"tiles.png": string(encodeTestPNG(t, 5, 4))}))
 	if err := bad.RegisterGridAtlas("tiles", "tiles.png", 2, 2, "tile"); err == nil {
 		t.Error("uneven division should error")
 	}

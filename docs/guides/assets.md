@@ -1,6 +1,6 @@
 # Assets
 
-Assets are files or other data that your game identifies by a path and loads through an `asset.Server`. This guide covers where those paths resolve, how typed loading and caching work, and when to stream instead of decoding an entire asset into memory.
+Assets are files or other data that your game identifies by a path and loads through an `asset.Loader`. This guide covers where those paths resolve, how typed loading and caching work, and when to stream instead of decoding an entire asset into memory.
 
 ## Where assets live
 
@@ -29,7 +29,7 @@ The asset paths do not change when you switch from a directory to `embed.FS`; on
 
 ### Supported asset formats
 
-The server chooses a decoder from the lowercased file extension. The built-in server decodes PNG, JPG, and JPEG files into `asset.TextureData`. It also decodes the JSON sidecars used by atlases into `asset.AtlasMeta` if available.
+The loader chooses a decoder from the lowercased file extension. The built-in loader decodes PNG, JPG, and JPEG files into `asset.TextureData`. It also decodes the JSON sidecars used by atlases into `asset.AtlasMeta` if available.
 
 The default runner, `ebitrun`, registers WAV, MP3, and OGG decoders for `asset.AudioData` when you create it. Construct the runner before explicitly preloading audio. A format constant such as `asset.FormatYAML` is only vocabulary; it does not mean that a decoder is available.
 
@@ -37,20 +37,20 @@ The built-in format constants are `FormatJSON`, `FormatYAML`, `FormatYML`, `Form
 
 ### Cached and non-cached loading
 
-Use `Load[T]` for an asset that should be identified by a path and reused. The server infers the format from the extension, decodes the value as `T`, and caches it. Repeated loads return the cached value, and concurrent loads of the same path, type, and format share one in-flight decode.
+Use `Load[T]` for an asset that should be identified by a path and reused. The loader infers the format from the extension, decodes the value as `T`, and caches it. Repeated loads return the cached value, and concurrent loads of the same path, type, and format share one in-flight decode.
 
 Preload assets during setup when a missing file or decode failure should stop the game from starting. You also avoid paying the file and decode cost on the first frame:
 
 ```go
-if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData]("assets/sprites/hull.png"); err != nil {
+if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData]("assets/sprites/hull.png"); err != nil {
 	return err
 }
 ```
 
-Use `LoadReader` when the data comes from somewhere other than the server's filesystem. A reader has no extension, so pass the format explicitly. This path does not cache or deduplicate the decode, and it does not close the reader:
+Use `LoadReader` when the data comes from somewhere other than the loader's filesystem. A reader has no extension, so pass the format explicitly. This path does not cache or deduplicate the decode, and it does not close the reader:
 
 ```go
-dialogue, err := server.LoadReader[Dialogue](reader, asset.FormatJSON)
+dialogue, err := loader.LoadReader[Dialogue](reader, asset.FormatJSON)
 if err != nil {
 	return err
 }
@@ -59,7 +59,7 @@ if err != nil {
 Use `WithID` when you deliberately want a stable logical cache identity, such as for generated data:
 
 ```go
-data, err := server.Load[Dialogue](
+data, err := loader.Load[Dialogue](
 	"generated/dialogue.json",
 	asset.WithID("dialogue:intro"),
 )
@@ -72,7 +72,7 @@ An overridden ID is part of correctness, not just an optimization. Two different
 Load decoded audio as `asset.AudioData` after `ebitrun.New` has registered the audio codecs:
 
 ```go
-if _, err := g.World().MustResource[*asset.Server]().Load[asset.AudioData]("assets/audio/confirm.ogg"); err != nil {
+if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData]("assets/audio/confirm.ogg"); err != nil {
 	return err
 }
 ```
@@ -84,7 +84,7 @@ For normal playback, prefer the audio component's `Load: audio.LoadEager` for sh
 Load images as `asset.TextureData`. The asset package decodes them into backend-free Go image values; the runner converts them to a renderable texture when it needs to draw them:
 
 ```go
-texture, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData]("assets/sprites/hull.png")
+texture, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData]("assets/sprites/hull.png")
 if err != nil {
 	return err
 }
@@ -96,7 +96,7 @@ _ = texture.Image
 Use `Open` when a consumer needs the raw file instead of a cached decoded value. `Open` returns the file and the format inferred from its extension. You own the returned file and must close it:
 
 ```go
-file, format, err := server.Open("assets/audio/music.ogg")
+file, format, err := loader.Open("assets/audio/music.ogg")
 if err != nil {
 	return err
 }
@@ -133,8 +133,8 @@ func decodeDialogue(reader io.Reader) (Dialogue, error) {
 	return dialogue, err
 }
 
-server := g.World().MustResource[*asset.Server]()
-if err := server.RegisterDecoder(
+loader := g.World().MustResource[*asset.Loader]()
+if err := loader.RegisterDecoder(
 	asset.FormatJSON,
 	asset.Decoder[Dialogue](decodeDialogue),
 	false,
@@ -142,7 +142,7 @@ if err := server.RegisterDecoder(
 	return err
 }
 
-dialogue, err := server.Load[Dialogue]("assets/dialogue/intro.json")
+dialogue, err := loader.Load[Dialogue]("assets/dialogue/intro.json")
 if err != nil {
 	return err
 }
@@ -158,7 +158,7 @@ type LevelData struct {
 }
 
 levelFormat := asset.Format("level")
-if err := server.RegisterDecoder(
+if err := loader.RegisterDecoder(
 	levelFormat,
 	asset.Decoder[LevelData](decodeLevel),
 	false,
@@ -166,7 +166,7 @@ if err := server.RegisterDecoder(
 	return err
 }
 
-level, err := server.Load[LevelData](
+level, err := loader.Load[LevelData](
 	"assets/world.bin",
 	asset.WithFormat(levelFormat),
 )
@@ -179,7 +179,7 @@ Treat an atlas as setup for image loading: registration loads the image through 
 For a regular grid, register the image with tile dimensions and a prefix. Regions are named in row-major order as `prefix_0`, `prefix_1`, and so on:
 
 ```go
-if err := g.World().MustResource[*asset.Server]().RegisterGridAtlas(
+if err := g.World().MustResource[*asset.Loader]().RegisterGridAtlas(
 	"characters", "assets/sprites/characters.png", 16, 16, "char",
 ); err != nil {
 	return err
@@ -202,7 +202,7 @@ For irregular regions, put the pixel rectangles in a JSON sidecar and register t
 ```
 
 ```go
-if err := server.RegisterAtlasFromSidecar(
+if err := loader.RegisterAtlasFromSidecar(
 	"characters",
 	"assets/sprites/characters.png",
 	"assets/sprites/characters.atlas.json",

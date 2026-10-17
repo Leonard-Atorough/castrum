@@ -168,7 +168,7 @@ Smooth motion comes from transform interpolation. Raising the fixed tick rate in
 
 ## Manage asset and audio costs
 
-Use the asset server's typed cache for values that should be reused. Repeated `Load[T]` calls for the same asset identity, type, and format return the cached value, and concurrent loads of that key are coalesced. Preload required assets during setup when first-use decoding would be visible or when failure should prevent startup.
+Use the asset loader's typed cache for values that should be reused. Repeated `Load[T]` calls for the same asset identity, type, and format return the cached value, and concurrent loads of that key are coalesced. Preload required assets during setup when first-use decoding would be visible or when failure should prevent startup.
 
 Decoded audio is a common memory cost. `asset.AudioData` stores 16-bit stereo PCM, so its approximate memory rate is:
 

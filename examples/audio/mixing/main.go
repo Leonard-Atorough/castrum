@@ -40,7 +40,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if _, err := g.World().MustResource[*asset.Server]().Load[asset.AudioData](audioassets.Magic); err != nil {
+	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](audioassets.Magic); err != nil {
 		return err
 	}
 	music := audio.NewSource(audioassets.Music)

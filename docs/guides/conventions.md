@@ -4,7 +4,7 @@ The engine follows a handful of rules everywhere. Learn them once, here, and you
 
 ## Finish setup before the loop
 
-`castrum.New` applies defaults, validates options, creates the world, and provides the engine's asset server, clip store, and audio mixer. Use that setup window to register assets and clips, spawn initial entities, configure the camera, and register systems. The runner should be the last setup step:
+`castrum.New` applies defaults, validates options, creates the world, and provides the engine's asset loader, clip store, and audio mixer. Use that setup window to register assets and clips, spawn initial entities, configure the camera, and register systems. The runner should be the last setup step:
 
 ```go
 func run() error {
@@ -16,7 +16,7 @@ func run() error {
 		return err
 	}
 
-	if err := g.World().MustResource[*asset.Server]().RegisterGridAtlas("characters", "characters.png", 16, 16, "char"); err != nil {
+	if err := g.World().MustResource[*asset.Loader]().RegisterGridAtlas("characters", "characters.png", 16, 16, "char"); err != nil {
 		return err
 	}
 	player, err := g.World().NewEntity(core.Transform{})
@@ -142,7 +142,7 @@ Keep query component reads and writes limited to the types listed in `With`.
 
 Use a component for per-entity state and a resource for one world-owned instance. Register game resources with `World.Provide` during setup, then resolve them by type. Use `ProvideEager` and `ResolveEager` when a constructor must succeed before startup; ordinary `Provide` is lazy and resolves on the first `Resource` call.
 
-The engine registers shared services such as `*asset.Server`, `*animation.ClipStore`, and `*audio.Mixer` as world resources. Resolve them through `g.World().Resource[T]()` during setup or `ctx.World.Resource[T]()` inside systems. Use `MustResource[T]()` only for resources guaranteed by the engine configuration.
+The engine registers shared services such as `*asset.Loader`, `*animation.ClipStore`, and `*audio.Mixer` as world resources. Resolve them through `g.World().Resource[T]()` during setup or `ctx.World.Resource[T]()` inside systems. Use `MustResource[T]()` only for resources guaranteed by the engine configuration.
 
 Use one filesystem root consistently. `WithFilesystem` accepts an `fs.FS`; the default resolves paths from the process working directory, while `embed.FS` makes the asset set part of a single binary. Register atlases and clips before entities or systems depend on them. The [assets](assets.md), [animation](animation.md), and [audio](audio.md) guides cover loading and streaming choices.
 

@@ -187,10 +187,10 @@ The tile's `SortOrder` is `-1`: sprites in the same layer draw in sort order, an
 Textures load lazily by default, but preloading them makes a missing or invalid file fail during setup, before the game ever runs. Preload both next to the entities:
 
 ```go
-if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetHull); err != nil {
+if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData](AssetHull); err != nil {
 	return err
 }
-if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetTurret); err != nil {
+if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData](AssetTurret); err != nil {
 	return err
 }
 ```
@@ -331,7 +331,7 @@ First, preload the sound effect immediately after the existing `ebitrun.New(g)` 
 ```go
 const AssetSFX = "audio/GUNArtl_Rocket Launcher Fire_02.wav"
 
-if _, err := g.World().MustResource[*asset.Server]().Load[asset.AudioData](AssetSFX); err != nil {
+if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](AssetSFX); err != nil {
 	return err
 }
 ```
@@ -717,7 +717,7 @@ if err := g.AddSystem(core.PhaseFixed, "enemy.spawn", spawnSystem(spawner, hull,
 ```
 
 ```go
-if _, err := g.World().MustResource[*asset.Server]().Load[asset.TextureData](AssetEnemy); err != nil {
+if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData](AssetEnemy); err != nil {
 	return err
 }
 ```
@@ -845,7 +845,7 @@ if err := g.AddSystem(core.PhaseFixed, "reload.readout", reloadReadoutSystem(coo
 ```
 
 ```go
-if _, err := g.World().MustResource[*asset.Server]().Load[asset.FontData](AssetFont); err != nil {
+if _, err := g.World().MustResource[*asset.Loader]().Load[asset.FontData](AssetFont); err != nil {
 	return err
 }
 ```

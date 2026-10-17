@@ -104,16 +104,16 @@ func drawCtx(world *core.World, alpha float64) *core.Context {
 }
 
 // spriteWorld builds a world whose n sprites fill the logical
-// viewport, with an asset server and a primary camera in place.
+// viewport, with an asset loader and a primary camera in place.
 // shape selects a world of circle shapes; textures resolve a
 // preloaded texture. spread expands the field beyond the viewport
 // so 1 - viewportFraction of the sprites sit off-screen.
 func spriteWorld(b *testing.B, n int, shape bool, viewportFraction float64) (*core.World, *render.Collector) {
 	b.Helper()
 	world := core.NewWorld()
-	server := asset.New(benchFS(b))
-	if err := world.Provide(func(*core.World) (*asset.Server, error) {
-		return server, nil
+	loader := asset.NewLoader(benchFS(b))
+	if err := world.Provide(func(*core.World) (*asset.Loader, error) {
+		return loader, nil
 	}); err != nil {
 		b.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func spriteWorld(b *testing.B, n int, shape bool, viewportFraction float64) (*co
 		}
 	}
 	if !shape {
-		if _, err := server.Load[asset.TextureData]("tex.png"); err != nil {
+		if _, err := loader.Load[asset.TextureData]("tex.png"); err != nil {
 			b.Fatalf("preload tex.png: %v", err)
 		}
 	}

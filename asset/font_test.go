@@ -13,9 +13,9 @@ func fontFS() fstest.MapFS {
 }
 
 func TestFontDecode(t *testing.T) {
-	server := New(fontFS())
+	loader := NewLoader(fontFS())
 
-	font, err := server.Load[FontData]("fonts/goregular.ttf")
+	font, err := loader.Load[FontData]("fonts/goregular.ttf")
 	if err != nil {
 		t.Fatalf("font decode: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestFontDecode(t *testing.T) {
 	}
 
 	// The same asset under the same identity is served from cache.
-	again, err := server.Load[FontData]("fonts/goregular.ttf")
+	again, err := loader.Load[FontData]("fonts/goregular.ttf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,15 +34,15 @@ func TestFontDecode(t *testing.T) {
 }
 
 func TestFontDecodeRejectsCorruptBytes(t *testing.T) {
-	server := New(fstest.MapFS{"fonts/broken.ttf": &fstest.MapFile{Data: []byte("this is not a font")}})
-	if _, err := server.Load[FontData]("fonts/broken.ttf"); err == nil {
+	loader := NewLoader(fstest.MapFS{"fonts/broken.ttf": &fstest.MapFile{Data: []byte("this is not a font")}})
+	if _, err := loader.Load[FontData]("fonts/broken.ttf"); err == nil {
 		t.Error("corrupt font bytes should fail to decode")
 	}
 }
 
 func TestFontMeasure(t *testing.T) {
-	server := New(fontFS())
-	font, err := server.Load[FontData]("fonts/goregular.ttf")
+	loader := NewLoader(fontFS())
+	font, err := loader.Load[FontData]("fonts/goregular.ttf")
 	if err != nil {
 		t.Fatal(err)
 	}

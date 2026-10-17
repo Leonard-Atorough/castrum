@@ -89,7 +89,7 @@ const AudioSystemName = "engine.audio"
 // error for invalid options or if the runner's resources or audio system
 // cannot be registered.
 //
-// g must come from [castrum.New], which provides the game's [asset.Server].
+// g must come from [castrum.New], which provides the game's [asset.Loader].
 // New registers the [TextureProvider], [FontProvider], and audio provider as
 // eager resources, and adds the audio reconciler to the frame schedule.
 func New(g *castrum.Game, opts ...option) (*Runner, error) {
@@ -101,8 +101,8 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, err
 	}
 
-	server := g.World().MustResource[*asset.Server]()
-	provider := newTextureProvider(server)
+	loader := g.World().MustResource[*asset.Loader]()
+	provider := newTextureProvider(loader)
 	if err := g.World().ProvideEager(func(*core.World) (*TextureProvider, error) {
 		return provider, nil
 	}); err != nil {
@@ -113,7 +113,7 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	if audioCtx == nil {
 		audioCtx = ebitaudio.NewContext(options.SampleRate)
 	}
-	controller := newAudioProvider(audioCtx, server)
+	controller := newAudioProvider(audioCtx, loader)
 	if err := g.World().ProvideEager(func(*core.World) (audio.Controller, error) {
 		return controller, nil
 	}); err != nil {
@@ -128,7 +128,7 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	g.Context().LogicalHeight = options.Logical.Height
 
 	collector := render.NewCollector(g.World())
-	fonts := newFontProvider(server)
+	fonts := newFontProvider(loader)
 	if err := g.World().ProvideEager(func(*core.World) (*FontProvider, error) {
 		return fonts, nil
 	}); err != nil {

@@ -36,16 +36,16 @@ func newCollectorWorld(t *testing.T) *core.World {
 			`{"regions":[{"name":"player","x":0,"y":0,"w":2,"h":2},{"name":"enemy","x":2,"y":2,"w":2,"h":2}]}`)},
 	}
 	w := core.NewWorld()
-	if err := w.Provide(func(*core.World) (*asset.Server, error) {
-		return asset.New(files), nil
+	if err := w.Provide(func(*core.World) (*asset.Loader, error) {
+		return asset.NewLoader(files), nil
 	}); err != nil {
-		t.Fatalf("provide asset server: %v", err)
+		t.Fatalf("provide asset loader: %v", err)
 	}
-	server, err := w.Resource[*asset.Server]()
+	loader, err := w.Resource[*asset.Loader]()
 	if err != nil {
-		t.Fatalf("resolve asset server: %v", err)
+		t.Fatalf("resolve asset loader: %v", err)
 	}
-	if err := server.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
+	if err := loader.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
 		t.Fatalf("register atlas: %v", err)
 	}
 	return w
@@ -57,10 +57,10 @@ func newFontWorld(t *testing.T) *core.World {
 		"fonts/go.ttf": &fstest.MapFile{Data: goregular.TTF},
 	}
 	w := core.NewWorld()
-	if err := w.Provide(func(*core.World) (*asset.Server, error) {
-		return asset.New(files), nil
+	if err := w.Provide(func(*core.World) (*asset.Loader, error) {
+		return asset.NewLoader(files), nil
 	}); err != nil {
-		t.Fatalf("provide asset server: %v", err)
+		t.Fatalf("provide asset loader: %v", err)
 	}
 	return w
 }
@@ -888,7 +888,7 @@ func TestCollectMissingFontFails(t *testing.T) {
 	}
 }
 
-func TestCollectShapesNeedNoAssetServer(t *testing.T) {
+func TestCollectShapesNeedNoAssetLoader(t *testing.T) {
 	w := core.NewWorld()
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	if _, err := w.NewEntity(
@@ -903,7 +903,7 @@ func TestCollectShapesNeedNoAssetServer(t *testing.T) {
 	}
 }
 
-func TestCollectTextureWithoutAssetServerErrors(t *testing.T) {
+func TestCollectTextureWithoutAssetLoaderErrors(t *testing.T) {
 	w := core.NewWorld()
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	if _, err := w.NewEntity(
@@ -915,10 +915,10 @@ func TestCollectTextureWithoutAssetServerErrors(t *testing.T) {
 
 	_, err := NewCollector(w).Collect(drawContext(w, 1))
 	if err == nil {
-		t.Fatal("a texture drawable without an asset server should error")
+		t.Fatal("a texture drawable without an asset loader should error")
 	}
-	if !strings.Contains(err.Error(), "asset server") {
-		t.Errorf("error = %v, want it to name the asset server", err)
+	if !strings.Contains(err.Error(), "asset loader") {
+		t.Errorf("error = %v, want it to name the asset loader", err)
 	}
 }
 

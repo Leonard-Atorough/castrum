@@ -36,7 +36,7 @@ func decodeAtlasMeta(reader io.Reader) (AtlasMeta, error) {
 	return meta, err
 }
 
-// AtlasID identifies a registered atlas within the [Server].
+// AtlasID identifies a registered atlas within the [Loader].
 type AtlasID string
 
 // AtlasRegion is a named rectangular region of an atlas texture, in pixels.
@@ -124,7 +124,7 @@ func NewAtlas(id AtlasID, texturePath ID, texW, texH int, regions map[string]Atl
 	}, nil
 }
 
-// atlasRegistry holds the server's registered atlases. It is safe for
+// atlasRegistry holds the loader's registered atlases. It is safe for
 // concurrent use. Registration rejects duplicates, so a registered atlas's
 // regions never change.
 type atlasRegistry struct {
@@ -162,21 +162,21 @@ func (r *atlasRegistry) atlas(id AtlasID) (*Atlas, error) {
 
 // Atlas returns the atlas registered under id. It returns an error if id is
 // not registered. Lookups are safe for concurrent use.
-func (s *Server) Atlas(id AtlasID) (*Atlas, error) {
+func (s *Loader) Atlas(id AtlasID) (*Atlas, error) {
 	return s.atlases.atlas(id)
 }
 
 // RegisterAtlas adds a programmatically-built atlas - one constructed with
 // [NewAtlas] rather than the Register* constructors. It returns an error if
 // atlas is nil or its ID is already registered.
-func (s *Server) RegisterAtlas(atlas *Atlas) error {
+func (s *Loader) RegisterAtlas(atlas *Atlas) error {
 	return s.atlases.register(atlas)
 }
 
 // RegisterAtlasFromSidecar loads the texture and JSON sidecar, validates the
 // regions against the texture dimensions, and registers the atlas. If any
 // step fails, the atlas is not registered.
-func (s *Server) RegisterAtlasFromSidecar(id AtlasID, texturePath, metaPath string) error {
+func (s *Loader) RegisterAtlasFromSidecar(id AtlasID, texturePath, metaPath string) error {
 	texture, err := s.Load[TextureData](texturePath)
 	if err != nil {
 		return err
@@ -205,7 +205,7 @@ func (s *Server) RegisterAtlasFromSidecar(id AtlasID, texturePath, metaPath stri
 // prefix_0, prefix_1, and so on in row-major order, then registers the atlas.
 // Tile dimensions must be positive, prefix must be non-empty, and the texture
 // dimensions must be evenly divisible by the tile dimensions.
-func (s *Server) RegisterGridAtlas(id AtlasID, texturePath string, tileW, tileH int, prefix string) error {
+func (s *Loader) RegisterGridAtlas(id AtlasID, texturePath string, tileW, tileH int, prefix string) error {
 	if tileW <= 0 || tileH <= 0 {
 		return fmt.Errorf("tile dimensions %dx%d for atlas %q are not positive", tileW, tileH, id)
 	}
