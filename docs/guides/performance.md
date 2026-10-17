@@ -93,7 +93,7 @@ The baseline below is one 1s pass on the development machine (Windows, 12 hardwa
 | CollisionTickMoving / 10,000 | 33,717,397 | 3,365,546 | 53,902 |
 | CollisionTickStatic / 10,000 | 5,620,219 | 1,308,802 | 30,496 |
 
-Two readings worth naming. Query iteration is allocation-free at steady state, so the per-entity cost (~25 ns) is pure matching work. The collision moving tick at 10,000 colliders reindexes every proxy every tick; at 60 TPS that path alone spends most of a tick's budget, which is the number to reach for before blaming rendering.
+Use these as workload references, not guarantees. Allocation-free queries still cost time, and the same collider population can behave differently depending on movement, overlap density, and shape sizes. The [spatial architecture reference](../reference/spatial-architecture.md) explains the collision cost model and internal spatial index.
 
 ## Keep systems within their phase budget
 

@@ -37,6 +37,7 @@ This separation keeps the public API understandable and lets internal storage or
 - [Engine design](engine-design.md) - package ownership and dependency direction.
 - [Runner separation](runner-separation.md) - the platform boundary and default runner.
 - [World and storage](world-and-storage.md) - entity, component, query, and resource behavior.
+- [Spatial architecture](spatial-architecture.md) - the collision grid, proxy caching, candidate pairs, and contact history.
 - [The scheduler](the-scheduler.md) - phases, fixed ticks, interpolation alpha, and ordering.
 - [The asset pipeline](asset-pipeline.md) - filesystem resolution, decoders, caching, and streaming.
 - [The coordinate system](coordinate-system.md) - world space, projection, logical size, and interpolation.

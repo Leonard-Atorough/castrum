@@ -8,8 +8,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// colliderWorld builds n circle colliders on a grid with the given
-// jitter seed. Spacing keeps pairs from overlapping, so the system
+// colliderWorld builds n circle colliders on a grid.
+// Spacing keeps pairs from overlapping, so the system
 // pays its broad phase without narrow-phase hits.
 func colliderWorld(b *testing.B, n int) (*core.World, []*core.Entity) {
 	b.Helper()
@@ -34,30 +34,11 @@ func colliderWorld(b *testing.B, n int) (*core.World, []*core.Entity) {
 	return world, entities
 }
 
-// BenchmarkCollisionTickMoving reports one collision system tick
-// where every collider moved: the dirty-proxy broad phase plus
-// candidate narrow-phase tests.
 func BenchmarkCollisionTickMoving(b *testing.B) {
 	for _, n := range benchSizes {
 		b.Run(intName(n), func(b *testing.B) {
 			world, entities := colliderWorld(b, n)
-			system := collision.NewSystem()
-			ctx := drawCtx(world, 0)
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := range b.N {
-				ctx.Tick = uint64(i) + 1
-				for _, e := range entities {
-					if err := e.Update(world, func(t *core.Transform) {
-						t.Position.X += 0.5
-					}); err != nil {
-						b.Fatal(err)
-					}
-				}
-				if err := system.Update(ctx); err != nil {
-					b.Fatal(err)
-				}
-			}
+			collisionTicks(b, world, entities, false)
 		})
 	}
 }
@@ -68,16 +49,78 @@ func BenchmarkCollisionTickStatic(b *testing.B) {
 	for _, n := range benchSizes {
 		b.Run(intName(n), func(b *testing.B) {
 			world, _ := colliderWorld(b, n)
-			system := collision.NewSystem()
-			ctx := drawCtx(world, 0)
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := range b.N {
-				ctx.Tick = uint64(i) + 1
-				if err := system.Update(ctx); err != nil {
+			collisionTicks(b, world, nil, false)
+		})
+	}
+}
+
+// BenchmarkCollisionTickSparse moves one percent of the collider population.
+func BenchmarkCollisionTickSparse(b *testing.B) {
+	for _, n := range benchSizes {
+		b.Run(intName(n), func(b *testing.B) {
+			world, entities := colliderWorld(b, n)
+			collisionTicks(b, world, entities[:n/100], false)
+		})
+	}
+}
+
+// BenchmarkCollisionTickContacts measures settled, persistent overlaps.
+func BenchmarkCollisionTickContacts(b *testing.B) {
+	for _, n := range benchSizes {
+		b.Run(intName(n), func(b *testing.B) {
+			world, entities := colliderWorld(b, n)
+			for _, e := range entities {
+				if err := e.Update(world, func(t *core.Transform) {
+					t.Position = t.Position.Mul(0.5)
+				}); err != nil {
 					b.Fatal(err)
 				}
 			}
+			collisionTicks(b, world, nil, false)
 		})
+	}
+}
+
+// BenchmarkCollisionDetectMoving excludes gameplay's transform writes.
+func BenchmarkCollisionDetectMoving(b *testing.B) {
+	for _, n := range benchSizes {
+		b.Run(intName(n), func(b *testing.B) {
+			world, entities := colliderWorld(b, n)
+			collisionTicks(b, world, entities, true)
+		})
+	}
+}
+
+func collisionTicks(b *testing.B, world *core.World, moving []*core.Entity, detectorOnly bool) {
+	b.Helper()
+	system := collision.NewSystem()
+	ctx := drawCtx(world, 0)
+	// Settle attachment, the index, and both contact history buffers.
+	for range 3 {
+		ctx.Tick++
+		if err := system.Update(ctx); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if detectorOnly {
+			b.StopTimer()
+		}
+		for _, e := range moving {
+			if err := e.Update(world, func(t *core.Transform) {
+				t.Position.X += 0.5
+			}); err != nil {
+				b.Fatal(err)
+			}
+		}
+		if detectorOnly {
+			b.StartTimer()
+		}
+		ctx.Tick++
+		if err := system.Update(ctx); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
