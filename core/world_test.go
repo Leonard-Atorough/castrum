@@ -309,6 +309,14 @@ func TestNewEntitiesCreatesBatch(t *testing.T) {
 	}
 }
 
+func TestNewEntitiesRejectsNegativeCount(t *testing.T) {
+	w := NewWorld()
+	entities, err := w.NewEntities(-1, position{})
+	if err == nil || entities != nil {
+		t.Fatal("NewEntities with a negative count should return an error and no entities")
+	}
+}
+
 func TestDestroyEntityKillsAndRemovesComponents(t *testing.T) {
 	w := NewWorld()
 	e, _ := w.NewEntity(position{})

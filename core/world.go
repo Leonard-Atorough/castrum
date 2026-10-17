@@ -157,33 +157,14 @@ func (w *World) resolve(key reflect.Type) error {
 // provided.
 func (w *World) NewEntity(components ...any) (*Entity, error) {
 	components = createPreviousTransformComponents(components)
-	for i, c := range components {
-		if c == nil {
-			return nil, fmt.Errorf("castrum: NewEntity: component at index %d is nil", i)
-		}
-		// Validate before the ID is allocated so a failed spawn burns
-		// nothing. The storage service re-checks at entry - every
-		// component path is enforced, this one just protects ordering.
-		if v, ok := c.(Validatable); ok {
-			if err := v.Validate(); err != nil {
-				return nil, fmt.Errorf("castrum: NewEntity: component at index %d (%T): %w", i, c, err)
-			}
-		}
+
+	if err := validateComponents(components); err != nil {
+		return nil, fmt.Errorf("castrum: NewEntity: %w", err)
 	}
 	id := w.getNextID()
-	types := make([]reflect.Type, len(components))
-	for i, c := range components {
-		types[i] = reflect.TypeOf(c)
-	}
-
-	values := make([]any, len(components))
-	copy(values, components)
-
 	entity := NewEntity(id)
-	// Cannot fail here - input validated above, IDs unique by
-	// construction - but the check stays honest against the service
-	// growing new failure modes.
-	if err := w.archetypes.Create(entity.id, types, values); err != nil {
+
+	if err := w.archetypes.Create(entity.id, componentTypes(components), copyValues(components)); err != nil {
 		return nil, err
 	}
 	return entity, nil
@@ -194,14 +175,25 @@ func (w *World) NewEntity(components ...any) (*Entity, error) {
 // the error and no handles; entities created before the failure remain in
 // the world.
 func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
+	if count < 0 {
+		return nil, fmt.Errorf("castrum: NewEntities: count must be non-negative, got %d", count)
+	}
+
+	components = createPreviousTransformComponents(components)
+	if err := validateComponents(components); err != nil {
+		return nil, fmt.Errorf("castrum: NewEntities: %w", err)
+	}
+	types := componentTypes(components)
+	values := copyValues(components)
+
 	entities := make([]*Entity, count)
 	for i := range entities {
-		var err error
-		components = createPreviousTransformComponents(components)
-		entities[i], err = w.NewEntity(components...)
-		if err != nil {
+		id := w.getNextID()
+		entity := NewEntity(id)
+		if err := w.archetypes.Create(entity.id, types, values); err != nil {
 			return nil, err
 		}
+		entities[i] = entity
 	}
 	return entities, nil
 }
@@ -251,4 +243,32 @@ func createPreviousTransformComponents(components []any) []any {
 		components = append(components, transform.snapshot())
 	}
 	return components
+}
+
+func validateComponents(components []any) error {
+	for i, c := range components {
+		if c == nil {
+			return fmt.Errorf("component at index %d is nil", i)
+		}
+		if v, ok := c.(Validatable); ok {
+			if err := v.Validate(); err != nil {
+				return fmt.Errorf("component at index %d (%T): %w", i, c, err)
+			}
+		}
+	}
+	return nil
+}
+
+func componentTypes(components []any) []reflect.Type {
+	types := make([]reflect.Type, len(components))
+	for i, c := range components {
+		types[i] = reflect.TypeOf(c)
+	}
+	return types
+}
+
+func copyValues(components []any) []any {
+	values := make([]any, len(components))
+	copy(values, components)
+	return values
 }

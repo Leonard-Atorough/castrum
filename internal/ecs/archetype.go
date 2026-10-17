@@ -285,15 +285,14 @@ func (s *store) matchInto(buf []*Archetype, required, excluded []reflect.Type) [
 	return buf
 }
 
-func (s *store) cleanupEmpty() {
-	for id, archetype := range s.archetypes {
-		if archetype.Len() == 0 {
-			delete(s.archetypes, id)
-
-			if s.byHash[archetype.Key().hash()] == id {
-				delete(s.byHash, archetype.Key().hash())
-			}
-		}
+func (s *store) cleanupEmpty(archetype *Archetype) {
+	if archetype.Len() != 0 {
+		return
+	}
+	id := archetype.ID()
+	delete(s.archetypes, id)
+	if hash := archetype.Key().hash(); s.byHash[hash] == id {
+		delete(s.byHash, hash)
 	}
 	s.generation++
 }
@@ -394,7 +393,7 @@ func (s *Service) Destroy(entityID EntityID) Result {
 			Index:       loc.Index,
 		}
 	}
-	s.store.cleanupEmpty()
+	s.store.cleanupEmpty(arch)
 
 	return Result{
 		Moved:   moved,
@@ -476,7 +475,7 @@ func (s *Service) AddComponents(entityID EntityID, types []reflect.Type, values 
 		Index:       newIndex,
 	}
 
-	s.store.cleanupEmpty()
+	s.store.cleanupEmpty(from)
 
 	return Result{
 		Moved:   true,
@@ -549,7 +548,7 @@ func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Resu
 		Index:       newIndex,
 	}
 
-	s.store.cleanupEmpty()
+	s.store.cleanupEmpty(from)
 
 	return Result{
 		Moved:   true,
