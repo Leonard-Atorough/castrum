@@ -1,8 +1,10 @@
 package input
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
-// mustMap builds an ActionMap or fails the test.
 func mustMap(t *testing.T, bindings Bindings, deadzone float64) *ActionMap {
 	t.Helper()
 	am, err := New(bindings, deadzone)
@@ -12,9 +14,6 @@ func mustMap(t *testing.T, bindings Bindings, deadzone float64) *ActionMap {
 	return am
 }
 
-// The resolution basics: each input kind folds into the action's
-// tri-state, multiple bound inputs OR together, and duration
-// accumulates while held and resets when it is not.
 func TestUpdateResolvesBindings(t *testing.T) {
 	am := mustMap(t, Bindings{
 		"jump": []Input{KeyInput{Key: KeySpace}, MouseButtonInput{Button: MouseButtonLeft}},
@@ -50,9 +49,6 @@ func TestUpdateResolvesBindings(t *testing.T) {
 	}
 }
 
-// The tick latch, end to end: a press lands in a frame where no tick
-// runs, Pressed reports it for exactly one tick, and a tap that
-// starts and finishes between ticks delivers both edges together.
 func TestLatchDrainsPerTick(t *testing.T) {
 	am := mustMap(t, Bindings{
 		"jump": []Input{KeyInput{Key: KeySpace}},
@@ -108,9 +104,6 @@ func TestLatchDrainsPerTick(t *testing.T) {
 	}
 }
 
-// The axis crossing: values below the deadzone read as zero, crossing
-// in is a press, crossing out is a release, and the edges land in the
-// tick view like any other.
 func TestAxisDeadzoneCrossing(t *testing.T) {
 	am := mustMap(t, Bindings{
 		"move_x": []Input{PadAxisInput{Axis: PadLeftStickX}},
@@ -148,8 +141,6 @@ func TestAxisDeadzoneCrossing(t *testing.T) {
 	}
 }
 
-// The strongest axis wins, never a sum: a keyboard pair and a stick
-// bound to the same action must not add up.
 func TestAxisStrongestWins(t *testing.T) {
 	am := mustMap(t, Bindings{
 		"move_x": []Input{KeyPairInput{Negative: KeyA, Positive: KeyD}, PadAxisInput{Axis: PadLeftStickX}},
@@ -174,9 +165,6 @@ func TestAxisStrongestWins(t *testing.T) {
 	}
 }
 
-// The chord contract: the key fires only while every modifier is held,
-// and a modifier dropped mid-hold stops the level without firing a
-// release.
 func TestChordModifiers(t *testing.T) {
 	am := mustMap(t, Bindings{
 		"save": []Input{KeyInput{Key: KeyS, Modifiers: [3]Key{KeyControlLeft}}},
@@ -214,10 +202,6 @@ func TestChordModifiers(t *testing.T) {
 	}
 }
 
-// Player addressing: Pad 0 folds across every connected pad, a player
-// number addresses exactly that pad, and an out-of-range player reads
-// nothing. Axis addressing follows the same rule, taking the
-// strongest value among the addressed pads.
 func TestPadAddressing(t *testing.T) {
 	am := mustMap(t, Bindings{
 		"p1":    []Input{PadButtonInput{Pad: 1, Button: PadSouth}},
@@ -266,8 +250,6 @@ func TestPadAddressing(t *testing.T) {
 	}
 }
 
-// The ownership contract: the ActionManager copies the bindings, so
-// the caller's slices and the returned copies are all independent.
 func TestBindingsOwnership(t *testing.T) {
 	caller := Bindings{
 		"jump": []Input{KeyInput{Key: KeySpace}},
@@ -320,9 +302,6 @@ func TestNilSnapshotResolvesOff(t *testing.T) {
 	}
 }
 
-// A nil ActionMap reads zero on every query: the context publishes
-// nil when no bindings were configured, and systems run without
-// guards either way.
 func TestNilActionMapReadsZero(t *testing.T) {
 	var am *ActionMap
 	if am.JustPressed("jump") || am.JustReleased("jump") || am.Held("jump") ||
@@ -332,9 +311,6 @@ func TestNilActionMapReadsZero(t *testing.T) {
 	}
 }
 
-// Direction-gated axis bindings: stick-up and stick-down drive
-// different actions bound to the same axis, one per half, with the
-// crossing edges following each action's own half.
 func TestAxisDirectionGates(t *testing.T) {
 	am := mustMap(t, Bindings{
 		"forward":  []Input{PadAxisInput{Axis: PadLeftStickY, Direction: -1}},
@@ -349,6 +325,7 @@ func TestAxisDirectionGates(t *testing.T) {
 		t.Errorf("stick up: forward/backward held = %v/%v, want true/false",
 			am.Held("forward"), am.Held("backward"))
 	}
+
 	if am.Axis("forward") != -0.8 {
 		t.Errorf("forward axis = %v, want -0.8", am.Axis("forward"))
 	}
@@ -374,5 +351,276 @@ func TestAxisDirectionGates(t *testing.T) {
 	ungated.Update(s, 0.016)
 	if !ungated.Held("either") {
 		t.Error("ungated axis binding should fire on any deflection")
+	}
+}
+
+func TestBindingDeadzonesAndLatestAxis(t *testing.T) {
+	am := mustMap(t, Bindings{
+		"sensitive": []Input{PadAxisInput{Axis: PadLeftStickX, Deadzone: 0.05}},
+		"inherited": []Input{PadAxisInput{Axis: PadLeftStickX}},
+		"strict":    []Input{PadAxisInput{Axis: PadLeftStickX, Deadzone: 0.8}},
+	}, 0.5)
+	actions := []Action{"sensitive", "inherited", "strict"}
+	previous := [3]bool{}
+	for _, tt := range []struct {
+		value float64
+		want  [3]float64
+	}{
+		{value: 0.049},
+		{value: 0.05, want: [3]float64{0.05, 0, 0}},
+		{value: -0.05, want: [3]float64{-0.05, 0, 0}},
+		{value: 0.5, want: [3]float64{0.5, 0.5, 0}},
+		{value: 0.8, want: [3]float64{0.8, 0.8, 0.8}},
+		{},
+	} {
+		s := &Snapshot{}
+		s.Pads[0].Connected = true
+		s.Pads[0].Axes[PadLeftStickX] = tt.value
+		am.Update(s, 0.1)
+		am.Tick()
+		for i, action := range actions {
+			held := tt.want[i] != 0
+			pressed, released := held && !previous[i], !held && previous[i]
+			if am.Axis(action) != tt.want[i] || am.Held(action) != held {
+				t.Errorf("%s at %v: axis=%v held=%v; want %v, %v",
+					action, tt.value, am.Axis(action), am.Held(action), tt.want[i], held)
+			}
+			if am.JustPressed(action) != pressed || am.JustReleased(action) != released ||
+				am.Pressed(action) != pressed || am.Released(action) != released {
+				t.Errorf("%s at %v: wrong frame or tick edges", action, tt.value)
+			}
+			previous[i] = held
+		}
+		am.Tick()
+		for i, action := range actions {
+			if am.Axis(action) != tt.want[i] || am.Pressed(action) || am.Released(action) {
+				t.Errorf("%s: catch-up tick should retain the axis and clear delivered edges", action)
+			}
+		}
+	}
+}
+
+func TestChordTransitionsAndTickLatch(t *testing.T) {
+	for _, first := range []Key{KeyA, KeyB} {
+		t.Run(first.String(), func(t *testing.T) {
+			am := mustMap(t, Bindings{
+				"dash": {Chord(KeyInput{Key: KeyA}, KeyInput{Key: KeyB})},
+			}, 0)
+			s := &Snapshot{}
+			s.Keys[first].Held = true
+			am.Update(s, 0.1)
+			if am.Held("dash") || am.JustPressed("dash") {
+				t.Fatal("one member must not activate the chord")
+			}
+			s.Keys[KeyA].Held, s.Keys[KeyB].Held = true, true
+			am.Update(s, 0.1)
+			if !am.Held("dash") || !am.JustPressed("dash") || am.Axis("dash") != 0 {
+				t.Fatal("completing the chord should press a digital action")
+			}
+			am.Update(s, 0.1)
+			if am.JustPressed("dash") || am.Duration("dash") != 0.2 {
+				t.Fatal("a held chord must not repeat its press")
+			}
+			s.Keys[first].Held = false
+			am.Update(s, 0.1)
+			if am.Held("dash") || !am.JustReleased("dash") || am.Duration("dash") != 0 {
+				t.Fatal("releasing either member must release the chord")
+			}
+			am.Tick()
+			if !am.Pressed("dash") || !am.Released("dash") {
+				t.Fatal("a chord tap between ticks must deliver both edges")
+			}
+			am.Tick()
+			if am.Pressed("dash") || am.Released("dash") {
+				t.Fatal("the next tick must consume both edges")
+			}
+			am.Update(nil, 0.1)
+			if am.Held("dash") || am.JustReleased("dash") {
+				t.Fatal("an inactive chord must stay inactive on a nil snapshot")
+			}
+		})
+	}
+}
+
+func TestAxisTapBetweenTicksKeepsLatestLevel(t *testing.T) {
+	am := mustMap(t, Bindings{
+		"throttle": []Input{PadAxisInput{Axis: PadRightTrigger, Deadzone: 0.05}},
+	}, 0)
+	s := &Snapshot{}
+	s.Pads[0].Connected = true
+	s.Pads[0].Axes[PadRightTrigger] = 0.1
+	am.Update(s, 0.01)
+	am.Update(nil, 0.01)
+	am.Tick()
+	if am.Axis("throttle") != 0 || am.Held("throttle") || !am.Pressed("throttle") || !am.Released("throttle") {
+		t.Fatal("axis tap should deliver both edges with the latest, zero level")
+	}
+}
+
+func TestChordBindingsKeepIndependentTransitions(t *testing.T) {
+	am := mustMap(t, Bindings{
+		"dash": {
+			KeyInput{Key: KeySpace},
+			Chord(KeyInput{Key: KeyA}, KeyInput{Key: KeyB}),
+			Chord(KeyInput{Key: KeyC}, KeyInput{Key: KeyD}),
+		},
+	}, 0)
+	s := &Snapshot{}
+	s.Keys[KeySpace].Held = true
+	am.Update(s, 0.1)
+	s.Keys[KeyA].Held, s.Keys[KeyB].Held = true, true
+	am.Update(s, 0.1)
+	if !am.JustPressed("dash") {
+		t.Fatal("another held binding must not suppress a chord press")
+	}
+	s.Keys[KeyC].Held, s.Keys[KeyD].Held = true, true
+	am.Update(s, 0.1)
+	if !am.JustPressed("dash") {
+		t.Fatal("the second chord must have its own press")
+	}
+	s.Keys[KeyB].Held = false
+	am.Update(s, 0.1)
+	if !am.Held("dash") || !am.JustReleased("dash") {
+		t.Fatal("binding lists must retain their OR-folded levels and edges")
+	}
+}
+
+func TestChordMixedDevicesAndGamepadCoherence(t *testing.T) {
+	members := []Input{
+		KeyInput{Key: KeyShiftLeft},
+		MouseButtonInput{Button: MouseButtonLeft},
+		PadButtonInput{Button: PadSouth},
+		PadAxisInput{Axis: PadRightTrigger, Direction: 1, Deadzone: 0.05},
+	}
+	am := mustMap(t, Bindings{"fire": {Chord(members...)}}, 0.5)
+	s := &Snapshot{}
+	s.Keys[KeyShiftLeft].Held = true
+	s.Mouse.Buttons[MouseButtonLeft].Held = true
+	s.Pads[0].Connected, s.Pads[1].Connected = true, true
+	s.Pads[0].Buttons[PadSouth].Held = true
+	s.Pads[1].Axes[PadRightTrigger] = 0.1
+	am.Update(s, 0.1)
+	if am.Held("fire") {
+		t.Fatal("any-pad members must not combine different controllers")
+	}
+	s.Pads[1].Buttons[PadSouth].Held = true
+	am.Update(s, 0.1)
+	if !am.Held("fire") || !am.JustPressed("fire") {
+		t.Fatal("one matching controller should satisfy all any-pad members")
+	}
+	s.Pads[1].Connected = false
+	am.Update(s, 0.1)
+	if am.Held("fire") || !am.JustReleased("fire") {
+		t.Fatal("disconnecting the matching controller must release the chord")
+	}
+	s.Pads[1].Connected = true
+	members[3] = PadAxisInput{Pad: 2, Axis: PadRightTrigger, Deadzone: 0.05}
+	if err := am.SetBindings(Bindings{"fire": {Chord(members...)}}); err != nil {
+		t.Fatalf("SetBindings: %v", err)
+	}
+	s.Pads[1].Buttons[PadSouth].Held = false
+	am.Update(s, 0.1)
+	if !am.Held("fire") {
+		t.Fatal("explicit pad addresses should allow intentional cross-controller chords")
+	}
+	s.Mouse.Buttons[MouseButtonLeft].Held = false
+	am.Update(s, 0.1)
+	if am.Held("fire") || !am.JustReleased("fire") {
+		t.Fatal("every device member must remain active")
+	}
+}
+
+func TestChordBindingsOwnershipAndRebinding(t *testing.T) {
+	members := []Input{KeyInput{Key: KeyA}, KeyInput{Key: KeyB}}
+	am := mustMap(t, Bindings{"dash": []Input{ChordInput{Inputs: members}}}, 0)
+	members[0] = KeyInput{Key: KeyC}
+	returned := am.Bindings()["dash"][0].(ChordInput)
+	returned.Inputs[1] = KeyInput{Key: KeyD}
+	s := &Snapshot{}
+	s.Keys[KeyA].Held, s.Keys[KeyB].Held = true, true
+	am.Update(s, 0.1)
+	if !am.Held("dash") {
+		t.Fatal("caller and returned member slices must not mutate owned bindings")
+	}
+	if err := am.SetBindings(Bindings{"dash": []Input{ChordInput{Inputs: members[:1]}}}); err == nil {
+		t.Fatal("invalid replacement should fail")
+	}
+	am.Update(s, 0.1)
+	if !am.Held("dash") || am.JustPressed("dash") {
+		t.Fatal("failed replacement must preserve chord state")
+	}
+	replacement := []Input{KeyInput{Key: KeyC}, KeyInput{Key: KeyD}}
+	if err := am.SetBindings(Bindings{"dash": []Input{
+		KeyInput{Key: KeyEnter}, ChordInput{Inputs: replacement},
+	}}); err != nil {
+		t.Fatalf("SetBindings: %v", err)
+	}
+	replacement[0] = KeyInput{Key: KeyE}
+	if !am.Held("dash") {
+		t.Fatal("replacement must not change published state before Update")
+	}
+	am.Update(s, 0.1)
+	if am.Held("dash") {
+		t.Fatal("the old chord must not survive replacement")
+	}
+	s.Keys[KeyC].Held, s.Keys[KeyD].Held = true, true
+	am.Update(s, 0.1)
+	if !am.Held("dash") || !am.JustPressed("dash") {
+		t.Fatal("replacement members must be copied and get fresh transition state")
+	}
+}
+
+func TestBindingValidation(t *testing.T) {
+	nested := ChordInput{Inputs: []Input{KeyInput{Key: KeyA}, KeyInput{Key: KeyB}}}
+	for _, bound := range []Input{
+		nil, &KeyInput{Key: KeyA}, ChordInput{},
+		ChordInput{Inputs: []Input{KeyInput{Key: KeyA}}},
+		ChordInput{Inputs: []Input{nested, KeyInput{Key: KeyC}}},
+		ChordInput{Inputs: []Input{KeyInput{Key: KeyA}, nil}},
+		PadAxisInput{Deadzone: -0.1}, PadAxisInput{Deadzone: 1.1},
+		PadAxisInput{Deadzone: math.NaN()}, PadAxisInput{Deadzone: math.Inf(1)},
+		ChordInput{Inputs: []Input{KeyInput{Key: KeyA}, PadAxisInput{Deadzone: math.NaN()}}},
+	} {
+		bindings := Bindings{"invalid": []Input{bound}}
+		if _, err := New(bindings, 0); err == nil {
+			t.Errorf("New accepted invalid binding %#v", bound)
+		}
+		am := mustMap(t, Bindings{}, 0)
+		if err := am.SetBindings(bindings); err == nil {
+			t.Errorf("SetBindings accepted invalid binding %#v", bound)
+		}
+	}
+	for _, deadzone := range []float64{-0.1, 1.1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		if _, err := New(Bindings{}, deadzone); err == nil {
+			t.Errorf("New accepted invalid deadzone %v", deadzone)
+		}
+	}
+}
+
+func TestChordUpdateAllocations(t *testing.T) {
+	am := mustMap(t, Bindings{
+		"dash": {Chord(
+			KeyPairInput{Negative: KeyA, Positive: KeyD},
+			PadAxisInput{Axis: PadLeftStickX, Direction: -1, Deadzone: 0.05},
+		)},
+	}, 0)
+	s := &Snapshot{}
+	s.Keys[KeyD].Held = true
+	s.Pads[0].Connected = true
+	s.Pads[0].Axes[PadLeftStickX] = -0.1
+	am.Update(s, 0.1)
+	if !am.Held("dash") {
+		t.Fatal("axis and key-pair members should activate the chord")
+	}
+	if got := testing.AllocsPerRun(100, func() {
+		am.Update(s, 0.1)
+		am.Tick()
+	}); got != 0 {
+		t.Errorf("settled Update/Tick allocated %v times, want zero", got)
+	}
+	s.Keys[KeyA].Held = true
+	am.Update(s, 0.1)
+	if am.Held("dash") || !am.JustReleased("dash") {
+		t.Fatal("opposing key-pair keys should cancel and release the chord")
 	}
 }

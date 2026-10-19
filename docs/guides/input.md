@@ -34,6 +34,7 @@ The binding types are:
 - `MouseButtonInput` binds a mouse button.
 - `PadButtonInput` binds a standard-layout gamepad button.
 - `PadAxisInput` binds a gamepad axis, optionally limiting it to the negative or positive half with `Direction`.
+- `ChordInput` requires every member binding to be active together; construct it with `Chord` (experimental).
 
 See the [cheat sheet](../getting-started/cheat-sheet.md) for the complete key, mouse, button, and axis vocabulary.
 
@@ -85,6 +86,28 @@ Plain keys use the zero-value modifier array. A chord fires only while every lis
 
 If a modifier is released while the trigger key remains held, the action stops being held without producing a release edge. Bind left and right modifier keys separately when both should be accepted.
 
+## Chords (experimental)
+
+Use `input.Chord` for a combination that should press when its last requirement becomes active and release when any requirement becomes inactive:
+
+```go
+bindings := input.Bindings{
+	"dash": {
+		input.Chord(
+			input.KeyInput{Key: input.KeyA},
+			input.KeyInput{Key: input.KeyB},
+		),
+		input.PadButtonInput{Button: input.PadEast},
+	},
+}
+```
+
+Either key may be held first. In this example, A and B together or the gamepad's east button activate dash: members inside a chord combine with AND, while the action's binding list still combines with OR. Each binding contributes its own press and release edges, so releasing one binding may report a release while another keeps the action held.
+
+Chords may mix keyboard, mouse, gamepad button, and axis bindings. An axis member counts as active after its deadzone and direction filtering; a key pair counts as active when its keys do not cancel. The chord itself is digital and contributes no `Axis` value. Members using `Pad: 0` must all match the same connected controller. Explicit pad addresses may intentionally select different controllers.
+
+Chords require at least two members and cannot contain other chords or refer to named actions. Use value-form bindings, not pointers. `input.New` and `SetBindings` reject malformed chords and invalid deadzones; a failed replacement leaves the existing bindings and state unchanged.
+
 ## Axes and gamepads
 
 Gamepad buttons use the standard position names `PadSouth`, `PadEast`, `PadWest`, and `PadNorth`, so bindings are not tied to vendor glyphs. `Pad: 0` means any connected gamepad; `Pad: 1` addresses the first connected pad, `Pad: 2` the second, and so on. The current implementation supports four pads.
@@ -92,6 +115,18 @@ Gamepad buttons use the standard position names `PadSouth`, `PadEast`, `PadWest`
 Axis bindings use the normalized backend value. Stick axes range from `-1` to `1`; stick Y is positive downward. Triggers range from `0` to `1`. If an action has multiple axis bindings, the value with the greatest absolute magnitude wins rather than the values being added.
 
 The default axis deadzone is `0.15`. Values below the deadzone read as zero; crossing into or out of the active range produces the action's press or release edge. The game-level `WithBindings` option uses this default. Code that owns an `input.ActionMap` directly can pass a deadzone to `input.New`; zero selects the default and values outside `[0, 1]` are rejected.
+
+The experimental `PadAxisInput.Deadzone` field overrides the map's deadzone for that binding:
+
+```go
+"throttle": []input.Input{
+	input.PadAxisInput{Axis: input.PadRightTrigger, Deadzone: 0.05},
+},
+```
+
+Zero inherits the map's deadzone; there is no separate zero-deadzone override. Deadzones must be finite and in `[0, 1]`. A value exactly at the threshold is active, and values outside the deadzone retain their original magnitude rather than being rescaled.
+
+`Axis` is a latest-sampled level, not a latched event or accumulated displacement. Fixed catch-up ticks share the latest frame's value; ticking does not clear it. If an axis returns to zero between ticks, its press and release edges can both reach the next tick while `Axis` already reads zero.
 
 ## Rebinding
 
@@ -105,7 +140,7 @@ err := ctx.Actions.SetBindings(input.Bindings{
 })
 ```
 
-The replacement takes effect on the next input update. `ctx.Actions.Bindings()` returns a copy suitable for displaying or editing in a settings screen; mutating that returned value does not mutate the action map.
+The replacement takes effect on the next input update. Chords restart inactive, so a newly satisfied chord can produce a fresh press. `ctx.Actions.Bindings()` returns a copy suitable for displaying or editing in a settings screen; mutating that returned value, including chord member slices, does not mutate the action map.
 
 ## Raw snapshots
 
