@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-19
+
 ### Added
 - Implement chord input binding for simultaneous key actions and update related documentation (#114)
 - Implement MovePosition method for constrained camera movement and add tests (#104)
