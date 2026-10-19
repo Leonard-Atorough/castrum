@@ -32,46 +32,22 @@ type Action string
 //	}
 type Bindings map[Action][]Input
 
-// actionState is the runtime record of one action: its state for the
-// current frame, the press and release events waiting for the next
-// Tick, the events the current Tick delivered, the axis value, and
-// the held duration.
 type actionState struct {
-	// thisFrame is the action's state for the current frame. Update
-	// writes it every frame, and the frame queries (JustPressed,
-	// JustReleased, Held) read it.
 	thisFrame State
-	// sinceLastTick records whether a press or a release happened at
-	// least once since the last Tick. Duplicate presses count as
-	// one, and a press and a release can both be recorded. Tick
-	// clears it.
 	sinceLastTick State
-	// thisTick holds the events Tick delivered for the current tick.
-	// It stays constant for the whole tick, so every system reading
-	// it in that tick sees the same thing.
 	thisTick State
-	// axis is the action's current axis value: the strongest value
-	// among its bound axes. Pad values below the deadzone read as
-	// zero.
 	axis float64
-	// previousAxis is the action's axis value from the previous
-	// frame. The finish phase of Update uses it to detect the axis
-	// crossing the deadzone.
 	previousAxis float64
-	// duration is how long the action has been held without
-	// interruption, in seconds. Update adds the frame's dt while the
-	// action is held, and resets it to zero as soon as it is not.
+	// Chord transitions are tracked per binding because action state is OR-folded.
+	chordHeld []bool
 	duration float64
 }
 
-// ActionMap resolves bound physical inputs into per-action
-// state. Update resolves one frame, Tick delivers one tick, and the
-// query methods report the results. Deadzone is the pad axis
-// deadzone, defaulting to DefaultDeadzone.
+// ActionMap resolves [Bindings] against physical input snapshots and exposes
+// per-action state.
 //
-// A nil ActionMap reads zero on every query, so the context can
-// publish nil when no bindings were configured. The mutators
-// (Update, Tick, SetBindings) require a real map.
+// A nil ActionMap returns zero from queries; mutating methods require a
+// non-nil map.
 type ActionMap struct {
 	deadzone float64
 	bindings Bindings
@@ -80,13 +56,15 @@ type ActionMap struct {
 
 // New creates an [ActionMap] with a copy of bindings. A deadzone of zero
 // selects [DefaultDeadzone]. It returns an error if bindings is nil or
-// deadzone is outside [0, 1].
+// deadzone is not finite or outside [0, 1], or a binding is invalid.
+// Bindings must use value-form input types; chords require at least two
+// members and cannot contain other chords.
 func New(bindings Bindings, deadzone float64) (*ActionMap, error) {
-	if bindings == nil {
-		return nil, fmt.Errorf("bindings cannot be nil")
+	if err := validateBindings(bindings); err != nil {
+		return nil, err
 	}
-	if deadzone < 0 || deadzone > 1 {
-		return nil, fmt.Errorf("deadzone must be between 0 and 1")
+	if math.IsNaN(deadzone) || deadzone < 0 || deadzone > 1 {
+		return nil, fmt.Errorf("deadzone must be finite and between 0 and 1")
 	}
 
 	if deadzone == 0 {
@@ -101,12 +79,16 @@ func New(bindings Bindings, deadzone float64) (*ActionMap, error) {
 }
 
 // SetBindings replaces the bindings with a copy of the argument.
-// The new bindings take effect at the next Update.
+// The new bindings take effect at the next Update; chords start inactive
+// and may produce a new press. Invalid bindings leave the map unchanged.
 func (am *ActionMap) SetBindings(bindings Bindings) error {
-	if bindings == nil {
-		return fmt.Errorf("cannot update bindings: bindings cannot be nil")
+	if err := validateBindings(bindings); err != nil {
+		return fmt.Errorf("cannot update bindings: %w", err)
 	}
 	am.bindings = cloneBindings(bindings)
+	for _, st := range am.states {
+		st.chordHeld = nil
+	}
 	return nil
 }
 
@@ -129,57 +111,33 @@ func (am *ActionMap) Update(s *Snapshot, dt float64) {
 
 		var frame State
 		var axis float64
-		for _, bound := range inputs {
-			switch src := bound.(type) {
-			case KeyInput:
-				if !modifiersHeld(s, src.Modifiers) {
-					break
+		for i, bound := range inputs {
+			var state State
+			var value float64
+			if chord, ok := bound.(ChordInput); ok {
+				if st.chordHeld == nil {
+					st.chordHeld = make([]bool, len(inputs))
 				}
-				if s.KeyPressed(src.Key) {
-					frame.Pressed = true
+				held := am.chordActive(s, chord)
+				state = State{
+					Held:     held,
+					Pressed:  held && !st.chordHeld[i],
+					Released: !held && st.chordHeld[i],
 				}
-				if s.KeyHeld(src.Key) {
-					frame.Held = true
-				}
-				if s.KeyReleased(src.Key) {
-					frame.Released = true
-				}
-			case MouseButtonInput:
-				if s.MousePressed(src.Button) {
-					frame.Pressed = true
-				}
-				if s.MouseHeld(src.Button) {
-					frame.Held = true
-				}
-				if s.MouseReleased(src.Button) {
-					frame.Released = true
-				}
-			case PadButtonInput:
-				ps := padState(s, src.Pad, src.Button)
-				frame.Pressed = frame.Pressed || ps.Pressed
-				frame.Held = frame.Held || ps.Held
-				frame.Released = frame.Released || ps.Released
-			case PadAxisInput:
-				val := am.padAxisValue(s, src.Pad, src.Axis, src.Direction)
-				if math.Abs(val) > math.Abs(axis) {
-					axis = val
-				}
-			case KeyPairInput:
-				var pair float64
-				if s.KeyHeld(src.Negative) {
-					pair -= 1
-				}
-				if s.KeyHeld(src.Positive) {
-					pair += 1
-				}
-				if math.Abs(pair) > math.Abs(axis) {
-					axis = pair
-				}
+				st.chordHeld[i] = held
+			} else {
+				state, value = am.resolveInput(s, bound, 0)
+			}
+			frame.Pressed = frame.Pressed || state.Pressed
+			frame.Held = frame.Held || state.Held
+			frame.Released = frame.Released || state.Released
+			if math.Abs(value) > math.Abs(axis) {
+				axis = value
 			}
 		}
 
-		active := math.Abs(axis) >= am.deadzone
-		wasActive := math.Abs(st.previousAxis) >= am.deadzone
+		active := axis != 0
+		wasActive := st.previousAxis != 0
 		frame.Held = frame.Held || active
 		frame.Pressed = frame.Pressed || active && !wasActive
 		frame.Released = frame.Released || !active && wasActive
@@ -294,7 +252,8 @@ func (am *ActionMap) Duration(action Action) float64 {
 	return st.duration
 }
 
-// Axis reports the current axis value for the action.
+// Axis reports the action's latest frame-sampled axis value. Fixed catch-up
+// ticks share that value; Tick does not accumulate, consume, or clear it.
 func (am *ActionMap) Axis(action Action) float64 {
 	if am == nil {
 		return 0
@@ -306,8 +265,6 @@ func (am *ActionMap) Axis(action Action) float64 {
 	return st.axis
 }
 
-// modifiersHeld reports whether every non-empty modifier slot is held.
-// KeyNone slots read as empty, so a zero-value array gates nothing.
 func modifiersHeld(s *Snapshot, modifiers [3]Key) bool {
 	for _, mod := range modifiers {
 		if mod == KeyNone {
@@ -320,21 +277,112 @@ func modifiersHeld(s *Snapshot, modifiers [3]Key) bool {
 	return true
 }
 
-// cloneBindings returns a copy the ActionMap owns: the map and every
-// input slice are fresh, so the caller can mutate their Bindings
-// after. Every Input member is a value type, so this is a complete
-// deep copy.
+func validateBindings(bindings Bindings) error {
+	if bindings == nil {
+		return fmt.Errorf("bindings cannot be nil")
+	}
+	for action, inputs := range bindings {
+		for i, bound := range inputs {
+			if err := validateInput(bound); err != nil {
+				return fmt.Errorf("action %q binding %d: %w", action, i, err)
+			}
+		}
+	}
+	return nil
+}
+
+func validateInput(bound Input) error {
+	switch src := bound.(type) {
+	case KeyInput, MouseButtonInput, PadButtonInput, KeyPairInput:
+		return nil
+	case PadAxisInput:
+		if math.IsNaN(src.Deadzone) || src.Deadzone < 0 || src.Deadzone > 1 {
+			return fmt.Errorf("deadzone must be finite and between 0 and 1")
+		}
+	case ChordInput:
+		if len(src.Inputs) < 2 {
+			return fmt.Errorf("chord requires at least two inputs")
+		}
+		for i, member := range src.Inputs {
+			if _, nested := member.(ChordInput); nested {
+				return fmt.Errorf("chord member %d: nested chords are not supported", i)
+			}
+			if err := validateInput(member); err != nil {
+				return fmt.Errorf("chord member %d: %w", i, err)
+			}
+		}
+	default:
+		return fmt.Errorf("unsupported input type %T; use value-form bindings", bound)
+	}
+	return nil
+}
+
+// Copy chord members too, so callers cannot mutate stored bindings through a
+// chord.
 func cloneBindings(bindings Bindings) Bindings {
 	owned := make(Bindings, len(bindings))
 	for action, inputs := range bindings {
 		owned[action] = append([]Input(nil), inputs...)
+		for i, bound := range owned[action] {
+			if chord, ok := bound.(ChordInput); ok {
+				chord.Inputs = append([]Input(nil), chord.Inputs...)
+				owned[action][i] = chord
+			}
+		}
 	}
 	return owned
 }
 
-// padState folds a pad button binding's tri-state across the pads its
-// Pad address selects. Pad 0 - the zero value - is any connected pad;
-// a player number addresses that one pad.
+func (am *ActionMap) resolveInput(s *Snapshot, bound Input, anyPad int) (State, float64) {
+	switch src := bound.(type) {
+	case KeyInput:
+		if !modifiersHeld(s, src.Modifiers) {
+			return State{}, 0
+		}
+		return State{Pressed: s.KeyPressed(src.Key), Held: s.KeyHeld(src.Key), Released: s.KeyReleased(src.Key)}, 0
+	case MouseButtonInput:
+		return State{Pressed: s.MousePressed(src.Button), Held: s.MouseHeld(src.Button), Released: s.MouseReleased(src.Button)}, 0
+	case PadButtonInput:
+		if src.Pad == 0 {
+			src.Pad = anyPad
+		}
+		return padState(s, src.Pad, src.Button), 0
+	case PadAxisInput:
+		if src.Pad == 0 {
+			src.Pad = anyPad
+		}
+		return State{}, am.padAxisValue(s, src)
+	case KeyPairInput:
+		var value float64
+		if s.KeyHeld(src.Negative) {
+			value--
+		}
+		if s.KeyHeld(src.Positive) {
+			value++
+		}
+		return State{}, value
+	default:
+		panic(fmt.Sprintf("input: unsupported binding %T reached resolver", bound))
+	}
+}
+
+func (am *ActionMap) chordActive(s *Snapshot, chord ChordInput) bool {
+	for pad := 1; pad <= MaxPads; pad++ {
+		active := true
+		for _, member := range chord.Inputs {
+			state, value := am.resolveInput(s, member, pad)
+			if !state.Held && value == 0 {
+				active = false
+				break
+			}
+		}
+		if active {
+			return true
+		}
+	}
+	return false
+}
+
 func padState(s *Snapshot, pad int, button PadButton) State {
 	var state State
 	for padIndex := range MaxPads {
@@ -357,26 +405,24 @@ func padState(s *Snapshot, pad int, button PadButton) State {
 	return state
 }
 
-// padAxisValue returns the strongest axis value among the pads a
-// binding's Pad address selects - Pad 0 is any connected pad, a player
-// number addresses one pad. Values below the deadzone read as zero,
-// and Direction gates the halves: a gated-away deflection reads as
-// zero per pad, before the strongest wins, so a wrong-direction pad
-// cannot beat a right-direction one.
-func (am *ActionMap) padAxisValue(s *Snapshot, pad int, axis PadAxis, direction int) float64 {
+func (am *ActionMap) padAxisValue(s *Snapshot, src PadAxisInput) float64 {
+	deadzone := src.Deadzone
+	if deadzone == 0 {
+		deadzone = am.deadzone
+	}
 	best := 0.0
 	for padIndex := range MaxPads {
-		if pad != 0 && padIndex != pad-1 {
+		if src.Pad != 0 && padIndex != src.Pad-1 {
 			continue
 		}
 		if !s.PadConnected(padIndex) {
 			continue
 		}
-		val := s.PadAxis(padIndex, axis)
-		if math.Abs(val) < am.deadzone {
+		val := s.PadAxis(padIndex, src.Axis)
+		if math.Abs(val) < deadzone {
 			val = 0
 		}
-		if (direction < 0 && val > 0) || (direction > 0 && val < 0) {
+		if (src.Direction < 0 && val > 0) || (src.Direction > 0 && val < 0) {
 			val = 0
 		}
 		if math.Abs(val) > math.Abs(best) {

@@ -93,8 +93,13 @@ func TestInvalidOptionsError(t *testing.T) {
 
 func TestWithBindingsWiresInput(t *testing.T) {
 	bindings := input.Bindings{
-		"jump":   []input.Input{input.KeyInput{Key: input.KeySpace}},
-		"move_x": []input.Input{input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD}},
+		"jump":   {input.KeyInput{Key: input.KeySpace}},
+		"move_x": {input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD}},
+		"dash": {input.Chord(
+			input.KeyInput{Key: input.KeyB},
+			input.KeyInput{Key: input.KeyC},
+		)},
+		"throttle": {input.PadAxisInput{Axis: input.PadRightTrigger, Deadzone: 0.05}},
 	}
 	g, err := New(WithBindings(bindings))
 	if err != nil {
@@ -107,6 +112,9 @@ func TestWithBindingsWiresInput(t *testing.T) {
 	s := &input.Snapshot{}
 	s.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
 	s.Keys[input.KeyD] = input.State{Held: true}
+	s.Keys[input.KeyB].Held, s.Keys[input.KeyC].Held = true, true
+	s.Pads[0].Connected = true
+	s.Pads[0].Axes[input.PadRightTrigger] = 0.1
 	g.Context().Input = s
 
 	tick := time.Second / 60
@@ -127,6 +135,9 @@ func TestWithBindingsWiresInput(t *testing.T) {
 	if am.Axis("move_x") != 1 {
 		t.Errorf("move_x axis = %v, want 1", am.Axis("move_x"))
 	}
+	if !am.Pressed("dash") || !am.Held("dash") || !am.Pressed("throttle") || am.Axis("throttle") != 0.1 {
+		t.Error("chord and per-binding axis should reach frame and tick action views")
+	}
 
 	// The context publishes the same map: the discoverable face and
 	// the resource are one instance.
@@ -145,6 +156,9 @@ func TestWithBindingsWiresInput(t *testing.T) {
 	}
 	if am.Pressed("jump") || am.Held("jump") || am.Duration("jump") != 0 {
 		t.Error("the second tick should see no jump input")
+	}
+	if !am.Released("dash") || !am.Released("throttle") || am.Axis("throttle") != 0 {
+		t.Error("the second tick should deliver chord and axis releases")
 	}
 }
 

@@ -1,10 +1,8 @@
 // Package input provides backend-independent keyboard, mouse, and gamepad
 // types. [Snapshot] records physical input, and [ActionMap] resolves it into
-// game actions.
-//
-// A runner samples device state into a [Snapshot], which systems read during
-// a game phase. The package defines input state and bindings, not device
-// polling or event delivery.
+// game actions. A runner samples device state into a [Snapshot] for systems
+// to read during a game phase; the package defines input state and bindings,
+// not device polling or event delivery.
 package input
 
 import "fmt"
@@ -14,9 +12,7 @@ import "fmt"
 type Key int
 
 const (
-	// KeyNone is the zero value of [Key]: no key at all. Modifier slots
-	// read as empty, a binding with KeyNone never fires, and the
-	// poller never reports it.
+	// KeyNone is the zero value of [Key] and represents no key at all.
 	KeyNone Key = iota
 	KeyA
 	KeyB
@@ -148,8 +144,7 @@ func (k Key) String() string {
 	return fmt.Sprintf("Key(%d)", int(k))
 }
 
-// MouseButton represents a mouse button. The provided constants cover the
-// standard left, right, and middle buttons.
+// MouseButton identifies a standard mouse button.
 type MouseButton int
 
 const (
@@ -172,10 +167,9 @@ func (b MouseButton) String() string {
 	return fmt.Sprintf("MouseButton(%d)", int(b))
 }
 
-// PadButton identifies a gamepad button by the standard layout's
-// position names - south/east/west/north, not vendor glyphs (A/B/X/Y)
-// - so bindings survive whatever controller is plugged in. The
-// triggers are axes, not buttons (see [PadAxis]).
+// PadButton identifies a gamepad button by its position in the standard
+// layout, independent of vendor-specific glyphs. Triggers are represented
+// by [PadAxis], not PadButton.
 type PadButton int
 
 const (
@@ -222,10 +216,8 @@ func (b PadButton) String() string {
 	return fmt.Sprintf("PadButton(%d)", int(b))
 }
 
-// PadAxis identifies a gamepad axis: sticks span -1..1 with Y
-// positive downward - the screen convention - and triggers span 0..1.
-// The poller normalizes backend values to this contract in its
-// device table.
+// PadAxis identifies a normalized gamepad axis. Stick values span -1 to 1,
+// with positive Y downward; trigger values span 0 to 1.
 type PadAxis int
 
 const (
@@ -253,7 +245,8 @@ func (a PadAxis) String() string {
 	return fmt.Sprintf("PadAxis(%d)", int(a))
 }
 
-// State records a physical input's state for one frame.
+// State records whether a physical input changed or remained active during
+// a frame.
 type State struct {
 	// Pressed is true on the frame the input becomes active.
 	Pressed bool
@@ -266,9 +259,9 @@ type State struct {
 // Input is implemented by the physical input types accepted by [Bindings].
 type Input interface{ isInput() }
 
-// KeyInput binds an action to a keyboard key, with optional modifier
-// keys that must be held. Ctrl+S is
-// KeyInput{Key: KeyS, Modifiers: [3]Key{KeyControlLeft}}.
+// KeyInput binds an action to a keyboard key, optionally requiring modifier
+// keys to be held. For example, Ctrl+S is KeyInput{Key: KeyS,
+// Modifiers: [3]Key{KeyControlLeft}}.
 type KeyInput struct {
 	// Key is the trigger: Pressed, Held, and Released follow this key
 	// while every modifier is held. A Key of KeyNone never fires.
@@ -307,9 +300,31 @@ type PadAxisInput struct {
 	// the zero value - either direction, -1 only the negative half
 	// (screen-up for a Y axis), +1 only the positive half.
 	Direction int
+	// Deadzone overrides the action map's deadzone. Zero inherits it.
+	// Values must be finite and in [0, 1]; active values are not rescaled.
+	Deadzone float64
 }
 
-// KeyPairInput binds an axis to a pair of keyboard keys.
+// ChordInput binds a digital action to two or more inputs held together.
+// It presses when the last member becomes active and releases when any
+// member becomes inactive. Axis members are active outside their deadzone;
+// the chord itself contributes no axis value.
+//
+// Members with Pad: 0 must be satisfied by the same connected gamepad.
+// Explicit pad addresses remain independent. Nested chords are not supported.
+type ChordInput struct {
+	// Inputs lists the physical bindings that must all be active.
+	Inputs []Input
+}
+
+// Chord returns a [ChordInput] that requires inputs to be active together.
+// [New] and [ActionMap.SetBindings] validate and copy its members.
+func Chord(inputs ...Input) ChordInput {
+	return ChordInput{Inputs: inputs}
+}
+
+// KeyPairInput binds the negative and positive directions of an axis to
+// keyboard keys.
 type KeyPairInput struct {
 	// Negative is the key for the negative axis direction.
 	Negative Key
@@ -322,3 +337,4 @@ func (MouseButtonInput) isInput() {}
 func (PadButtonInput) isInput()   {}
 func (PadAxisInput) isInput()     {}
 func (KeyPairInput) isInput()     {}
+func (ChordInput) isInput()       {}
