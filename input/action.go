@@ -33,14 +33,14 @@ type Action string
 type Bindings map[Action][]Input
 
 type actionState struct {
-	thisFrame State
+	thisFrame     State
 	sinceLastTick State
-	thisTick State
-	axis float64
-	previousAxis float64
+	thisTick      State
+	axis          float64
+	previousAxis  float64
 	// Chord transitions are tracked per binding because action state is OR-folded.
 	chordHeld []bool
-	duration float64
+	duration  float64
 }
 
 // ActionMap resolves [Bindings] against physical input snapshots and exposes
