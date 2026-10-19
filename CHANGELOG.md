@@ -12,6 +12,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Implement chord input binding for simultaneous key actions and update related documentation (#114)
+- Implement MovePosition method for constrained camera movement and add tests (#104)
+- Enhance mouse wheel behavior and documentation for frame-scoped displacement (#102)
+- Add per-source stereo balance across playback modes (#101)
+- Implement tweening functionality with easing curves and tests (#100)
+- Add support for named timer groups with pause and scale functionality (#99)
+- Implement camera rotation, anchor, and bounds; zoom unified on Transform.Scale (#98)
+- Implement game-level time control with pause and time scaling features (#95)
+
+### Changed
+- **breaking:** Rename Server to Loader and New to NewLoader (#29) (#113)
+- Move configuration options and input wiring code out of main file into files within main package and update stale documentation. (#103)
+
+### Documentation
+- Enhance documentation for World and input packages (#96)
+
+### Fixed
+- Streamline component validation and archetype cleanup for efficiency (#112)
+- Update component removal to snapshot surviving values in type order (#110)
+- Release completed playback resources and reject NaN volume (#105)
+
+### Internal
+- Verify transform interpolation across angle and scale boundaries  (#107)
+
+### Miscellaneous
+- Enhance README with contributing section
+
+### Performance
+- Reduce per-tick bookkeeping (#109)
+
+## [0.1.0] - 2026-10-10
+
+### Added
 - Add benchmarks for ECS, asset loading, collision, and rendering (#71)
 - Add optional debug overlay for frame and tick rates (#70)
 - Ship the playable your-first-game tutorial and tank example (#61)
