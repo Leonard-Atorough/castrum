@@ -1,6 +1,7 @@
 // Package timer provides countdowns as [Timer] components. [NewSystem]
-// advances them on fixed ticks and records completions in
-// [Timer.CompletedOn]; it emits no events and does not remove timers.
+// advances them on fixed ticks, records completions in
+// [Timer.CompletedOn], and emits one [Completed] signal per completion
+// tick. It does not remove timers.
 package timer
 
 import (
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 // Timer tracks a countdown on an entity. [NewSystem] advances it on fixed
@@ -80,6 +82,17 @@ func (t Timer) JustCompleted(tick uint64) bool {
 // use [Timer.JustCompleted] to observe each completion.
 func (t Timer) HasCompleted() bool {
 	return !t.Repeating && t.CompletedOn != 0
+}
+
+// Completed is the signal the timer system emits when a [Timer] completes
+// an interval. The system emits one signal per completion tick: a
+// repeating timer that finishes several intervals in one slow tick records
+// one completion and emits one signal. Tick equals [Timer.CompletedOn].
+type Completed struct {
+	// Entity is the entity whose Timer completed.
+	Entity core.EntityID
+	// Tick is the fixed tick of the completion.
+	Tick uint64
 }
 
 // groupState holds the pause and scale state for a timer group.
@@ -172,7 +185,8 @@ func (g *Groups) SetScale(name string, scale float64) error {
 const SystemName = "engine.timer"
 
 // NewSystem returns the fixed-tick system that advances running [Timer]
-// components and records completions in [Timer.CompletedOn].
+// components, records completions in [Timer.CompletedOn], and emits one
+// [Completed] signal per completion.
 //
 // The game constructor registers this system under [SystemName] when
 // `castrum.WithTimer` is enabled. Otherwise, register it yourself.
@@ -183,6 +197,7 @@ func NewSystem() core.System {
 type system struct {
 	timers *core.Query
 	groups *Groups
+	hub    *signal.Hub
 }
 
 func (s *system) Update(ctx *core.Context) error {
@@ -195,6 +210,13 @@ func (s *system) Update(ctx *core.Context) error {
 			return fmt.Errorf("timer system: resolve timer groups: %w; provide *timer.Groups to the world, typically timer.NewGroups() through World.Provide, or enable castrum.WithTimer", err)
 		}
 		s.groups = groups
+	}
+	if s.hub == nil {
+		hub, err := ctx.World.Resource[*signal.Hub]()
+		if err != nil {
+			return fmt.Errorf("timer system: resolve signal hub: %w; provide *signal.Hub to the world, typically signal.NewHub() through World.Provide, or construct the game with castrum.New", err)
+		}
+		s.hub = hub
 	}
 
 	var groupErr error
@@ -239,6 +261,9 @@ func (s *system) Update(ctx *core.Context) error {
 					t.Running = false
 					break
 				}
+			}
+			if t.CompletedOn == ctx.Tick {
+				s.hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick})
 			}
 		})
 	}

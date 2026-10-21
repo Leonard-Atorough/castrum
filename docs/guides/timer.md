@@ -1,6 +1,6 @@
 # Timers
 
-Timers are countdowns stored on entities as `timer.Timer`. Castrum advances each running timer on fixed ticks; games read the component to observe progress and completion. Timers do not emit events or remove themselves.
+Timers are countdowns stored on entities as `timer.Timer`. Castrum advances each running timer on fixed ticks. You can read progress and completion from the component, or react to a `timer.Completed` signal when an interval finishes. Timers are not removed automatically.
 
 The [timer example](../../examples/timer/main.go) shows one-shot, repeating, and paused timers in a running game:
 
@@ -111,7 +111,7 @@ if ok {
 
 `Elapsed` advances by the fixed tick interval while `Running` is true. A one-shot stops at its duration when it completes and remains on the entity.
 
-Completion is recorded as a tick stamp, not an event. Use `JustCompleted` for a one-tick reaction and `HasCompleted` for the lasting state of a finished one-shot:
+The component records completion as a tick stamp. Use `JustCompleted` for a one-tick check and `HasCompleted` for the lasting state of a finished one-shot:
 
 ```go
 if t.JustCompleted(ctx.Tick) {
@@ -129,6 +129,27 @@ if t.HasCompleted() {
 A repeating timer starts another interval immediately and carries elapsed overshoot forward. This prevents its schedule from drifting when the duration is not an exact multiple of the fixed tick interval.
 
 If a repeating timer is shorter than one tick, it may complete multiple intervals during that tick. `CompletedOn` records the tick, not a count of completions within it, so `JustCompleted` reports whether it fired on that tick rather than how many times.
+
+## Signals
+
+When the timer system is enabled with `castrum.WithTimer()` or `castrum.WithDefaultSystems()`, it emits a `timer.Completed` signal when a timer completes. The signal carries the timer entity ID and fixed tick. A repeating timer emits at most one completion signal per fixed tick, even if it completes several intervals in that tick.
+
+Use a consumer system when you want to react to a particular timer without checking its component every tick:
+
+```go
+hub := g.World().MustResource[*signal.Hub]()
+
+if err := g.AddSystem(core.PhaseFixed, "game.countdown_complete", hub.Consumer(
+	func(_ *core.Context, completed timer.Completed) error {
+		if completed.Entity == countdown.ID() {
+			// Start the next game action.
+		}
+		return nil
+	},
+)); err != nil {
+	return err
+}
+```
 
 ## More than one timer per actor
 

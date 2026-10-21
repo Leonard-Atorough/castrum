@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 func newTimerHarness(t *testing.T) (*core.World, core.System) {
@@ -16,6 +17,11 @@ func newTimerHarness(t *testing.T) (*core.World, core.System) {
 		return NewGroups(), nil
 	}); err != nil {
 		t.Fatalf("provide timer groups: %v", err)
+	}
+	if err := world.Provide(func(*core.World) (*signal.Hub, error) {
+		return signal.NewHub(), nil
+	}); err != nil {
+		t.Fatalf("provide signal hub: %v", err)
 	}
 	return world, NewSystem()
 }
@@ -522,5 +528,55 @@ func TestSystem_UnrepresentableGroupScaleFailsTick(t *testing.T) {
 	err = sys.Update(&core.Context{World: world, Tick: 1, DeltaTime: 100 * time.Millisecond})
 	if err == nil || !strings.Contains(err.Error(), "not representable") {
 		t.Errorf("tick under an unrepresentable scale = %v, want an error naming the contribution", err)
+	}
+}
+
+func TestSystemEmitsCompletedSignal(t *testing.T) {
+	world, sys := newTimerHarness(t)
+	hub := world.MustResource[*signal.Hub]()
+
+	entity, err := world.NewEntity(NewTimer(150*time.Millisecond, false))
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+
+	reader := hub.NewReader[Completed]()
+	tick(t, world, sys, 1, 100*time.Millisecond)
+	tick(t, world, sys, 2, 100*time.Millisecond)
+
+	var got []Completed
+	if err := reader.Drain(func(c Completed) error {
+		got = append(got, c)
+		return nil
+	}); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	if len(got) != 1 || got[0] != (Completed{Entity: entity.ID(), Tick: 2}) {
+		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
+	}
+}
+
+// A repeating timer that burns several intervals in one tick records one
+// completion and emits one signal.
+func TestRepeatingTimerEmitsOneSignalPerCompletionTick(t *testing.T) {
+	world, sys := newTimerHarness(t)
+	hub := world.MustResource[*signal.Hub]()
+
+	if _, err := world.NewEntity(NewTimer(50*time.Millisecond, true)); err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+
+	reader := hub.NewReader[Completed]()
+	tick(t, world, sys, 1, 250*time.Millisecond)
+
+	var got []Completed
+	if err := reader.Drain(func(c Completed) error {
+		got = append(got, c)
+		return nil
+	}); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	if len(got) != 1 || got[0].Tick != 1 {
+		t.Fatalf("signals = %v, want exactly one signal on tick 1", got)
 	}
 }

@@ -8,11 +8,17 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 func newAnimWorld(t *testing.T, anim Animation, clip Clip) (*core.Entity, core.System, *core.Context) {
 	t.Helper()
 	w := core.NewWorld()
+	if err := w.Provide(func(*core.World) (*signal.Hub, error) {
+		return signal.NewHub(), nil
+	}); err != nil {
+		t.Fatalf("provide signal hub: %v", err)
+	}
 	store := NewClipStore()
 	if err := store.Add(anim.Clip, clip); err != nil {
 		t.Fatalf("add clip: %v", err)
@@ -168,6 +174,11 @@ func TestFirstTickStampsFrameZero(t *testing.T) {
 
 func TestMissingClipFailsFast(t *testing.T) {
 	w := core.NewWorld()
+	if err := w.Provide(func(*core.World) (*signal.Hub, error) {
+		return signal.NewHub(), nil
+	}); err != nil {
+		t.Fatalf("provide signal hub: %v", err)
+	}
 	if _, err := w.NewEntity(Animation{Clip: "nope"}, render.Sprite{}); err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
@@ -443,5 +454,57 @@ func TestUnpausingACompletedAnimationCompletesAgain(t *testing.T) {
 	anim := readAnim(t, entity, ctx)
 	if !anim.Paused || !anim.JustCompleted(3) || anim.Current != 1 {
 		t.Fatalf("after resuming a finished animation: %+v, want re-completed on the last frame", anim)
+	}
+}
+
+func TestSystemEmitsCompletedSignal(t *testing.T) {
+	entity, sys, ctx := newAnimWorld(t,
+		Animation{Clip: "walk", Loop: LoopNone},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+	)
+	hub := ctx.World.MustResource[*signal.Hub]()
+	reader := hub.NewReader[Completed]()
+
+	ctx.Tick = 1
+	tick(t, sys, ctx, 1)
+	ctx.Tick = 2
+	tick(t, sys, ctx, 1)
+
+	var got []Completed
+	if err := reader.Drain(func(c Completed) error {
+		got = append(got, c)
+		return nil
+	}); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	if len(got) != 1 || got[0] != (Completed{Entity: entity.ID(), Tick: 2}) {
+		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
+	}
+}
+
+func TestLoopForeverEmitsOnEachWrap(t *testing.T) {
+	entity, sys, ctx := newAnimWorld(t,
+		Animation{Clip: "walk", Loop: LoopForever},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+	)
+	hub := ctx.World.MustResource[*signal.Hub]()
+	reader := hub.NewReader[Completed]()
+	ctx.DeltaTime = 200 * time.Millisecond
+
+	ctx.Tick = 1
+	tick(t, sys, ctx, 1)
+	ctx.Tick = 2
+	tick(t, sys, ctx, 1)
+
+	var got []Completed
+	if err := reader.Drain(func(c Completed) error {
+		got = append(got, c)
+		return nil
+	}); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	want := []Completed{{Entity: entity.ID(), Tick: 1}, {Entity: entity.ID(), Tick: 2}}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("signals = %v, want completions on ticks 1 and 2", got)
 	}
 }
