@@ -151,6 +151,8 @@ if err := g.AddSystem(core.PhaseFixed, "game.countdown_complete", hub.Consumer(
 }
 ```
 
+The [signals guide](signals.md) explains the windows, ordering, and reader rules behind this pattern.
+
 ## More than one timer per actor
 
 Because component storage has one slot per type on each entity, attach each timer to a separate entity. Keep those handles with the actor's other game state:

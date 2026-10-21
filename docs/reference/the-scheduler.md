@@ -42,6 +42,10 @@ The runner publishes a raw snapshot before `Advance` runs. The frame input syste
 
 Read frame-level state in frame systems and apply deterministic gameplay in fixed systems. The [input guide](../guides/input.md) shows the public action APIs.
 
+## Signal rotation
+
+The signal hub rotates with the loop: `Advance` brackets the frame phase (`BeginFrame` before it, `EndFrame` after it), then calls `EndTick` after each fixed run. A signal emitted during a fixed tick is visible to fixed systems registered after its emitter in that tick, and once to frame systems in the next display frame's frame phase; then it is dropped. Frame-phase signals live only inside their frame phase. The [signals guide](../guides/signals.md) covers the authoring side: emitting, readers, and consumer systems.
+
 ## Why the capture order matters
 
 The previous-transform system must run before gameplay movement. It stores the prior position; gameplay then writes the current position; rendering interpolates between the pair using alpha. Registering a competing capture after movement would make both values equal and remove visible interpolation.
