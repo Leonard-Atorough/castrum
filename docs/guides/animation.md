@@ -123,7 +123,7 @@ Looping belongs to the entity, on the `Animation` component:
 
 `LoopNone` is the zero value, so a spawned animation plays once unless it says otherwise.
 
-Completion is component state, not an event. When playback passes the final frame, the engine records the current tick in `CompletedOn` - zero means never:
+Completion is recorded in component state, so it can be checked without consuming a signal. When playback passes the final frame, the engine records the current tick in `CompletedOn` - zero means never:
 
 ```go
 // The edge: true for exactly one tick per completion. React here -
@@ -138,6 +138,27 @@ if anim.HasCompleted() { ... }
 A completed `LoopNone` animation holds its last frame and stays readable indefinitely - the engine does not remove it. Unpausing a finished animation does not replay it: still on its final frame, it completes again on the next frame crossing and pauses. Replaying is `Restart`'s job.
 
 A `LoopForever` animation never completes - `HasCompleted` always reads false - but it does fire `JustCompleted` on every wrap past the last frame, which is how a game syncs effects to loop boundaries such as footsteps or attack rhythms.
+
+## Signals
+
+The animation system also emits an `animation.Completed` signal when playback passes the end of a clip. The signal includes the animated entity ID and fixed tick. A non-looping animation emits each time it completes; a looping animation emits when it wraps, at most once per fixed tick. Resuming a completed non-looping animation can cause it to complete and emit again on the next frame crossing.
+
+Use a consumer system to react to a particular entity's animation without checking every `Animation` component:
+
+```go
+hub := g.World().MustResource[*signal.Hub]()
+
+if err := g.AddSystem(core.PhaseFixed, "game.animation_complete", hub.Consumer(
+	func(_ *core.Context, completed animation.Completed) error {
+		if completed.Entity == player.ID() {
+			// Trigger the next game action.
+		}
+		return nil
+	},
+)); err != nil {
+	return err
+}
+```
 
 ## Change clips
 

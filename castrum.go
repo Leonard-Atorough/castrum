@@ -13,6 +13,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/timer"
 )
 
@@ -26,6 +27,7 @@ type Game struct {
 	schedules map[core.Phase]*runtime.Schedule[core.System]
 
 	mainCamera *core.Entity
+	hub        *signal.Hub
 
 	acc     time.Duration
 	started atomic.Bool
@@ -76,6 +78,14 @@ func New(opts ...option) (*Game, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide clip store: %w", err)
 	}
+
+	hub := signal.NewHub()
+	if err := g.world.Provide(func(*core.World) (*signal.Hub, error) {
+		return hub, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide signal hub: %w", err)
+	}
+	g.hub = hub
 
 	// The optional subsystems register in the engine's documented
 	// order, only when their With* option enabled them.
@@ -189,9 +199,11 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	}
 	g.ctx.Frame++
 	g.ctx.DeltaTime = elapsed
+	g.hub.BeginFrame()
 	if err := g.run(core.PhaseFrame); err != nil {
 		return err
 	}
+	g.hub.EndFrame()
 	if g.paused {
 		return nil
 	}
@@ -203,6 +215,7 @@ func (g *Game) Advance(elapsed time.Duration) error {
 		if err := g.run(core.PhaseFixed); err != nil {
 			return err
 		}
+		g.hub.EndTick()
 		g.acc -= g.opts.fixedDT
 		ticked++
 		if ticked >= g.opts.MaxTicksPerFrame {

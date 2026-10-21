@@ -1,5 +1,6 @@
 // Package animation provides animation components, clip storage, and a system
-// that advances sprite playback on fixed ticks.
+// that advances sprite playback on fixed ticks and emits a [Completed] signal
+// when an animation finishes its clip.
 package animation
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 // ClipID identifies an animation clip in a [ClipStore].
@@ -44,7 +46,7 @@ func (a Animation) Validate() error {
 		return fmt.Errorf("animation: current must not be negative, got %d", a.Current)
 	}
 	if a.Elapsed < 0 {
-		return fmt.Errorf("animation: elapsed must not be negative, got %v", a.Elapsed)
+		return fmt.Errorf("animation: elapsed time must not be negative, got %v", a.Elapsed)
 	}
 	if a.PlaybackMultiplier < 0 {
 		return fmt.Errorf("animation: playback multiplier must not be negative (0 is the normal rate), got %v", a.PlaybackMultiplier)
@@ -86,6 +88,17 @@ func (a Animation) JustCompleted(tick uint64) bool {
 // to observe each loop completion.
 func (a Animation) HasCompleted() bool {
 	return a.Loop == LoopNone && a.CompletedOn != 0
+}
+
+// Completed is the signal the animation system emits when an [Animation]
+// reaches the end of its clip. For [LoopForever] animations, it is emitted
+// each time the clip wraps to its first frame. Tick equals
+// [Animation.CompletedOn].
+type Completed struct {
+	// Entity is the entity whose Animation finished the clip.
+	Entity core.EntityID
+	// Tick is the fixed tick of the completion.
+	Tick uint64
 }
 
 // Clip is a reusable definition of an animation sequence. It specifies the
@@ -161,15 +174,26 @@ const SystemName = "engine.animation"
 // must also have a [render.Sprite]. The system returns an error if an
 // animation references a clip that is not registered.
 //
+// The system resolves the world's [*signal.Hub] and emits a [Completed]
+// signal when an animation finishes its clip.
+//
 // Enable the animation option when creating a game to register this system
 // automatically. Otherwise, register it in the fixed schedule under
 // [SystemName].
 func NewAnimationSystem(store *ClipStore) core.System {
 	var animations *core.Query
+	var hub *signal.Hub
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if animations == nil {
 			animations = core.NewQuery(ctx.World).
 				With(Animation{}, render.Sprite{})
+		}
+		if hub == nil {
+			resolved, err := ctx.World.Resource[*signal.Hub]()
+			if err != nil {
+				return fmt.Errorf("animation system: resolve signal hub: %w; provide *signal.Hub to the world, typically signal.NewHub() through World.Provide, or construct the game with castrum.New", err)
+			}
+			hub = resolved
 		}
 		dt := ctx.DeltaTime.Seconds()
 		for e := range animations.Execute() {
@@ -195,6 +219,7 @@ func NewAnimationSystem(store *ClipStore) core.System {
 				anim.Current += crossed
 				if anim.Current > len(clip.Frames)-1 {
 					anim.CompletedOn = ctx.Tick
+					hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick})
 
 					if anim.Loop == LoopForever {
 						anim.Current %= len(clip.Frames)

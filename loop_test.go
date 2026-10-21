@@ -4,12 +4,14 @@ import (
 	"errors"
 	"math"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 func TestAdvanceAccumulatesFixedTicks(t *testing.T) {
@@ -226,5 +228,49 @@ func TestEngineRegistersPrevTransformCapture(t *testing.T) {
 	prev, ok = entity.Component[core.PrevTransform](g.World())
 	if !ok || prev.Position != (geom.Vector2{X: 9, Y: 9}) {
 		t.Fatalf("after tick prev = %v, ok %v, want the moved position (9, 9) - the capture ran", prev, ok)
+	}
+}
+
+func TestSignalLifecycleInGameLoop(t *testing.T) {
+	// FixedTPS 4 => fixedDT = 250ms; tick 1 lands inside frame 3.
+	g, _ := New(WithFixedTPS(4))
+	hub := g.World().MustResource[*signal.Hub]()
+
+	type hit struct{}
+	tickReader := hub.NewReader[hit]()
+	frameReader := hub.NewReader[hit]()
+	var tickAt, frameAt []uint64
+
+	g.AddSystem(core.PhaseFixed, "emitter", core.SystemFunc(func(ctx *core.Context) error {
+		if ctx.Tick == 1 {
+			hub.Emit(hit{})
+		}
+		return nil
+	}))
+	g.AddSystem(core.PhaseFixed, "tick consumer", core.SystemFunc(func(ctx *core.Context) error {
+		return tickReader.Drain(func(_ hit) error {
+			tickAt = append(tickAt, ctx.Tick)
+			return nil
+		})
+	}))
+	g.AddSystem(core.PhaseFrame, "frame consumer", core.SystemFunc(func(ctx *core.Context) error {
+		return frameReader.Drain(func(_ hit) error {
+			frameAt = append(frameAt, ctx.Frame)
+			return nil
+		})
+	}))
+
+	step := 100 * time.Millisecond
+	for range 6 {
+		if err := g.Advance(step); err != nil {
+			t.Fatalf("Advance: %v", err)
+		}
+	}
+
+	if !reflect.DeepEqual(tickAt, []uint64{1}) {
+		t.Fatalf("tick deliveries = %v, want exactly [1]", tickAt)
+	}
+	if !reflect.DeepEqual(frameAt, []uint64{4}) {
+		t.Fatalf("frame deliveries = %v, want exactly [4] (the frame after the tick)", frameAt)
 	}
 }

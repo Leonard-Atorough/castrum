@@ -12,6 +12,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/timer"
 )
 
@@ -255,6 +256,24 @@ func TestNewProvidesAudioMixer(t *testing.T) {
 	}
 }
 
+func TestNewProvidesSignalHub(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	hub := g.World().MustResource[*signal.Hub]()
+	if hub == nil {
+		t.Fatal("MustResource should return the engine-provided hub")
+	}
+	byErr, err := g.World().Resource[*signal.Hub]()
+	if err != nil {
+		t.Fatalf("Resource[*signal.Hub] right after New: %v", err)
+	}
+	if hub != byErr {
+		t.Fatal("MustResource and Resource must be the same instance")
+	}
+}
+
 func TestOptionalTimerSystems(t *testing.T) {
 	spawn := func(g *Game) {
 		if _, err := g.World().NewEntity(timer.NewTimer(2*g.Options().FixedDT(), false)); err != nil {
@@ -412,5 +431,38 @@ func TestWithTimerProvidesGroups(t *testing.T) {
 	}
 	if _, err := g.World().Resource[*timer.Groups](); err != nil {
 		t.Errorf("WithTimer should provide timer groups: %v", err)
+	}
+}
+
+func TestTimerEmitsCompletedSignal(t *testing.T) {
+	// FixedTPS 4 => fixedDT 250ms; a 300ms one-shot completes on tick 2.
+	g, err := New(WithTimer(), WithFixedTPS(4))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	hub := g.World().MustResource[*signal.Hub]()
+	reader := hub.NewReader[timer.Completed]()
+
+	entity, err := g.World().NewEntity(timer.NewTimer(300*time.Millisecond, false))
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+
+	var got []timer.Completed
+	g.AddSystem(core.PhaseFrame, "signal collector", core.SystemFunc(func(ctx *core.Context) error {
+		return reader.Drain(func(c timer.Completed) error {
+			got = append(got, c)
+			return nil
+		})
+	}))
+
+	step := 100 * time.Millisecond
+	for range 6 {
+		if err := g.Advance(step); err != nil {
+			t.Fatalf("Advance: %v", err)
+		}
+	}
+	if len(got) != 1 || got[0] != (timer.Completed{Entity: entity.ID(), Tick: 2}) {
+		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
 	}
 }
