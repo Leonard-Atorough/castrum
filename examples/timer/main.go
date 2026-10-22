@@ -148,7 +148,7 @@ func run() error {
 	}
 
 	panel := g.World().MustResource[*debug.Panel]()
-	
+
 	panel.Status("controls", "R restarts the one-shot; SPACE starts the paused timer; P pauses the combat group")
 
 	// One fixed system reads all five timers and reacts to their

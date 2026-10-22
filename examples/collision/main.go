@@ -220,7 +220,6 @@ func run() error {
 		}
 	}
 
-
 	score := 0
 	panel := g.World().MustResource[*debug.Panel]()
 	panel.Message("WASD or arrows to move; the bars hit, the pickups heal")
