@@ -6,6 +6,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	audioassets "github.com/Leonard-Atorough/castrum/examples/audio"
 	"github.com/Leonard-Atorough/castrum/input"
 )
@@ -27,7 +28,7 @@ func TestMixingVolumeControls(t *testing.T) {
 			snapshot := &input.Snapshot{}
 			snapshot.Keys[tt.key].Held = true
 			ctx := &core.Context{World: core.NewWorld(), Input: snapshot, DeltaTime: time.Second}
-			if err := mixingSystem(mixer).Update(ctx); err != nil {
+			if err := mixingSystem(mixer, debug.NewPanel()).Update(ctx); err != nil {
 				t.Fatal(err)
 			}
 			if mixer.Master() != tt.master || mixer.GroupVolume(audio.GroupMusic) != tt.music {
@@ -48,7 +49,7 @@ func TestMixingEffectsDuringGlobalPause(t *testing.T) {
 	snapshot.Keys[input.KeyEnter].Pressed = true
 	snapshot.Keys[input.KeySpace].Pressed = true
 	ctx := &core.Context{World: world, Input: snapshot}
-	system := mixingSystem(mixer)
+	system := mixingSystem(mixer, debug.NewPanel())
 	if err := system.Update(ctx); err != nil {
 		t.Fatal(err)
 	}

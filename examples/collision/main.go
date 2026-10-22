@@ -21,12 +21,10 @@ import (
 	"image/color"
 	"math/rand"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
@@ -222,9 +220,9 @@ func run() error {
 		}
 	}
 
-	// score is written by the pickup system and read by the overlay;
-	// the fixed loop runs both, so no synchronization is needed.
 	score := 0
+	panel := g.World().MustResource[*debug.Panel]()
+	panel.Message("WASD or arrows to move; the bars hit, the pickups heal")
 
 	// Move the player at its current speed and tint it by its
 	// contacts: red while touching a solid, yellow while touching a
@@ -287,10 +285,15 @@ func run() error {
 		if hits == 0 {
 			return nil
 		}
-		return player.Update(ctx.World, func(s *playerStats) {
+		if err := player.Update(ctx.World, func(s *playerStats) {
 			s.currentHealth = max(s.currentHealth-hits*hitHealthLoss, 0)
 			s.currentSpeed = max(s.currentSpeed-hits*hitSpeedLoss, minMoveSpeed)
-		})
+			panel.Message(fmt.Sprintf("hazard hit: health %d/%d, speed %d",
+				s.currentHealth, s.maxHealth, s.currentSpeed))
+		}); err != nil {
+			return err
+		}
+		return nil
 	})); err != nil {
 		return err
 	}
@@ -333,6 +336,8 @@ func run() error {
 				}
 				if err := player.Update(ctx.World, func(s *playerStats) {
 					s.currentHealth = min(s.currentHealth+pickupHeal, s.maxHealth)
+					panel.Message(fmt.Sprintf("pickup: score %d, health %d/%d",
+						score, s.currentHealth, s.maxHealth))
 				}); err != nil {
 					return err
 				}
@@ -343,28 +348,11 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
 
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		// Read-only: everything the overlay prints is state the
-		// systems already wrote this tick.
-		stats, _ := player.Component[playerStats](ctx.World)
-		text := fmt.Sprintf("score %d  health %d/%d  speed %d\n", score, stats.currentHealth, stats.maxHealth, stats.currentSpeed)
-		text += "WASD or arrows to move; the bars hit, the pickups heal"
-		if contacts, ok := player.Component[collision.Contacts](ctx.World); ok && len(contacts.Current) > 0 {
-			hit := contacts.Current[0]
-			text += fmt.Sprintf("\ntouching %d: penetration %.1f, normal (%.1f, %.1f)",
-				hit.Other, hit.Penetration, hit.Normal.X, hit.Normal.Y)
-		}
-		ebitenutil.DebugPrint(screen, text)
-		return nil
-	})
-
-	// g.Run is the canonical entry: the guard against a second run
-	// lives on the game, not the runner.
 	return g.Run(runner)
 }
 

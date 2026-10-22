@@ -5,6 +5,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	audioassets "github.com/Leonard-Atorough/castrum/examples/audio"
 	"github.com/Leonard-Atorough/castrum/input"
 )
@@ -21,7 +22,7 @@ func TestPlaybackOneShotsAndSourceControls(t *testing.T) {
 	snapshot := &input.Snapshot{}
 	snapshot.Keys[input.KeySpace].Pressed = true
 	ctx := &core.Context{World: world, Input: snapshot}
-	system := playbackSystem(entity)
+	system := playbackSystem(entity, debug.NewPanel())
 	for range 2 {
 		if err := system.Update(ctx); err != nil {
 			t.Fatal(err)

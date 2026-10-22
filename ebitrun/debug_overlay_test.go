@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/debug"
 )
 
 // The option is explicit and off by default: the runner registers no
@@ -115,4 +116,29 @@ func TestDebugOverlayMeasuresRates(t *testing.T) {
 
 func almost(got, want, tolerance float64) bool {
 	return math.Abs(got-want) <= tolerance
+}
+
+func TestDebugOverlayStatusRespectsPanelToggles(t *testing.T) {
+	g, err := castrum.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := newDebugOverlay(g)
+	panel := g.World().MustResource[*debug.Panel]()
+
+	panel.Toggle(debug.FPS)
+	if line := o.status(); strings.Contains(line, "fps") || !strings.Contains(line, "tps") {
+		t.Errorf("status %q, want tps only after toggling fps off", line)
+	}
+
+	panel.Toggle(debug.TPS)
+	if line := o.status(); line != "" {
+		t.Errorf("status %q, want empty with both sections off", line)
+	}
+
+	panel.Toggle(debug.FPS)
+	panel.Toggle(debug.TPS)
+	if line := o.status(); !strings.Contains(line, "fps") || !strings.Contains(line, "tps") {
+		t.Errorf("status %q, want both sections after toggling back", line)
+	}
 }

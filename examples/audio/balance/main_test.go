@@ -6,6 +6,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	audioassets "github.com/Leonard-Atorough/castrum/examples/audio"
 	"github.com/Leonard-Atorough/castrum/input"
 )
@@ -46,7 +47,7 @@ func TestBalanceControls(t *testing.T) {
 			snapshot.Keys[tt.key].Held = tt.held
 			snapshot.Keys[tt.key].Pressed = !tt.held
 			ctx := &core.Context{World: world, Input: snapshot, DeltaTime: time.Second}
-			if err := balanceSystem(entity).Update(ctx); err != nil {
+			if err := balanceSystem(entity, debug.NewPanel()).Update(ctx); err != nil {
 				t.Fatal(err)
 			}
 			got, ok := entity.Component[audio.Source](world)

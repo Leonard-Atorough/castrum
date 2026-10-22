@@ -186,20 +186,67 @@ func TestRunOnce(t *testing.T) {
 	}
 }
 
-// TestCoreHasNoBackendImports enforces runner-agnosticism: package castrum
-// must never depend on a backend, directly or transitively.
-func TestCoreHasNoBackendImports(t *testing.T) {
+// enginePackages are the game-facing packages that must stay free of
+// backend imports: the engine, its subsystems, and its internals. The
+// runner and the benchmark module are the deliberate exceptions - they
+// are the backend and its measurement.
+var enginePackages = []string{
+	".",
+	"./core",
+	"./signal",
+	"./debug",
+	"./timer",
+	"./animation",
+	"./collision",
+	"./audio",
+	"./input",
+	"./geom",
+	"./render",
+	"./asset",
+	"./tween",
+	"./internal/ecs",
+	"./internal/runtime",
+	"./internal/spatial",
+}
+
+func TestEnginePackagesHaveNoBackendImports(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("go not on PATH")
 	}
-	out, err := exec.Command("go", "list", "-deps", ".").Output()
-	if err != nil {
-		t.Fatalf("go list -deps: %v", err)
+	for _, pkg := range enginePackages {
+		t.Run(pkg, func(t *testing.T) {
+			out, err := exec.Command("go", "list", "-deps", pkg).Output()
+			if err != nil {
+				t.Fatalf("go list -deps: %v", err)
+			}
+			for _, dep := range strings.Split(string(out), "\n") {
+				if strings.Contains(dep, "hajimehoshi") || strings.Contains(dep, "ebitengine") {
+					t.Errorf("%s depends on backend package %q", pkg, dep)
+				}
+			}
+		})
 	}
-	for _, dep := range strings.Split(string(out), "\n") {
-		if strings.Contains(dep, "hajimehoshi") || strings.Contains(dep, "ebitengine") {
-			t.Errorf("core depends on backend package %q", dep)
+}
+
+// TestExamplesImportNoBackendDirectly flags examples that import the
+// backend themselves instead of going through the runner or the debug
+// panel. It is a migration list: a flagged example still runs, but its
+// diagnostics should move to the debug panel.
+func TestExamplesImportNoBackendDirectly(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go not on PATH")
+	}
+	out, err := exec.Command("go", "list", "-f",
+		`{{.ImportPath}}: {{join .Imports " "}}`, "./examples/...").Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.Contains(line, "hajimehoshi") && !strings.Contains(line, "ebitengine") {
+			continue
 		}
+		t.Errorf("%s imports the backend directly; route diagnostics through the debug panel or the runner",
+			strings.SplitN(line, ":", 2)[0])
 	}
 }
 

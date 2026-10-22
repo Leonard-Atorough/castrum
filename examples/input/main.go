@@ -16,12 +16,11 @@ import (
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 const (
@@ -152,25 +151,25 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFixed, "input.camera", cameraSystem(camera, body)); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFrame, "input.zoom", zoomSystem(camera)); err != nil {
+	if err := g.AddSystem(core.PhaseFrame, "input.zoom", zoomSystem(camera, g.World().MustResource[*debug.Panel]())); err != nil {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
+	panel := g.World().MustResource[*debug.Panel]()
+	panel.Status("controls", "WASD or arrows or stick to drive, mouse aims the turret, QE or wheel zooms")
+	if err := g.AddSystem(core.PhaseFrame, "input.readout", core.SystemFunc(func(ctx *core.Context) error {
+		cursor, wheel := ctx.Input.Cursor(), ctx.Input.Wheel()
+		panel.Status("cursor", fmt.Sprintf("mouse (%g, %g)   wheel delta (%g, %g)",
+			cursor.X, cursor.Y, wheel.X, wheel.Y))
+		return nil
+	})); err != nil {
+		return err
+	}
+
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
-
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		cursor, wheel := ctx.Input.Cursor(), ctx.Input.Wheel()
-		ebitenutil.DebugPrint(screen, fmt.Sprintf(
-			"castrum input - WASD or arrows or stick to drive, mouse aims the turret, QE or wheel zooms\n"+
-				"Mouse position (logical screen): (%g, %g)\n"+
-				"Scroll delta (latest input snapshot): (%g, %g)\n"+
-				"FPS: %.2f",
-			cursor.X, cursor.Y, wheel.X, wheel.Y, ebiten.ActualFPS()))
-		return nil
-	})
 
 	// g.Run is the canonical entry: the guard against a second run
 	// lives on the game, not the runner.
@@ -188,17 +187,25 @@ func cameraSystem(camera *core.Entity, body *core.Entity) core.System {
 	})
 }
 
-func zoomSystem(camera *core.Entity) core.System {
+func zoomSystem(camera *core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		// Keys express a rate; wheel offsets already express movement.
 		scaleChange := ctx.Actions.Axis("zoom")*zoomSpeed*ctx.DeltaTime.Seconds() + ctx.Input.Wheel().Y*wheelZoomStep
 		if scaleChange == 0 {
 			return nil
 		}
-		return camera.Update(ctx.World, func(c *core.Transform) {
+		if err := camera.Update(ctx.World, func(c *core.Transform) {
 			c.Scale.X = math.Max(zoomMin, math.Min(zoomMax, c.Scale.X+scaleChange))
 			c.Scale.Y = math.Max(zoomMin, math.Min(zoomMax, c.Scale.Y+scaleChange))
-		})
+		}); err != nil {
+			return err
+		}
+
+		if ctx.Input.Wheel().Y != 0 {
+			transform, _ := camera.Component[core.Transform](ctx.World)
+			panel.Message(fmt.Sprintf("zoom %.2fx", transform.Scale.X))
+		}
+		return nil
 	})
 }
 

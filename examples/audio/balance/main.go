@@ -14,11 +14,10 @@ import (
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	audioassets "github.com/Leonard-Atorough/castrum/examples/audio"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 const balanceSpeed = 0.5
@@ -44,35 +43,20 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFrame, "audio.balance", balanceSystem(entity)); err != nil {
+	panel := g.World().MustResource[*debug.Panel]()
+	panel.Status("controls", "LEFT/RIGHT: adjust balance   1: left   2: center   3: right")
+	panel.Status("note", "SPACE: pause/resume   R: restart (keeps balance, resumes playback); center preserves the mix")
+	if err := g.AddSystem(core.PhaseFrame, "audio.balance", balanceSystem(entity, panel)); err != nil {
 		return err
 	}
-	runner, err := ebitrun.New(g)
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		source, ok := entity.Component[audio.Source](ctx.World)
-		if !ok {
-			return fmt.Errorf("audio balance: music source is missing")
-		}
-		left := 1 - math.Max(source.Balance, 0)
-		right := 1 + math.Min(source.Balance, 0)
-		ebitenutil.DebugPrint(screen, fmt.Sprintf(
-			"Audio balance - use headphones or stereo speakers\n\n"+
-				"LEFT/RIGHT: adjust balance   1: left   2: center   3: right\n"+
-				"SPACE: pause/resume   R: restart (keeps balance, resumes playback)\n\n"+
-				"Balance: %+.2f   Left gain: %3.0f%%   Right gain: %3.0f%%   Paused: %t\n\n"+
-				"Center preserves the original stereo mix. Endpoints mute one channel.\n"+
-				"Try changing balance while paused, then resume or restart.\n"+
-				"Buffered audio can delay changes; abrupt changes may click.",
-			source.Balance, left*100, right*100, source.Paused))
-		return nil
-	})
 	return g.Run(runner)
 }
 
-func balanceSystem(music *core.Entity) core.System {
+func balanceSystem(music *core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		return music.Update(ctx.World, func(s *audio.Source) {
 			step := balanceSpeed * ctx.DeltaTime.Seconds()
@@ -94,11 +78,18 @@ func balanceSystem(music *core.Entity) core.System {
 			if ctx.Input.KeyPressed(input.Key3) {
 				s.Balance = 1
 			}
+
+			left := 1 - math.Max(s.Balance, 0)
+			right := 1 + math.Min(s.Balance, 0)
+			panel.Status("balance", fmt.Sprintf("balance %+.2f   left %3.0f%%   right %3.0f%%   paused: %t",
+				s.Balance, left*100, right*100, s.Paused))
 			if ctx.Input.KeyPressed(input.KeySpace) {
 				s.Paused = !s.Paused
+				panel.Message(fmt.Sprintf("paused: %t", s.Paused))
 			}
 			if ctx.Input.KeyPressed(input.KeyR) {
 				s.Restart()
+				panel.Message(fmt.Sprintf("restarted, balance %+.2f kept", s.Balance))
 			}
 		})
 	})

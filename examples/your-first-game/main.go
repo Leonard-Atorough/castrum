@@ -1,11 +1,8 @@
-// Command your-first-game is the companion program to the getting
-// started tutorial: a tank that drives with the keyboard and aims
-// its turret at the mouse, from a camera that follows it. The gun
-// fires on a cooldown; Panzers spawn just out of sight, chase the
-// tank, and come faster as the score climbs. Shooting 100 wins;
-// being touched loses. Music and the shot sound effect play
-// through the audio API, the reload countdown renders as text, and
-// the score sits in a screen-space overlay.
+// Command your-first-game is the companion program to the getting-started
+// tutorial. Drive the tank with the keyboard, aim with the mouse, and survive
+// waves of Panzers that speed up as the score rises. Destroy 100 to win; a
+// collision with an enemy ends the run. The game also demonstrates audio,
+// timers, collision, and camera-following text.
 //
 // Run from the repository root:
 //
@@ -21,9 +18,6 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
@@ -36,8 +30,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/timer"
 )
 
-// Unlike the tutorial, this example embeds its assets instead of reading a
-// downloaded bundle from the working directory; see docs/guides/assets.md.
+// This example embeds its assets; the tutorial loads them from a downloaded
+// bundle in the working directory. See docs/guides/assets.md.
 //
 //go:embed sprites audio fonts
 var files embed.FS
@@ -53,75 +47,62 @@ const (
 	Speed     = 100 // world units per second
 	TurnSpeed = 3   // radians per second
 
-	// The start tile: the tank needs a frame of reference, or
-	// driving on an empty field reads as standing still.
+	// The tile gives the tank a fixed landmark as the camera follows.
 	TileSize = 160 // world units per side
 
-	// The camera: 50% closer than the default zoom of 1, and
-	// following the tank so the field scrolls as it drives.
+	// The camera follows the tank at 1.5 times the default zoom.
 	CameraZoom = 1.5
 
-	// The gun: one shot per cooldown, spawned at the barrel tip.
+	// The gun fires once per cooldown, from the barrel tip.
 	FireCooldown = 750 * time.Millisecond
 	BarrelLength = 64  // turret center to muzzle, world units
 	BulletSpeed  = 800 // world units per second
 	BulletRadius = 3   // world units
 	CullMargin   = 100 // world units past the view a bullet may fly
 
-	// Collision layers: the masks below decide which pairs ever
-	// reach the narrow phase - bullets admit enemies and nothing
-	// else, so the tank cannot shoot itself, and enemies admit
-	// bullets and the tank, so a touch ends the run.
+	// Collision masks let bullets hit enemies and enemies hit bullets
+	// or the player, while excluding other pairs.
 	bulletLayer = 1
 	enemyLayer  = 2
 	playerLayer = 3
 
-	// The hit circles match the visible hull art, which is much
-	// smaller than its 100-pixel texture: a touch then reads as a
-	// touch instead of firing across a visible gap.
+	// The hit circle matches the visible hull, not its larger texture.
 	TankRadius = 16 // world units, the hull's hit circle
 
-	// The enemies: slower than the tank, so a straight retreat
-	// always opens the gap.
+	// Enemies move slower than the tank, so retreating opens distance.
 	EnemySpeed  = 60 // world units per second
 	EnemyRadius = 16 // world units
 	SpawnEvery  = 1500 * time.Millisecond
 
-	// The waves accelerate with the score: each kill shaves
-	// SpawnShave off the spawn interval, down to MinSpawnEvery.
+	// Each kill shortens the spawn interval, down to MinSpawnEvery.
 	SpawnShave    = 12 * time.Millisecond
 	MinSpawnEvery = 300 * time.Millisecond
 
-	// Reach WinScore kills to win.
+	// Destroy WinScore enemies to win.
 	WinScore = 100
 )
 
 var SpawnPos = geom.Vector2{X: 640, Y: 360}
 
-// bullet marks the entities the bullet system owns: fired by the
-// tank, flying straight, destroyed on impact or on leaving view.
+// bullet marks projectile entities owned by bulletsSystem.
 type bullet struct{}
 
-// enemy marks the chasing tanks: spawned outside the view, they
-// drive at the player until a bullet finds them.
+// enemy marks tanks that spawn outside the view and chase the player.
 type enemy struct{}
 
-// game is the run's state: the kill count and the finished flags.
-// One entity carries it, and systems read and write it like any
-// other component.
+// game stores the run's score and outcome on one entity.
 type game struct {
-	// Score counts enemy tanks destroyed by bullets.
+	// Score is the number of enemies destroyed by bullets.
 	Score int
-	// Won and Lost end the run: gameplay gates on them, and the
-	// end banner reads them.
+	// Won and Lost record the outcome and stop gameplay.
 	Won  bool
 	Lost bool
 }
 
-// bulletColor paints the bullets; the tanks keep their textures.
+// bulletColor is the fill color for bullet circles.
 var bulletColor = color.NRGBA{R: 245, G: 220, B: 130, A: 255}
 
-// tileColor paints the start tile; the field around it is empty.
+// tileColor is the fill color for the start tile.
 var tileColor = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
 
 func main() {
@@ -164,7 +145,7 @@ func run() error {
 		return err
 	}
 
-	// The music entity from the tutorial: a looping stream source.
+	// Add the tutorial's looping background music as a streamed source.
 	if _, err := g.World().NewEntity(audio.Source{
 		Audio:  AssetMusic,
 		Volume: 0.5,
@@ -176,9 +157,7 @@ func run() error {
 		return err
 	}
 
-	// The start tile: a frame of reference under the tank, so
-	// driving reads as movement against a static world instead of
-	// the whole field sliding with the camera.
+	// A fixed landmark makes the camera's movement visible as the tank drives.
 	if _, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
 		render.Sprite{
@@ -190,8 +169,8 @@ func run() error {
 		return err
 	}
 
-	// The hull carries the run's loss condition: a collider on the
-	// player layer, listening for enemies only.
+	// The hull listens only for enemy contacts; dangerSystem uses them to
+	// detect when an enemy reaches the player.
 	playerCollider, err := collision.NewCollider(collision.Circle{Radius: TankRadius})
 	if err != nil {
 		return err
@@ -207,9 +186,8 @@ func run() error {
 		return err
 	}
 
-	// The turret carries the gun's cooldown timer - one timer per
-	// entity, and the turret is the gun. It spawns paused: a fresh
-	// timer and a completed one both read as ready to fire.
+	// The turret is the gun, so its cooldown timer lives on the turret.
+	// Start it paused: a stopped timer means the gun is ready to fire.
 	turret, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
 		render.Sprite{Drawable: render.TextureSource{Texture: AssetTurret}, Layer: 1},
@@ -222,8 +200,7 @@ func run() error {
 		return err
 	}
 
-	// The spawner: a repeating timer whose completions are the
-	// waves. NewTimer starts it running immediately.
+	// Each completion of this running repeating timer spawns a wave.
 	spawner, err := g.World().NewEntity(
 		timer.NewTimer(SpawnEvery, true),
 	)
@@ -231,14 +208,14 @@ func run() error {
 		return err
 	}
 
-	// The run's state: the score and the finished flags.
+	// Keep the score and run outcome together on one entity.
 	stats, err := g.World().NewEntity(game{})
 	if err != nil {
 		return err
 	}
 
-	// The reload readout: a text sprite under the tank, rewritten
-	// every tick while the gun cools and hidden while it is ready.
+	// Show the remaining cooldown below the turret; hide the readout when
+	// the gun is ready.
 	cooldown, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos.Add(geom.Vector2{X: 0, Y: 72}), Scale: geom.Vector2{X: 1, Y: 1}},
 		render.Sprite{Drawable: render.TextSource{Font: AssetFont, Text: "", Size: 18}},
@@ -247,8 +224,8 @@ func run() error {
 		return err
 	}
 
-	// The end banner: hidden while the run lives, drawn over the
-	// field on its own layer once the game is won or lost.
+	// Keep the result banner hidden until the run ends, then draw it above
+	// the game world.
 	banner, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
 		render.Sprite{Hidden: true, Layer: 10},
@@ -257,9 +234,8 @@ func run() error {
 		return err
 	}
 
-	// Preload every asset with a path, so a missing or invalid file
-	// fails during setup rather than mid-game. Textures and fonts
-	// are different asset types: load each with its own.
+	// Load assets during setup so missing or invalid files fail before play.
+	// Textures and fonts use different asset types.
 	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData](AssetHull); err != nil {
 		return err
 	}
@@ -281,21 +257,22 @@ func run() error {
 		return err
 	}
 
-	// The camera starts zoomed in; the follow system keeps it on
-	// the tank from the first tick.
+	// Set the camera zoom before the follow system runs.
 	if err := g.MainCamera().Update(g.World(), func(c *core.Transform) {
 		c.Scale = geom.Vector2{X: CameraZoom, Y: CameraZoom}
 	}); err != nil {
 		return err
 	}
 
-	// The score HUD is screen-space: an overlay drawn after the
-	// world, fixed to the top-left corner whatever the camera does.
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		run, _ := stats.Component[game](ctx.World)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("score %d / %d", run.Score, WinScore), 16, 16)
-		return nil
-	})
+	// Use a world-space text sprite, repositioned each tick to stay at the
+	// camera's top-left as it follows the tank.
+	scoreHUD, err := g.World().NewEntity(
+		core.Transform{},
+		render.Sprite{Drawable: render.TextSource{Font: AssetFont, Text: "", Size: 20}},
+	)
+	if err != nil {
+		return err
+	}
 
 	if err := g.AddSystem(core.PhaseFixed, "player.hull.move", moveSystem(hull, stats)); err != nil {
 		return err
@@ -304,6 +281,10 @@ func run() error {
 		return err
 	}
 	if err := g.AddSystem(core.PhaseFixed, "camera.follow", cameraSystem(g.MainCamera(), hull)); err != nil {
+		return err
+	}
+	// Run after camera.follow so the HUD uses the updated camera position.
+	if err := g.AddSystem(core.PhaseFixed, "hud.score", scoreSystem(scoreHUD, g.MainCamera(), stats)); err != nil {
 		return err
 	}
 	if err := g.AddSystem(core.PhaseFixed, "player.fire", fireSystem(turret, stats)); err != nil {
@@ -331,7 +312,7 @@ func run() error {
 	return g.Run(runner)
 }
 
-// over reports whether the run has ended.
+// over reports whether the run has reached a win or loss state.
 func over(stats *core.Entity, ctx *core.Context) bool {
 	run, _ := stats.Component[game](ctx.World)
 	return run.Won || run.Lost
@@ -366,8 +347,7 @@ func turretSystem(turret, hull *core.Entity) core.System {
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		view, err := ctx.World.Resource[*render.CameraView]()
 		if errors.Is(err, core.ErrResourceNotRegistered) {
-			// The view publishes on the first draw; the first fixed
-			// tick has nothing to aim with yet.
+			// The first draw has not published a view yet, so skip aiming.
 			return nil
 		}
 		if err != nil {
@@ -384,9 +364,31 @@ func turretSystem(turret, hull *core.Entity) core.System {
 	})
 }
 
-// cameraSystem keeps the camera centered on the hull. The view
-// follows the tank wherever it drives; the renderer interpolates
-// the camera like any other transform, so the scrolling is smooth.
+func scoreSystem(hud, camera, stats *core.Entity) core.System {
+	return core.SystemFunc(func(ctx *core.Context) error {
+		run, _ := stats.Component[game](ctx.World)
+		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
+		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
+		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
+		if err := hud.Update(ctx.World, func(t *core.Transform) {
+			t.Position = cameraTransform.Position.
+				Sub(geom.Vector2{X: halfW, Y: halfH}).
+				Add(geom.Vector2{X: 80, Y: 24})
+		}); err != nil {
+			return err
+		}
+		return hud.Update(ctx.World, func(s *render.Sprite) {
+			s.Drawable = render.TextSource{
+				Font: AssetFont,
+				Text: fmt.Sprintf("score %d / %d", run.Score, WinScore),
+				Size: 20,
+			}
+		})
+	})
+}
+
+// cameraSystem centers the camera on the hull. The renderer interpolates
+// its transform to smooth the view between fixed ticks.
 func cameraSystem(camera, hull *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
@@ -396,12 +398,9 @@ func cameraSystem(camera, hull *core.Entity) core.System {
 	})
 }
 
-// fireSystem fires the gun: when the fire action is pressed and the
-// cooldown is not running, a bullet spawns at the barrel tip - the
-// turret center pushed out along the turret's rotation - and the
-// cooldown timer restarts, clearing its completion so it can count
-// down again. Fixed systems read Pressed, the tick-stable edge:
-// a tap that lands between ticks still fires.
+// fireSystem fires on a tick-latched press when the cooldown is idle. It
+// spawns a bullet at the muzzle and restarts the cooldown. Pressed preserves
+// taps that occur between fixed ticks.
 func fireSystem(turret, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if over(stats, ctx) {
@@ -432,10 +431,8 @@ func fireSystem(turret, stats *core.Entity) core.System {
 	})
 }
 
-// spawnBullet creates one live bullet at a point, flying along the
-// given rotation. A bullet is its own entity on the bullet layer,
-// listening for enemies only, so the tank that fired it can never
-// shoot itself.
+// spawnBullet creates a projectile at at with the given rotation. Its
+// collision mask includes enemies only, so it cannot hit the player.
 func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (*core.Entity, error) {
 	collider, err := collision.NewCollider(collision.Circle{Radius: BulletRadius})
 	if err != nil {
@@ -454,14 +451,10 @@ func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (*core.En
 	)
 }
 
-// bulletsSystem moves every live bullet along its facing and
-// destroys it on impact or when it flies past what the camera can
-// see. Each contact is a kill - the bullet's mask admits enemies
-// only, so its contacts name enemies by construction - and each
-// kill raises the score, with WinScore winning the run. The kill
-// lives on the bullet side on purpose: an enemy's contacts cannot
-// tell a bullet apart from the tank, and crediting a touch as a
-// kill would let a ramming Panzer score.
+// bulletsSystem moves projectiles and destroys them on impact or beyond the
+// camera view. Bullets contact enemies only, so each hit can be scored as a
+// kill. Process hits from the bullet side: an enemy's contacts also include
+// the player, and scoring those would reward a ramming enemy.
 func bulletsSystem(camera, stats *core.Entity) core.System {
 	var live *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
@@ -478,15 +471,14 @@ func bulletsSystem(camera, stats *core.Entity) core.System {
 		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
 
 		for e := range live.Execute() {
-			// Contacts are read through the ID, not the query entry:
-			// an entry prefetches only the With-listed types, so
-			// Entry.Component reports other types as absent.
+			// The query only prefetches Transform and bullet; fetch Contacts
+			// from the world through the entity ID.
 			contacts, hasContacts := core.NewEntity(e.ID()).Component[collision.Contacts](ctx.World)
 			if hasContacts && len(contacts.Current) > 0 {
 				for _, hit := range contacts.Current {
 					other := core.NewEntity(hit.Other)
 					if _, ok := other.Component[enemy](ctx.World); !ok {
-						continue // a simultaneous bullet already killed this enemy
+						continue // Another bullet may have destroyed it this tick.
 					}
 					if err := ctx.World.DestroyEntity(other); err != nil {
 						return err
@@ -523,11 +515,9 @@ func bulletsSystem(camera, stats *core.Entity) core.System {
 	})
 }
 
-// spawnSystem keeps the waves coming, faster as the score climbs:
-// each tick it shortens the spawner's interval by SpawnShave per
-// kill, down to MinSpawnEvery, and every completion drops one enemy
-// just outside what the camera can see, at a random angle around
-// the tank.
+// spawnSystem shortens the interval as the score rises, down to
+// MinSpawnEvery. Each timer completion spawns one enemy at a random point
+// just outside the camera view.
 func spawnSystem(spawner, hull, camera, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if over(stats, ctx) {
@@ -563,10 +553,9 @@ func spawnSystem(spawner, hull, camera, stats *core.Entity) core.System {
 	})
 }
 
-// spawnEnemy creates one enemy tank at a point, on the enemy
-// layer, listening for bullets and the tank. An enemy is a single
-// hull entity: giving it a turret of its own would need an entity
-// hierarchy, which the engine does not have yet.
+// spawnEnemy creates one enemy tank on the enemy layer, with collisions
+// enabled for bullets and the player. Each enemy is a single hull entity;
+// adding a separate turret would require entity hierarchies.
 func spawnEnemy(world *core.World, at geom.Vector2) (*core.Entity, error) {
 	collider, err := collision.NewCollider(collision.Circle{Radius: EnemyRadius})
 	if err != nil {
@@ -582,7 +571,7 @@ func spawnEnemy(world *core.World, at geom.Vector2) (*core.Entity, error) {
 	)
 }
 
-// enemiesSystem drives every enemy toward the tank.
+// enemiesSystem moves each enemy toward the tank.
 func enemiesSystem(hull, stats *core.Entity) core.System {
 	var targets *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
@@ -606,8 +595,7 @@ func enemiesSystem(hull, stats *core.Entity) core.System {
 	})
 }
 
-// dangerSystem ends the run when an enemy touches the tank: the
-// hull's contacts turn non-empty, and the loss flag goes up.
+// dangerSystem marks the run lost when the hull contacts an enemy.
 func dangerSystem(hull, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		contacts, has := hull.Component[collision.Contacts](ctx.World)
@@ -618,9 +606,8 @@ func dangerSystem(hull, stats *core.Entity) core.System {
 	})
 }
 
-// resultSystem shows the end banner: hidden while the run lives,
-// and pinned over the tank - the camera keeps it centered - once
-// the game is won or lost.
+// resultSystem hides the banner during play and displays the result over
+// the tank when the run ends.
 func resultSystem(banner, hull, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		run, _ := stats.Component[game](ctx.World)
@@ -644,10 +631,8 @@ func resultSystem(banner, hull, stats *core.Entity) core.System {
 	})
 }
 
-// reloadReadoutSystem writes the cooldown countdown as text: while
-// the gun is reloading the text shows the remaining time under the
-// turret, and when the timer is idle the text hides - the timer's
-// Running field is the whole state machine.
+// reloadReadoutSystem shows the remaining time while the cooldown runs and
+// hides the readout when the gun is ready.
 func reloadReadoutSystem(readout, turret, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if over(stats, ctx) {

@@ -739,7 +739,7 @@ A bullet's mask admits enemies only, so its contacts name enemies by constructio
 				for _, hit := range contacts.Current {
 					other := core.NewEntity(hit.Other)
 					if _, ok := other.Component[enemy](ctx.World); !ok {
-						continue // a simultaneous bullet already killed this enemy
+						continue // Another bullet may have destroyed it this tick.
 					}
 					if err := ctx.World.DestroyEntity(other); err != nil {
 						return err
@@ -876,14 +876,11 @@ First, replace the collision-layer constants from the gun section and add the sc
 Add the run state and create one entity to hold it:
 
 ```go
-// game is the run's state: the kill count and the finished flags.
-// One entity carries it, and systems read and write it like any
-// other component.
+// game stores the run's score and outcome on one entity.
 type game struct {
-	// Score counts enemy tanks destroyed by bullets.
+	// Score is the number of enemies destroyed by bullets.
 	Score int
-	// Won and Lost end the run: gameplay gates on them, and the
-	// end banner reads them.
+	// Won and Lost record the outcome and stop gameplay.
 	Won  bool
 	Lost bool
 }
@@ -1070,14 +1067,52 @@ func resultSystem(banner, hull, stats *core.Entity) core.System {
 }
 ```
 
-Show the score in the top-left corner. Add the ebiten imports (`github.com/hajimehoshi/ebiten/v2` and its `ebitenutil`), then register this callback after `ebitrun.New`:
+Keep the score at the view's top-left as the camera follows the tank. Like the reload readout and end banner, it uses a world-rendered text sprite. A system positions it relative to the camera and refreshes its text each tick. Spawn it with the other entities:
 
 ```go
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
+	scoreHUD, err := g.World().NewEntity(
+		core.Transform{},
+		render.Sprite{Drawable: render.TextSource{Font: AssetFont, Text: "", Size: 20}},
+	)
+	if err != nil {
+		return err
+	}
+```
+
+Register the score system after `camera.follow` so it uses the camera position updated that tick:
+
+```go
+// Run after camera.follow so the HUD uses the updated camera position.
+if err := g.AddSystem(core.PhaseFixed, "hud.score", scoreSystem(scoreHUD, g.MainCamera(), stats)); err != nil {
+	return err
+}
+```
+
+Define the system alongside the others:
+
+```go
+func scoreSystem(hud, camera, stats *core.Entity) core.System {
+	return core.SystemFunc(func(ctx *core.Context) error {
 		run, _ := stats.Component[game](ctx.World)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("score %d / %d", run.Score, WinScore), 16, 16)
-		return nil
+		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
+		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
+		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
+		if err := hud.Update(ctx.World, func(t *core.Transform) {
+			t.Position = cameraTransform.Position.
+				Sub(geom.Vector2{X: halfW, Y: halfH}).
+				Add(geom.Vector2{X: 80, Y: 24})
+		}); err != nil {
+			return err
+		}
+		return hud.Update(ctx.World, func(s *render.Sprite) {
+			s.Drawable = render.TextSource{
+				Font: AssetFont,
+				Text: fmt.Sprintf("score %d / %d", run.Score, WinScore),
+				Size: 20,
+			}
+		})
 	})
+}
 ```
 
 Register the new systems. Replace the previous bullet, enemy, chase, and reload registrations with these:

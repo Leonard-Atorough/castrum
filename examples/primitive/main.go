@@ -13,11 +13,9 @@ package main
 import (
 	"image/color"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
@@ -33,9 +31,6 @@ const (
 	// rowY0 + r*rowDY places shape row r.
 	cellX0, cellDX = 200, 220
 	rowY0, rowDY   = 140, 220
-
-	// labelX is the left margin where each row's name prints.
-	labelX = 20
 )
 
 // cell is one variant in the spectrum: the sprite to draw, the
@@ -69,12 +64,11 @@ func run() error {
 	stretch := geom.Vector2{X: 0.5, Y: 1.5}
 
 	spectrum := []struct {
-		label string
 		color color.Color
 		cells []cell
 	}{
 		{
-			label: "rect",
+
 			color: color.RGBA{G: 200, A: 255},
 			cells: []cell{
 				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}},
@@ -85,7 +79,7 @@ func run() error {
 			},
 		},
 		{
-			label: "circle",
+
 			color: color.RGBA{R: 220, A: 255},
 			cells: []cell{
 				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}}},
@@ -100,7 +94,7 @@ func run() error {
 			},
 		},
 		{
-			label: "line",
+
 			color: color.RGBA{B: 220, A: 255},
 			cells: []cell{
 				// A zero From anchors the segment at the position.
@@ -156,24 +150,14 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
+	panel := g.World().MustResource[*debug.Panel]()
+	panel.Message("rows: rect, circle, line")
+	panel.Message("columns: filled, outlined, spinning, stretched by scale, half-faded")
+
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
 
-	// User draws run after the engine-rendered world, so the row
-	// labels and the column legend land on top of the shapes.
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		for r, row := range spectrum {
-			ebitenutil.DebugPrintAt(screen, row.label, labelX, rowY0+r*rowDY-8)
-		}
-		ebitenutil.DebugPrintAt(screen,
-			"columns: filled, outlined, spinning, stretched by scale, half-faded",
-			0, screenH-20)
-		return nil
-	})
-
-	// g.Run is the canonical entry: the guard against a second run
-	// lives on the game, not the runner.
 	return g.Run(runner)
 }

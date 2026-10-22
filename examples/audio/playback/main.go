@@ -14,11 +14,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	audioassets "github.com/Leonard-Atorough/castrum/examples/audio"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 func main() {
@@ -35,7 +34,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	runner, err := ebitrun.New(g)
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
@@ -51,31 +50,22 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFrame, "audio.playback", playbackSystem(entity)); err != nil {
+	panel := g.World().MustResource[*debug.Panel]()
+	panel.Message("SPACE: play an eager OneShot   P: pause/resume music   R: restart music")
+	panel.Message("OneShots are reclaimed on completion; the music entity persists")
+	if err := g.AddSystem(core.PhaseFrame, "audio.playback", playbackSystem(entity, panel)); err != nil {
 		return err
 	}
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		source, ok := entity.Component[audio.Source](ctx.World)
-		if !ok {
-			return fmt.Errorf("audio playback: music source is missing")
-		}
-		ebitenutil.DebugPrint(screen, fmt.Sprintf(
-			"Audio playback\n\nSPACE: play an eager OneShot (press again to overlap)\n"+
-				"P: pause/resume music   R: restart music\n\n"+
-				"Music: streamed, looping, source paused: %t\n"+
-				"OneShots are reclaimed on completion; the music entity persists.",
-			source.Paused))
-		return nil
-	})
 	return g.Run(runner)
 }
 
-func playbackSystem(music *core.Entity) core.System {
+func playbackSystem(music *core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if ctx.Input.KeyPressed(input.KeySpace) {
 			if _, err := audio.OneShot(ctx.World, audio.NewSource(audioassets.Magic)); err != nil {
 				return err
 			}
+			panel.Message("OneShot playing")
 		}
 		if !ctx.Input.KeyPressed(input.KeyP) && !ctx.Input.KeyPressed(input.KeyR) {
 			return nil
@@ -83,9 +73,11 @@ func playbackSystem(music *core.Entity) core.System {
 		return music.Update(ctx.World, func(s *audio.Source) {
 			if ctx.Input.KeyPressed(input.KeyP) {
 				s.Paused = !s.Paused
+				panel.Message(fmt.Sprintf("music paused: %t", s.Paused))
 			}
 			if ctx.Input.KeyPressed(input.KeyR) {
 				s.Restart()
+				panel.Message("music restarted")
 			}
 		})
 	})

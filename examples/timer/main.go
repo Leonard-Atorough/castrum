@@ -9,8 +9,7 @@
 // update function on them. Completions are read straight from the
 // component - [timer.Timer.JustCompleted] against the current
 // tick is the completion edge, and [timer.Timer.CompletedOn] keeps
-// the tick of the last fire for as long as it is useful. There are
-// no events and no callbacks.
+// the tick of the last fire for as long as it is useful.
 //
 // Group state lives in the timer.Groups resource, provided by
 // castrum.WithTimer alongside the timer system. A group pause never
@@ -30,11 +29,9 @@ import (
 	"image/color"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
@@ -48,10 +45,8 @@ const (
 	barWidth  = 220
 	barHeight = 48
 
-	// rowY0 and rowDY place the five timer rows; labelX is where
-	// each row's overlay text starts.
+	// rowY0 and rowDY place the five timer rows.
 	rowY0, rowDY = 160, 120
-	labelX       = 240
 
 	oneShotDuration = 3 * time.Second
 	pulseDuration   = 1 * time.Second
@@ -152,6 +147,10 @@ func run() error {
 		return err
 	}
 
+	panel := g.World().MustResource[*debug.Panel]()
+
+	panel.Status("controls", "R restarts the one-shot; SPACE starts the paused timer; P pauses the combat group")
+
 	// One fixed system reads all five timers and reacts to their
 	// state; it is the only gameplay logic in the program.
 	if err := g.AddSystem(core.PhaseFixed, "timer.reactions", core.SystemFunc(func(ctx *core.Context) error {
@@ -162,6 +161,7 @@ func run() error {
 			if err := oneShot.Update(ctx.World, func(t *timer.Timer) { t.Restart() }); err != nil {
 				return err
 			}
+			panel.Message("one-shot restarted")
 		}
 
 		// SPACE starts the paused timer by writing Running. The
@@ -170,6 +170,7 @@ func run() error {
 			if err := held.Update(ctx.World, func(t *timer.Timer) { t.Running = true }); err != nil {
 				return err
 			}
+			panel.Message("paused timer started")
 		}
 
 		// P toggles the combat group. The write goes to the groups
@@ -177,8 +178,10 @@ func run() error {
 		if ctx.Actions.Pressed("toggle_combat_group") {
 			if groups.Paused(combatGroup) {
 				groups.Resume(combatGroup)
+				panel.Message("combat group resumed")
 			} else {
 				groups.Pause(combatGroup)
+				panel.Message("combat group paused - the ui group keeps counting")
 			}
 		}
 
@@ -190,6 +193,9 @@ func run() error {
 		if oneShotTimer, _ := oneShot.Component[timer.Timer](ctx.World); oneShotTimer.CompletedOn != 0 {
 			oneShotColor = firedColor
 		}
+		if oneShotTimer, _ := oneShot.Component[timer.Timer](ctx.World); oneShotTimer.JustCompleted(ctx.Tick) {
+			panel.Message("one-shot fired")
+		}
 		if err := oneShot.SetComponent(ctx.World, barSprite(oneShotColor)); err != nil {
 			return err
 		}
@@ -200,6 +206,7 @@ func run() error {
 		pulseColor := runningColor
 		if pulseTimer, _ := pulse.Component[timer.Timer](ctx.World); pulseTimer.JustCompleted(ctx.Tick) {
 			pulseColor = flashColor
+			panel.Message(fmt.Sprintf("repeating pulse completed on tick %d", ctx.Tick))
 		}
 		if err := pulse.SetComponent(ctx.World, barSprite(pulseColor)); err != nil {
 			return err
@@ -226,6 +233,7 @@ func run() error {
 		combatColor := runningColor
 		if combatTimer, _ := combat.Component[timer.Timer](ctx.World); combatTimer.JustCompleted(ctx.Tick) {
 			combatColor = flashColor
+			panel.Message(fmt.Sprintf("combat timer completed on tick %d", ctx.Tick))
 		} else if groups.Paused(combatGroup) {
 			combatColor = pendingColor
 		}
@@ -235,45 +243,17 @@ func run() error {
 		uiColor := runningColor
 		if uiTimer, _ := ui.Component[timer.Timer](ctx.World); uiTimer.JustCompleted(ctx.Tick) {
 			uiColor = flashColor
+			panel.Message(fmt.Sprintf("ui timer completed on tick %d", ctx.Tick))
 		}
 		return ui.SetComponent(ctx.World, barSprite(uiColor))
 	})); err != nil {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
-
-	// The overlay is read-only: everything it prints is component
-	// or group state the systems already wrote.
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		oneShotTimer, _ := oneShot.Component[timer.Timer](ctx.World)
-		pulseTimer, _ := pulse.Component[timer.Timer](ctx.World)
-		heldTimer, _ := held.Component[timer.Timer](ctx.World)
-		combatTimer, _ := combat.Component[timer.Timer](ctx.World)
-		uiTimer, _ := ui.Component[timer.Timer](ctx.World)
-
-		ebitenutil.DebugPrintAt(screen, describe("one-shot", oneShotTimer), labelX, rowY0-8)
-		ebitenutil.DebugPrintAt(screen, describe("repeating", pulseTimer), labelX, rowY0+rowDY-8)
-		ebitenutil.DebugPrintAt(screen, describe("paused", heldTimer), labelX, rowY0+2*rowDY-8)
-
-		combatState := "running"
-		if groups.Paused(combatGroup) {
-			combatState = "group-paused"
-		}
-		ebitenutil.DebugPrintAt(screen,
-			describe(fmt.Sprintf("combat group, %s", combatState), combatTimer),
-			labelX, rowY0+3*rowDY-8)
-		ebitenutil.DebugPrintAt(screen,
-			describe("ui group", uiTimer), labelX, rowY0+4*rowDY-8)
-
-		ebitenutil.DebugPrintAt(screen,
-			"R restarts the one-shot; SPACE starts the paused timer; P pauses the combat group",
-			labelX, screenH-40)
-		return nil
-	})
 
 	// g.Run is the canonical entry: the guard against a second run
 	// lives on the game, not the runner.
@@ -301,16 +281,4 @@ func barSprite(fill color.Color) render.Sprite {
 		Drawable: render.RectShape{Size: geom.Vector2{X: barWidth, Y: barHeight}},
 		Color:    fill,
 	}
-}
-
-// describe renders one timer's state as overlay text.
-func describe(label string, t timer.Timer) string {
-	state := "paused"
-	if t.HasCompleted() {
-		state = "fired"
-	} else if t.Running {
-		state = "running"
-	}
-	return fmt.Sprintf("%s: %.1fs of %.0fs, %s, last fired tick %d",
-		label, t.Elapsed.Seconds(), t.Duration.Seconds(), state, t.CompletedOn)
 }

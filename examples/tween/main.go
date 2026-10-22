@@ -13,11 +13,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
@@ -44,30 +42,18 @@ func main() {
 }
 
 func run() error {
-	g, d, err := newGame()
+	g, _, err := newGame()
 	if err != nil {
 		return err
 	}
+	panel := g.World().MustResource[*debug.Panel]()
+	panel.Status("controls", "space: pause/resume   1: half speed   2: normal speed   3: double speed   R: restart")
+	panel.Status("note", "movement tweens on fixed ticks, tint on frame time; both hold their endpoints")
+
 	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrintAt(screen,
-			"space: pause/resume   1: half speed   2: normal speed   3: double speed   R: restart   Esc: quit",
-			80, 100)
-		ebitenutil.DebugPrintAt(screen,
-			fmt.Sprintf("simulation: %.1fx   paused: %t", g.TimeScale(), g.Paused()), 80, 130)
-		ebitenutil.DebugPrintAt(screen,
-			fmt.Sprintf("fixed movement: cubic in-out   weight: %.3f   complete: %t",
-				d.motion.Progress(), d.motion.IsComplete()), 240, 200)
-		ebitenutil.DebugPrintAt(screen,
-			fmt.Sprintf("frame tint: quadratic in-out   weight: %.3f   complete: %t",
-				d.tint.Progress(), d.tint.IsComplete()), 240, 380)
-		ebitenutil.DebugPrintAt(screen,
-			"Both hold their endpoints. Restarted movement updates on the next fixed tick.", 240, 600)
-		return nil
-	})
 	return g.Run(runner)
 }
 
@@ -148,11 +134,14 @@ func newGame() (*castrum.Game, *demo, error) {
 		return nil, nil, err
 	}
 	if err := g.AddSystem(core.PhaseFrame, "tween.presentation", core.SystemFunc(func(ctx *core.Context) error {
+		panel := g.World().MustResource[*debug.Panel]()
 		if ctx.Actions.JustPressed("pause") {
 			if g.Paused() {
 				g.Resume()
+				panel.Message("resumed")
 			} else {
 				g.Pause()
+				panel.Message("paused - the tint keeps tweening")
 			}
 		}
 		for _, speed := range []struct {
@@ -167,15 +156,22 @@ func newGame() (*castrum.Game, *demo, error) {
 				if err := g.SetTimeScale(speed.scale); err != nil {
 					return err
 				}
+				panel.Message(fmt.Sprintf("simulation: %.1fx", speed.scale))
 			}
 		}
 		if ctx.Actions.JustPressed("restart") {
 			d.motion.Reset()
 			d.tint.Reset()
+			panel.Message("both tweens restarted")
 		}
 		if ctx.Actions.JustPressed("quit") {
 			g.Quit()
 		}
+
+		panel.Status("tweens", fmt.Sprintf("simulation: %.1fx   paused: %t   motion %.3f (complete %t)   tint %.3f (complete %t)",
+			g.TimeScale(), g.Paused(),
+			d.motion.Progress(), d.motion.IsComplete(),
+			d.tint.Progress(), d.tint.IsComplete()))
 
 		// Only tint changes on frame time; transform snapshots stay on fixed ticks.
 		weight, err := d.tint.Update(ctx.DeltaTime)

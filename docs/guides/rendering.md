@@ -231,7 +231,7 @@ This is the authoritative picking path: using the interpolated view makes the wo
 
 ## Overlays
 
-Use a runner draw callback for HUDs, debug text, and other screen-space content that should not live in the world. Overlays are the imperative exception to the state-driven world:
+Use a runner draw callback when you need to draw something the world renderer cannot represent. Unlike sprites, callbacks draw directly to Ebitengine's screen, so they are specific to `ebitrun` and not portable across rendering backends.
 
 ```go
 runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
@@ -240,9 +240,11 @@ runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
 })
 ```
 
-The runner draws the world first, then runs user draw callbacks once per display frame in registration order. Later callbacks draw on top of earlier ones. The callback receives the backend screen, so it is runner-specific and not portable across rendering backends. Return an error so `Run` can surface it.
+The runner draws the world first, then invokes callbacks once per display frame in registration order. Later callbacks draw on top of earlier ones. It runs every callback even if one fails, then reports the first draw error on the next update.
 
-The runner ships one overlay of its own: `ebitrun.WithDebugOverlay()` prints the frame and tick rates in the window's top-left corner - `fps` counts display frames rendered per second, `tps` counts fixed simulation ticks advanced per second. It draws only and is off unless the option is passed:
+Most HUDs do not need a draw callback. A `TextSource` on a world sprite can follow the camera when a system positions it; the [first-game guide's score HUD](../getting-started/your-first-game.md#score-win-and-loss) shows this in practice. For short-lived diagnostics, write to `debug.Panel.Message`. `castrum.New` provides the panel, and the runner's debug overlay can display its messages without game code drawing to the backend screen.
+
+`ebitrun.WithDebugOverlay()` enables the runner's development overlay. It shows `fps` (display frames per second) and `tps` (fixed simulation ticks per second) when those readouts are enabled, along with pause and time-scale status when either differs from its default. It then draws the panel's status lines and recent messages. The overlay only draws; it does not change simulation timing or game state. Enable it when creating the runner:
 
 ```go
 runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
