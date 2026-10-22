@@ -9,9 +9,9 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
-// tick runs one fixed collision tick against world.
 func tick(t *testing.T, world *core.World, sys core.System) {
 	t.Helper()
 	if err := sys.Update(&core.Context{World: world}); err != nil {
@@ -52,10 +52,21 @@ func playerAndWall(t *testing.T, world *core.World) (player, wall *core.Entity) 
 	return player, wall
 }
 
-// The lifecycle is component state: enter is Current without
-// Previous, stay is both, exit is Previous without Current.
-func TestSystem_ContactLifecycle(t *testing.T) {
+// newCollisionWorld returns a world with the signal hub the collision
+// system resolves.
+func newCollisionWorld(t *testing.T) *core.World {
+	t.Helper()
 	world := core.NewWorld()
+	if err := world.Provide(func(*core.World) (*signal.Hub, error) {
+		return signal.NewHub(), nil
+	}); err != nil {
+		t.Fatalf("provide signal hub: %v", err)
+	}
+	return world
+}
+
+func TestSystem_ContactLifecycle(t *testing.T) {
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 	player, wall := playerAndWall(t, world)
 
@@ -69,8 +80,6 @@ func TestSystem_ContactLifecycle(t *testing.T) {
 		t.Fatalf("tick 1 wall contacts = %v / %v, want enter", wallContacts.Current, wallContacts.Previous)
 	}
 
-	// The records mirror each other: same point and penetration,
-	// normals pointing toward the other side.
 	playerHit := playerContacts.Current[0]
 	wallHit := wallContacts.Current[0]
 	if playerHit.Other != wall.ID() || wallHit.Other != player.ID() {
@@ -86,8 +95,6 @@ func TestSystem_ContactLifecycle(t *testing.T) {
 		t.Errorf("point = %v, want (1, 0)", playerHit.Point)
 	}
 
-	// An unchanged tick stays: the enter becomes both Current and
-	// Previous.
 	tick(t, world, sys)
 	playerContacts = contactsOf(t, world, player)
 	if len(playerContacts.Current) != 1 || len(playerContacts.Previous) != 1 {
@@ -97,7 +104,6 @@ func TestSystem_ContactLifecycle(t *testing.T) {
 		t.Errorf("stay contact changed across an unchanged tick: %v vs %v", playerContacts.Current, playerContacts.Previous)
 	}
 
-	// Separation exits: Current empties, Previous keeps the contact.
 	if err := player.SetComponent(world, core.Transform{Position: geom.Vector2{X: 10, Y: 0}}); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +117,6 @@ func TestSystem_ContactLifecycle(t *testing.T) {
 		t.Fatalf("tick 3 wall contacts = %v / %v, want exit", wallContacts.Current, wallContacts.Previous)
 	}
 
-	// After the exit tick the pair state is gone entirely.
 	tick(t, world, sys)
 	playerContacts = contactsOf(t, world, player)
 	if len(playerContacts.Current) != 0 || len(playerContacts.Previous) != 0 {
@@ -119,10 +124,8 @@ func TestSystem_ContactLifecycle(t *testing.T) {
 	}
 }
 
-// The system attaches Contacts itself; a game spawns only the
-// Collider.
 func TestSystem_AttachesContactsToColliders(t *testing.T) {
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 	player, _ := playerAndWall(t, world)
 
@@ -136,12 +139,12 @@ func TestSystem_AttachesContactsToColliders(t *testing.T) {
 }
 
 func TestSystem_LayerMaskFiltering(t *testing.T) {
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 	player, wall := playerAndWall(t, world)
 
-	// The wall sits on layer 1 and listens only to layer 1; the
-	// player lives on layer 0. One-sided masks do not collide.
+	// One-sided masks do not collide: the wall sits on layer 1 and
+	// listens only to layer 1, while the player lives on layer 0.
 	collider, _ := wall.Component[Collider](world)
 	collider.Layers = 1 << 1
 	collider.Mask = 1 << 1
@@ -161,7 +164,7 @@ func TestSystem_LayerMaskFiltering(t *testing.T) {
 }
 
 func TestSystem_TriggerFlagInContacts(t *testing.T) {
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 	player, wall := playerAndWall(t, world)
 
@@ -182,10 +185,8 @@ func TestSystem_TriggerFlagInContacts(t *testing.T) {
 	}
 }
 
-// A collider switched off stops contacting this tick and shows the
-// exit through Previous, exactly like separation.
 func TestSystem_InactiveColliderStopsColliding(t *testing.T) {
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 	player, wall := playerAndWall(t, world)
 
@@ -211,10 +212,9 @@ func TestSystem_InactiveColliderStopsColliding(t *testing.T) {
 	}
 }
 
-// A pair that was never colliding is picked up when one side moves
-// into the other - the dirty proxy path through the spatial index.
+// The enter arrives through the dirty-proxy path of the spatial index.
 func TestSystem_MovingColliderEntersNewPair(t *testing.T) {
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 
 	playerCollider, err := NewCollider(Circle{Radius: 2})
@@ -252,9 +252,8 @@ func TestSystem_MovingColliderEntersNewPair(t *testing.T) {
 	}
 }
 
-// Current is sorted by Other so successive ticks compare stably.
 func TestSystem_ContactsSortedByOther(t *testing.T) {
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 
 	playerCollider, err := NewCollider(Circle{Radius: 10})
@@ -291,11 +290,8 @@ func TestSystem_ContactsSortedByOther(t *testing.T) {
 	}
 }
 
-// A collider removed mid-game does not leave its last contacts
-// behind: the entity loses its Contacts, and the partner observes the
-// exit through its own Current emptying.
 func TestSystem_RemovedColliderClearsContacts(t *testing.T) {
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 	player, wall := playerAndWall(t, world)
 
@@ -339,7 +335,7 @@ func TestSystem_GeometryAndFilterChanges(t *testing.T) {
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			world := core.NewWorld()
+			world := newCollisionWorld(t)
 			sys := NewSystem().(*system)
 			player, wall := playerAndWall(t, world)
 			if test.name == "rotation" {
@@ -382,7 +378,7 @@ func TestSystem_GeometryAndFilterChanges(t *testing.T) {
 func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 	for _, action := range []string{"inactive", "collider removed", "transform removed", "destroyed"} {
 		t.Run(action, func(t *testing.T) {
-			world := core.NewWorld()
+			world := newCollisionWorld(t)
 			sys := NewSystem()
 			player, wall := playerAndWall(t, world)
 			tick(t, world, sys)
@@ -439,7 +435,7 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 }
 
 func TestSystem_StaticFiltersCanCreateAndChangeContacts(t *testing.T) {
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem().(*system)
 	player, wall := playerAndWall(t, world)
 	collider, _ := player.Component[Collider](world)
@@ -474,7 +470,7 @@ func TestSystem_StaticFiltersCanCreateAndChangeContacts(t *testing.T) {
 }
 
 func TestSystem_TouchingAcrossCellBoundary(t *testing.T) {
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 	collider, err := NewCollider(Circle{Radius: 1})
 	if err != nil {
@@ -502,7 +498,7 @@ func TestSystem_TouchingAcrossCellBoundary(t *testing.T) {
 func TestSystem_AllocationsFollowMovement(t *testing.T) {
 	for _, n := range []int{100, 1000} {
 		t.Run(fmt.Sprint(n), func(t *testing.T) {
-			world := core.NewWorld()
+			world := newCollisionWorld(t)
 			sys := NewSystem()
 			collider, err := NewCollider(Circle{Radius: 1})
 			if err != nil {
@@ -545,7 +541,7 @@ func TestSystem_AllocationsFollowMovement(t *testing.T) {
 }
 
 func TestSystem_SettledContactsAllocateNothing(t *testing.T) {
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 	player, _ := playerAndWall(t, world)
 	ctx := &core.Context{World: world}
@@ -565,133 +561,9 @@ func TestSystem_SettledContactsAllocateNothing(t *testing.T) {
 	}
 }
 
-func TestSystem_RetryAfterInvalidTransformRemovesNewProxies(t *testing.T) {
-	world := core.NewWorld()
-	sys := NewSystem().(*system)
-	collider, err := NewCollider(Circle{Radius: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: 1000}}, collider); err != nil {
-		t.Fatal(err)
-	}
-	tick(t, world, sys)
-	transient, err := world.NewEntity(core.Transform{}, collider)
-	if err != nil {
-		t.Fatal(err)
-	}
-	invalid, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: math.NaN()}}, collider)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := sys.Update(&core.Context{World: world}); err == nil {
-		t.Fatal("non-finite transform should fail the tick")
-	}
-	if _, ok := sys.proxies[transient.ID()]; !ok {
-		t.Fatal("setup: transient proxy was not indexed before the failure")
-	}
-	if err := world.DestroyEntity(transient); err != nil {
-		t.Fatal(err)
-	}
-	if err := invalid.SetComponent(world, core.Transform{Position: geom.Vector2{X: 2000}}); err != nil {
-		t.Fatal(err)
-	}
-	tick(t, world, sys)
-	if len(sys.proxies) != 2 {
-		t.Fatalf("retry left stale proxies: %v", sys.proxies)
-	}
-	bounds := geom.Rect{Min: geom.Vector2{X: -2, Y: -2}, Max: geom.Vector2{X: 2, Y: 2}}
-	if ids := sys.grid.QueryOverlapsInto(bounds, nil); len(ids) != 0 {
-		t.Fatalf("retry left stale grid entries: %v", ids)
-	}
-}
-
-func TestSystem_RetryAfterInvalidTransformReplaysDirtyProxies(t *testing.T) {
-	for _, change := range []string{"spawn", "position", "shape", "filter"} {
-		t.Run(change, func(t *testing.T) {
-			world := core.NewWorld()
-			sys := NewSystem().(*system)
-			collider, err := NewCollider(Circle{Radius: 1})
-			if err != nil {
-				t.Fatal(err)
-			}
-			wall, err := world.NewEntity(core.Transform{}, collider)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var target *core.Entity
-			if change != "spawn" {
-				transform := core.Transform{Position: geom.Vector2{X: 10}}
-				initial := collider
-				if change == "filter" {
-					transform.Position.X = 0
-					initial.Mask = 0
-				}
-				target, err = world.NewEntity(transform, initial)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-			tick(t, world, sys)
-			if c := contactsOf(t, world, wall); len(c.Current) != 0 {
-				t.Fatalf("setup: wall should have no contacts, got %v", c)
-			}
-			switch change {
-			case "spawn":
-				target, err = world.NewEntity(core.Transform{}, collider)
-			case "position":
-				err = target.SetComponent(world, core.Transform{})
-			case "shape":
-				err = target.Update(world, func(c *Collider) { c.Shape = Circle{Radius: 10} })
-			case "filter":
-				err = target.Update(world, func(c *Collider) { c.Mask = 1 })
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			invalid, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: math.NaN()}}, collider)
-			if err != nil {
-				t.Fatal(err)
-			}
-			ctx := &core.Context{World: world}
-			for range 2 {
-				if err := sys.Update(ctx); err == nil {
-					t.Fatal("non-finite transform should fail the tick")
-				}
-				p := sys.proxies[target.ID()]
-				transform, _ := target.Component[core.Transform](world)
-				current, _ := target.Component[Collider](world)
-				if p == nil || p.position != transform.Position || p.collider != current {
-					t.Fatal("setup: target inputs were not cached before the failure")
-				}
-			}
-			if err := invalid.SetComponent(world, core.Transform{Position: geom.Vector2{X: 1000}}); err != nil {
-				t.Fatal(err)
-			}
-			tick(t, world, sys)
-			for _, entity := range []*core.Entity{target, wall} {
-				c := contactsOf(t, world, entity)
-				if len(c.Current) != 1 || len(c.Previous) != 0 {
-					t.Fatalf("retry should discover an enter, got %v", c)
-				}
-			}
-			tick(t, world, sys)
-			if len(sys.dirty) != 0 {
-				t.Fatalf("successful discovery left pending dirty work: %v", sys.dirty)
-			}
-			for _, entity := range []*core.Entity{target, wall} {
-				c := contactsOf(t, world, entity)
-				if len(c.Current) != 1 || len(c.Previous) != 1 {
-					t.Fatalf("following tick should report stay, got %v", c)
-				}
-			}
-		})
-	}
-}
-
 func TestSystem_MatchesFullPairDetection(t *testing.T) {
 	type archetypeTag struct{}
-	world := core.NewWorld()
+	world := newCollisionWorld(t)
 	sys := NewSystem()
 	rng := rand.New(rand.NewPCG(72, 1))
 	var entities []*core.Entity

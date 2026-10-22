@@ -107,22 +107,14 @@ If the consumer runs first, its drain finds no signal. That is safe, but the sys
 
 ## Engine signals
 
-Some engine features emit signals of their own. For example, when the timer system is enabled with `castrum.WithTimer` (or `castrum.WithDefaultSystems`), it emits `timer.Completed` when a timer completes. The signal includes the entity ID and fixed tick, so a consumer can filter for the timer it cares about. A repeating timer emits at most one completion signal per fixed tick, even if it completes several intervals during that tick.
+Several engine features emit typed signals. Their guides explain each payload, when it is emitted, and how to consume it:
 
-```go
-if err := g.AddSystem(core.PhaseFixed, "countdown.complete", hub.Consumer(
-	func(_ *core.Context, completed timer.Completed) error {
-		if completed.Entity == countdown.ID() {
-			hub.Emit(launched{tick: completed.Tick})
-		}
-		return nil
-	},
-)); err != nil {
-	return err
-}
-```
-
-See the [timer guide](timer.md) for timer setup and behavior. The [signal example](../../examples/signals) also shows a `timer.Completed` consumer translating a timer completion into a game-specific signal.
+| Feature   | Signal                                  | Details                                                                     |
+| --------- | --------------------------------------- | --------------------------------------------------------------------------- |
+| Timers    | `timer.Completed`                       | [Timer signals](timer.md#signals)                                           |
+| Animation | `animation.Completed`                   | [Animation signals](animation.md#signals)                                   |
+| Collision | `collision.Entered`, `collision.Exited` | [Contact edge signals](collision.md#react-to-enters-and-exits-with-signals) |
+| Audio     | `audio.Finished`                        | [Audio completion](audio.md#play-a-sound-effect)                            |
 
 ## Troubleshooting
 

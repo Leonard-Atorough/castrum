@@ -107,6 +107,28 @@ func entered(contacts collision.Contacts) []collision.Contact {
 
 Use the `Trigger` flag to distinguish interactions such as pickups from solid contacts. Because contacts are computed before gameplay systems run, those systems can read the current results, but changes they make to transforms will affect detection on the next fixed tick.
 
+## React to enters and exits with signals
+
+The system also emits the lifecycle edges as signals: `collision.Entered` when a pair begins overlapping and `collision.Exited` when it ends. One signal is emitted per perspective, matching `Contacts`: a colliding pair produces two, with opposing normals. A consumer system replaces the enter helper above when reactions are all you need:
+
+```go
+hub := g.World().MustResource[*signal.Hub]()
+
+if err := g.AddSystem(core.PhaseFixed, "game.pickups", hub.Consumer(
+	func(ctx *core.Context, entered collision.Entered) error {
+		if isPickup(entered.Other) {
+			// Collect the pickup: entered carries the contact data
+			// of the tick the pair arrived.
+		}
+		return nil
+	},
+)); err != nil {
+	return err
+}
+```
+
+`Exited` carries identity only, since the pair no longer has a contact to report. The `Contacts` slices remain the source of truth when you need stay-state or the full manifold. See the [signals guide](signals.md) for windows, ordering, and reader rules.
+
 ## Choose what a contact means
 
 Collision detection never moves entities or resolves overlaps. A game that wants a player stopped must read the contact data and apply its own movement or separation policy. The contact normal points toward the other collider, so moving away from it generally means moving opposite the normal; handling several simultaneous contacts is also the game's responsibility.

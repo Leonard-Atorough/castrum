@@ -3,8 +3,10 @@
 // shapes, transformed by an entity's position and rotation (scale is ignored).
 // Create colliders with [NewCollider], attach them to entities with a
 // [core.Transform], and register [NewSystem] in the fixed schedule. Gameplay
-// derives enter, stay, and exit behavior by comparing [Contacts.Current] with
-// [Contacts.Previous]; the package does not resolve collisions or emit events.
+// reads the enter, stay, and exit lifecycle from [Contacts.Current] and
+// [Contacts.Previous], or reacts to the [Entered] and [Exited] signals the
+// system emits as pairs begin and end; the package does not resolve
+// collisions.
 package collision
 
 import (

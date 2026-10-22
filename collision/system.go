@@ -8,6 +8,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/internal/spatial"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 // cellSize is the broad-phase grid's cell edge in world units. It
@@ -94,6 +95,7 @@ type system struct {
 	candidates []pairKey
 	nearby     []core.EntityID
 	attachIDs  []core.EntityID
+	hub        *signal.Hub
 }
 
 // Update runs one fixed tick of collision detection: reconcile the
@@ -113,6 +115,13 @@ func (s *system) Update(ctx *core.Context) error {
 		}
 		s.grid = grid
 	}
+	if s.hub == nil {
+		hub, err := ctx.World.Resource[*signal.Hub]()
+		if err != nil {
+			return fmt.Errorf("collision system: resolve signal hub: %w; provide *signal.Hub to the world, typically signal.NewHub() through World.Provide, or construct the game with castrum.New", err)
+		}
+		s.hub = hub
+	}
 	s.resetTick()
 
 	if err := s.reconcileContacts(ctx.World); err != nil {
@@ -129,7 +138,7 @@ func (s *system) Update(ctx *core.Context) error {
 	}
 	s.collectCandidates()
 	s.narrowPhase()
-	return s.writeContacts(ctx.World)
+	return s.writeContacts(ctx.World, ctx.Tick)
 }
 
 func (s *system) resetTick() {
@@ -321,7 +330,7 @@ func (s *system) appendContact(id core.EntityID, c Contact) {
 	buffers.spare = append(buffers.spare, c)
 }
 
-func (s *system) writeContacts(world *core.World) error {
+func (s *system) writeContacts(world *core.World, tick uint64) error {
 	for id, buffers := range s.contacts {
 		entity := core.NewEntity(id)
 		if !entity.HasComponent[Contacts](world) {
@@ -338,6 +347,7 @@ func (s *system) writeContacts(world *core.World) error {
 		if err := entity.SetComponent(world, Contacts{Current: current, Previous: previous}); err != nil {
 			return fmt.Errorf("collision: write contacts to entity %d: %w", id, err)
 		}
+		s.emitEdges(id, current, previous, tick)
 		buffers.spare = buffers.previous
 		buffers.previous, buffers.current = previous, current
 		if len(current) == 0 && len(previous) == 0 {
@@ -345,4 +355,41 @@ func (s *system) writeContacts(world *core.World) error {
 		}
 	}
 	return nil
+}
+
+// emitEdges merges the two Other-sorted slices in one walk, emitting
+// Entered and Exited for the entries that match nothing on the other side.
+func (s *system) emitEdges(id core.EntityID, current, previous []Contact, tick uint64) {
+	i, j := 0, 0
+	for i < len(current) && j < len(previous) {
+		switch {
+		case current[i].Other < previous[j].Other:
+			s.hub.Emit(enteredSignal(id, current[i], tick))
+			i++
+		case current[i].Other > previous[j].Other:
+			s.hub.Emit(Exited{Entity: id, Other: previous[j].Other, Tick: tick})
+			j++
+		default:
+			i++
+			j++
+		}
+	}
+	for ; i < len(current); i++ {
+		s.hub.Emit(enteredSignal(id, current[i], tick))
+	}
+	for ; j < len(previous); j++ {
+		s.hub.Emit(Exited{Entity: id, Other: previous[j].Other, Tick: tick})
+	}
+}
+
+func enteredSignal(id core.EntityID, c Contact, tick uint64) Entered {
+	return Entered{
+		Entity:      id,
+		Other:       c.Other,
+		Point:       c.Point,
+		Normal:      c.Normal,
+		Penetration: c.Penetration,
+		Trigger:     c.Trigger,
+		Tick:        tick,
+	}
 }

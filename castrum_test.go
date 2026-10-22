@@ -466,3 +466,51 @@ func TestTimerEmitsCompletedSignal(t *testing.T) {
 		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
 	}
 }
+
+func TestCollisionEmitsEnteredSignal(t *testing.T) {
+	g, err := New(WithCollision())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	hub := g.World().MustResource[*signal.Hub]()
+
+	shape, err := collision.NewCollider(collision.Box{
+		Min: geom.Vector2{X: -1, Y: -1},
+		Max: geom.Vector2{X: 1, Y: 1},
+	})
+	if err != nil {
+		t.Fatalf("collider: %v", err)
+	}
+	left, err := g.World().NewEntity(core.Transform{}, shape)
+	if err != nil {
+		t.Fatalf("spawn left: %v", err)
+	}
+	_, err = g.World().NewEntity(
+		core.Transform{Position: geom.Vector2{X: 1, Y: 0}}, shape)
+	if err != nil {
+		t.Fatalf("spawn right: %v", err)
+	}
+
+	reader := hub.NewReader[collision.Entered]()
+	var got []collision.Entered
+	g.AddSystem(core.PhaseFrame, "signal collector", core.SystemFunc(func(ctx *core.Context) error {
+		return reader.Drain(func(e collision.Entered) error {
+			got = append(got, e)
+			return nil
+		})
+	}))
+
+	step := time.Second / 60
+	for range 3 {
+		if err := g.Advance(step); err != nil {
+			t.Fatalf("Advance: %v", err)
+		}
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("entered signals = %v, want two (one per perspective)", got)
+	}
+	if got[0].Entity != left.ID() && got[1].Entity != left.ID() {
+		t.Fatalf("no entered signal for entity %d: %v", left.ID(), got)
+	}
+}
