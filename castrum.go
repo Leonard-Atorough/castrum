@@ -35,9 +35,6 @@ type Game struct {
 	startup atomic.Bool
 	quit    atomic.Bool
 
-	// paused and timeScale are the game-level time controls. They are plain
-	// fields under the engine's single-threaded contract: mutators run on
-	// the same goroutine as Advance.
 	paused    bool
 	timeScale float64
 }
