@@ -1,7 +1,8 @@
 // Package audio defines backend-independent audio playback. [Source]
 // components describe individual plays, [Mixer] holds global volume and
 // pause state, and [NewAudioSystem] reconciles them through a runner's
-// [Controller]. [OneShot] starts a play on an engine-owned entity and reclaims
+// [Controller], emitting a [Finished] signal when a play completes.
+// [OneShot] starts a play on an engine-owned entity and reclaims
 // it when playback finishes. Audio files are identified by [asset.ID].
 package audio
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 // LoadMode selects how a play's audio reaches players.
@@ -259,15 +261,39 @@ type Controller interface {
 	Sweep() error
 }
 
+// Finished is the signal the audio system emits on the update that observes
+// a [LoopNone] play finishing, the same update that sets [Source.Completed].
+//
+// The audio system runs in the frame schedule, so Finished is readable only
+// by frame systems registered after it during the same frame phase; it does
+// not survive into the next frame. React to it from a frame system, or poll
+// [Source.Completed] from anywhere when the exact frame does not matter.
+type Finished struct {
+	// Entity is the entity whose Source finished. A [OneShot]'s entity is
+	// destroyed on the same update, so its ID identifies the play only.
+	Entity core.EntityID
+	// Audio is the asset ID of the finished play.
+	Audio asset.ID
+}
+
 // NewAudioSystem returns a [core.System] that reconciles [Source] components
-// with controller and mixer, and destroys completed [OneShot] entities.
-// Without an audio system, sources do not play.
+// with controller and mixer, emits a [Finished] signal when a [LoopNone] play
+// completes, and destroys completed [OneShot] entities. Without an audio
+// system, sources do not play.
 func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 	var sourceQuery, oneshotQuery *core.Query
+	var hub *signal.Hub
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if sourceQuery == nil {
 			sourceQuery = core.NewQuery(ctx.World).With(Source{})
 			oneshotQuery = core.NewQuery(ctx.World).With(Source{}, oneshot{})
+		}
+		if hub == nil {
+			resolved, err := ctx.World.Resource[*signal.Hub]()
+			if err != nil {
+				return fmt.Errorf("audio system: resolve signal hub: %w; provide *signal.Hub to the world, typically signal.NewHub() through World.Provide, or construct the game with castrum.New", err)
+			}
+			hub = resolved
 		}
 		for e := range sourceQuery.Execute() {
 			s, _ := e.Component[Source]()
@@ -290,6 +316,7 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 			if !live && s.Loop == LoopNone && !s.Completed {
 				s.Completed = true
 				changed = true
+				hub.Emit(Finished{Entity: e.ID(), Audio: s.Audio})
 			}
 			if changed {
 				e.SetComponent(s)

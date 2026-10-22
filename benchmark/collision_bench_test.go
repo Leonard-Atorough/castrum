@@ -6,6 +6,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 // colliderWorld builds n circle colliders on a grid.
@@ -14,6 +15,11 @@ import (
 func colliderWorld(b *testing.B, n int) (*core.World, []*core.Entity) {
 	b.Helper()
 	world := core.NewWorld()
+	if err := world.Provide(func(*core.World) (*signal.Hub, error) {
+		return signal.NewHub(), nil
+	}); err != nil {
+		b.Fatal(err)
+	}
 	entities := make([]*core.Entity, 0, n)
 	for i := range n {
 		collider, err := collision.NewCollider(collision.Circle{Radius: 8})

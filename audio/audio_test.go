@@ -8,6 +8,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 func TestSourceValidate(t *testing.T) {
@@ -98,7 +99,7 @@ func TestSourceValidate(t *testing.T) {
 }
 
 func TestSourceValidatedAtSpawn(t *testing.T) {
-	w := core.NewWorld()
+	w := newWorldWithHub(t)
 	if _, err := w.NewEntity(Source{Audio: "sfx/step.wav", Volume: 1}); err != nil {
 		t.Fatalf("spawn valid source: %v", err)
 	}
@@ -141,7 +142,7 @@ func TestSourceBalanceValidation(t *testing.T) {
 }
 
 func TestSourceBalanceValidatedAtSpawnAndUpdate(t *testing.T) {
-	world := core.NewWorld()
+	world := newWorldWithHub(t)
 	source := NewSource("sfx/step.wav")
 	source.Balance = math.NaN()
 	if _, err := world.NewEntity(source); err == nil || !strings.Contains(err.Error(), "balance") {
@@ -417,7 +418,7 @@ func (f *fakeController) Sweep() error {
 
 func newAudioWorld(t *testing.T, src Source) (*core.Entity, *core.Context) {
 	t.Helper()
-	w := core.NewWorld()
+	w := newWorldWithHub(t)
 	entity, err := w.NewEntity(src)
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
@@ -577,7 +578,7 @@ func TestSystemSyncErrorPropagates(t *testing.T) {
 }
 
 func TestOneShotPlaysAndIsReclaimed(t *testing.T) {
-	w := core.NewWorld()
+	w := newWorldWithHub(t)
 	ctx := &core.Context{World: w}
 	fake := &fakeController{live: true}
 	sys := NewAudioSystem(fake, NewMixer())
@@ -603,7 +604,7 @@ func TestOneShotPlaysAndIsReclaimed(t *testing.T) {
 }
 
 func TestOneShotDoesNotTouchUserSources(t *testing.T) {
-	w := core.NewWorld()
+	w := newWorldWithHub(t)
 	ctx := &core.Context{World: w}
 	fake := &fakeController{live: false}
 	sys := NewAudioSystem(fake, NewMixer())
@@ -622,7 +623,7 @@ func TestOneShotDoesNotTouchUserSources(t *testing.T) {
 }
 
 func TestOneShotRejectsLoopForever(t *testing.T) {
-	w := core.NewWorld()
+	w := newWorldWithHub(t)
 	if _, err := OneShot(w, Source{
 		Audio: "ambience.ogg", Volume: 1, Loop: LoopForever,
 	}); err == nil {
@@ -637,5 +638,48 @@ func TestNewSourceDefaults(t *testing.T) {
 	}
 	if err := s.Validate(); err != nil {
 		t.Fatalf("Validate() = %v, want nil: the constructor result must be a valid play as-is", err)
+	}
+}
+
+// newWorldWithHub returns a world with the signal hub the audio system
+// resolves.
+func newWorldWithHub(t *testing.T) *core.World {
+	t.Helper()
+	w := core.NewWorld()
+	if err := w.Provide(func(*core.World) (*signal.Hub, error) {
+		return signal.NewHub(), nil
+	}); err != nil {
+		t.Fatalf("provide signal hub: %v", err)
+	}
+	return w
+}
+
+func TestFinishedSignalOnCompletion(t *testing.T) {
+	entity, ctx := newAudioWorld(t, Source{Audio: "sfx/step.wav", Volume: 1})
+	fake := &fakeController{live: true}
+	sys := NewAudioSystem(fake, NewMixer())
+	hub := ctx.World.MustResource[*signal.Hub]()
+	finished := hub.NewReader[Finished]()
+
+	runAudio(t, sys, ctx) // plays: live, no completion
+
+	fake.live = false // the play runs out
+	runAudio(t, sys, ctx)
+
+	var got []Finished
+	if err := finished.Drain(func(f Finished) error {
+		got = append(got, f)
+		return nil
+	}); err != nil {
+		t.Fatalf("drain finished: %v", err)
+	}
+	if len(got) != 1 || got[0] != (Finished{Entity: entity.ID(), Audio: "sfx/step.wav"}) {
+		t.Fatalf("finished signals = %v, want one for entity %d", got, entity.ID())
+	}
+
+	// Completion is a transition: a later update does not emit it again.
+	runAudio(t, sys, ctx)
+	if err := finished.Drain(func(Finished) error { return nil }); err != nil {
+		t.Fatalf("drain finished: %v", err)
 	}
 }
