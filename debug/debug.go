@@ -1,16 +1,15 @@
-// Package debug provides the development panel behind the debug overlay:
-// systems append short-lived diagnostic text through a world resource, and
-// the overlay draws the most recent messages beneath the frame and tick
-// rates.
+// Package debug provides the world-owned [Panel] used to show status
+// readouts, recent messages, and built-in frame and tick rates in the
+// development overlay.
 package debug
 
-// Builtin identifies a measured section of the debug overlay.
+// Builtin identifies a built-in rate readout in the debug overlay.
 type Builtin uint8
 
 const (
 	// FPS is the measured display frame rate.
 	FPS Builtin = iota
-	// TPS is the measured fixed tick rate.
+	// TPS is the measured fixed-tick rate.
 	TPS
 
 	// builtinCount is the number of builtins above; it guards the toggle
@@ -18,31 +17,39 @@ const (
 	builtinCount
 )
 
-// messageCapacity is how many messages the panel retains.
 const messageCapacity = 8
 
-// Panel is the development message panel, provided by castrum.New and read
-// by the debug overlay. Systems call [Panel.Message] with already-formatted
-// text; the overlay draws the most recent messages below the rate line.
+// Panel stores status readouts and recent messages for the debug overlay.
 //
-// The panel timestamps nothing and keeps no history beyond the last
-// messageCapacity messages - format tick or frame numbers into the text
-// when they matter. Like the world, the panel is loop-owned: Message,
-// Clear, and Toggle belong on the engine goroutine.
+// Castrum provides it as a world resource. Use [Panel.Status] for persistent
+// readouts and [Panel.Message] for the bounded message log. Access the panel
+// from the engine goroutine; it is not safe for concurrent use.
 type Panel struct {
 	messages [messageCapacity]string
 	next     int
 	count    int
 	enabled  uint8
+
+	statuses    []statusLine
+	statusIndex map[string]int
 }
 
-// NewPanel returns a panel with every builtin enabled and no messages.
+type statusLine struct {
+	name string
+	text string
+}
+
+// NewPanel returns a panel with all built-in rate readouts enabled and no
+// messages or status lines.
 func NewPanel() *Panel {
-	return &Panel{enabled: 1<<builtinCount - 1}
+	return &Panel{
+		enabled:     1<<builtinCount - 1,
+		statusIndex: make(map[string]int),
+	}
 }
 
-// Message appends text to the panel. Once messageCapacity messages are
-// retained, the oldest is dropped.
+// Message appends text to the message log, dropping the oldest message when
+// the log is full.
 func (p *Panel) Message(text string) {
 	p.messages[p.next] = text
 	p.next = (p.next + 1) % messageCapacity
@@ -51,16 +58,45 @@ func (p *Panel) Message(text string) {
 	}
 }
 
-// Clear removes every message.
+// Clear removes all messages and status slots without changing which built-in
+// rate readouts are enabled.
 func (p *Panel) Clear() {
 	p.next, p.count = 0, 0
 	for i := range p.messages {
 		p.messages[i] = ""
 	}
+	p.statuses = p.statuses[:0]
+	clear(p.statusIndex)
 }
 
-// Lines returns the retained messages, oldest first. The returned slice is
-// fresh; the panel's storage is reused.
+// Status updates a named readout above the message log, creating its slot on
+// first write. Later writes replace the text in place without changing its
+// order. Empty text hides the line but keeps its slot, so it can reappear in
+// the same position. Write changing readouts each frame; unchanged text
+// remains visible until updated or cleared.
+func (p *Panel) Status(name, text string) {
+	if i, ok := p.statusIndex[name]; ok {
+		p.statuses[i].text = text
+		return
+	}
+	p.statusIndex[name] = len(p.statuses)
+	p.statuses = append(p.statuses, statusLine{name: name, text: text})
+}
+
+// StatusLines returns the non-empty status lines in first-write order.
+// The returned slice is independent of the panel's storage.
+func (p *Panel) StatusLines() []string {
+	lines := make([]string, 0, len(p.statuses))
+	for _, s := range p.statuses {
+		if s.text != "" {
+			lines = append(lines, s.text)
+		}
+	}
+	return lines
+}
+
+// Lines returns retained messages from oldest to newest. The returned slice
+// is independent of the panel's storage.
 func (p *Panel) Lines() []string {
 	lines := make([]string, 0, p.count)
 	start := (p.next - p.count + messageCapacity) % messageCapacity
@@ -70,8 +106,8 @@ func (p *Panel) Lines() []string {
 	return lines
 }
 
-// Toggle flips whether the overlay draws builtin's section. A value outside
-// the defined builtins leaves the panel unchanged.
+// Toggle changes whether the overlay draws b. Undefined values have no
+// effect.
 func (p *Panel) Toggle(b Builtin) {
 	if b >= builtinCount {
 		return
@@ -79,8 +115,8 @@ func (p *Panel) Toggle(b Builtin) {
 	p.enabled ^= 1 << b
 }
 
-// Enabled reports whether the overlay draws builtin's section. A value
-// outside the defined builtins is always disabled.
+// Enabled reports whether b is enabled for display. Undefined values are
+// always disabled.
 func (p *Panel) Enabled(b Builtin) bool {
 	return b < builtinCount && p.enabled&(1<<b) != 0
 }

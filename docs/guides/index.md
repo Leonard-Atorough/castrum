@@ -29,6 +29,7 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 
 ## Shipping and performance
 
+- [Debugging](debug.md) - the debug panel: status lines, messages, and the development overlay.
 - [Performance](performance.md) - frame budgets, query costs, rendering costs, and profiling decisions.
 - [Publishing your game](publishing-your-game.md) - embedded assets and release builds.
 
