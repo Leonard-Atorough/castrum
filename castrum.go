@@ -11,6 +11,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
@@ -86,6 +87,13 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide signal hub: %w", err)
 	}
 	g.hub = hub
+
+	panel := debug.NewPanel()
+	if err := g.world.Provide(func(*core.World) (*debug.Panel, error) {
+		return panel, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide debug panel: %w", err)
+	}
 
 	// The optional subsystems register in the engine's documented
 	// order, only when their With* option enabled them.

@@ -9,6 +9,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
@@ -512,5 +513,19 @@ func TestCollisionEmitsEnteredSignal(t *testing.T) {
 	}
 	if got[0].Entity != left.ID() && got[1].Entity != left.ID() {
 		t.Fatalf("no entered signal for entity %d: %v", left.ID(), got)
+	}
+}
+
+func TestNewProvidesDebugPanel(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	panel := g.World().MustResource[*debug.Panel]()
+	if panel == nil {
+		t.Fatal("MustResource should return the engine-provided panel")
+	}
+	if !panel.Enabled(debug.FPS) || !panel.Enabled(debug.TPS) {
+		t.Fatal("the engine's panel should start with every builtin enabled")
 	}
 }

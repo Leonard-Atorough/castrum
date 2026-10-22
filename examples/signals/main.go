@@ -14,12 +14,12 @@
 //   - coreCharged is emitted the moment the core reaches full
 //     charge. It is caught in the same tick by the later-registered
 //     sequence system, which arms the launch countdown, and one
-//     display frame later by the frame annunciator, which raises the
-//     banner.
+//     display frame later by the frame annunciator, which logs the
+//     transition to the debug panel.
 //   - launched is emitted when the countdown timer completes: the
 //     charge system translates that completion into the game's own
 //     vocabulary, and the flight system flies the core while the
-//     annunciator reports the launch.
+//     annunciator logs the launch.
 //
 // Each custom signal has two independent readers, one per phase, and
 // both observe it exactly once from a single emission. When the core
@@ -35,11 +35,9 @@ import (
 	"image/color"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
@@ -64,15 +62,8 @@ const (
 	injectInterval = time.Second
 	countdownLen   = 3 * time.Second
 
-	// tickInterval matches the engine default, FixedTPS 60, for the
-	// overlay's countdown arithmetic; ticksPerHalfSecond drives the
-	// countdown blink.
-	tickInterval       = time.Second / 60
+	// ticksPerHalfSecond drives the countdown blink.
 	ticksPerHalfSecond = 30
-
-	bannerFrames = 70
-
-	labelX = 240
 )
 
 var (
@@ -118,9 +109,11 @@ func run() error {
 		return err
 	}
 
-	// The signal hub is engine wiring, like the timer groups: MustResource
-	// is the right read for resources castrum.New guarantees.
+	// The signal hub and debug panel are engine wiring, like the timer
+	// groups: MustResource is the right read for resources castrum.New
+	// guarantees.
 	hub := g.World().MustResource[*signal.Hub]()
+	panel := g.World().MustResource[*debug.Panel]()
 
 	camera := g.MainCamera()
 	if err := camera.Update(g.World(), func(t *core.Transform) {
@@ -182,6 +175,7 @@ func run() error {
 			state.injections++
 			if state.phase == charging {
 				state.charge++
+				panel.Message(fmt.Sprintf("tick %d: charge %d/%d", ctx.Tick, state.charge, maxCharge))
 				if state.charge >= maxCharge {
 					hub.Emit(coreCharged{})
 				}
@@ -201,7 +195,6 @@ func run() error {
 	// is already in the tick window - and arms the countdown.
 	if err := g.AddSystem(core.PhaseFixed, "core.sequence", hub.Consumer(func(ctx *core.Context, c coreCharged) error {
 		state.phase = countdown
-		state.armedTick = ctx.Tick
 		return state.countdown.Update(ctx.World, func(t *timer.Timer) { t.Running = true })
 	})); err != nil {
 		return err
@@ -209,9 +202,8 @@ func run() error {
 
 	// The flight system catches launched the same tick and starts the
 	// core moving; the paint system renders the motion.
-	if err := g.AddSystem(core.PhaseFixed, "core.flight", hub.Consumer(func(ctx *core.Context, l launched) error {
+	if err := g.AddSystem(core.PhaseFixed, "core.flight", hub.Consumer(func(_ *core.Context, l launched) error {
 		state.phase = flying
-		state.launchTick = l.tick
 		return nil
 	})); err != nil {
 		return err
@@ -267,60 +259,37 @@ func run() error {
 
 	// The annunciator is a frame system: custom signals emitted during
 	// fixed ticks reach it in the next display frame through independent
-	// readers.
+	// readers, and every transition it observes is narrated onto the
+	// debug panel.
 	if err := g.AddSystem(core.PhaseFrame, "core.announce", core.SystemFunc(func(_ *core.Context) error {
-		if state.bannerFrames > 0 {
-			state.bannerFrames--
-		}
 		if err := chargedFrame.Drain(func(coreCharged) error {
-			state.bannerText = "CORE CHARGED - arming launch countdown"
-			state.bannerFrames = bannerFrames
+			panel.Message("CORE CHARGED - arming launch countdown")
 			return nil
 		}); err != nil {
 			return err
 		}
 		return launchedFrame.Drain(func(l launched) error {
-			state.bannerText = fmt.Sprintf("LAUNCHED on tick %d", l.tick)
-			state.bannerFrames = bannerFrames
+			panel.Message(fmt.Sprintf("LAUNCHED on tick %d", l.tick))
 			return nil
 		})
 	})); err != nil {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
-
-	// The overlay reads signal-driven state and the current tick for its
-	// countdown; it never polls a timer component.
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrintAt(screen, state.describe(ctx), labelX, injectorY-8)
-
-		if state.bannerFrames > 0 {
-			ebitenutil.DebugPrintAt(screen, state.bannerText, labelX, 120)
-		}
-
-		ebitenutil.DebugPrintAt(screen,
-			"timer.Completed pumps the core; full charge emits coreCharged; countdown completion emits launched; custom signals are drained in both phases",
-			labelX, screenH-40)
-		return nil
-	})
 
 	return g.Run(runner)
 }
 
 // sequence holds the launch sequence's signal-driven state.
 type sequence struct {
-	phase        phase
-	charge       int
-	flash        int
-	injections   int
-	armedTick    uint64
-	launchTick   uint64
-	bannerText   string
-	bannerFrames int
+	phase      phase
+	charge     int
+	flash      int
+	injections int
 
 	injector  *core.Entity
 	countdown *core.Entity
@@ -332,21 +301,6 @@ func (s *sequence) flashColor() color.Color {
 		return flashColor
 	}
 	return runningColor
-}
-
-// describe renders the overlay's status line from state and the tick.
-func (s *sequence) describe(ctx *core.Context) string {
-	switch s.phase {
-	case countdown:
-		elapsed := time.Duration(ctx.Tick-s.armedTick) * tickInterval
-		return fmt.Sprintf("countdown: launch in %.0fs (armed on tick %d)",
-			countdownLen.Seconds()-elapsed.Seconds(), s.armedTick)
-	case flying:
-		return fmt.Sprintf("launched on tick %d - resetting when the core clears the screen", s.launchTick)
-	default:
-		return fmt.Sprintf("charging: core %d/%d, %d injections",
-			s.charge, maxCharge, s.injections)
-	}
 }
 
 func barSprite(fill color.Color) render.Sprite {
