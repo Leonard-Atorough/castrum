@@ -6,6 +6,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 )
@@ -33,7 +34,7 @@ func TestWheelZoomRunsOncePerFrame(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			if err := g.AddSystem(core.PhaseFrame, "zoom", zoomSystem(camera)); err != nil {
+			if err := g.AddSystem(core.PhaseFrame, "zoom", zoomSystem(camera, debug.NewPanel())); err != nil {
 				t.Fatal(err)
 			}
 			ticks := 0

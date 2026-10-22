@@ -13,11 +13,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	audioassets "github.com/Leonard-Atorough/castrum/examples/audio"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 const volumeSpeed = 0.5
@@ -36,7 +35,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	runner, err := ebitrun.New(g)
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
@@ -52,25 +51,20 @@ func run() error {
 		return err
 	}
 	mixer := g.World().MustResource[*audio.Mixer]()
-	if err := g.AddSystem(core.PhaseFrame, "audio.mixing", mixingSystem(mixer)); err != nil {
+	panel := g.World().MustResource[*debug.Panel]()
+	panel.Status("controls", "UP/DOWN: master volume   LEFT/RIGHT: music bus   SPACE: play effect")
+	if err := g.AddSystem(core.PhaseFrame, "audio.mixing", mixingSystem(mixer, panel)); err != nil {
 		return err
 	}
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrint(screen, fmt.Sprintf(
-			"Audio mixing\n\nUP/DOWN: master volume   LEFT/RIGHT: music bus\n"+
-				"SPACE: play effect   ENTER: global pause/resume\n\n"+
-				"Master: %3.0f%%   Music: %3.0f%%   SFX: %3.0f%%   Global pause: %t\n"+
-				"Audible level = master x group x source volume.\n"+
-				"On global pause, music holds; effects play through.",
-			mixer.Master()*100, mixer.GroupVolume(audio.GroupMusic)*100,
-			mixer.GroupVolume(audio.GroupSFX)*100, mixer.Paused()))
-		return nil
-	})
 	return g.Run(runner)
 }
 
-func mixingSystem(mixer *audio.Mixer) core.System {
+func mixingSystem(mixer *audio.Mixer, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		panel.Status("mixer", fmt.Sprintf("master %3.0f%%   music %3.0f%%   sfx %3.0f%%   global pause: %t",
+			mixer.Master()*100, mixer.GroupVolume(audio.GroupMusic)*100,
+			mixer.GroupVolume(audio.GroupSFX)*100, mixer.Paused()))
+
 		step := volumeSpeed * ctx.DeltaTime.Seconds()
 		if ctx.Input.KeyHeld(input.KeyArrowUp) {
 			if err := mixer.SetMaster(mixer.Master() + step); err != nil {
@@ -94,6 +88,7 @@ func mixingSystem(mixer *audio.Mixer) core.System {
 		}
 		if ctx.Input.KeyPressed(input.KeyEnter) {
 			mixer.TogglePause()
+			panel.Message("global pause toggled - music holds, effects play through")
 		}
 		if ctx.Input.KeyPressed(input.KeySpace) {
 			shot := audio.NewSource(audioassets.Magic)

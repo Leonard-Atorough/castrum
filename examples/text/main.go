@@ -19,9 +19,6 @@ import (
 	"image/color"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
@@ -101,6 +98,14 @@ func run() error {
 		return err
 	}
 
+	if _, err := g.World().NewEntity(
+		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: screenH - 24}, Scale: geom.Vector2{X: 1, Y: 1}},
+		render.Sprite{Drawable: render.TextSource{Font: goFont,
+			Text: "the counter is one sprite whose string is rewritten each tick", Size: 20}},
+	); err != nil {
+		return err
+	}
+
 	// One fixed system rewrites the score's string every second; the
 	// engine re-measures and re-draws it without any other wiring.
 	elapsed := time.Duration(0)
@@ -117,13 +122,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrintAt(screen,
-			"the counter is one sprite whose string is rewritten each tick",
-			60, screenH-40)
-		return nil
-	})
 
 	// g.Run is the canonical entry: the guard against a second run
 	// lives on the game, not the runner.

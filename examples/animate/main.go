@@ -12,7 +12,6 @@ package main
 
 import (
 	"embed"
-	"fmt"
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/animation"
@@ -21,8 +20,6 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 //go:embed torch_light.png
@@ -89,17 +86,10 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
 
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrint(screen, "castrum animate: Enjoy the flame\nFPS: "+fmt.Sprintf("%.2f", ebiten.ActualFPS()))
-		return nil
-	})
-
-	// g.Run is the canonical entry: the guard against a second run
-	// lives on the game, not the runner.
 	return g.Run(runner)
 }

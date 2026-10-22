@@ -67,14 +67,21 @@ func (o *debugOverlay) sample(now time.Time, tick uint64) {
 	o.last, o.tick, o.frames = now, tick, 0
 }
 
-// draw samples and renders the status line and the panel's messages.
+// draw samples and renders the status line, the panel's status lines, and
+// the panel's messages, in that order.
 func (o *debugOverlay) draw(ctx *core.Context, screen *ebiten.Image) error {
 	o.sample(time.Now(), ctx.Tick)
 	if line := o.status(); line != "" {
 		ebitenutil.DebugPrint(screen, line)
 	}
-	for i, message := range o.panel.Lines() {
-		ebitenutil.DebugPrintAt(screen, message, 0, firstMessageY+i*messageRowHeight)
+	row := 0
+	for _, line := range o.panel.StatusLines() {
+		ebitenutil.DebugPrintAt(screen, line, 0, firstMessageY+row*messageRowHeight)
+		row++
+	}
+	for _, message := range o.panel.Lines() {
+		ebitenutil.DebugPrintAt(screen, message, 0, firstMessageY+row*messageRowHeight)
+		row++
 	}
 	return nil
 }

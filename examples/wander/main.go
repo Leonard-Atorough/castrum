@@ -1,7 +1,7 @@
 // Command wander demonstrates the engine renderer: an atlas sprite
 // wanders to random screen points at fixed ticks, the engine renders
-// it interpolated between ticks, and a user DrawFunc draws an overlay
-// above the engine-rendered world.
+// it interpolated between ticks, and the debug overlay draws its
+// rates above the engine-rendered world.
 //
 // Assets load from an embedded filesystem - the single-binary
 // alternative to the default working-directory filesystem that
@@ -15,9 +15,6 @@ package main
 import (
 	"embed"
 	"math/rand"
-
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -103,17 +100,10 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
-
-	// User draws run after the engine-rendered world, so this lands on
-	// the world.
-	runner.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		ebitenutil.DebugPrint(screen, "castrum wander - engine world below, this overlay above")
-		return nil
-	})
 
 	// g.Run is the canonical entry: the guard against a second run
 	// lives on the game, not the runner.
