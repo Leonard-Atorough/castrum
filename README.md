@@ -6,7 +6,7 @@ You declare what your game contains - an entity with a position and a picture, a
 
 Castrum uses [Ebitengine](https://ebitengine.org) as its underlying rendering and window management library, leveraging its capabilities to handle graphics, input, and other low-level tasks efficiently. To facilitate this, castrum wraps Ebitengine functionality within its own abstractions, providing a more structured and game-focused interface for developers.
 
-See the [feature overview](docs/getting-started/features.md) for what Castrum supports today, and the [roadmap](roadmap/README.md) for proposed feature sets and longer-term directions. Release targets are planning proposals rather than dated commitments; the guides and API reference describe what the current version actually supports. See the issues tab in the repository for live issues and features being planned/refined
+See the [feature overview](docs/getting-started/features.md) for what Castrum supports today and the [roadmap](ROADMAP.md) for candidate directions tracked in GitHub Issues. Version labels are proposals, not dated commitments; the guides and API reference describe the behavior supported by the current release.
 
 ## Documentation
 
