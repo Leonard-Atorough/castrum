@@ -14,6 +14,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/timer"
 )
@@ -111,6 +112,21 @@ func New(opts ...option) (*Game, error) {
 			return timer.NewGroups(), nil
 		}); err != nil {
 			return nil, fmt.Errorf("castrum: provide timer groups: %w", err)
+		}
+	}
+
+	if options.systems&sysScenes != 0 {
+		director := scene.NewDirector()
+		if err := g.world.Provide(func(*core.World) (*scene.Director, error) {
+			return director, nil
+		}); err != nil {
+			return nil, fmt.Errorf("castrum: provide scene director: %w", err)
+		}
+		if err := g.AddSystem(core.PhaseStartup, scene.StartupSystemName, scene.NewStartupSystem(director)); err != nil {
+			return nil, err
+		}
+		if err := g.AddSystem(core.PhaseFrame, scene.FrameSystemName, scene.NewFrameSystem(director)); err != nil {
+			return nil, err
 		}
 	}
 

@@ -13,6 +13,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/timer"
 )
@@ -432,6 +433,142 @@ func TestWithTimerProvidesGroups(t *testing.T) {
 	}
 	if _, err := g.World().Resource[*timer.Groups](); err != nil {
 		t.Errorf("WithTimer should provide timer groups: %v", err)
+	}
+}
+
+func TestWithScenesDoesNotControlGroups(t *testing.T) {
+	g, err := New(WithScenes())
+	if err != nil {
+		t.Fatalf("New(WithScenes): %v", err)
+	}
+	director, err := g.World().Resource[*scene.Director]()
+	if err != nil {
+		t.Fatalf("resolve scene director: %v", err)
+	}
+
+	var updates int
+	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "mission.update", core.SystemFunc(func(*core.Context) error {
+		updates++
+		return nil
+	})); err != nil {
+		t.Fatalf("AddSystemToGroup: %v", err)
+	}
+	if err := g.Startup(); err != nil {
+		t.Fatalf("Startup: %v", err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance before load: %v", err)
+	}
+	if updates != 1 {
+		t.Fatalf("group updates before load: got %d, want 1", updates)
+	}
+
+	id, err := director.Load(&scene.Blueprint{
+		Name:       "mission",
+		EntityList: []scene.EntitySpec{{Name: "root"}},
+	})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance after load: %v", err)
+	}
+	if updates != 2 {
+		t.Fatalf("group updates after load: got %d, want 2", updates)
+	}
+	if err := g.SetGroupEnabled("mission", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := director.Load(&scene.Blueprint{Name: "overlay", EntityList: []scene.EntitySpec{{Name: "root"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if updates != 2 {
+		t.Fatalf("scene load enabled disabled group: got %d updates", updates)
+	}
+	if err := director.Update(id, &scene.Blueprint{Name: "new mission", EntityList: []scene.EntitySpec{{Name: "root"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if updates != 2 {
+		t.Fatalf("scene update enabled disabled group: got %d updates", updates)
+	}
+
+	id, err = director.Switch(&scene.Blueprint{Name: "replacement", EntityList: []scene.EntitySpec{{Name: "root"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if updates != 2 {
+		t.Fatalf("scene switch enabled disabled group: got %d updates", updates)
+	}
+	if err := director.Remove(id); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance after remove: %v", err)
+	}
+	if updates != 2 {
+		t.Fatalf("scene removal enabled disabled group: got %d updates", updates)
+	}
+	if err := g.SetGroupEnabled("mission", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if updates != 3 {
+		t.Fatalf("group updates after explicit enable: got %d, want 3", updates)
+	}
+	id, err = director.Load(&scene.Blueprint{Name: "another", EntityList: []scene.EntitySpec{{Name: "root"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if err := director.Remove(id); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if updates != 5 {
+		t.Fatalf("scene removal disabled enabled group: got %d updates, want 5", updates)
+	}
+}
+
+func TestWithScenesProcessesStartupRequests(t *testing.T) {
+	g, err := New(WithScenes())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	director := g.World().MustResource[*scene.Director]()
+	id, err := director.Load(&scene.Blueprint{Name: "startup", EntityList: []scene.EntitySpec{{Name: "root"}}})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	var entered bool
+	if err := g.AddSystem(core.PhaseStartup, "check scene", core.SystemFunc(func(*core.Context) error {
+		for entry := range core.NewQuery(g.World()).With(scene.OwnershipRecord{}).Execute() {
+			owner, _ := entry.Component[scene.OwnershipRecord]()
+			entered = entered || owner.Instance == id
+		}
+		return nil
+	})); err != nil {
+		t.Fatalf("AddSystem: %v", err)
+	}
+	if err := g.Startup(); err != nil {
+		t.Fatalf("Startup: %v", err)
+	}
+	if !entered {
+		t.Fatal("startup system did not see queued scene entities")
 	}
 }
 
