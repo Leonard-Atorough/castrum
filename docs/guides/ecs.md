@@ -36,7 +36,7 @@ Use `Update` for the common get-mutate-set operation. Use `AddComponent` and `Re
 
 ## Components and validation
 
-Components are plain data. Attach several components to compose an entity instead of putting behavior or a world reference inside a component. Components with invariants can implement `core.Validatable`:
+Components are plain data. Attach several components to compose an entity instead of putting behavior or a world reference inside a component. Components must be non-pointer values; copying a component does not copy data referenced by its fields. Components with invariants can implement `core.Validatable`:
 
 ```go
 type Health struct {
@@ -77,6 +77,22 @@ func moveSystem(player *core.Entity) core.System {
 `Context` is read-only system input. It includes the world, frame and fixed-tick counters, the current `DeltaTime`, interpolation `Alpha`, logical render dimensions, and input snapshots. `DeltaTime` is the display-frame duration in `PhaseFrame` and the fixed tick interval in `PhaseFixed`. Register systems in dependency order within a phase: a reader must follow the system that writes the value it consumes. See the [scheduler reference](../reference/the-scheduler.md) for phase order and runner details.
 
 Capture configuration, entity IDs, and reusable queries in the system closure. A query can be initialized on the first call, after setup has finished, and reused on subsequent calls.
+
+Named groups registered with `Game.AddSystemToGroup` start enabled. Use
+`Game.SetGroupEnabled` to change a group's state across phases; systems added
+to that group later inherit the same state. Scene transitions do not change
+group states. A system can instead run normally and query for the components
+it needs; an empty query does no entity work.
+
+```go
+if err := g.AddSystemToGroup(core.PhaseFixed, "gameplay", "move", moveSystem(player)); err != nil {
+	return err
+}
+// Pause these systems without unloading their scene.
+if err := g.SetGroupEnabled("gameplay", false); err != nil {
+	return err
+}
+```
 
 ## Resources
 

@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -75,6 +76,32 @@ func TestSetComponent(t *testing.T) {
 	}
 	if err := e.SetComponent(w, velocity{dx: 1}); err == nil {
 		t.Error("SetComponent for a missing component should error")
+	}
+}
+
+func TestComponentWritesRejectPointers(t *testing.T) {
+	w := NewWorld()
+	entity, err := w.NewEntity(position{x: 1})
+	if err != nil {
+		t.Fatalf("NewEntity: %v", err)
+	}
+	var nilPointer *velocity
+	for _, value := range []*velocity{{dx: 2}, nilPointer} {
+		if err := entity.AddComponent(w, value); err == nil || !strings.Contains(err.Error(), "pointer") {
+			t.Errorf("AddComponent(%v) error = %v, want pointer error", value, err)
+		}
+		if entity.HasComponent[*velocity](w) {
+			t.Error("pointer component was added")
+		}
+		if err := entity.SetComponent(w, value); err == nil || !strings.Contains(err.Error(), "pointer") {
+			t.Errorf("SetComponent(%v) error = %v, want pointer error", value, err)
+		}
+	}
+	if got, _ := entity.Component[position](w); got.x != 1 {
+		t.Fatalf("existing component changed: %+v", got)
+	}
+	if err := entity.AddComponent(w, velocity{dx: 3}); err != nil {
+		t.Fatalf("AddComponent value: %v", err)
 	}
 }
 

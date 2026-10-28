@@ -65,9 +65,12 @@ func (e *Entity) HasComponent[T any](w *World) bool {
 
 // SetComponent overwrites the entity's component of type T. The entity
 // must already have the component; use AddComponent to attach one. It
-// returns an error if the entity does not exist or has no component of
-// that type.
+// returns an error if value is a pointer, the entity does not exist, or it has
+// no component of that type.
 func (e *Entity) SetComponent[T any](w *World, value T) error {
+	if err := validateComponentPointer(value); err != nil {
+		return fmt.Errorf("castrum: SetComponent: %w", err)
+	}
 	return w.archetypes.SetComponent(e.id, reflect.TypeFor[T](), value)
 }
 
@@ -85,9 +88,13 @@ func (e *Entity) Update[T any](w *World, fn func(*T)) error {
 }
 
 // AddComponent attaches a component of type T to the entity. Existing
-// components are preserved. Adding a [Transform] also adds an initial
-// [PrevTransform] if the entity does not already have one.
+// components are preserved. It returns an error if value is a pointer. Adding
+// a [Transform] also adds an initial [PrevTransform] if the entity does not
+// already have one.
 func (e *Entity) AddComponent[T any](w *World, value T) error {
+	if err := validateComponentPointer(value); err != nil {
+		return fmt.Errorf("castrum: AddComponent: %w", err)
+	}
 	if reflect.TypeFor[T]() == reflect.TypeFor[Transform]() && !e.HasComponent[PrevTransform](w) {
 		transform := any(value).(Transform)
 		res := w.archetypes.AddComponents(e.id,
