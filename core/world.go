@@ -152,7 +152,8 @@ func (w *World) resolve(key reflect.Type) error {
 }
 
 // NewEntity creates an entity with the given components and returns its
-// handle. It returns an error if a component is nil or fails validation.
+// handle. It returns an error if a component is nil, a pointer, or fails
+// validation.
 // Adding a [Transform] also adds its initial [PrevTransform] unless one is
 // provided.
 func (w *World) NewEntity(components ...any) (*Entity, error) {
@@ -173,7 +174,7 @@ func (w *World) NewEntity(components ...any) (*Entity, error) {
 // NewEntities creates count entities with the same components and returns
 // their handles. Count must be non-negative. If creation fails, it returns
 // the error and no handles; entities created before the failure remain in
-// the world.
+// the world. Components must be non-nil, non-pointer values.
 func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
 	if count < 0 {
 		return nil, fmt.Errorf("castrum: NewEntities: count must be non-negative, got %d", count)
@@ -250,11 +251,21 @@ func validateComponents(components []any) error {
 		if c == nil {
 			return fmt.Errorf("component at index %d is nil", i)
 		}
+		if err := validateComponentPointer(c); err != nil {
+			return fmt.Errorf("component at index %d: %w", i, err)
+		}
 		if v, ok := c.(Validatable); ok {
 			if err := v.Validate(); err != nil {
 				return fmt.Errorf("component at index %d (%T): %w", i, c, err)
 			}
 		}
+	}
+	return nil
+}
+
+func validateComponentPointer(component any) error {
+	if typ := reflect.TypeOf(component); typ != nil && typ.Kind() == reflect.Pointer {
+		return fmt.Errorf("component %T is a pointer", component)
 	}
 	return nil
 }

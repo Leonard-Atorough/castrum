@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -472,6 +473,25 @@ func TestNewEntityNilComponentErrors(t *testing.T) {
 	// NewEntities propagates the error without partial results.
 	if entities, err := w.NewEntities(2, queryPos{X: 3, Y: 3}, nil); err == nil || entities != nil {
 		t.Fatal("NewEntities with a nil component should return an error and no entities")
+	}
+}
+
+func TestWorldCreationRejectsPointerComponents(t *testing.T) {
+	var nilPointer *queryPos
+	for _, component := range []*queryPos{{X: 1}, nilPointer} {
+		t.Run(fmt.Sprintf("%v", component), func(t *testing.T) {
+			w := NewWorld()
+			if _, err := w.NewEntity(component); err == nil || !strings.Contains(err.Error(), "pointer") {
+				t.Fatalf("NewEntity error = %v, want pointer error", err)
+			}
+			if entities, err := w.NewEntities(2, component); err == nil || !strings.Contains(err.Error(), "pointer") || entities != nil {
+				t.Fatalf("NewEntities = %v, %v; want pointer error and no entities", entities, err)
+			}
+			entity, err := w.NewEntity(queryPos{X: 2})
+			if err != nil || entity.ID() != 0 {
+				t.Fatalf("value component after failures = %v, %v; want ID 0", entity, err)
+			}
+		})
 	}
 }
 
