@@ -36,6 +36,14 @@ The engine's normal registrations are:
 
 The optional subsystems are opt-in: `castrum.WithAnimation`, `castrum.WithCollision`, and `castrum.WithTimer` each register their system, and `castrum.WithDefaultSystems` registers all three. Every system's registration name is exported as a constant from the package that owns the system - `core.PrevTransformSystemName`, `input.FrameSystemName`, `input.TickSystemName`, `animation.SystemName`, `collision.SystemName`, `timer.SystemName`, `ebitrun.AudioSystemName` - so no call site hand-types the strings; the names identify registrations in error messages and will serve as the handles for future ordering constraints.
 
+## System groups
+
+`Game.AddSystemToGroup` assigns a system to a named group. Groups start
+enabled, regardless of whether scenes are enabled. `Game.SetGroupEnabled`
+changes a registered group's state across phases and applies it to systems
+registered in the group later. It affects systems that have not yet run in
+the current phase. An empty or unregistered group returns an error.
+
 ## Input timing
 
 The runner publishes a raw snapshot before `Advance` runs. The frame input system updates the frame action view once per display frame. The fixed input system publishes the press and release edges accumulated since the previous tick, so every system in one fixed tick sees the same tick view.
