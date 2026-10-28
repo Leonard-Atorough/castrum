@@ -435,6 +435,135 @@ func TestWithTimerProvidesGroups(t *testing.T) {
 	}
 }
 
+func TestSetGroupEnabledAcrossPhasesAndRegistrations(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	var fixed, frame, late, other, ungrouped int
+	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "first fixed", core.SystemFunc(func(*core.Context) error {
+		fixed++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystemToGroup(core.PhaseFixed, "other", "other fixed", core.SystemFunc(func(*core.Context) error {
+		other++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "ungrouped fixed", core.SystemFunc(func(*core.Context) error {
+		ungrouped++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.SetGroupEnabled("mission", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystemToGroup(core.PhaseFrame, "mission", "late frame", core.SystemFunc(func(*core.Context) error {
+		frame++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "late fixed", core.SystemFunc(func(*core.Context) error {
+		late++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance inactive: %v", err)
+	}
+	if fixed != 0 || frame != 0 || late != 0 {
+		t.Fatalf("inactive updates: fixed=%d frame=%d late=%d", fixed, frame, late)
+	}
+	if other != 1 || ungrouped != 1 {
+		t.Fatalf("unrelated updates: other=%d ungrouped=%d, want 1 each", other, ungrouped)
+	}
+	if err := g.SetGroupEnabled("mission", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if fixed != 1 || frame != 1 || late != 1 {
+		t.Fatalf("active updates: fixed=%d frame=%d late=%d, want 1 each", fixed, frame, late)
+	}
+}
+
+func TestSetGroupEnabledRejectsUnknownGroups(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"", "missing"} {
+		if err := g.SetGroupEnabled(name, false); err == nil {
+			t.Errorf("SetGroupEnabled(%q) accepted an invalid group", name)
+		}
+	}
+	var updates int
+	if err := g.AddSystemToGroup(core.PhaseFixed, "missing", "later", core.SystemFunc(func(*core.Context) error {
+		updates++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if updates != 1 {
+		t.Fatalf("rejected group change affected later registration: updates=%d", updates)
+	}
+}
+
+func TestSetGroupEnabledAffectsLaterSystemsInCurrentPhase(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var updates int
+	if err := g.AddSystem(core.PhaseFrame, "disable", core.SystemFunc(func(*core.Context) error {
+		return g.SetGroupEnabled("mission", false)
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystemToGroup(core.PhaseFrame, "mission", "later", core.SystemFunc(func(*core.Context) error {
+		updates++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if updates != 0 {
+		t.Fatalf("disabled system ran in current phase: updates=%d", updates)
+	}
+}
+
+func TestGroupedSystemsRemainEnabledWithoutScenes(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	var updates int
+	if err := g.AddSystemToGroup(core.PhaseFixed, "custom", "custom.update", core.SystemFunc(func(*core.Context) error {
+		updates++
+		return nil
+	})); err != nil {
+		t.Fatalf("AddSystemToGroup: %v", err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if updates != 1 {
+		t.Fatalf("group updates: got %d, want 1", updates)
+	}
+}
+
 func TestTimerEmitsCompletedSignal(t *testing.T) {
 	// FixedTPS 4 => fixedDT 250ms; a 300ms one-shot completes on tick 2.
 	g, err := New(WithTimer(), WithFixedTPS(4))

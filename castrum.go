@@ -18,14 +18,14 @@ import (
 	"github.com/Leonard-Atorough/castrum/timer"
 )
 
-// Game is the core engine: configuration, schedules, and the fixed loop.
-// It is runner-agnostic: a [Runner] drives it and owns the window, the draw
-// surface, and input.
+// Game owns a game's world, configuration, and update schedules. A [Runner]
+// supplies the platform loop, window, draw surface, and input.
 type Game struct {
-	opts      Options
-	world     *core.World
-	ctx       core.Context
-	schedules map[core.Phase]*runtime.Schedule[core.System]
+	opts        Options
+	world       *core.World
+	ctx         core.Context
+	schedules   map[core.Phase]*runtime.Schedule[core.System]
+	groupStates map[string]bool
 
 	mainCamera *core.Entity
 	hub        *signal.Hub
@@ -39,10 +39,8 @@ type Game struct {
 	timeScale float64
 }
 
-// New creates a Game from defaults overridden by opts. The option
-// constructors never fail; all validation happens here in a single pass,
-// and New returns an error for invalid values, leaving no half-built
-// game behind.
+// New creates a [Game] with default options overridden by opts. It returns
+// an error if the resulting configuration is invalid.
 func New(opts ...option) (*Game, error) {
 	options := defaultOptions()
 	for _, o := range opts {
@@ -52,10 +50,11 @@ func New(opts ...option) (*Game, error) {
 		return nil, err
 	}
 	g := &Game{
-		opts:      options,
-		world:     core.NewWorld(),
-		schedules: map[core.Phase]*runtime.Schedule[core.System]{},
-		timeScale: 1,
+		opts:        options,
+		world:       core.NewWorld(),
+		schedules:   map[core.Phase]*runtime.Schedule[core.System]{},
+		groupStates: make(map[string]bool),
+		timeScale:   1,
 	}
 	g.ctx.World = g.world
 
@@ -92,8 +91,6 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide debug panel: %w", err)
 	}
 
-	// The optional subsystems register in the engine's documented
-	// order, only when their With* option enabled them.
 	if options.systems&sysAnimation != 0 {
 		if err := g.AddSystem(core.PhaseFixed, animation.SystemName, animation.NewAnimationSystem(clips)); err != nil {
 			return nil, err
@@ -138,8 +135,8 @@ func New(opts ...option) (*Game, error) {
 	return g, nil
 }
 
-// Options returns a copy of the converged configuration. The runner reads
-// game identity (title) from it.
+// Options returns a copy of the game's configuration. Runners use it to read
+// the game title.
 func (g *Game) Options() Options {
 	return g.opts
 }
@@ -149,20 +146,28 @@ func (g *Game) World() *core.World {
 	return g.world
 }
 
-// MainCamera returns the engine's default camera entity: zoom 1 at
-// the world origin, spawned by New. Move it by writing its
-// Transform. Spawning your own Camera with Primary set replaces the
-// view entirely - the collector prefers user-spawned primaries.
+// MainCamera returns the default camera created by [New], positioned at the
+// world origin with zoom 1. Set its [core.Transform] to move it. A user-spawned
+// primary camera takes precedence.
 func (g *Game) MainCamera() *core.Entity {
 	return g.mainCamera
 }
 
-// AddSystem binds systems to a schedule under a name. Systems run in
-// registration order. The name identifies the registration in error
-// messages. AddSystem returns an error if the name is empty.
+// AddSystem registers an ungrouped system under name in phase's schedule.
+// Systems run in registration order. It returns an error if name is empty.
 func (g *Game) AddSystem(phase core.Phase, name string, system core.System) error {
+	return g.AddSystemToGroup(phase, "", name, system)
+}
+
+// AddSystemToGroup registers a system under name in phase's schedule,
+// optionally assigning it to group. Systems run in registration order.
+//
+// An empty group leaves the system ungrouped. The name appears in error
+// messages; an empty name returns an error. Named groups start enabled and
+// retain their state when systems are registered later.
+func (g *Game) AddSystemToGroup(phase core.Phase, group, name string, system core.System) error {
 	if name == "" {
-		return fmt.Errorf("castrum: AddSystem: system name must not be empty (phase %s)", phase)
+		return fmt.Errorf("castrum: AddSystemToGroup: system name must not be empty (phase %s)", phase)
 	}
 	sched, ok := g.schedules[phase]
 	if !ok {
@@ -171,8 +176,37 @@ func (g *Game) AddSystem(phase core.Phase, name string, system core.System) erro
 		})
 		g.schedules[phase] = sched
 	}
-	sched.Add(runtime.Entry[core.System]{Name: name, System: system})
+	sched.Add(runtime.Entry[core.System]{Name: name, System: system, Group: group})
+	if group != "" {
+		if enabled, ok := g.groupStates[group]; ok {
+			sched.SetGroupEnabled(group, enabled)
+		}
+	}
+	return nil
+}
 
+// SetGroupEnabled enables or disables a registered group across all phases.
+// The state also applies to systems registered in the group later. It returns
+// an error if group is empty or has no registered systems. A change affects
+// subsequent systems, including later systems in the current phase.
+func (g *Game) SetGroupEnabled(group string, enabled bool) error {
+	if group == "" {
+		return fmt.Errorf("castrum: SetGroupEnabled: group must not be empty")
+	}
+	registered := false
+	for _, sched := range g.schedules {
+		if sched.Registered(group) {
+			registered = true
+			break
+		}
+	}
+	if !registered {
+		return fmt.Errorf("castrum: SetGroupEnabled: group %q is not registered", group)
+	}
+	g.groupStates[group] = enabled
+	for _, sched := range g.schedules {
+		sched.SetGroupEnabled(group, enabled)
+	}
 	return nil
 }
 
@@ -239,21 +273,19 @@ func (g *Game) Alpha() float64 {
 	return float64(g.acc) / float64(g.opts.fixedDT)
 }
 
-// Pause stops fixed updates: no time accumulates and no fixed ticks run.
-// Frame updates, input polling, and rendering continue, so pause menus and
-// overlays keep working; the frame phase sees unscaled wall-clock time.
-// Pause takes effect on the next [Game.Advance] call.
+// Pause stops fixed updates and stops adding time to the fixed-loop
+// accumulator. Frame updates still run, so input and rendering can continue.
+// The change takes effect on the next [Game.Advance] call.
 //
-// Pause is not the same as a time scale of zero: pausing does not touch
-// [Game.TimeScale], and the accumulator resumes from where it stopped.
-// Timers and animation advance with the fixed tick and therefore pause
-// automatically; audio is not auto-paused - games opt in through the Mixer.
+// Pausing does not change [Game.TimeScale] or discard the accumulator.
+// [Game.Resume] continues from where the game stopped. Audio is not paused
+// automatically.
 func (g *Game) Pause() {
 	g.paused = true
 }
 
-// Resume reverses [Game.Pause]. Fixed updates continue from the exact
-// accumulator position they stopped at, so no paused time is recovered.
+// Resume clears the paused state. The next [Game.Advance] continues fixed
+// updates from the accumulator position preserved by [Game.Pause].
 func (g *Game) Resume() {
 	g.paused = false
 }
@@ -271,8 +303,7 @@ func (g *Game) TimeScale() float64 {
 
 // SetTimeScale sets the multiplier applied to the time accumulated toward
 // fixed ticks. It returns an error for a scale of zero or less; use
-// [Game.Pause] to stop the simulation, a zero scale would silently
-// discard accumulated time on resume.
+// [Game.Pause] to stop fixed updates while preserving the accumulator.
 //
 // The scale multiplies only the accumulator's time contribution; the frame
 // phase and [core.Context.DeltaTime] during frame updates are unaffected.
