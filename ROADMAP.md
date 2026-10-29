@@ -18,9 +18,10 @@ roadmap, describe the behavior supported by the current release.
 - [All open issues](https://github.com/Leonard-Atorough/castrum/issues)
 
 The remaining v0.3.0 proposals from the former version plan are now tracked
-as [a scene/state lifecycle](https://github.com/Leonard-Atorough/castrum/issues/118),
-[a project starter or template](https://github.com/Leonard-Atorough/castrum/issues/119),
+as [a scene/state lifecycle](https://github.com/Leonard-Atorough/castrum/issues/118)
 and [verified platform build and packaging guidance](https://github.com/Leonard-Atorough/castrum/issues/120).
+A starter template for [the project starter proposal](https://github.com/Leonard-Atorough/castrum/issues/119)
+is available in [templates/starter](templates/starter/README.md).
 
 ## Planning principles
 
