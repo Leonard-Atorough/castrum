@@ -49,6 +49,34 @@ func TestUpdateResolvesBindings(t *testing.T) {
 	}
 }
 
+func TestFlushEdgesClearsPendingTickEdgesAndPreservesState(t *testing.T) {
+	am := mustMap(t, Bindings{"jump": []Input{KeyInput{Key: KeySpace}}}, 0)
+	s := &Snapshot{}
+	s.Keys[KeySpace] = State{Pressed: true, Held: true}
+	am.Update(s, 0.1)
+
+	am.FlushEdges()
+
+	if am.JustPressed("jump") || am.JustReleased("jump") || am.Pressed("jump") || am.Released("jump") {
+		t.Fatal("FlushEdges should clear frame, pending tick, and current tick edges")
+	}
+	if !am.Held("jump") || math.Abs(am.Duration("jump")-0.1) > 1e-9 {
+		t.Fatalf("held = %v, duration = %v; want true and 0.1", am.Held("jump"), am.Duration("jump"))
+	}
+
+	am.Tick()
+	if am.Pressed("jump") || am.Released("jump") {
+		t.Fatal("Tick should not deliver edges that FlushEdges cleared")
+	}
+
+	s.Keys[KeySpace] = State{Held: true}
+	am.Update(s, 0.1)
+	if am.JustPressed("jump") || !am.Held("jump") || math.Abs(am.Duration("jump")-0.2) > 1e-9 {
+		t.Fatalf("after held update: just pressed = %v, held = %v, duration = %v; want false, true, and 0.2",
+			am.JustPressed("jump"), am.Held("jump"), am.Duration("jump"))
+	}
+}
+
 func TestLatchDrainsPerTick(t *testing.T) {
 	am := mustMap(t, Bindings{
 		"jump": []Input{KeyInput{Key: KeySpace}},

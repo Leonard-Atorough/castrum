@@ -265,16 +265,20 @@ func (am *ActionMap) Axis(action Action) float64 {
 	return st.axis
 }
 
-// FlushEdges clears pending JustPressed/JustReleased edges (frame and tick
-// latches) without touching Held or durations. Called on scene transitions
-// so a press that triggered a switch cannot fire in the next scene.
+// FlushEdges clears pending press and release edges without touching Held or
+// durations. Called on scene transitions so a press that triggered a switch
+// cannot fire in the next scene.
 func (am *ActionMap) FlushEdges() {
 	if am == nil {
 		return
 	}
+
 	for _, st := range am.states {
-		st.thisFrame = State{}
-		st.thisTick = State{}
+		st.thisFrame.Pressed = false
+		st.thisFrame.Released = false
+		st.sinceLastTick = State{}
+		st.thisTick.Pressed = false
+		st.thisTick.Released = false
 	}
 }
 
