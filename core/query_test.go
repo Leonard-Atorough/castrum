@@ -8,10 +8,51 @@ type queryPos struct{ X, Y float64 }
 type queryVel struct{ X, Y float64 }
 type queryTag struct{}
 
+func mustQueryEntity(t *testing.T, w *World, components ...any) *Entity {
+	t.Helper()
+	entity, err := w.NewEntity(components...)
+	if err != nil {
+		t.Fatalf("create query entity: %v", err)
+	}
+	return entity
+}
+
+func TestQueryFirst(t *testing.T) {
+	w := NewWorld()
+	q := NewQuery(w).With(queryPos{}).Where(func(e Entry) bool {
+		p, ok := e.Component[queryPos]()
+		return ok && p.X > 10
+	})
+	if _, ok := q.First(); ok {
+		t.Fatal("First on an empty world found an entry")
+	}
+	mustQueryEntity(t, w, queryPos{X: 5})
+	if _, ok := q.First(); ok {
+		t.Fatal("First found an entry excluded by the predicate")
+	}
+	first := mustQueryEntity(t, w, queryPos{X: 15})
+	second := mustQueryEntity(t, w, queryPos{X: 25})
+
+	entry, ok := q.First()
+	if !ok || entry.ID() != first.ID() {
+		t.Fatalf("First = %v, %t; want entity %d", entry.ID(), ok, first.ID())
+	}
+	if p, ok := entry.Component[queryPos](); !ok || p.X != 15 {
+		t.Fatalf("First component = %v, %t; want X=15", p, ok)
+	}
+	var ids []EntityID
+	for e := range q.Execute() {
+		ids = append(ids, e.ID())
+	}
+	if len(ids) != 2 || ids[0] != first.ID() || ids[1] != second.ID() {
+		t.Fatalf("Execute after First = %v, want [%d %d]", ids, first.ID(), second.ID())
+	}
+}
+
 func TestQueryYieldsMatchingEntities(t *testing.T) {
 	w := NewWorld()
-	_, _ = w.NewEntity(queryPos{X: 1, Y: 2}) // pos only: excluded by With(vel)
-	both, _ := w.NewEntity(queryPos{X: 3, Y: 4}, queryVel{X: 5, Y: 6})
+	mustQueryEntity(t, w, queryPos{X: 1, Y: 2})
+	both := mustQueryEntity(t, w, queryPos{X: 3, Y: 4}, queryVel{X: 5, Y: 6})
 
 	q := NewQuery(w).
 		With(queryPos{}, queryVel{})
@@ -35,8 +76,8 @@ func TestQueryYieldsMatchingEntities(t *testing.T) {
 
 func TestQueryWithoutExcludes(t *testing.T) {
 	w := NewWorld()
-	posOnly, _ := w.NewEntity(queryPos{X: 1, Y: 2})
-	_, _ = w.NewEntity(queryPos{X: 3, Y: 4}, queryVel{X: 5, Y: 6})
+	posOnly := mustQueryEntity(t, w, queryPos{X: 1, Y: 2})
+	mustQueryEntity(t, w, queryPos{X: 3, Y: 4}, queryVel{X: 5, Y: 6})
 
 	q := NewQuery(w).
 		With(queryPos{}).
@@ -53,9 +94,9 @@ func TestQueryWithoutExcludes(t *testing.T) {
 
 func TestQueryWhereFilters(t *testing.T) {
 	w := NewWorld()
-	_, _ = w.NewEntity(queryPos{X: 5, Y: 0})
-	high1, _ := w.NewEntity(queryPos{X: 15, Y: 0})
-	high2, _ := w.NewEntity(queryPos{X: 25, Y: 0})
+	mustQueryEntity(t, w, queryPos{X: 5, Y: 0})
+	high1 := mustQueryEntity(t, w, queryPos{X: 15, Y: 0})
+	high2 := mustQueryEntity(t, w, queryPos{X: 25, Y: 0})
 
 	q := NewQuery(w).
 		With(queryPos{}).
@@ -79,9 +120,9 @@ func TestQueryWhereFilters(t *testing.T) {
 
 func TestQueryEarlyStop(t *testing.T) {
 	w := NewWorld()
-	a, _ := w.NewEntity(queryPos{X: 1, Y: 1})
-	b, _ := w.NewEntity(queryPos{X: 2, Y: 2})
-	c, _ := w.NewEntity(queryPos{X: 3, Y: 3})
+	a := mustQueryEntity(t, w, queryPos{X: 1, Y: 1})
+	b := mustQueryEntity(t, w, queryPos{X: 2, Y: 2})
+	c := mustQueryEntity(t, w, queryPos{X: 3, Y: 3})
 	all := []EntityID{a.ID(), b.ID(), c.ID()}
 
 	q := NewQuery(w).With(queryPos{})
@@ -116,7 +157,7 @@ func TestQueryEarlyStop(t *testing.T) {
 
 func TestQueryGenerationInvalidation(t *testing.T) {
 	w := NewWorld()
-	first, _ := w.NewEntity(queryPos{X: 1, Y: 1}, queryVel{X: 1, Y: 1})
+	first := mustQueryEntity(t, w, queryPos{X: 1, Y: 1}, queryVel{X: 1, Y: 1})
 
 	q := NewQuery(w).
 		With(queryPos{}, queryVel{})
@@ -131,7 +172,7 @@ func TestQueryGenerationInvalidation(t *testing.T) {
 
 	// Same-key spawn adds no archetype: the cached matches stay valid and
 	// the new entity is still seen because iteration reads live storage.
-	second, _ := w.NewEntity(queryPos{X: 2, Y: 2}, queryVel{X: 2, Y: 2})
+	second := mustQueryEntity(t, w, queryPos{X: 2, Y: 2}, queryVel{X: 2, Y: 2})
 	count = 0
 	for range q.Execute() {
 		count++
@@ -142,7 +183,7 @@ func TestQueryGenerationInvalidation(t *testing.T) {
 
 	// A new component combination creates a new archetype and bumps the
 	// generation: the query must re-match and include it.
-	_, _ = w.NewEntity(queryPos{X: 3, Y: 3}, queryVel{X: 3, Y: 3}, queryTag{})
+	mustQueryEntity(t, w, queryPos{X: 3, Y: 3}, queryVel{X: 3, Y: 3}, queryTag{})
 	count = 0
 	for range q.Execute() {
 		count++
@@ -222,7 +263,7 @@ func TestQueryGenerationInvalidation(t *testing.T) {
 
 func TestQueryGetLimitedToWithTypes(t *testing.T) {
 	w := NewWorld()
-	_, _ = w.NewEntity(queryPos{X: 1, Y: 2}, queryVel{X: 3, Y: 4})
+	mustQueryEntity(t, w, queryPos{X: 1, Y: 2}, queryVel{X: 3, Y: 4})
 
 	q := NewQuery(w).With(queryPos{})
 	for e := range q.Execute() {
@@ -237,10 +278,10 @@ func TestQueryGetLimitedToWithTypes(t *testing.T) {
 
 func TestQueryOrderDeterministic(t *testing.T) {
 	w := NewWorld()
-	_, _ = w.NewEntity(queryPos{X: 1, Y: 1}, queryVel{X: 1, Y: 1})
-	_, _ = w.NewEntity(queryPos{X: 2, Y: 2}, queryTag{})
-	_, _ = w.NewEntity(queryPos{X: 3, Y: 3})
-	_, _ = w.NewEntity(queryPos{X: 4, Y: 4}, queryVel{X: 4, Y: 4}, queryTag{})
+	mustQueryEntity(t, w, queryPos{X: 1, Y: 1}, queryVel{X: 1, Y: 1})
+	mustQueryEntity(t, w, queryPos{X: 2, Y: 2}, queryTag{})
+	mustQueryEntity(t, w, queryPos{X: 3, Y: 3})
+	mustQueryEntity(t, w, queryPos{X: 4, Y: 4}, queryVel{X: 4, Y: 4}, queryTag{})
 
 	q := NewQuery(w).With(queryPos{})
 
@@ -263,8 +304,8 @@ func TestQueryOrderDeterministic(t *testing.T) {
 
 func TestQueryReentrantPanics(t *testing.T) {
 	w := NewWorld()
-	_, _ = w.NewEntity(queryPos{X: 1, Y: 1})
-	_, _ = w.NewEntity(queryPos{X: 2, Y: 2})
+	mustQueryEntity(t, w, queryPos{X: 1, Y: 1})
+	mustQueryEntity(t, w, queryPos{X: 2, Y: 2})
 
 	q := NewQuery(w).With(queryPos{})
 

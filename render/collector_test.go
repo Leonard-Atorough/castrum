@@ -595,35 +595,28 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 func TestCollectSortsLayerThenOrderThenY(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-	at := func(texture asset.ID, y float64, sprite Sprite) {
-		spawnTextureSprite(t, w, texture, geom.Vector2{Y: y}, geom.Vector2{Y: y}, sprite)
+	at := func(x, y float64, sprite Sprite) {
+		pos := geom.Vector2{X: x, Y: y}
+		spawnTextureSprite(t, w, "tex.png", pos, pos, sprite)
 	}
 
-	at("tex.png", -10, Sprite{Layer: 0})
-	at("tex.png", 10, Sprite{Layer: 0})
-	at("tex.png", -10, Sprite{Layer: 1})
-	at("tex.png", -10, Sprite{Layer: 0, SortOrder: 1})
-	at("tex.png", 10, Sprite{Layer: 0, SortOrder: -1})
-	at("tex.png", 0, Sprite{Layer: 2})
-	at("tex2.png", 0, Sprite{Layer: 2})
+	at(1, -10, Sprite{SortOrder: 1})
+	at(2, 0, Sprite{Layer: 2})
+	at(3, -10, Sprite{Layer: 1})
+	at(4, -10, Sprite{})
+	at(5, 10, Sprite{SortOrder: -1})
+	at(6, 10, Sprite{})
+	at(7, 0, Sprite{Layer: 2})
 
-	want := []asset.ID{
-		"tex.png",
-		"tex.png",
-		"tex.png",
-		"tex.png",
-		"tex.png",
-		"tex.png",
-		"tex2.png",
-	}
+	want := []float64{5, 4, 6, 1, 3, 2, 7}
 
 	list := collect(t, NewCollector(w), drawContext(w, 0))
 	if len(list.Items) != len(want) {
 		t.Fatalf("Items = %d, want %d", len(list.Items), len(want))
 	}
 	for i, item := range list.Items {
-		if item.Texture != want[i] {
-			t.Errorf("Items[%d].Texture = %q, want %q", i, item.Texture, want[i])
+		if item.Position.X != want[i] {
+			t.Errorf("Items[%d].Position.X = %v, want %v", i, item.Position.X, want[i])
 		}
 	}
 }

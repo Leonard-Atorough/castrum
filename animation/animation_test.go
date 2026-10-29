@@ -33,7 +33,7 @@ func newAnimWorld(t *testing.T, anim Animation, clip Clip) (*core.Entity, core.S
 
 func tick(t *testing.T, sys core.System, ctx *core.Context, n int) {
 	t.Helper()
-	for i := 0; i < n; i++ {
+	for range n {
 		if err := sys.Update(ctx); err != nil {
 			t.Fatalf("update: %v", err)
 		}
@@ -124,33 +124,6 @@ func TestSystemAdvancesMultipleFramesPerTick(t *testing.T) {
 	}
 	if anim.Elapsed >= 0.1 {
 		t.Fatalf("elapsed = %v, want below one frame (remainder consumed)", anim.Elapsed)
-	}
-}
-
-func TestLoopNoneHoldsLastFramePaused(t *testing.T) {
-	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", Loop: LoopNone},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
-	)
-	tick(t, sys, ctx, 1)
-	if anim := readAnim(t, entity, ctx); anim.Current != 1 {
-		t.Fatalf("current = %d, want 1", anim.Current)
-	}
-
-	tick(t, sys, ctx, 1)
-	anim := readAnim(t, entity, ctx)
-	if anim.Current != 1 || !anim.Paused {
-		t.Fatalf("current = %d, paused = %v, want 1 and paused", anim.Current, anim.Paused)
-	}
-	src, ok := region(readSprite(t, entity, ctx))
-	if !ok || src.Region != "b" {
-		t.Fatalf("drawable region = %v, want b (last frame held)", src.Region)
-	}
-
-	// A paused animation stays put.
-	tick(t, sys, ctx, 5)
-	if anim := readAnim(t, entity, ctx); anim.Current != 1 {
-		t.Fatalf("current after further ticks = %d, want 1", anim.Current)
 	}
 }
 
@@ -298,8 +271,6 @@ func TestClipStoreAddCopiesFrames(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 
-	// The store owns its frames: mutating the source slice must not
-	// reach the stored clip.
 	frames[0] = "mutated"
 	clip, err := store.Get("walk")
 	if err != nil {
@@ -363,6 +334,9 @@ func TestLoopNoneCompletionStampsAndHolds(t *testing.T) {
 	if !anim.JustCompleted(2) || !anim.HasCompleted() {
 		t.Fatal("completion tick 2 should read as edge and record")
 	}
+	if src, ok := region(readSprite(t, entity, ctx)); !ok || src.Region != "b" {
+		t.Fatalf("drawable region = %v, want b (last frame held)", src.Region)
+	}
 
 	// Later ticks change nothing: the frame holds, the stamp is
 	// frozen, the edge is gone, the record remains.
@@ -373,6 +347,12 @@ func TestLoopNoneCompletionStampsAndHolds(t *testing.T) {
 	}
 	if anim.JustCompleted(3) || !anim.HasCompleted() {
 		t.Fatal("later ticks should drop the edge and keep the record")
+	}
+	for tick := uint64(4); tick <= 8; tick++ {
+		tickAt(t, sys, ctx, tick)
+	}
+	if anim := readAnim(t, entity, ctx); anim.Current != 1 || !anim.Paused || anim.CompletedOn != 2 {
+		t.Fatalf("after further ticks: %+v, want the last frame and completion held", anim)
 	}
 }
 

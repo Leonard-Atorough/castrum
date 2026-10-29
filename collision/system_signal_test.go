@@ -43,16 +43,28 @@ func TestSystem_EnteredSignals(t *testing.T) {
 		t.Fatalf("wall's entered signal = %v, want %v", got, wantWall)
 	}
 
-	// Draining to nothing pins that the second overlapping tick emitted
-	// neither signal type: stay is not an edge.
 	if err := sys.Update(&core.Context{World: world, Tick: 2}); err != nil {
 		t.Fatalf("collision tick: %v", err)
 	}
-	if err := entered.Drain(func(Entered) error { return nil }); err != nil {
+	got = nil
+	if err := entered.Drain(func(e Entered) error {
+		got = append(got, e)
+		return nil
+	}); err != nil {
 		t.Fatalf("drain entered: %v", err)
 	}
-	if err := exited.Drain(func(Exited) error { return nil }); err != nil {
+	if len(got) != 0 {
+		t.Errorf("entered signals during stay = %v, want none", got)
+	}
+	var exits []Exited
+	if err := exited.Drain(func(e Exited) error {
+		exits = append(exits, e)
+		return nil
+	}); err != nil {
 		t.Fatalf("drain exited: %v", err)
+	}
+	if len(exits) != 0 {
+		t.Errorf("exited signals while overlapping = %v, want none", exits)
 	}
 }
 
@@ -92,7 +104,14 @@ func TestSystem_ExitedSignals(t *testing.T) {
 	if got[0] != wantWall && got[1] != wantWall {
 		t.Fatalf("wall's exited signal = %v, want %v", got, wantWall)
 	}
-	if err := entered.Drain(func(Entered) error { return nil }); err != nil {
+	var entries []Entered
+	if err := entered.Drain(func(e Entered) error {
+		entries = append(entries, e)
+		return nil
+	}); err != nil {
 		t.Fatalf("drain entered: %v", err)
+	}
+	if len(entries) != 2 || entries[0].Tick != 1 || entries[1].Tick != 1 {
+		t.Errorf("entered signals = %v, want only the two signals from tick 1", entries)
 	}
 }

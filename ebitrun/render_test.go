@@ -4,6 +4,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -11,6 +12,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/hajimehoshi/ebiten/v2"
+	"golang.org/x/image/font/gofont/goregular"
 )
 
 // Headless proof limits, verified 2026-09-24: ebiten.NewImage and
@@ -27,7 +29,9 @@ var spriteScale = geom.Vector2{X: 1, Y: 1}
 // the origin. Sprite spawning is left to each test.
 func newSpriteGame(t *testing.T) (*castrum.Game, *Runner) {
 	t.Helper()
-	g, err := castrum.New(castrum.WithFilesystem(newAssetTestFS(t)))
+	files := newAssetTestFS(t)
+	files["fonts/go.ttf"] = &fstest.MapFile{Data: goregular.TTF}
+	g, err := castrum.New(castrum.WithFilesystem(files))
 	if err != nil {
 		t.Fatalf("castrum.New: %v", err)
 	}
@@ -63,7 +67,7 @@ func TestEngineDrawFailsFast(t *testing.T) {
 }
 
 // The happy path is a smoke test only: with a camera, a whole-texture
-// sprite, and a registered atlas sprite, the engine draw runs against
+// sprite, a registered atlas sprite and text, the engine draw runs against
 // an offscreen image and returns nil. DrawImage works headless; pixel
 // reads do not, so assert no error and no panic - nothing visual.
 func TestEngineDrawSmoke(t *testing.T) {
@@ -87,6 +91,12 @@ func TestEngineDrawSmoke(t *testing.T) {
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn atlas sprite: %v", err)
+	}
+	if _, err := g.World().NewEntity(
+		render.Sprite{Drawable: render.TextSource{Font: "fonts/go.ttf", Text: "score", Size: 16}},
+		core.Transform{Scale: spriteScale},
+	); err != nil {
+		t.Fatalf("spawn text sprite: %v", err)
 	}
 
 	if err := r.engine(g.Context(), ebiten.NewImage(100, 100)); err != nil {

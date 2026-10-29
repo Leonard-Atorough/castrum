@@ -53,7 +53,7 @@ func TestSourceValidate(t *testing.T) {
 			wantErr: "volume",
 		},
 		{
-			name:   "zero multiplier is the normal rate",
+			name:   "positive multiplier",
 			source: Source{Audio: "sfx/step.wav", Volume: 1, PlaybackMultiplier: 2},
 		},
 		{
@@ -328,11 +328,6 @@ func TestFold(t *testing.T) {
 			want:   Playback{Playing: false, Volume: 1, Rate: 1},
 		},
 		{
-			name:   "authored multiplier zero resolves to the normal rate",
-			source: Source{Audio: "sfx/step.wav", Volume: 1},
-			want:   Playback{Playing: true, Volume: 1, Rate: 1},
-		},
-		{
 			name:   "explicit multiplier passes through",
 			source: Source{Audio: "sfx/step.wav", Volume: 1, PlaybackMultiplier: 2},
 			want:   Playback{Playing: true, Volume: 1, Rate: 2},
@@ -595,11 +590,19 @@ func TestOneShotPlaysAndIsReclaimed(t *testing.T) {
 	if !entity.IsAlive() {
 		t.Fatal("a live one-shot must not be destroyed")
 	}
+	if _, ok := entity.Component[Source](w); !ok {
+		t.Fatal("a live one-shot must remain in world storage")
+	}
 
 	fake.live = false // the play runs out
 	runAudio(t, sys, ctx)
 	if entity.IsAlive() {
 		t.Fatal("a finished one-shot must be destroyed by the system")
+	}
+	for e := range core.NewQuery(w).With(Source{}).Execute() {
+		if e.ID() == entity.ID() {
+			t.Fatal("finished one-shot remains in world storage")
+		}
 	}
 }
 
