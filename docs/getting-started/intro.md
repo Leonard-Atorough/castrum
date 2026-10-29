@@ -19,6 +19,7 @@ For a structured summary of what the engine supports today, see the [feature ove
 
 ## Start building
 
+- [Starter project](../../templates/starter/README.md) - copyable Go module with a runnable game and recommended package layout.
 - [Your first game](your-first-game.md) - build a moving, mouse-aiming tank with music and sound effects.
 - [Key concepts](concepts.md) - understand entities, components, systems, queries, the fixed timestep, and resources.
 - [Cheat sheet](cheat-sheet.md) - recall the core construction and API patterns.
