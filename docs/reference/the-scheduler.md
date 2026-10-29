@@ -33,6 +33,8 @@ The engine's normal registrations are:
 | `engine.input-tick`     | fixed | with bindings            | Publishes tick-scoped input edges.                      |
 | `engine.input-update`   | frame | with bindings            | Publishes the frame-scoped action view.                 |
 | `engine.audio`          | frame | the runner               | Reconciles audio source state with runner players.      |
+| `scene-startup`         | startup | `WithScenes`           | Applies requests queued before startup.                 |
+| `scene`                 | frame | `WithScenes`             | Applies queued scene requests before user frame systems. |
 
 The optional subsystems are opt-in: `castrum.WithAnimation`, `castrum.WithCollision`, and `castrum.WithTimer` each register their system, and `castrum.WithDefaultSystems` registers all three. Every system's registration name is exported as a constant from the package that owns the system - `core.PrevTransformSystemName`, `input.FrameSystemName`, `input.TickSystemName`, `animation.SystemName`, `collision.SystemName`, `timer.SystemName`, `ebitrun.AudioSystemName` - so no call site hand-types the strings; the names identify registrations in error messages and will serve as the handles for future ordering constraints.
 
@@ -43,6 +45,10 @@ enabled, regardless of whether scenes are enabled. `Game.SetGroupEnabled`
 changes a registered group's state across phases and applies it to systems
 registered in the group later. It affects systems that have not yet run in
 the current phase. An empty or unregistered group returns an error.
+
+Scene loading, switching, updating, and removal do not change group states.
+Use explicit group control when systems should pause together, or let systems
+query for the components they need.
 
 ## Input timing
 

@@ -8,51 +8,48 @@ import (
 	"github.com/Leonard-Atorough/castrum/input"
 )
 
-// Optional engine systems, tracked in Options.systems so the With*
-// options enable each at most once.
+// Bit flags make repeated system options idempotent.
 const (
 	sysAnimation = 1 << iota
 	sysCollision
 	sysTimer
+	sysScenes
 )
 
-// Options is the pure-data configuration [New] converges option values into.
-// It carries only data, never callbacks or handles, so a future file-backed
-// Config type can map onto it 1:1. Populate it through [New] and the option
-// constructors; direct construction skips defaults and validation.
+// Options contains the configuration used to create a [Game]. Use [New] with
+// option constructors to apply defaults and validate values.
 //
-// Window and graphics settings do not live here: they belong to the runner.
+// Window and graphics settings belong to the runner.
 type Options struct {
-	// Title is the game's identity; the runner displays it.
+	// Title is the title displayed by the runner.
 	Title string
 
-	// Filesystem is the fs.FS asset paths resolve against: embed.FS
-	// for single-binary distribution, os.DirFS for development
-	// layouts. nil - the zero value - is the game's working
-	// directory.
+	// Filesystem supplies the asset files resolved by the game. If nil, the
+	// game uses the current working directory.
 	Filesystem fs.FS
 
-	// FixedTPS is the fixed simulation rate in ticks per second.
+	// FixedTPS is the number of fixed simulation ticks per second.
 	FixedTPS int
-	// MaxFrameTime limits the elapsed time accumulated in one frame.
+
+	// MaxFrameTime is the maximum elapsed time accepted for one frame.
 	MaxFrameTime time.Duration
-	// MaxTicksPerFrame limits catch-up ticks before the backlog is dropped.
+
+	// MaxTicksPerFrame is the maximum number of fixed ticks run in one display
+	// frame.
 	MaxTicksPerFrame int
 
-	// InputBindings configures the engine-owned [input.ActionMap].
-	// If nil, no action map is created; the runner's raw input snapshot
-	// remains available.
+	// InputBindings configures the engine-owned [input.ActionMap]. If nil, no
+	// action map is created, but the runner's raw input snapshot remains
+	// available.
 	InputBindings input.Bindings
 
-	// fixedDT is derived from FixedTPS in New; no option sets it.
 	fixedDT time.Duration
 
-	// systems records which optional engine systems the With* options
-	// enabled, so New registers each at most once.
 	systems uint8
 }
 
-// FixedDT returns the derived interval between fixed ticks.
+// FixedDT returns the interval between fixed simulation ticks. [New] derives
+// it from [Options.FixedTPS].
 func (o Options) FixedDT() time.Duration { return o.fixedDT }
 
 type option interface {
@@ -91,73 +88,66 @@ func (o *Options) finalize() error {
 	return nil
 }
 
-// WithTitle sets the game title. The active runner displays it.
+// WithTitle sets the game's title.
 func WithTitle(title string) option {
 	return optionFunc(func(o *Options) { o.Title = title })
 }
 
-// WithFilesystem sets the fs.FS asset paths resolve against. The
-// default is the game's working directory.
+// WithFilesystem sets the filesystem used to resolve assets.
 func WithFilesystem(filesystem fs.FS) option {
 	return optionFunc(func(o *Options) { o.Filesystem = filesystem })
 }
 
 // WithFixedTPS sets the fixed simulation rate in ticks per second.
-// Default is 60. Invalid values are reported by [New].
+// The default is 60. [New] returns an error if the rate is invalid.
 func WithFixedTPS(tps int) option {
 	return optionFunc(func(o *Options) { o.FixedTPS = tps })
 }
 
-// WithMaxFrameTime sets the per-frame accumulator clamp, the
-// spiral-of-death guard. Default is 250ms. Invalid values are reported
-// by [New].
+// WithMaxFrameTime sets the maximum elapsed time accepted for one frame.
+// The default is 250 ms. [New] returns an error if d is not positive.
 func WithMaxFrameTime(d time.Duration) option {
 	return optionFunc(func(o *Options) { o.MaxFrameTime = d })
 }
 
-// WithMaxTicksPerFrame sets how many fixed ticks may run in one display
-// frame before excess accumulated time is dropped. Default is 5.
-// Invalid values are reported by [New].
+// WithMaxTicksPerFrame sets the maximum number of fixed ticks run in one
+// display frame. The default is 5. [New] returns an error if n is not
+// positive.
 func WithMaxTicksPerFrame(n int) option {
 	return optionFunc(func(o *Options) { o.MaxTicksPerFrame = n })
 }
 
-// WithBindings sets the input bindings for the game. These bindings are
-// used to create an engine-owned [input.ActionMap], which is provided as a
-// resource in the world and drives input handling automatically.
+// WithBindings configures the game's input bindings.
 func WithBindings(bindings input.Bindings) option {
 	return optionFunc(func(o *Options) { o.InputBindings = bindings })
 }
 
-// WithCollision registers the engine's collision system in the fixed
-// schedule, under [github.com/Leonard-Atorough/castrum/collision.SystemName].
-// Without it, colliders never produce
-// [github.com/Leonard-Atorough/castrum/collision.Contacts].
-// Idempotent: passing it twice, or together with [WithDefaultSystems],
-// registers the system once.
+// WithCollision enables collision processing during fixed updates. Without
+// it, colliders do not produce contacts. Passing it more than once, or with
+// [WithDefaultSystems], has no additional effect.
 func WithCollision() option {
 	return optionFunc(func(o *Options) { o.systems |= sysCollision })
 }
 
-// WithTimer registers the engine's timer system in the fixed schedule,
-// under [github.com/Leonard-Atorough/castrum/timer.SystemName]. Without it,
-// [github.com/Leonard-Atorough/castrum/timer.Timer] components never advance.
-// Idempotent.
+// WithTimer enables timer updates during fixed updates. Without it, timer
+// components do not advance.
 func WithTimer() option {
 	return optionFunc(func(o *Options) { o.systems |= sysTimer })
 }
 
-// WithAnimation registers the engine's animation system in the fixed
-// schedule, under [github.com/Leonard-Atorough/castrum/animation.SystemName].
-// Without it, animations never advance and sprites keep their current
-// drawable. Idempotent.
+// WithAnimation enables animation updates during fixed updates. Without it,
+// animated sprites do not advance.
 func WithAnimation() option {
 	return optionFunc(func(o *Options) { o.systems |= sysAnimation })
 }
 
-// WithDefaultSystems registers all of the engine's optional systems:
-// animation, collision, and timer. It is equivalent to passing
-// [WithAnimation], [WithCollision], and [WithTimer] together.
+// WithScenes enables the scene system and provides a scene Director resource.
+func WithScenes() option {
+	return optionFunc(func(o *Options) { o.systems |= sysScenes })
+}
+
+// WithDefaultSystems enables animation, collision, and timer processing. It
+// is equivalent to passing [WithAnimation], [WithCollision], [WithTimer], and [WithScenes].
 func WithDefaultSystems() option {
-	return optionFunc(func(o *Options) { o.systems |= sysAnimation | sysCollision | sysTimer })
+	return optionFunc(func(o *Options) { o.systems |= sysAnimation | sysCollision | sysTimer | sysScenes })
 }
