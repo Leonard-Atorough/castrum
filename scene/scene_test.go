@@ -68,9 +68,7 @@ func loadTestInstance(t *testing.T, d *Director, name string) InstanceID {
 	return id
 }
 
-// liveTestInstance loads an instance and marks it live directly. Liveness
-// belongs to the scene systems, which are not implemented yet; request-side
-// contracts still need live instances to test against.
+// liveTestInstance marks a queued instance live for request-side tests.
 func liveTestInstance(t *testing.T, d *Director, name string) InstanceID {
 	t.Helper()
 	id := loadTestInstance(t, d, name)
@@ -1182,6 +1180,11 @@ func TestUpdateRebuildsPreservingIdentity(t *testing.T) {
 		EntityList: []EntitySpec{{Name: "grunt", Components: []any{position{X: 1}}}},
 	}
 	id := enterTestInstance(t, d, ctx, bp)
+	old, ok := core.NewQuery(ctx.World).With(OwnershipRecord{}, position{}).First()
+	if !ok {
+		t.Fatal("original scene entity missing")
+	}
+	oldID := old.ID()
 	elite := &Blueprint{
 		Name:       "elite",
 		EntityList: []EntitySpec{{Name: "elite", Components: []any{position{X: 2}}}},
@@ -1196,14 +1199,20 @@ func TestUpdateRebuildsPreservingIdentity(t *testing.T) {
 	if !rec.live || rec.name != "arena" || rec.blueprint.Name != "elite" {
 		t.Fatalf("record after rebuild: %+v", rec)
 	}
-	var x float64
+	if core.NewEntity(oldID).HasComponent[OwnershipRecord](ctx.World) {
+		t.Fatal("old scene-owned entity survived rebuild")
+	}
+	count := 0
 	for e := range core.NewQuery(ctx.World).With(OwnershipRecord{}, position{}).Execute() {
-		if p, ok := e.Component[position](); ok {
-			x = p.X
+		count++
+		owner, _ := e.Component[OwnershipRecord]()
+		p, _ := e.Component[position]()
+		if owner.Instance != id || p.X != 2 || e.ID() == oldID {
+			t.Errorf("rebuilt entity %d: owner=%d position=%v, want new entity owned by %d at X=2", e.ID(), owner.Instance, p, id)
 		}
 	}
-	if x != 2 {
-		t.Fatalf("entity after rebuild: got position %v, want 2", x)
+	if count != 1 {
+		t.Fatalf("entities after rebuild = %d, want 1", count)
 	}
 }
 

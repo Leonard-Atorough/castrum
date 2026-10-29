@@ -9,6 +9,19 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
+func checkUninitialized(t *testing.T, tween *Tween) {
+	t.Helper()
+	if got := tween.Progress(); got != 0 {
+		t.Errorf("Progress() = %v, want 0", got)
+	}
+	if tween.IsComplete() {
+		t.Error("IsComplete() = true, want false")
+	}
+	if _, err := tween.Update(0); err == nil {
+		t.Error("Update() succeeded on an uninitialized tween")
+	}
+}
+
 func TestNewTween(t *testing.T) {
 	t.Parallel()
 
@@ -33,15 +46,7 @@ func TestNewTween(t *testing.T) {
 				if err == nil {
 					t.Fatal("NewTween() succeeded, want an error")
 				}
-				if got := tween.Progress(); got != 0 {
-					t.Errorf("Progress() = %v, want 0", got)
-				}
-				if tween.IsComplete() {
-					t.Error("IsComplete() = true, want false")
-				}
-				if _, err := tween.Update(0); err == nil {
-					t.Error("Update() succeeded on failed construction")
-				}
+				checkUninitialized(t, &tween)
 				return
 			}
 			if err != nil {
@@ -222,17 +227,11 @@ func TestTweenZeroValue(t *testing.T) {
 	t.Parallel()
 
 	var tween Tween
-	if got := tween.Progress(); got != 0 {
-		t.Errorf("Progress() = %v, want 0", got)
-	}
-	if tween.IsComplete() {
-		t.Error("IsComplete() = true, want false")
-	}
+	checkUninitialized(t, &tween)
 	tween.Reset()
-	for _, delta := range []time.Duration{0, time.Second} {
-		if _, err := tween.Update(delta); err == nil {
-			t.Errorf("Update(%v) succeeded, want an error", delta)
-		}
+	checkUninitialized(t, &tween)
+	if _, err := tween.Update(time.Second); err == nil {
+		t.Error("Update(time.Second) succeeded, want an error")
 	}
 	if got := tween.Progress(); got != 0 {
 		t.Errorf("Progress() after Reset and rejected updates = %v, want 0", got)

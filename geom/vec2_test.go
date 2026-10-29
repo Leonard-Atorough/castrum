@@ -130,10 +130,17 @@ func TestVector2_Clamp(t *testing.T) {
 	}
 }
 
-func TestVector2_ClampMagnitude_NonPositiveLimit(t *testing.T) {
-	for _, maxLength := range []float64{0, -1} {
-		if got := (Vector2{X: 3, Y: 4}).ClampMagnitude(maxLength); got != (Vector2{}) {
-			t.Errorf("ClampMagnitude(%v) = %v, want zero vector", maxLength, got)
+func TestVector2_ClampMagnitude(t *testing.T) {
+	for _, tc := range []struct {
+		max  float64
+		want Vector2
+	}{
+		{0, Vector2{}}, {-1, Vector2{}},
+		{10, Vector2{X: 3, Y: 4}}, {5, Vector2{X: 3, Y: 4}},
+		{2.5, Vector2{X: 1.5, Y: 2}},
+	} {
+		if got := (Vector2{X: 3, Y: 4}).ClampMagnitude(tc.max); !vecAlmostEqual(got, tc.want) {
+			t.Errorf("ClampMagnitude(%v) = %v, want %v", tc.max, got, tc.want)
 		}
 	}
 }

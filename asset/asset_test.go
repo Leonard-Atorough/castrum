@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/fstest"
+	"testing/synctest"
 )
 
 // spriteMeta stands in for the kinds of values games decode. Tests use a
@@ -137,52 +138,85 @@ func TestLoadWithIDOverridesCacheIdentity(t *testing.T) {
 	}
 }
 
-func TestLoadDeduplicatesConcurrentLoads(t *testing.T) {
-	a := NewLoader(newTestFS(map[string]string{"sprites/player.json": `{"name":"player"}`}))
-	decodes := atomic.Int32{}
-	release := make(chan struct{})
-	if err := a.RegisterDecoder(FormatJSON, Decoder[spriteMeta](func(r io.Reader) (spriteMeta, error) {
-		decodes.Add(1)
-		<-release // hold the first decode so peers pile up on the singleflight
-		return jsonDecoder[spriteMeta]()(r)
+func TestLoadWithFormatOverridesExtensionAndCacheIdentity(t *testing.T) {
+	a := NewLoader(newTestFS(map[string]string{"data": "contents"}))
+	var jsonDecodes, yamlDecodes int
+	if err := a.RegisterDecoder(FormatJSON, Decoder[spriteMeta](func(io.Reader) (spriteMeta, error) {
+		jsonDecodes++
+		return spriteMeta{Name: "json"}, nil
 	}), false); err != nil {
-		t.Fatalf("RegisterDecoder: %v", err)
+		t.Fatal(err)
 	}
-
-	const peers = 8
-	results := make([]spriteMeta, peers)
-	errs := make([]error, peers)
-	var started sync.WaitGroup
-	started.Add(peers)
-	var done sync.WaitGroup
-	done.Add(peers)
-	for i := 0; i < peers; i++ {
-		go func(i int) {
-			started.Done()
-			results[i], errs[i] = a.Load[spriteMeta]("sprites/player.json")
-			done.Done()
-		}(i)
+	if err := a.RegisterDecoder(FormatYAML, Decoder[spriteMeta](func(io.Reader) (spriteMeta, error) {
+		yamlDecodes++
+		return spriteMeta{Name: "yaml"}, nil
+	}), false); err != nil {
+		t.Fatal(err)
 	}
-	started.Wait()
-	close(release)
-	done.Wait()
-
-	for i := 0; i < peers; i++ {
-		if errs[i] != nil {
-			t.Fatalf("peer %d: %v", i, errs[i])
-		}
-		if results[i].Name != "player" {
-			t.Fatalf("peer %d decoded %+v", i, results[i])
+	for _, tc := range []struct {
+		format Format
+		want   string
+	}{{FormatJSON, "json"}, {FormatYAML, "yaml"}, {FormatJSON, "json"}} {
+		got, err := a.Load[spriteMeta]("data", WithFormat(tc.format))
+		if err != nil || got.Name != tc.want {
+			t.Fatalf("Load with format %q = %+v, %v; want %q", tc.format, got, err, tc.want)
 		}
 	}
-	if decodes.Load() != 1 {
-		t.Fatalf("%d peers triggered %d decodes, want 1", peers, decodes.Load())
+	if jsonDecodes != 1 || yamlDecodes != 1 {
+		t.Errorf("decodes: JSON %d, YAML %d; want one each", jsonDecodes, yamlDecodes)
 	}
+}
+
+func TestLoadDeduplicatesConcurrentLoads(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a := NewLoader(newTestFS(map[string]string{"sprites/player.json": `{"name":"player"}`}))
+		decodes := atomic.Int32{}
+		release := make(chan struct{})
+		if err := a.RegisterDecoder(FormatJSON, Decoder[spriteMeta](func(r io.Reader) (spriteMeta, error) {
+			decodes.Add(1)
+			<-release // hold the first decode so peers pile up on the singleflight
+			return jsonDecoder[spriteMeta]()(r)
+		}), false); err != nil {
+			t.Fatalf("RegisterDecoder: %v", err)
+		}
+
+		const peers = 8
+		results := make([]spriteMeta, peers)
+		errs := make([]error, peers)
+		var done sync.WaitGroup
+		done.Add(peers)
+		for i := range peers {
+			go func(i int) {
+				results[i], errs[i] = a.Load[spriteMeta]("sprites/player.json")
+				done.Done()
+			}(i)
+		}
+		synctest.Wait()
+		if got := decodes.Load(); got != 1 {
+			t.Errorf("in-flight decodes = %d, want 1", got)
+		}
+		close(release)
+		done.Wait()
+
+		for i := range peers {
+			if errs[i] != nil {
+				t.Fatalf("peer %d: %v", i, errs[i])
+			}
+			if results[i].Name != "player" {
+				t.Fatalf("peer %d decoded %+v", i, results[i])
+			}
+		}
+		if decodes.Load() != 1 {
+			t.Fatalf("%d peers triggered %d decodes, want 1", peers, decodes.Load())
+		}
+	})
 }
 
 func TestLoadPointerTypeCachesNil(t *testing.T) {
 	a := NewLoader(newTestFS(map[string]string{"sprites/player.json": `{"name":"player"}`}))
+	var decodes int
 	if err := a.RegisterDecoder(FormatJSON, Decoder[*spriteMeta](func(io.Reader) (*spriteMeta, error) {
+		decodes++
 		return nil, nil // a pointer decoder may legitimately produce nil
 	}), false); err != nil {
 		t.Fatalf("RegisterDecoder: %v", err)
@@ -201,6 +235,36 @@ func TestLoadPointerTypeCachesNil(t *testing.T) {
 	}
 	if second != nil {
 		t.Fatalf("cached nil served as %+v, want nil", second)
+	}
+	if decodes != 1 {
+		t.Errorf("decodes = %d, want 1", decodes)
+	}
+}
+
+func TestLoadRetriesAfterDecodeFailure(t *testing.T) {
+	a := NewLoader(newTestFS(map[string]string{"data.json": `{}`}))
+	wantErr := errors.New("temporary decode failure")
+	decodes := 0
+	if err := a.RegisterDecoder(FormatJSON, Decoder[spriteMeta](func(io.Reader) (spriteMeta, error) {
+		decodes++
+		if decodes == 1 {
+			return spriteMeta{}, wantErr
+		}
+		return spriteMeta{Name: "recovered"}, nil
+	}), false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Load[spriteMeta]("data.json"); !errors.Is(err, wantErr) {
+		t.Fatalf("first Load = %v, want wrapped %v", err, wantErr)
+	}
+	for i := 0; i < 2; i++ {
+		got, err := a.Load[spriteMeta]("data.json")
+		if err != nil || got.Name != "recovered" {
+			t.Fatalf("Load after failure = %+v, %v; want recovered", got, err)
+		}
+	}
+	if decodes != 2 {
+		t.Errorf("decodes = %d, want one failed and one successful decode", decodes)
 	}
 }
 
@@ -243,7 +307,7 @@ func TestLoadReaderDecodesWithoutCaching(t *testing.T) {
 		t.Fatalf("RegisterDecoder: %v", err)
 	}
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		meta, err := a.LoadReader[spriteMeta](strings.NewReader(`{"name":"player"}`), FormatJSON)
 		if err != nil {
 			t.Fatalf("LoadReader %d: %v", i, err)
@@ -306,15 +370,12 @@ func TestNewDefaultsToFilesystem(t *testing.T) {
 	}
 }
 
-// --- cache internals: the two structural keepers (thread safety, hit
-// counting). Everything else the cache does is proven through Load above.
-
 func TestCacheCountsHits(t *testing.T) {
 	c := newCache()
 	key := newLoadKey("test", reflect.TypeFor[spriteMeta](), FormatJSON)
 	c.put(key, spriteMeta{Name: "x"})
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if _, ok := c.get(key); !ok {
 			t.Fatalf("get %d missed after put", i)
 		}
@@ -332,7 +393,7 @@ func TestCacheConcurrentAccess(t *testing.T) {
 	typ := reflect.TypeFor[spriteMeta]()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()

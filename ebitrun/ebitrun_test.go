@@ -13,7 +13,7 @@ import (
 )
 
 func TestRunnerDefaults(t *testing.T) {
-	r, _ := New(mustGame())
+	r := mustRunner(t, mustGame(t))
 	if r.opts.Window != (Size{1280, 720}) {
 		t.Errorf("Window = %v, want 1280x720", r.opts.Window)
 	}
@@ -26,14 +26,19 @@ func TestRunnerDefaults(t *testing.T) {
 	if r.opts.Resizable {
 		t.Error("Resizable = true, want false")
 	}
+	if r.opts.SampleRate != 44100 {
+		t.Errorf("SampleRate = %d, want 44100", r.opts.SampleRate)
+	}
 }
 
 func TestRunnerOptions(t *testing.T) {
-	r, _ := New(mustGame(),
+	g := mustGame(t)
+	r := mustRunner(t, g,
 		WithWindowSize(1920, 1080),
 		WithLogicalSize(640, 360),
 		WithResizable(),
 		WithoutVSync(),
+		WithAudioSampleRate(48000),
 	)
 	if r.opts.Window != (Size{1920, 1080}) {
 		t.Errorf("Window = %v, want 1920x1080", r.opts.Window)
@@ -47,14 +52,36 @@ func TestRunnerOptions(t *testing.T) {
 	if r.opts.VSync {
 		t.Error("VSync = true, want false")
 	}
+	if r.opts.SampleRate != 48000 {
+		t.Errorf("SampleRate = %d, want 48000", r.opts.SampleRate)
+	}
+	for _, outside := range []Size{{1920, 1080}, {800, 600}} {
+		width, height := r.Layout(outside.Width, outside.Height)
+		if width != 640 || height != 360 {
+			t.Errorf("Layout(%v) = %dx%d, want 640x360", outside, width, height)
+		}
+	}
+	if g.Context().LogicalWidth != 640 || g.Context().LogicalHeight != 360 {
+		t.Errorf("context logical size = %dx%d, want 640x360", g.Context().LogicalWidth, g.Context().LogicalHeight)
+	}
 }
 
-func mustGame() *castrum.Game {
+func mustGame(t *testing.T) *castrum.Game {
+	t.Helper()
 	g, err := castrum.New()
 	if err != nil {
-		panic(err)
+		t.Fatalf("castrum.New: %v", err)
 	}
 	return g
+}
+
+func mustRunner(t *testing.T, g *castrum.Game, opts ...option) *Runner {
+	t.Helper()
+	r, err := New(g, opts...)
+	if err != nil {
+		t.Fatalf("New runner: %v", err)
+	}
+	return r
 }
 
 func TestInvalidRunnerOptionsError(t *testing.T) {
@@ -65,10 +92,12 @@ func TestInvalidRunnerOptionsError(t *testing.T) {
 		{"zero window width", []option{WithWindowSize(0, 600)}},
 		{"zero window height", []option{WithWindowSize(800, 0)}},
 		{"zero logical size", []option{WithLogicalSize(0, 0)}},
+		{"zero sample rate", []option{WithAudioSampleRate(0)}},
+		{"negative sample rate", []option{WithAudioSampleRate(-1)}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r, err := New(mustGame(), c.opts...)
+			r, err := New(mustGame(t), c.opts...)
 			if err == nil {
 				t.Errorf("%s: expected an error", c.name)
 			}
@@ -80,13 +109,15 @@ func TestInvalidRunnerOptionsError(t *testing.T) {
 }
 
 func TestUpdateAdvancesGame(t *testing.T) {
-	g := mustGame()
+	g := mustGame(t)
 	var frames int
-	g.AddSystem(core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
 		frames++
 		return nil
-	}))
-	r, _ := New(g)
+	})); err != nil {
+		t.Fatalf("AddSystem: %v", err)
+	}
+	r := mustRunner(t, g)
 
 	if err := r.Update(); err != nil {
 		t.Fatalf("Update: %v", err)
@@ -102,12 +133,17 @@ func TestUpdateAdvancesGame(t *testing.T) {
 }
 
 func TestDrawSetsAlphaAndDefersErrors(t *testing.T) {
-	g, _ := castrum.New(castrum.WithFixedTPS(4)) // fixedDT = 250ms
-	g.Advance(100 * time.Millisecond)            // alpha = 0.4
+	g, err := castrum.New(castrum.WithFixedTPS(4))
+	if err != nil {
+		t.Fatalf("castrum.New: %v", err)
+	}
+	if err := g.Advance(100 * time.Millisecond); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
 
 	var gotAlpha = -1.0
 	boom := errors.New("draw boom")
-	r, _ := New(g)
+	r := mustRunner(t, g)
 	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
 		gotAlpha = ctx.Alpha
 		return nil
@@ -122,7 +158,7 @@ func TestDrawSetsAlphaAndDefersErrors(t *testing.T) {
 	}
 
 	// Draw cannot return errors; the stored one surfaces from Update.
-	err := r.Update()
+	err = r.Update()
 	if !errors.Is(err, boom) {
 		t.Errorf("Update after draw error = %v, want wrapped %v", err, boom)
 	}

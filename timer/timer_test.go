@@ -91,6 +91,9 @@ func TestSystem_OneShotCompletesOnBoundaryAndFreezes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if timer := timerOf(t, world, entity); timer.HasCompleted() || timer.JustCompleted(1) {
+		t.Error("a fresh timer should not report any completion")
+	}
 
 	tick(t, world, sys, 1, dt)
 	if timer := timerOf(t, world, entity); timer.JustCompleted(1) || timer.CompletedOn != 0 {
@@ -99,8 +102,9 @@ func TestSystem_OneShotCompletesOnBoundaryAndFreezes(t *testing.T) {
 
 	tick(t, world, sys, 2, dt)
 	timer := timerOf(t, world, entity)
-	if !timer.JustCompleted(2) {
-		t.Errorf("boundary completion = %v, want tick 2", timer.CompletedOn)
+	if !timer.JustCompleted(2) || timer.JustCompleted(1) || !timer.HasCompleted() {
+		t.Errorf("completion reads = just(2): %t, just(1): %t, has: %t; want true, false, true",
+			timer.JustCompleted(2), timer.JustCompleted(1), timer.HasCompleted())
 	}
 	if timer.Running || timer.Elapsed != timer.Duration {
 		t.Errorf("completed one-shot should be stopped at its duration, got running=%v elapsed=%v", timer.Running, timer.Elapsed)
@@ -116,6 +120,15 @@ func TestSystem_OneShotCompletesOnBoundaryAndFreezes(t *testing.T) {
 	if timer.Running || timer.CompletedOn != 2 || timer.Elapsed != timer.Duration {
 		t.Errorf("completed one-shot should remain stopped and frozen, got running=%v tick=%d elapsed=%v",
 			timer.Running, timer.CompletedOn, timer.Elapsed)
+	}
+	if timer.JustCompleted(3) || !timer.HasCompleted() {
+		t.Error("after the completion tick the edge should be gone while HasCompleted stays true")
+	}
+	if err := entity.Update(world, func(t *Timer) { t.Restart() }); err != nil {
+		t.Fatal(err)
+	}
+	if timer = timerOf(t, world, entity); timer.HasCompleted() {
+		t.Error("after Restart HasCompleted should read false")
 	}
 }
 
@@ -302,49 +315,6 @@ func TestSystem_EmptyWorld(t *testing.T) {
 	tick(t, world, sys, 1, dt)
 	tick(t, world, sys, 2, dt)
 	tick(t, world, sys, 3, dt)
-}
-
-func TestTimerCompletionReads(t *testing.T) {
-	world, sys := newTimerHarness(t)
-	dt := 100 * time.Millisecond
-
-	entity, err := world.NewEntity(NewTimer(2*dt, false))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Before any completion: neither read reports one.
-	timer := timerOf(t, world, entity)
-	if timer.HasCompleted() || timer.JustCompleted(1) {
-		t.Error("a fresh timer should not report any completion")
-	}
-
-	tick(t, world, sys, 1, dt)
-	tick(t, world, sys, 2, dt)
-
-	// On the completion tick both reads agree, and ticks before the
-	// completion never read as just-completed.
-	timer = timerOf(t, world, entity)
-	if !timer.JustCompleted(2) || timer.JustCompleted(1) || !timer.HasCompleted() {
-		t.Errorf("after completing on tick 2: just(2)=%v just(1)=%v has=%v, want edge on 2 and has true",
-			timer.JustCompleted(2), timer.JustCompleted(1), timer.HasCompleted())
-	}
-
-	// On later ticks the edge is gone but the record survives,
-	// without anything needing to reset.
-	tick(t, world, sys, 3, dt)
-	timer = timerOf(t, world, entity)
-	if timer.JustCompleted(3) || !timer.HasCompleted() {
-		t.Error("after the completion tick the edge should be gone while HasCompleted stays true")
-	}
-
-	// Restart clears both readings.
-	if err := entity.Update(world, func(t *Timer) { t.Restart() }); err != nil {
-		t.Fatal(err)
-	}
-	if timer = timerOf(t, world, entity); timer.HasCompleted() {
-		t.Error("after Restart HasCompleted should read false")
-	}
 }
 
 func TestHasCompletedRepeatingNeverReadsCompleted(t *testing.T) {

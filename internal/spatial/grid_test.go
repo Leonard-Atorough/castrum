@@ -154,8 +154,15 @@ func TestGridLargeDataset(t *testing.T) {
 
 	}
 	results := idx.Query(geom.Rect{Min: geom.Vector2{X: 50, Y: 25}, Max: geom.Vector2{X: 100, Y: 45}})
-	if len(results) == 0 {
-		t.Error("Query() returned no results for populated dataset")
+	var want []ecs.EntityID
+	for row := 0; row < 10; row++ {
+		for col := 10; col < 30; col++ {
+			want = append(want, ecs.EntityID(row*100+col))
+		}
+	}
+	slices.Sort(results)
+	if !slices.Equal(results, want) {
+		t.Errorf("Query() = %v, want %v", results, want)
 	}
 	if len(idx.entities) != 1000 {
 		t.Errorf("index has %d entities, want 1000", len(idx.entities))

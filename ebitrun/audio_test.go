@@ -23,7 +23,7 @@ import (
 )
 
 func TestNewRegistersAudioCodecs(t *testing.T) {
-	r, err := New(mustGame())
+	r, err := New(mustGame(t))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
