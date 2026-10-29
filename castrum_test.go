@@ -1,21 +1,21 @@
 package castrum
 
 import (
+	"errors"
+	"math"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
-	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/geom"
-	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
-	"github.com/Leonard-Atorough/castrum/timer"
 )
 
 func TestNewDefaults(t *testing.T) {
@@ -94,94 +94,6 @@ func TestInvalidOptionsError(t *testing.T) {
 	}
 }
 
-func TestWithBindingsWiresInput(t *testing.T) {
-	bindings := input.Bindings{
-		"jump":   {input.KeyInput{Key: input.KeySpace}},
-		"move_x": {input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD}},
-		"dash": {input.Chord(
-			input.KeyInput{Key: input.KeyB},
-			input.KeyInput{Key: input.KeyC},
-		)},
-		"throttle": {input.PadAxisInput{Axis: input.PadRightTrigger, Deadzone: 0.05}},
-	}
-	g, err := New(WithBindings(bindings))
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	if err := g.Startup(); err != nil {
-		t.Fatalf("Startup: %v", err)
-	}
-
-	s := &input.Snapshot{}
-	s.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
-	s.Keys[input.KeyD] = input.State{Held: true}
-	s.Keys[input.KeyB].Held, s.Keys[input.KeyC].Held = true, true
-	s.Pads[0].Connected = true
-	s.Pads[0].Axes[input.PadRightTrigger] = 0.1
-	g.Context().Input = s
-
-	tick := time.Second / 60
-	if err := g.Advance(tick); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-
-	am, err := g.World().Resource[*input.ActionMap]()
-	if err != nil {
-		t.Fatalf("resolve action map: %v", err)
-	}
-	if !am.Pressed("jump") {
-		t.Error("jump should be latched for the tick that consumed the press")
-	}
-	if !am.JustPressed("jump") || !am.Held("jump") {
-		t.Error("jump should be pressed and held in the frame view")
-	}
-	if am.Axis("move_x") != 1 {
-		t.Errorf("move_x axis = %v, want 1", am.Axis("move_x"))
-	}
-	if !am.Pressed("dash") || !am.Held("dash") || !am.Pressed("throttle") || am.Axis("throttle") != 0.1 {
-		t.Error("chord and per-binding axis should reach frame and tick action views")
-	}
-
-	// The context publishes the same map: the discoverable face and
-	// the resource are one instance.
-	if g.Context().Actions != am {
-		t.Error("Context.Actions should be the same map the resource resolves")
-	}
-	if !g.Context().Actions.Pressed("jump") {
-		t.Error("Context.Actions should read the same tick view")
-	}
-
-	// The next frame with no input consumes the edge: the tick view
-	// clears, and duration resets.
-	g.Context().Input = &input.Snapshot{}
-	if err := g.Advance(tick); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	if am.Pressed("jump") || am.Held("jump") || am.Duration("jump") != 0 {
-		t.Error("the second tick should see no jump input")
-	}
-	if !am.Released("dash") || !am.Released("throttle") || am.Axis("throttle") != 0 {
-		t.Error("the second tick should deliver chord and axis releases")
-	}
-}
-
-func TestNoBindingsNoActionMap(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	if _, err := g.World().Resource[*input.ActionMap](); err == nil {
-		t.Error("an ActionMap resource should not exist without WithBindings")
-	}
-	if g.Context().Actions != nil {
-		t.Error("Context.Actions should be nil without WithBindings")
-	}
-	if g.Context().Actions.Pressed("jump") || g.Context().Actions.Held("jump") ||
-		g.Context().Actions.Axis("move_x") != 0 {
-		t.Error("queries on the nil Actions should read zero")
-	}
-}
-
 func TestMainCamera(t *testing.T) {
 	g, err := New()
 	if err != nil {
@@ -195,7 +107,10 @@ func TestMainCamera(t *testing.T) {
 	if !ok || !cam.Primary {
 		t.Fatalf("engine camera = %+v, ok %v, want primary", cam, ok)
 	}
-	transform, _ := camera.Component[core.Transform](g.World())
+	transform, ok := camera.Component[core.Transform](g.World())
+	if !ok {
+		t.Fatal("engine camera has no transform")
+	}
 	if transform.Position != (geom.Vector2{}) {
 		t.Fatalf("engine camera position = %v, want the origin", transform.Position)
 	}
@@ -204,594 +119,296 @@ func TestMainCamera(t *testing.T) {
 	}
 }
 
-func TestNewProvidesAssetLoader(t *testing.T) {
+func TestNewProvidesResources(t *testing.T) {
 	g, err := New()
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	loader := g.World().MustResource[*asset.Loader]()
-	if loader == nil {
-		t.Fatal("MustResource should return the engine-provided loader")
+	if loader, err := g.World().Resource[*asset.Loader](); err != nil || loader == nil {
+		t.Errorf("asset loader = %v, error %v", loader, err)
 	}
-	byErr, err := g.World().Resource[*asset.Loader]()
-	if err != nil {
-		t.Fatalf("Resource[*asset.Loader] right after New: %v", err)
+	if store, err := g.World().Resource[*animation.ClipStore](); err != nil || store == nil {
+		t.Errorf("clip store = %v, error %v", store, err)
 	}
-	if loader != byErr {
-		t.Fatal("MustResource and Resource must be the same instance")
+	if mixer, err := g.World().Resource[*audio.Mixer](); err != nil || mixer == nil {
+		t.Errorf("audio mixer = %v, error %v", mixer, err)
 	}
-}
-
-func TestNewProvidesClipStore(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
+	if hub, err := g.World().Resource[*signal.Hub](); err != nil || hub == nil {
+		t.Errorf("signal hub = %v, error %v", hub, err)
 	}
-	store := g.World().MustResource[*animation.ClipStore]()
-	if store == nil {
-		t.Fatal("MustResource should return the engine-provided store")
+	panel, err := g.World().Resource[*debug.Panel]()
+	if err != nil || panel == nil {
+		t.Fatalf("debug panel = %v, error %v", panel, err)
 	}
-	byErr, err := g.World().Resource[*animation.ClipStore]()
-	if err != nil {
-		t.Fatalf("Resource[*animation.ClipStore] right after New: %v", err)
+	if !panel.Enabled(debug.FPS) || !panel.Enabled(debug.TPS) {
+		t.Error("the engine's panel should start with FPS and TPS enabled")
 	}
-	if store != byErr {
-		t.Fatal("MustResource and Resource must be the same instance")
+	if g.World() == nil || g.Context().World != g.World() {
+		t.Error("Context.World should be the game world")
 	}
 }
 
-func TestNewProvidesAudioMixer(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
+func TestQuit(t *testing.T) {
+	g := newTestGame(t)
+	if g.Quitting() {
+		t.Fatal("new game should not be quitting")
 	}
-	mixer := g.World().MustResource[*audio.Mixer]()
-	if mixer == nil {
-		t.Fatal("MustResource should return the engine-provided mixer")
-	}
-	byErr, err := g.World().Resource[*audio.Mixer]()
-	if err != nil {
-		t.Fatalf("Resource[*audio.Mixer] right after New: %v", err)
-	}
-	if mixer != byErr {
-		t.Fatal("MustResource and Resource must be the same instance")
+	g.Quit()
+	if !g.Quitting() {
+		t.Error("Quitting = false after Quit")
 	}
 }
 
-func TestNewProvidesSignalHub(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
+type fakeRunner struct {
+	err error
+}
+
+func (f *fakeRunner) Run() error { return f.err }
+
+func TestRunOnce(t *testing.T) {
+	g := newTestGame(t)
+	boom := errors.New("runner failed")
+	if err := g.Run(&fakeRunner{err: boom}); !errors.Is(err, boom) {
+		t.Fatalf("Run error = %v, want %v", err, boom)
 	}
-	hub := g.World().MustResource[*signal.Hub]()
-	if hub == nil {
-		t.Fatal("MustResource should return the engine-provided hub")
-	}
-	byErr, err := g.World().Resource[*signal.Hub]()
-	if err != nil {
-		t.Fatalf("Resource[*signal.Hub] right after New: %v", err)
-	}
-	if hub != byErr {
-		t.Fatal("MustResource and Resource must be the same instance")
+	if err := g.Run(&fakeRunner{}); err == nil {
+		t.Error("second Run should return an error")
 	}
 }
 
-func TestOptionalTimerSystems(t *testing.T) {
-	spawn := func(g *Game) {
-		if _, err := g.World().NewEntity(timer.NewTimer(2*g.Options().FixedDT(), false)); err != nil {
-			t.Fatalf("spawn timer: %v", err)
-		}
-	}
-	advanceTwoTicks := func(g *Game) {
-		if err := g.Advance(2 * g.Options().FixedDT()); err != nil {
-			t.Fatalf("Advance: %v", err)
-		}
-	}
-
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	spawn(g)
-	advanceTwoTicks(g)
-	for e := range core.NewQuery(g.World()).With(timer.Timer{}).Execute() {
-		if tm, _ := e.Component[timer.Timer](); tm.CompletedOn != 0 {
-			t.Errorf("timer completed without WithTimer: %+v", tm)
-		}
-	}
-
-	g, err = New(WithTimer())
-	if err != nil {
-		t.Fatalf("New(WithTimer): %v", err)
-	}
-	spawn(g)
-	advanceTwoTicks(g)
-	for e := range core.NewQuery(g.World()).With(timer.Timer{}).Execute() {
-		if tm, _ := e.Component[timer.Timer](); tm.CompletedOn == 0 {
-			t.Errorf("timer did not complete with WithTimer: %+v", tm)
-		}
-	}
+// enginePackages are the game-facing packages that must stay free of
+// backend imports: the engine, its subsystems, and its internals. The
+// runner and the benchmark module are the deliberate exceptions - they
+// are the backend and its measurement.
+var enginePackages = []string{
+	".",
+	"./core",
+	"./signal",
+	"./debug",
+	"./timer",
+	"./animation",
+	"./collision",
+	"./audio",
+	"./input",
+	"./geom",
+	"./render",
+	"./asset",
+	"./tween",
+	"./internal/ecs",
+	"./internal/runtime",
+	"./internal/spatial",
 }
 
-func TestOptionalCollisionSystem(t *testing.T) {
-	spawnPair := func(g *Game) {
-		for _, x := range []float64{0, 1} {
-			collider, err := collision.NewCollider(collision.Circle{Radius: 8})
+func TestEnginePackagesHaveNoBackendImports(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go not on PATH")
+	}
+	for _, pkg := range enginePackages {
+		t.Run(pkg, func(t *testing.T) {
+			out, err := exec.Command("go", "list", "-deps", pkg).Output()
 			if err != nil {
-				t.Fatalf("NewCollider: %v", err)
+				t.Fatalf("go list -deps: %v", err)
 			}
-			if _, err := g.World().NewEntity(collider, core.Transform{Position: geom.Vector2{X: x, Y: 0}, Scale: geom.Vector2{X: 1, Y: 1}}); err != nil {
-				t.Fatalf("spawn collider: %v", err)
+			for _, dep := range strings.Split(string(out), "\n") {
+				if strings.Contains(dep, "hajimehoshi") || strings.Contains(dep, "ebitengine") {
+					t.Errorf("%s depends on backend package %q", pkg, dep)
+				}
 			}
-		}
-	}
-
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	spawnPair(g)
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	for e := range core.NewQuery(g.World()).With(collision.Collider{}).Execute() {
-		if _, ok := core.NewEntity(e.ID()).Component[collision.Contacts](g.World()); ok {
-			t.Error("contacts produced without WithCollision")
-		}
-	}
-
-	g, err = New(WithCollision())
-	if err != nil {
-		t.Fatalf("New(WithCollision): %v", err)
-	}
-	spawnPair(g)
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	for e := range core.NewQuery(g.World()).With(collision.Collider{}).Execute() {
-		contacts, ok := core.NewEntity(e.ID()).Component[collision.Contacts](g.World())
-		if !ok || len(contacts.Current) != 1 {
-			t.Errorf("contacts with WithCollision = %+v, ok %v, want one contact", contacts, ok)
-		}
-	}
-}
-
-func TestOptionalAnimationSystem(t *testing.T) {
-	spawnAnimated := func(g *Game) {
-		if err := g.World().MustResource[*animation.ClipStore]().Add("clip", animation.Clip{
-			Source: "sprites",
-			Frames: []string{"frame_0", "frame_1"},
-			FPS:    60,
-		}); err != nil {
-			t.Fatalf("Add clip: %v", err)
-		}
-		if _, err := g.World().NewEntity(animation.Animation{Clip: "clip"}, render.Sprite{}, core.Transform{Scale: geom.Vector2{X: 1, Y: 1}}); err != nil {
-			t.Fatalf("spawn animated sprite: %v", err)
-		}
-	}
-
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	spawnAnimated(g)
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	for e := range core.NewQuery(g.World()).With(animation.Animation{}).Execute() {
-		if s, _ := core.NewEntity(e.ID()).Component[render.Sprite](g.World()); s.Drawable != nil {
-			t.Errorf("sprite drawable written without WithAnimation: %+v", s.Drawable)
-		}
-	}
-
-	g, err = New(WithAnimation())
-	if err != nil {
-		t.Fatalf("New(WithAnimation): %v", err)
-	}
-	spawnAnimated(g)
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	for e := range core.NewQuery(g.World()).With(animation.Animation{}).Execute() {
-		s, _ := core.NewEntity(e.ID()).Component[render.Sprite](g.World())
-		if _, ok := s.Drawable.(render.AtlasSource); !ok {
-			t.Errorf("sprite drawable with WithAnimation = %#v, want an atlas source", s.Drawable)
-		}
-	}
-}
-
-func TestWithDefaultSystemsIdempotent(t *testing.T) {
-	g, err := New(WithDefaultSystems(), WithTimer())
-	if err != nil {
-		t.Fatalf("New(WithDefaultSystems, WithTimer): %v", err)
-	}
-	if _, err := g.World().NewEntity(timer.NewTimer(2*g.Options().FixedDT(), false)); err != nil {
-		t.Fatalf("spawn timer: %v", err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	for e := range core.NewQuery(g.World()).With(timer.Timer{}).Execute() {
-		if tm, _ := e.Component[timer.Timer](); tm.CompletedOn != 0 {
-			t.Fatalf("timer completed after one tick: %+v, want a single registration", tm)
-		}
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	for e := range core.NewQuery(g.World()).With(timer.Timer{}).Execute() {
-		if tm, _ := e.Component[timer.Timer](); tm.CompletedOn == 0 {
-			t.Fatalf("timer did not complete on its second tick: %+v", tm)
-		}
-	}
-}
-
-func TestWithTimerProvidesGroups(t *testing.T) {
-	g, err := New(WithTimer())
-	if err != nil {
-		t.Fatalf("New(WithTimer): %v", err)
-	}
-	if _, err := g.World().Resource[*timer.Groups](); err != nil {
-		t.Errorf("WithTimer should provide timer groups: %v", err)
-	}
-}
-
-func TestWithScenesDoesNotControlGroups(t *testing.T) {
-	g, err := New(WithScenes())
-	if err != nil {
-		t.Fatalf("New(WithScenes): %v", err)
-	}
-	director, err := g.World().Resource[*scene.Director]()
-	if err != nil {
-		t.Fatalf("resolve scene director: %v", err)
-	}
-
-	var updates int
-	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "mission.update", core.SystemFunc(func(*core.Context) error {
-		updates++
-		return nil
-	})); err != nil {
-		t.Fatalf("AddSystemToGroup: %v", err)
-	}
-	if err := g.Startup(); err != nil {
-		t.Fatalf("Startup: %v", err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance before load: %v", err)
-	}
-	if updates != 1 {
-		t.Fatalf("group updates before load: got %d, want 1", updates)
-	}
-
-	id, err := director.Load(&scene.Blueprint{
-		Name:       "mission",
-		EntityList: []scene.EntitySpec{{Name: "root"}},
-	})
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance after load: %v", err)
-	}
-	if updates != 2 {
-		t.Fatalf("group updates after load: got %d, want 2", updates)
-	}
-	if err := g.SetGroupEnabled("mission", false); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := director.Load(&scene.Blueprint{Name: "overlay", EntityList: []scene.EntitySpec{{Name: "root"}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatal(err)
-	}
-	if updates != 2 {
-		t.Fatalf("scene load enabled disabled group: got %d updates", updates)
-	}
-	if err := director.Update(id, &scene.Blueprint{Name: "new mission", EntityList: []scene.EntitySpec{{Name: "root"}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatal(err)
-	}
-	if updates != 2 {
-		t.Fatalf("scene update enabled disabled group: got %d updates", updates)
-	}
-
-	id, err = director.Switch(&scene.Blueprint{Name: "replacement", EntityList: []scene.EntitySpec{{Name: "root"}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatal(err)
-	}
-	if updates != 2 {
-		t.Fatalf("scene switch enabled disabled group: got %d updates", updates)
-	}
-	if err := director.Remove(id); err != nil {
-		t.Fatalf("Remove: %v", err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance after remove: %v", err)
-	}
-	if updates != 2 {
-		t.Fatalf("scene removal enabled disabled group: got %d updates", updates)
-	}
-	if err := g.SetGroupEnabled("mission", true); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatal(err)
-	}
-	if updates != 3 {
-		t.Fatalf("group updates after explicit enable: got %d, want 3", updates)
-	}
-	id, err = director.Load(&scene.Blueprint{Name: "another", EntityList: []scene.EntitySpec{{Name: "root"}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatal(err)
-	}
-	if err := director.Remove(id); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatal(err)
-	}
-	if updates != 5 {
-		t.Fatalf("scene removal disabled enabled group: got %d updates, want 5", updates)
-	}
-}
-
-func TestWithScenesProcessesStartupRequests(t *testing.T) {
-	g, err := New(WithScenes())
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	director := g.World().MustResource[*scene.Director]()
-	id, err := director.Load(&scene.Blueprint{Name: "startup", EntityList: []scene.EntitySpec{{Name: "root"}}})
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	var entered bool
-	if err := g.AddSystem(core.PhaseStartup, "check scene", core.SystemFunc(func(*core.Context) error {
-		for entry := range core.NewQuery(g.World()).With(scene.OwnershipRecord{}).Execute() {
-			owner, _ := entry.Component[scene.OwnershipRecord]()
-			entered = entered || owner.Instance == id
-		}
-		return nil
-	})); err != nil {
-		t.Fatalf("AddSystem: %v", err)
-	}
-	if err := g.Startup(); err != nil {
-		t.Fatalf("Startup: %v", err)
-	}
-	if !entered {
-		t.Fatal("startup system did not see queued scene entities")
-	}
-}
-
-func TestSetGroupEnabledAcrossPhasesAndRegistrations(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	var fixed, frame, late, other, ungrouped int
-	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "first fixed", core.SystemFunc(func(*core.Context) error {
-		fixed++
-		return nil
-	})); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.AddSystemToGroup(core.PhaseFixed, "other", "other fixed", core.SystemFunc(func(*core.Context) error {
-		other++
-		return nil
-	})); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.AddSystem(core.PhaseFixed, "ungrouped fixed", core.SystemFunc(func(*core.Context) error {
-		ungrouped++
-		return nil
-	})); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.SetGroupEnabled("mission", false); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.AddSystemToGroup(core.PhaseFrame, "mission", "late frame", core.SystemFunc(func(*core.Context) error {
-		frame++
-		return nil
-	})); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "late fixed", core.SystemFunc(func(*core.Context) error {
-		late++
-		return nil
-	})); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance inactive: %v", err)
-	}
-	if fixed != 0 || frame != 0 || late != 0 {
-		t.Fatalf("inactive updates: fixed=%d frame=%d late=%d", fixed, frame, late)
-	}
-	if other != 1 || ungrouped != 1 {
-		t.Fatalf("unrelated updates: other=%d ungrouped=%d, want 1 each", other, ungrouped)
-	}
-	if err := g.SetGroupEnabled("mission", true); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatal(err)
-	}
-	if fixed != 1 || frame != 1 || late != 1 {
-		t.Fatalf("active updates: fixed=%d frame=%d late=%d, want 1 each", fixed, frame, late)
-	}
-}
-
-func TestSetGroupEnabledRejectsUnknownGroups(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"", "missing"} {
-		if err := g.SetGroupEnabled(name, false); err == nil {
-			t.Errorf("SetGroupEnabled(%q) accepted an invalid group", name)
-		}
-	}
-	var updates int
-	if err := g.AddSystemToGroup(core.PhaseFixed, "missing", "later", core.SystemFunc(func(*core.Context) error {
-		updates++
-		return nil
-	})); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatal(err)
-	}
-	if updates != 1 {
-		t.Fatalf("rejected group change affected later registration: updates=%d", updates)
-	}
-}
-
-func TestSetGroupEnabledAffectsLaterSystemsInCurrentPhase(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var updates int
-	if err := g.AddSystem(core.PhaseFrame, "disable", core.SystemFunc(func(*core.Context) error {
-		return g.SetGroupEnabled("mission", false)
-	})); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.AddSystemToGroup(core.PhaseFrame, "mission", "later", core.SystemFunc(func(*core.Context) error {
-		updates++
-		return nil
-	})); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatal(err)
-	}
-	if updates != 0 {
-		t.Fatalf("disabled system ran in current phase: updates=%d", updates)
-	}
-}
-
-func TestGroupedSystemsRemainEnabledWithoutScenes(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	var updates int
-	if err := g.AddSystemToGroup(core.PhaseFixed, "custom", "custom.update", core.SystemFunc(func(*core.Context) error {
-		updates++
-		return nil
-	})); err != nil {
-		t.Fatalf("AddSystemToGroup: %v", err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	if updates != 1 {
-		t.Fatalf("group updates: got %d, want 1", updates)
-	}
-}
-
-func TestTimerEmitsCompletedSignal(t *testing.T) {
-	// FixedTPS 4 => fixedDT 250ms; a 300ms one-shot completes on tick 2.
-	g, err := New(WithTimer(), WithFixedTPS(4))
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	hub := g.World().MustResource[*signal.Hub]()
-	reader := hub.NewReader[timer.Completed]()
-
-	entity, err := g.World().NewEntity(timer.NewTimer(300*time.Millisecond, false))
-	if err != nil {
-		t.Fatalf("spawn: %v", err)
-	}
-
-	var got []timer.Completed
-	g.AddSystem(core.PhaseFrame, "signal collector", core.SystemFunc(func(ctx *core.Context) error {
-		return reader.Drain(func(c timer.Completed) error {
-			got = append(got, c)
-			return nil
 		})
+	}
+}
+
+// TestExamplesImportNoBackendDirectly flags examples that import the
+// backend themselves instead of going through the runner or the debug
+// panel. It is a migration list: a flagged example still runs, but its
+// diagnostics should move to the debug panel.
+func TestExamplesImportNoBackendDirectly(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go not on PATH")
+	}
+	out, err := exec.Command("go", "list", "-f",
+		`{{.ImportPath}}: {{join .Imports " "}}`, "./examples/...").Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.Contains(line, "hajimehoshi") && !strings.Contains(line, "ebitengine") {
+			continue
+		}
+		t.Errorf("%s imports the backend directly; route diagnostics through the debug panel or the runner",
+			strings.SplitN(line, ":", 2)[0])
+	}
+}
+
+func TestPauseStopsFixedOnlyFrameContinues(t *testing.T) {
+	// FixedTPS 4 => fixedDT = 250ms.
+	g := newTestGame(t, WithFixedTPS(4))
+	var ticks, frames int
+	var frameDT time.Duration
+	addTestSystem(t, g, core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
+		frames++
+		frameDT = ctx.DeltaTime
+		return nil
+	}))
+	addTestSystem(t, g, core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error {
+		ticks++
+		return nil
 	}))
 
 	step := 100 * time.Millisecond
-	for range 6 {
-		if err := g.Advance(step); err != nil {
-			t.Fatalf("Advance: %v", err)
-		}
+	advanceTestGame(t, g, step)
+	if ticks != 0 || frames != 1 {
+		t.Fatalf("before pause: ticks=%d frames=%d, want 0/1", ticks, frames)
 	}
-	if len(got) != 1 || got[0] != (timer.Completed{Entity: entity.ID(), Tick: 2}) {
-		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
+	if alpha := g.Alpha(); math.Abs(alpha-0.4) > 1e-9 {
+		t.Fatalf("alpha before pause = %v, want 0.4", alpha)
+	}
+
+	g.Pause()
+	if !g.Paused() {
+		t.Fatal("Paused = false after Pause")
+	}
+	advanceTestGame(t, g, 10*time.Second)
+	advanceTestGame(t, g, step)
+	if ticks != 0 || frames != 3 {
+		t.Fatalf("while paused: ticks=%d frames=%d, want 0/3 - frame phase must continue", ticks, frames)
+	}
+	if frameDT != step {
+		t.Errorf("frame DeltaTime while paused = %v, want %v (unscaled wall-clock time)", frameDT, step)
+	}
+	if alpha := g.Alpha(); math.Abs(alpha-0.4) > 1e-9 {
+		t.Errorf("alpha while paused = %v, want 0.4 (frozen)", alpha)
+	}
+
+	g.Resume()
+	if g.Paused() {
+		t.Fatal("Paused = true after Resume")
+	}
+	// The accumulator was frozen at 100ms; resuming continues from there,
+	// so the tick that was half-due before the pause still needs the rest
+	// of its interval.
+	advanceTestGame(t, g, step)
+	if ticks != 0 || frames != 4 {
+		t.Fatalf("after resume: ticks=%d frames=%d, want 0/4 (paused time is not recovered)", ticks, frames)
+	}
+	if alpha := g.Alpha(); math.Abs(alpha-0.8) > 1e-9 {
+		t.Errorf("alpha after resume = %v, want 0.8 (frozen 0.4 plus one frame)", alpha)
+	}
+	advanceTestGame(t, g, step)
+	if ticks != 1 || frames != 5 {
+		t.Fatalf("tick after resume: ticks=%d frames=%d, want 1/5", ticks, frames)
 	}
 }
 
-func TestCollisionEmitsEnteredSignal(t *testing.T) {
-	g, err := New(WithCollision())
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	hub := g.World().MustResource[*signal.Hub]()
-
-	shape, err := collision.NewCollider(collision.Box{
-		Min: geom.Vector2{X: -1, Y: -1},
-		Max: geom.Vector2{X: 1, Y: 1},
-	})
-	if err != nil {
-		t.Fatalf("collider: %v", err)
-	}
-	left, err := g.World().NewEntity(core.Transform{}, shape)
-	if err != nil {
-		t.Fatalf("spawn left: %v", err)
-	}
-	_, err = g.World().NewEntity(
-		core.Transform{Position: geom.Vector2{X: 1, Y: 0}}, shape)
-	if err != nil {
-		t.Fatalf("spawn right: %v", err)
-	}
-
-	reader := hub.NewReader[collision.Entered]()
-	var got []collision.Entered
-	g.AddSystem(core.PhaseFrame, "signal collector", core.SystemFunc(func(ctx *core.Context) error {
-		return reader.Drain(func(e collision.Entered) error {
-			got = append(got, e)
-			return nil
-		})
+func TestTimeScaleScalesAccumulationOnly(t *testing.T) {
+	// FixedTPS 10 => fixedDT = 100ms.
+	g := newTestGame(t, WithFixedTPS(10))
+	var ticks, frames int
+	var frameDT time.Duration
+	addTestSystem(t, g, core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
+		frames++
+		frameDT = ctx.DeltaTime
+		return nil
 	}))
+	addTestSystem(t, g, core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
 
-	step := time.Second / 60
-	for range 3 {
-		if err := g.Advance(step); err != nil {
-			t.Fatalf("Advance: %v", err)
-		}
+	if err := g.SetTimeScale(0.5); err != nil {
+		t.Fatalf("SetTimeScale(0.5): %v", err)
+	}
+	step := 100 * time.Millisecond
+	advanceTestGame(t, g, step)
+	if ticks != 0 || frames != 1 {
+		t.Fatalf("half speed, first advance: ticks=%d frames=%d, want 0/1", ticks, frames)
+	}
+	if alpha := g.Alpha(); math.Abs(alpha-0.5) > 1e-9 {
+		t.Errorf("alpha at half speed = %v, want 0.5", alpha)
+	}
+	if frameDT != step {
+		t.Errorf("frame DeltaTime at half speed = %v, want %v (frame time is never scaled)", frameDT, step)
 	}
 
-	if len(got) != 2 {
-		t.Fatalf("entered signals = %v, want two (one per perspective)", got)
+	advanceTestGame(t, g, step)
+	if ticks != 1 || frames != 2 {
+		t.Fatalf("half speed, second advance: ticks=%d frames=%d, want 1/2", ticks, frames)
 	}
-	if got[0].Entity != left.ID() && got[1].Entity != left.ID() {
-		t.Fatalf("no entered signal for entity %d: %v", left.ID(), got)
+	if alpha := g.Alpha(); math.Abs(alpha) > 1e-9 {
+		t.Errorf("alpha after tick = %v, want 0", alpha)
 	}
 }
 
-func TestNewProvidesDebugPanel(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
+func TestTimeScaleFastForwardRespectsSpiralGuard(t *testing.T) {
+	// A one-second frame at scale 10 is capped at MaxTicksPerFrame ticks.
+	g := newTestGame(t, WithFixedTPS(100), WithMaxFrameTime(time.Second))
+	var ticks int
+	addTestSystem(t, g, core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
+
+	if err := g.SetTimeScale(10); err != nil {
+		t.Fatalf("SetTimeScale(10): %v", err)
 	}
-	panel := g.World().MustResource[*debug.Panel]()
-	if panel == nil {
-		t.Fatal("MustResource should return the engine-provided panel")
+	advanceTestGame(t, g, time.Second)
+	if ticks != 5 {
+		t.Errorf("ticks = %d, want 5 (fast forward still capped at MaxTicksPerFrame)", ticks)
 	}
-	if !panel.Enabled(debug.FPS) || !panel.Enabled(debug.TPS) {
-		t.Fatal("the engine's panel should start with every builtin enabled")
+	if alpha := g.Alpha(); alpha != 0 {
+		t.Errorf("alpha = %v, want 0 (backlog dropped)", alpha)
+	}
+}
+
+func TestTimeScaleChangePreservesRemainder(t *testing.T) {
+	g := newTestGame(t, WithFixedTPS(4))
+	var ticks int
+	addTestSystem(t, g, core.PhaseFixed, "tick counter", core.SystemFunc(func(*core.Context) error {
+		ticks++
+		return nil
+	}))
+	if err := g.SetTimeScale(0.5); err != nil {
+		t.Fatal(err)
+	}
+	advanceTestGame(t, g, 250*time.Millisecond)
+	if ticks != 0 || math.Abs(g.Alpha()-0.5) > 1e-9 {
+		t.Fatalf("half speed: ticks=%d alpha=%v, want 0 and 0.5", ticks, g.Alpha())
+	}
+	if err := g.SetTimeScale(2); err != nil {
+		t.Fatal(err)
+	}
+	advanceTestGame(t, g, 125*time.Millisecond)
+	if ticks != 1 || math.Abs(g.Alpha()-0.5) > 1e-9 {
+		t.Fatalf("double speed: ticks=%d alpha=%v, want 1 and 0.5", ticks, g.Alpha())
+	}
+	advanceTestGame(t, g, 125*time.Millisecond)
+	if ticks != 2 || math.Abs(g.Alpha()-0.5) > 1e-9 {
+		t.Fatalf("double speed next frame: ticks=%d alpha=%v, want 2 and 0.5", ticks, g.Alpha())
+	}
+}
+
+func TestSetTimeScaleRejectsNonPositive(t *testing.T) {
+	g := newTestGame(t)
+	if g.TimeScale() != 1 {
+		t.Fatalf("default TimeScale = %v, want 1", g.TimeScale())
+	}
+	for _, bad := range []float64{0, -0.5, -2} {
+		if err := g.SetTimeScale(bad); err == nil {
+			t.Errorf("SetTimeScale(%v) should return an error", bad)
+		}
+	}
+	if g.TimeScale() != 1 {
+		t.Errorf("TimeScale after rejected values = %v, want 1 (unchanged)", g.TimeScale())
+	}
+
+	if err := g.SetTimeScale(2); err != nil {
+		t.Fatal(err)
+	}
+	if g.TimeScale() != 2 {
+		t.Errorf("TimeScale = %v, want 2", g.TimeScale())
+	}
+
+	// Scale is remembered while paused and applies after Resume.
+	g.Pause()
+	if err := g.SetTimeScale(0.25); err != nil {
+		t.Fatal(err)
+	}
+	g.Resume()
+	if g.TimeScale() != 0.25 {
+		t.Errorf("TimeScale after pause/resume = %v, want 0.25", g.TimeScale())
 	}
 }

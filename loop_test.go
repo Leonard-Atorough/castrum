@@ -3,7 +3,6 @@ package castrum
 import (
 	"errors"
 	"math"
-	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,24 +13,162 @@ import (
 	"github.com/Leonard-Atorough/castrum/signal"
 )
 
+func TestSetGroupEnabledAcrossPhasesAndRegistrations(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	var fixed, frame, late, other, ungrouped int
+	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "first fixed", core.SystemFunc(func(*core.Context) error {
+		fixed++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystemToGroup(core.PhaseFixed, "other", "other fixed", core.SystemFunc(func(*core.Context) error {
+		other++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "ungrouped fixed", core.SystemFunc(func(*core.Context) error {
+		ungrouped++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if fixed != 1 {
+		t.Fatalf("new group updates = %d, want 1", fixed)
+	}
+	if err := g.SetGroupEnabled("mission", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystemToGroup(core.PhaseFrame, "mission", "late frame", core.SystemFunc(func(*core.Context) error {
+		frame++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "late fixed", core.SystemFunc(func(*core.Context) error {
+		late++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance inactive: %v", err)
+	}
+	if fixed != 1 || frame != 0 || late != 0 {
+		t.Fatalf("inactive updates: fixed=%d frame=%d late=%d", fixed, frame, late)
+	}
+	if other != 2 || ungrouped != 2 {
+		t.Fatalf("unrelated updates: other=%d ungrouped=%d, want 2 each", other, ungrouped)
+	}
+	if err := g.SetGroupEnabled("mission", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if fixed != 2 || frame != 1 || late != 1 {
+		t.Fatalf("active updates: fixed=%d frame=%d late=%d, want 2/1/1", fixed, frame, late)
+	}
+}
+
+func TestSetGroupEnabledRejectsUnknownGroups(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"", "missing"} {
+		if err := g.SetGroupEnabled(name, false); err == nil {
+			t.Errorf("SetGroupEnabled(%q) accepted an invalid group", name)
+		}
+	}
+	var updates int
+	if err := g.AddSystemToGroup(core.PhaseFixed, "missing", "later", core.SystemFunc(func(*core.Context) error {
+		updates++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if updates != 1 {
+		t.Fatalf("rejected group change affected later registration: updates=%d", updates)
+	}
+}
+
+func TestSetGroupEnabledAffectsLaterSystemsInCurrentPhase(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var updates int
+	if err := g.AddSystem(core.PhaseFrame, "disable", core.SystemFunc(func(*core.Context) error {
+		return g.SetGroupEnabled("mission", false)
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystemToGroup(core.PhaseFrame, "mission", "later", core.SystemFunc(func(*core.Context) error {
+		updates++
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if updates != 0 {
+		t.Fatalf("disabled system ran in current phase: updates=%d", updates)
+	}
+}
+
+func newTestGame(t *testing.T, opts ...option) *Game {
+	t.Helper()
+	g, err := New(opts...)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return g
+}
+
+func addTestSystem(t *testing.T, g *Game, phase core.Phase, name string, system core.System) {
+	t.Helper()
+	if err := g.AddSystem(phase, name, system); err != nil {
+		t.Fatalf("AddSystem(%s, %q): %v", phase, name, err)
+	}
+}
+
+func advanceTestGame(t *testing.T, g *Game, elapsed time.Duration) {
+	t.Helper()
+	if err := g.Advance(elapsed); err != nil {
+		t.Fatalf("Advance(%v): %v", elapsed, err)
+	}
+}
+
 func TestAdvanceAccumulatesFixedTicks(t *testing.T) {
 	// FixedTPS 4 => fixedDT = 250ms.
-	g, _ := New(WithFixedTPS(4))
+	g := newTestGame(t, WithFixedTPS(4))
 	var ticks, frames int
 	var frameDT, fixedDT time.Duration
-	g.AddSystem(core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
 		frames++
 		frameDT = ctx.DeltaTime
 		return nil
 	}))
-	g.AddSystem(core.PhaseFixed, "fixed counter", core.SystemFunc(func(ctx *core.Context) error {
+	addTestSystem(t, g, core.PhaseFixed, "fixed counter", core.SystemFunc(func(ctx *core.Context) error {
 		ticks++
 		fixedDT = ctx.DeltaTime
 		return nil
 	}))
 
 	step := 100 * time.Millisecond
-	g.Advance(step)
+	advanceTestGame(t, g, step)
 	if ticks != 0 || frames != 1 {
 		t.Fatalf("after first advance: ticks=%d frames=%d, want 0/1", ticks, frames)
 	}
@@ -39,12 +176,12 @@ func TestAdvanceAccumulatesFixedTicks(t *testing.T) {
 		t.Errorf("alpha after first advance = %v, want 0.4", alpha)
 	}
 
-	g.Advance(step)
+	advanceTestGame(t, g, step)
 	if ticks != 0 || frames != 2 {
 		t.Fatalf("after second advance: ticks=%d frames=%d, want 0/2", ticks, frames)
 	}
 
-	g.Advance(step)
+	advanceTestGame(t, g, step)
 	if ticks != 1 || frames != 3 {
 		t.Fatalf("after third advance: ticks=%d frames=%d, want 1/3", ticks, frames)
 	}
@@ -61,38 +198,50 @@ func TestAdvanceAccumulatesFixedTicks(t *testing.T) {
 
 func TestMaxFrameTimeClampsElapsed(t *testing.T) {
 	// FixedTPS 1 => fixedDT = 1s; MaxFrameTime 50ms clamps a 10s stall.
-	g, _ := New(WithFixedTPS(1), WithMaxFrameTime(50*time.Millisecond))
+	g := newTestGame(t, WithFixedTPS(1), WithMaxFrameTime(50*time.Millisecond))
 	var ticks int
-	g.AddSystem(core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
+	var frameDT time.Duration
+	addTestSystem(t, g, core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
+	addTestSystem(t, g, core.PhaseFrame, "frame clock", core.SystemFunc(func(ctx *core.Context) error {
+		frameDT = ctx.DeltaTime
+		return nil
+	}))
 
-	g.Advance(10 * time.Second)
+	advanceTestGame(t, g, 10*time.Second)
 	if ticks != 0 {
 		t.Errorf("ticks = %d, want 0 (elapsed clamped below one tick)", ticks)
 	}
 	if alpha := g.Alpha(); math.Abs(alpha-0.05) > 1e-9 {
 		t.Errorf("alpha = %v, want 0.05", alpha)
 	}
+	if frameDT != 50*time.Millisecond {
+		t.Errorf("frame DeltaTime = %v, want 50ms", frameDT)
+	}
 }
 
 func TestMaxTicksPerFrameDropsBacklog(t *testing.T) {
 	// FixedTPS 100 => fixedDT = 10ms; 1s due, capped at 5 ticks, backlog dropped.
-	g, _ := New(WithFixedTPS(100), WithMaxFrameTime(time.Second))
+	g := newTestGame(t, WithFixedTPS(100), WithMaxFrameTime(time.Second))
 	var ticks int
-	g.AddSystem(core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
+	addTestSystem(t, g, core.PhaseFixed, "tick counter", core.SystemFunc(func(ctx *core.Context) error { ticks++; return nil }))
 
-	g.Advance(time.Second)
+	advanceTestGame(t, g, time.Second)
 	if ticks != 5 {
 		t.Errorf("ticks = %d, want 5 (capped at MaxTicksPerFrame)", ticks)
 	}
 	if alpha := g.Alpha(); alpha != 0 {
 		t.Errorf("alpha = %v, want 0 (backlog dropped)", alpha)
 	}
+	advanceTestGame(t, g, 0)
+	if ticks != 5 {
+		t.Errorf("ticks after zero elapsed = %d, want 5", ticks)
+	}
 }
 
 func TestSystemErrorPropagates(t *testing.T) {
-	g, _ := New()
+	g := newTestGame(t)
 	boom := errors.New("boom")
-	g.AddSystem(core.PhaseFixed, "boom", core.SystemFunc(func(ctx *core.Context) error { return boom }))
+	addTestSystem(t, g, core.PhaseFixed, "boom", core.SystemFunc(func(ctx *core.Context) error { return boom }))
 
 	err := g.Advance(100 * time.Millisecond)
 	if !errors.Is(err, boom) {
@@ -104,9 +253,9 @@ func TestSystemErrorPropagates(t *testing.T) {
 }
 
 func TestStartupRunsOnce(t *testing.T) {
-	g, _ := New()
+	g := newTestGame(t)
 	var runs int
-	g.AddSystem(core.PhaseStartup, "startup counter", core.SystemFunc(func(ctx *core.Context) error { runs++; return nil }))
+	addTestSystem(t, g, core.PhaseStartup, "startup counter", core.SystemFunc(func(ctx *core.Context) error { runs++; return nil }))
 
 	if err := g.Startup(); err != nil {
 		t.Fatalf("first Startup: %v", err)
@@ -122,20 +271,10 @@ func TestStartupRunsOnce(t *testing.T) {
 	}
 }
 
-func TestContextWiredToWorld(t *testing.T) {
-	g, _ := New()
-	if g.World() == nil {
-		t.Fatal("World = nil, want an initialized world")
-	}
-	if g.Context().World != g.World() {
-		t.Error("Context().World differs from Game.World()")
-	}
-}
-
 type startupProbe struct{}
 
 func TestStartupResolvesEagerBeforeSystems(t *testing.T) {
-	g, _ := New()
+	g := newTestGame(t)
 	resolved := false
 	if err := g.World().ProvideEager(func(w *core.World) (*startupProbe, error) {
 		resolved = true
@@ -143,7 +282,7 @@ func TestStartupResolvesEagerBeforeSystems(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("ProvideEager: %v", err)
 	}
-	g.AddSystem(core.PhaseStartup, "probe", core.SystemFunc(func(ctx *core.Context) error {
+	addTestSystem(t, g, core.PhaseStartup, "probe", core.SystemFunc(func(ctx *core.Context) error {
 		if !resolved {
 			t.Error("eager resource not resolved before startup systems ran")
 		}
@@ -158,100 +297,8 @@ func TestStartupResolvesEagerBeforeSystems(t *testing.T) {
 	}
 }
 
-func TestQuit(t *testing.T) {
-	g, _ := New()
-	if g.Quitting() {
-		t.Fatal("new game should not be quitting")
-	}
-	g.Quit()
-	if !g.Quitting() {
-		t.Error("Quitting = false after Quit")
-	}
-}
-
-type fakeRunner struct {
-	err error
-}
-
-func (f *fakeRunner) Run() error { return f.err }
-
-func TestRunOnce(t *testing.T) {
-	g, _ := New()
-	boom := errors.New("runner failed")
-	if err := g.Run(&fakeRunner{err: boom}); !errors.Is(err, boom) {
-		t.Fatalf("Run error = %v, want %v", err, boom)
-	}
-	if err := g.Run(&fakeRunner{}); err == nil {
-		t.Error("second Run should return an error")
-	}
-}
-
-// enginePackages are the game-facing packages that must stay free of
-// backend imports: the engine, its subsystems, and its internals. The
-// runner and the benchmark module are the deliberate exceptions - they
-// are the backend and its measurement.
-var enginePackages = []string{
-	".",
-	"./core",
-	"./signal",
-	"./debug",
-	"./timer",
-	"./animation",
-	"./collision",
-	"./audio",
-	"./input",
-	"./geom",
-	"./render",
-	"./asset",
-	"./tween",
-	"./internal/ecs",
-	"./internal/runtime",
-	"./internal/spatial",
-}
-
-func TestEnginePackagesHaveNoBackendImports(t *testing.T) {
-	if _, err := exec.LookPath("go"); err != nil {
-		t.Skip("go not on PATH")
-	}
-	for _, pkg := range enginePackages {
-		t.Run(pkg, func(t *testing.T) {
-			out, err := exec.Command("go", "list", "-deps", pkg).Output()
-			if err != nil {
-				t.Fatalf("go list -deps: %v", err)
-			}
-			for _, dep := range strings.Split(string(out), "\n") {
-				if strings.Contains(dep, "hajimehoshi") || strings.Contains(dep, "ebitengine") {
-					t.Errorf("%s depends on backend package %q", pkg, dep)
-				}
-			}
-		})
-	}
-}
-
-// TestExamplesImportNoBackendDirectly flags examples that import the
-// backend themselves instead of going through the runner or the debug
-// panel. It is a migration list: a flagged example still runs, but its
-// diagnostics should move to the debug panel.
-func TestExamplesImportNoBackendDirectly(t *testing.T) {
-	if _, err := exec.LookPath("go"); err != nil {
-		t.Skip("go not on PATH")
-	}
-	out, err := exec.Command("go", "list", "-f",
-		`{{.ImportPath}}: {{join .Imports " "}}`, "./examples/...").Output()
-	if err != nil {
-		t.Fatalf("go list: %v", err)
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		if !strings.Contains(line, "hajimehoshi") && !strings.Contains(line, "ebitengine") {
-			continue
-		}
-		t.Errorf("%s imports the backend directly; route diagnostics through the debug panel or the runner",
-			strings.SplitN(line, ":", 2)[0])
-	}
-}
-
 func TestEngineRegistersPrevTransformCapture(t *testing.T) {
-	g, _ := New()
+	g := newTestGame(t)
 	entity, err := g.World().NewEntity(core.Transform{Position: geom.Vector2{X: 7, Y: 7}, Scale: geom.Vector2{X: 1, Y: 1}})
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
@@ -261,26 +308,32 @@ func TestEngineRegistersPrevTransformCapture(t *testing.T) {
 		t.Fatalf("spawn prev = %v, ok %v, want the spawn position (7, 7)", prev, ok)
 	}
 
-	transform, _ := entity.Component[core.Transform](g.World())
-	transform.Position = geom.Vector2{X: 9, Y: 9}
-	if err := entity.SetComponent(g.World(), transform); err != nil {
-		t.Fatalf("move: %v", err)
-	}
-
-	// One full tick advances the fixed phase: the capture snapshots
-	// the tick-start position into prev.
+	addTestSystem(t, g, core.PhaseFixed, "move", core.SystemFunc(func(ctx *core.Context) error {
+		return entity.Update(ctx.World, func(transform *core.Transform) {
+			transform.Position = geom.Vector2{X: 9, Y: 9}
+		})
+	}))
 	if err := g.Advance(time.Second / 60); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
 	prev, ok = entity.Component[core.PrevTransform](g.World())
+	if !ok || prev.Position != (geom.Vector2{X: 7, Y: 7}) {
+		t.Fatalf("after tick prev = %v, ok %v, want tick-start position (7, 7)", prev, ok)
+	}
+	transform, ok := entity.Component[core.Transform](g.World())
+	if !ok || transform.Position != (geom.Vector2{X: 9, Y: 9}) {
+		t.Fatalf("after tick transform = %v, ok %v, want moved position (9, 9)", transform, ok)
+	}
+	advanceTestGame(t, g, time.Second/60)
+	prev, ok = entity.Component[core.PrevTransform](g.World())
 	if !ok || prev.Position != (geom.Vector2{X: 9, Y: 9}) {
-		t.Fatalf("after tick prev = %v, ok %v, want the moved position (9, 9) - the capture ran", prev, ok)
+		t.Fatalf("after second tick prev = %v, ok %v, want prior movement (9, 9)", prev, ok)
 	}
 }
 
 func TestSignalLifecycleInGameLoop(t *testing.T) {
 	// FixedTPS 4 => fixedDT = 250ms; tick 1 lands inside frame 3.
-	g, _ := New(WithFixedTPS(4))
+	g := newTestGame(t, WithFixedTPS(4))
 	hub := g.World().MustResource[*signal.Hub]()
 
 	type hit struct{}
@@ -288,19 +341,19 @@ func TestSignalLifecycleInGameLoop(t *testing.T) {
 	frameReader := hub.NewReader[hit]()
 	var tickAt, frameAt []uint64
 
-	g.AddSystem(core.PhaseFixed, "emitter", core.SystemFunc(func(ctx *core.Context) error {
+	addTestSystem(t, g, core.PhaseFixed, "emitter", core.SystemFunc(func(ctx *core.Context) error {
 		if ctx.Tick == 1 {
 			hub.Emit(hit{})
 		}
 		return nil
 	}))
-	g.AddSystem(core.PhaseFixed, "tick consumer", core.SystemFunc(func(ctx *core.Context) error {
+	addTestSystem(t, g, core.PhaseFixed, "tick consumer", core.SystemFunc(func(ctx *core.Context) error {
 		return tickReader.Drain(func(_ hit) error {
 			tickAt = append(tickAt, ctx.Tick)
 			return nil
 		})
 	}))
-	g.AddSystem(core.PhaseFrame, "frame consumer", core.SystemFunc(func(ctx *core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "frame consumer", core.SystemFunc(func(ctx *core.Context) error {
 		return frameReader.Drain(func(_ hit) error {
 			frameAt = append(frameAt, ctx.Frame)
 			return nil
