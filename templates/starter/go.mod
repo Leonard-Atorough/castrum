@@ -2,7 +2,7 @@ module example.com/mygame
 
 go 1.27.2
 
-require github.com/Leonard-Atorough/castrum v0.2.0
+require github.com/Leonard-Atorough/castrum v0.3.0
 
 require (
 	github.com/ebitengine/gomobile v0.0.0-20260820040257-d11f821a26a6 // indirect
