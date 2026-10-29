@@ -106,3 +106,40 @@ jobs:
             }' coverage.out | sort
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  platform-build:
+    name: Platform build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Use checkout for starter module
+        working-directory: templates/starter
+        run: go mod edit '-replace=github.com/Leonard-Atorough/castrum=../..'
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev
+
+      - name: Build Castrum packages
+        run: go build ./...
+
+      - name: Test starter module
+        working-directory: templates/starter
+        run: go test ./...
+
+      - name: Vet starter module
+        working-directory: templates/starter
+        run: go vet ./...

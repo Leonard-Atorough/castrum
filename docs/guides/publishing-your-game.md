@@ -95,6 +95,18 @@ $env:GOOS = "windows"; $env:GOARCH = "amd64"; go build -o dist/mygame-windows-am
 
 Use a separate output name for each `GOOS` and `GOARCH` pair. Cross-compiling Ebitengine can also require platform-specific native build support; consult the current [Ebitengine platform documentation](https://ebitengine.org) for mobile, console, graphics, windowing, and distribution requirements.
 
+## CI-verified platforms
+
+The release workflow builds Castrum on native `ubuntu-latest`, `windows-latest`,
+and `macos-latest` runners. It runs the full race-enabled test suite on Ubuntu;
+the standalone starter module is tested and vetted against the checkout on all
+three runners.
+
+These checks verify compilation on the hosted runner environments, not game
+launch or distribution on every architecture and device. Test the built game
+on each target you ship, and follow Ebitengine's platform-specific
+requirements.
+
 ## Test the release artifact
 
 Run the built executable from a directory unrelated to the source tree. This catches accidental dependence on the process working directory:
