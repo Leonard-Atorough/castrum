@@ -147,7 +147,7 @@ func WithScenes() option {
 }
 
 // WithDefaultSystems enables animation, collision, and timer processing. It
-// is equivalent to passing [WithAnimation], [WithCollision], and [WithTimer].
+// is equivalent to passing [WithAnimation], [WithCollision], [WithTimer], and [WithScenes].
 func WithDefaultSystems() option {
-	return optionFunc(func(o *Options) { o.systems |= sysAnimation | sysCollision | sysTimer })
+	return optionFunc(func(o *Options) { o.systems |= sysAnimation | sysCollision | sysTimer | sysScenes })
 }

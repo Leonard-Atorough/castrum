@@ -1,9 +1,9 @@
-// Command salvage-bay demonstrates scene transitions and entity queries.
+// Command scenes demonstrates scene transitions and entity queries.
 // Space switches between the hangar and salvage field; S toggles the scanner.
 //
 // Run from the repository root:
 //
-//	go run ./examples/salvage-bay
+//	go run ./examples/scenes
 package main
 
 import (
@@ -42,7 +42,7 @@ func run() error {
 
 func newGame() (*castrum.Game, error) {
 	g, err := castrum.New(
-		castrum.WithTitle("Salvage Bay"),
+		castrum.WithTitle("Scenes"),
 		castrum.WithScenes(),
 		castrum.WithBindings(input.Bindings{
 			"travel":  []input.Input{input.KeyInput{Key: input.KeySpace}},
