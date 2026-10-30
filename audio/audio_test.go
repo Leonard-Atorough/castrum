@@ -670,11 +670,8 @@ func TestFinishedSignalOnCompletion(t *testing.T) {
 	runAudio(t, sys, ctx)
 
 	var got []Finished
-	if err := finished.Drain(func(f Finished) error {
-		got = append(got, f)
-		return nil
-	}); err != nil {
-		t.Fatalf("drain finished: %v", err)
+	for event, ok := finished.Next(); ok; event, ok = finished.Next() {
+		got = append(got, event)
 	}
 	if len(got) != 1 || got[0] != (Finished{Entity: entity.ID(), Audio: "sfx/step.wav"}) {
 		t.Fatalf("finished signals = %v, want one for entity %d", got, entity.ID())
@@ -682,7 +679,7 @@ func TestFinishedSignalOnCompletion(t *testing.T) {
 
 	// Completion is a transition: a later update does not emit it again.
 	runAudio(t, sys, ctx)
-	if err := finished.Drain(func(Finished) error { return nil }); err != nil {
-		t.Fatalf("drain finished: %v", err)
+	if event, ok := finished.Next(); ok {
+		t.Fatalf("unexpected repeated finish signal: %+v", event)
 	}
 }

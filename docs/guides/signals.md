@@ -47,11 +47,11 @@ if err := g.AddSystem(core.PhaseFixed, "core.sequence", hub.Consumer(
 }
 ```
 
-Each call to `Consumer` has an independent reader. Systems consuming the same signal type can each receive the signal while it is still in the window; they don't take turns draining a shared queue.
+Each call to `Consumer` has an independent reader. Systems consuming the same signal type can each receive the signal while it is still in the window; they don't take turns consuming a shared queue.
 
-### Draining several streams in one system
+### Reading several streams in one system
 
-When one system needs more than one signal type, create a reader for each type and drain them from the system's update:
+When one system needs more than one signal type, create a reader for each type and read each stream from the system's update:
 
 ```go
 chargedFrame := hub.NewReader[coreCharged]()
@@ -59,16 +59,13 @@ launchedFrame := hub.NewReader[launched]()
 
 if err := g.AddSystem(core.PhaseFrame, "core.announce", core.SystemFunc(
 	func(ctx *core.Context) error {
-		if err := chargedFrame.Drain(func(coreCharged) error {
+		for _, ok := chargedFrame.Next(); ok; _, ok = chargedFrame.Next() {
 			state.bannerText = "CORE CHARGED"
-			return nil
-		}); err != nil {
-			return err
 		}
-		return launchedFrame.Drain(func(l launched) error {
-			state.bannerText = fmt.Sprintf("LAUNCHED on tick %d", l.tick)
-			return nil
-		})
+		for event, ok := launchedFrame.Next(); ok; event, ok = launchedFrame.Next() {
+			state.bannerText = fmt.Sprintf("LAUNCHED on tick %d", event.tick)
+		}
+		return nil
 	},
 )); err != nil {
 	return err
@@ -85,7 +82,7 @@ if state.charge >= maxCharge {
 }
 ```
 
-`Emit` stores the value in the current window; it does not call readers immediately. An empty `Drain` is safe, but whether a system gets a chance to read a signal depends on which window it is in and when that system runs. The next two sections explain those parts.
+`Emit` stores the value in the current window; it does not call readers immediately. `Reader.Next` reports whether a signal is available, so an empty read is expected. Whether a system gets a chance to read a signal depends on which window it is in and when that system runs. The next two sections explain those parts.
 
 ## Lifetime: the tick and frame windows
 
@@ -97,13 +94,13 @@ The hub starts in frame mode. In normal game updates, the engine switches to tic
 
 ## Ordering
 
-Systems in a phase run in registration order. For same-tick delivery, register the emitter before the consumer: the consumer then drains after the signal has been emitted and can react in that tick.
+Systems in a phase run in registration order. For same-tick delivery, register the emitter before the consumer: the consumer then reads after the signal has been emitted and can react in that tick.
 
-If the consumer runs first, its drain finds no signal. That is safe, but the system is not run again just because another system emits later. The signal still moves to the frame window at the end of the tick, where a frame reader can handle it in the next display frame; the earlier fixed-phase consumer will not see it on its next tick.
+If the consumer runs first, its read finds no signal. That is safe, but the system is not run again just because another system emits later. The signal still moves to the frame window at the end of the tick, where a frame reader can handle it in the next display frame; the earlier fixed-phase consumer will not see it on its next tick.
 
 ## Errors
 
-`Drain` stops and returns the first error from its handler. The signal passed to the handler is considered read even when the handler returns an error; later signals remain unread. `Consumer` returns that error from its system update. When you drain manually, return the error from `Drain` from your system update rather than discarding it.
+`Consumer` returns the first handler error from its system update. The signal passed to the handler is already consumed; later unread signals remain available on the reader's next update. When reading manually, `Next` consumes a signal before returning it, so return handler errors from the system update rather than discarding them.
 
 ## Engine signals
 
@@ -118,9 +115,9 @@ Several engine features emit typed signals. Their guides explain each payload, w
 
 ## Troubleshooting
 
-- **The handler never runs:** check that the emitted and consumed types match exactly, that the system runs in a phase where the signal is available, and that it has not expired before the reader drains it. An empty drain is expected when no signal is waiting.
+- **The handler never runs:** check that the emitted and consumed types match exactly, that the system runs in a phase where the signal is available, and that it has not expired before the reader checks it. `Next` returning false is expected when no signal is waiting.
 - **Another consumer seems to miss the signal:** create a separate `Consumer` or `Reader` for each consumer. Sharing one reader splits delivery because its cursor is shared.
-- **A signal is emitted from another goroutine:** keep hub access on the game loop. The hub does not synchronize concurrent `Emit` and `Drain` calls.
+- **A signal is emitted from another goroutine:** keep hub access on the game loop. The hub does not synchronize concurrent `Emit` and `Next` calls.
 
 ## Where to go next
 

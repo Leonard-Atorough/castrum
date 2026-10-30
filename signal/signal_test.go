@@ -28,11 +28,8 @@ func tickHub() *Hub {
 func collect[T any](t *testing.T, r *Reader[T]) []T {
 	t.Helper()
 	var got []T
-	if err := r.Drain(func(v T) error {
-		got = append(got, v)
-		return nil
-	}); err != nil {
-		t.Fatalf("drain: %v", err)
+	for value, ok := r.Next(); ok; value, ok = r.Next() {
+		got = append(got, value)
 	}
 	return got
 }
@@ -50,8 +47,8 @@ func TestTickSignalsDeliveredOnceInOrder(t *testing.T) {
 	h.Emit(ping{2})
 
 	r := h.NewReader[ping]()
-	want(t, "first drain", collect(t, r), []ping{{1}, {2}})
-	want(t, "second drain", collect(t, r), nil)
+	want(t, "first read", collect(t, r), []ping{{1}, {2}})
+	want(t, "second read", collect(t, r), nil)
 }
 
 func TestReaderIndependence(t *testing.T) {
@@ -74,21 +71,23 @@ func TestReaderAdoptsWindowInProgress(t *testing.T) {
 	want(t, "late reader", collect(t, r), []ping{{1}})
 }
 
-func TestEmitDuringDrainDefers(t *testing.T) {
+func TestEmitDuringReadDefersUntilNextPass(t *testing.T) {
 	h := tickHub()
 	r := h.NewReader[ping]()
 	h.Emit(ping{1})
 
 	var seen []ping
-	if err := r.Drain(func(v ping) error {
-		seen = append(seen, v)
-		h.Emit(ping{2})
-		return nil
-	}); err != nil {
-		t.Fatalf("drain: %v", err)
+	value, ok := r.Next()
+	if !ok {
+		t.Fatal("first Next returned no signal")
 	}
-	want(t, "mid-drain emit deferred", seen, []ping{{1}})
-	want(t, "next drain in same window", collect(t, r), []ping{{2}})
+	seen = append(seen, value)
+	h.Emit(ping{2})
+	if _, ok := r.Next(); ok {
+		t.Fatal("signal emitted during the read pass was returned in the same pass")
+	}
+	want(t, "mid-read emit deferred", seen, []ping{{1}})
+	want(t, "next read pass in same window", collect(t, r), []ping{{2}})
 }
 
 func TestSignalReadInBothPhases(t *testing.T) {
@@ -129,7 +128,7 @@ func TestCursorResetsWhenWindowTurnsOver(t *testing.T) {
 	want(t, "window reuse", collect(t, r), []ping{{3}})
 }
 
-func TestUndrainedTickSignalsReachFrameReaders(t *testing.T) {
+func TestUnreadTickSignalsReachFrameReaders(t *testing.T) {
 	h := tickHub()
 	r := h.NewReader[ping]()
 	h.Emit(ping{1})
@@ -185,24 +184,23 @@ func TestSignalTypesAreIsolated(t *testing.T) {
 	want(t, "pong reader", collect(t, h.NewReader[pong]()), []pong{{1}})
 }
 
-func TestDrainStopsAtHandlerError(t *testing.T) {
+func TestReaderConsumesSignalBeforeHandling(t *testing.T) {
 	h := tickHub()
 	r := h.NewReader[ping]()
 	h.Emit(ping{1})
 	h.Emit(ping{2})
 	h.Emit(ping{3})
 
-	sentinel := errors.New("boom")
-	err := r.Drain(func(v ping) error {
-		if v.n == 2 {
-			return sentinel
-		}
-		return nil
-	})
-	if !errors.Is(err, sentinel) {
-		t.Fatalf("drain error: got %v, want %v", err, sentinel)
+	value, ok := r.Next()
+	if !ok || value != (ping{1}) {
+		t.Fatalf("first signal = %v, %t; want ping 1", value, ok)
 	}
-	want(t, "resume after error", collect(t, r), []ping{{3}})
+	value, ok = r.Next()
+	if !ok || value != (ping{2}) {
+		t.Fatalf("second signal = %v, %t; want ping 2", value, ok)
+	}
+	// Handling value 2 may fail, but Next already advanced the cursor.
+	want(t, "remaining signals", collect(t, r), []ping{{3}})
 }
 
 func TestConsumerOwnsItsReader(t *testing.T) {
@@ -229,10 +227,22 @@ func TestConsumerOwnsItsReader(t *testing.T) {
 func TestConsumerPropagatesHandlerError(t *testing.T) {
 	h := tickHub()
 	h.Emit(ping{1})
+	h.Emit(ping{2})
 
 	sentinel := errors.New("boom")
-	sys := h.Consumer(func(ctx *core.Context, v ping) error { return sentinel })
+	var got []ping
+	sys := h.Consumer(func(ctx *core.Context, v ping) error {
+		got = append(got, v)
+		if v.n == 1 {
+			return sentinel
+		}
+		return nil
+	})
 	if err := sys.Update(&core.Context{}); !errors.Is(err, sentinel) {
 		t.Fatalf("consumer error: got %v, want %v", err, sentinel)
 	}
+	if err := sys.Update(&core.Context{}); err != nil {
+		t.Fatalf("consumer retry: %v", err)
+	}
+	want(t, "consumer signals across error", got, []ping{{1}, {2}})
 }

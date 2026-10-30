@@ -21,11 +21,8 @@ func TestSystem_EnteredSignals(t *testing.T) {
 	}
 
 	var got []Entered
-	if err := entered.Drain(func(e Entered) error {
-		got = append(got, e)
-		return nil
-	}); err != nil {
-		t.Fatalf("drain entered: %v", err)
+	for event, ok := entered.Next(); ok; event, ok = entered.Next() {
+		got = append(got, event)
 	}
 	if len(got) != 2 {
 		t.Fatalf("entered signals = %v, want two (one per perspective)", got)
@@ -47,21 +44,15 @@ func TestSystem_EnteredSignals(t *testing.T) {
 		t.Fatalf("collision tick: %v", err)
 	}
 	got = nil
-	if err := entered.Drain(func(e Entered) error {
-		got = append(got, e)
-		return nil
-	}); err != nil {
-		t.Fatalf("drain entered: %v", err)
+	for event, ok := entered.Next(); ok; event, ok = entered.Next() {
+		got = append(got, event)
 	}
 	if len(got) != 0 {
 		t.Errorf("entered signals during stay = %v, want none", got)
 	}
 	var exits []Exited
-	if err := exited.Drain(func(e Exited) error {
-		exits = append(exits, e)
-		return nil
-	}); err != nil {
-		t.Fatalf("drain exited: %v", err)
+	for event, ok := exited.Next(); ok; event, ok = exited.Next() {
+		exits = append(exits, event)
 	}
 	if len(exits) != 0 {
 		t.Errorf("exited signals while overlapping = %v, want none", exits)
@@ -87,11 +78,8 @@ func TestSystem_ExitedSignals(t *testing.T) {
 	}
 
 	var got []Exited
-	if err := exited.Drain(func(e Exited) error {
-		got = append(got, e)
-		return nil
-	}); err != nil {
-		t.Fatalf("drain exited: %v", err)
+	for event, ok := exited.Next(); ok; event, ok = exited.Next() {
+		got = append(got, event)
 	}
 	if len(got) != 2 {
 		t.Fatalf("exited signals = %v, want two (one per perspective)", got)
@@ -105,11 +93,8 @@ func TestSystem_ExitedSignals(t *testing.T) {
 		t.Fatalf("wall's exited signal = %v, want %v", got, wantWall)
 	}
 	var entries []Entered
-	if err := entered.Drain(func(e Entered) error {
-		entries = append(entries, e)
-		return nil
-	}); err != nil {
-		t.Fatalf("drain entered: %v", err)
+	for event, ok := entered.Next(); ok; event, ok = entered.Next() {
+		entries = append(entries, event)
 	}
 	if len(entries) != 2 || entries[0].Tick != 1 || entries[1].Tick != 1 {
 		t.Errorf("entered signals = %v, want only the two signals from tick 1", entries)

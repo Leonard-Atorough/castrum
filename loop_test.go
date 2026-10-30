@@ -348,16 +348,16 @@ func TestSignalLifecycleInGameLoop(t *testing.T) {
 		return nil
 	}))
 	addTestSystem(t, g, core.PhaseFixed, "tick consumer", core.SystemFunc(func(ctx *core.Context) error {
-		return tickReader.Drain(func(_ hit) error {
+		for _, ok := tickReader.Next(); ok; _, ok = tickReader.Next() {
 			tickAt = append(tickAt, ctx.Tick)
-			return nil
-		})
+		}
+		return nil
 	}))
 	addTestSystem(t, g, core.PhaseFrame, "frame consumer", core.SystemFunc(func(ctx *core.Context) error {
-		return frameReader.Drain(func(_ hit) error {
+		for _, ok := frameReader.Next(); ok; _, ok = frameReader.Next() {
 			frameAt = append(frameAt, ctx.Frame)
-			return nil
-		})
+		}
+		return nil
 	}))
 
 	step := 100 * time.Millisecond

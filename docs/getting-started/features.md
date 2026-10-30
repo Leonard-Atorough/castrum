@@ -34,4 +34,4 @@ Timers, collision, and animation are optional systems; enable them individually 
 
 ## Explore working examples
 
-The [examples](../../examples) directory contains runnable programs covering rendering, shapes, input, animation, audio, collision, timers, signals, and scenes.
+The [examples](../../examples) directory contains runnable programs covering rendering, shapes, input, animation, audio, collision, timers, signals, and scenes. [Signal Salvage](../../examples/signal-salvage) is a small playable demo that combines scenes, signals, timers, collision, system groups, and the built-in font.
