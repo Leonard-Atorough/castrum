@@ -58,7 +58,15 @@ if err := g.AddSystem(core.PhaseFixed, "move", core.SystemFunc(func(ctx *core.Co
 }
 ```
 
-Scene ownership manages entity lifetimes; it does not pause systems or add a runtime entity hierarchy. A child entity is still an ordinary ECS entity, and it does not inherit transforms from its parent specification. Entities created separately with `World.NewEntity` are not owned by a scene and remain when that scene is removed. See the [rendering guide](rendering.md) if scene entities need visual components.
+Scene ownership manages entity lifetimes; it does not pause systems or add a runtime entity hierarchy. A child entity is still an ordinary ECS entity, and it does not inherit transforms from its parent specification. Entities created separately with `World.NewEntity` are not owned by a scene and remain when that scene is removed. To create an entity owned by a live scene instance from gameplay code, use `Director.Spawn`:
+
+```go
+if _, err := director.Spawn(ctx, levelID, core.Transform{}, Enemy{}); err != nil {
+	return err
+}
+```
+
+`Spawn` attaches the scene ownership record, so the entity is destroyed when that instance is removed or rebuilt. Pass the intended `InstanceID` explicitly when multiple instances may be live. `Spawn` requires a live instance; an ID returned by `Load` or `Switch` cannot be used until its request has been applied. Do not pass `scene.OwnershipRecord` as a component; the director manages it. See the [rendering guide](rendering.md) if scene entities need visual components.
 
 ## Queue scene requests
 

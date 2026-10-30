@@ -162,10 +162,7 @@ func enterSubscenes(d *Director, ctx *core.Context, inst *instance, specs []Enti
 }
 
 func spawnSpec(world *core.World, spec EntitySpec, owner InstanceID, spawned *[]*core.Entity) error {
-	components := make([]any, 0, len(spec.Components)+1)
-	components = append(components, OwnershipRecord{Instance: owner})
-	components = append(components, spec.Components...)
-	entity, err := world.NewEntity(components...)
+	entity, err := newOwnedEntity(world, owner, spec.Components...)
 	if err != nil {
 		return fmt.Errorf("entity %q: %w", spec.Name, err)
 	}
@@ -178,10 +175,18 @@ func spawnSpec(world *core.World, spec EntitySpec, owner InstanceID, spawned *[]
 	return nil
 }
 
+func newOwnedEntity(world *core.World, owner InstanceID, components ...any) (*core.Entity, error) {
+	ownedComponents := make([]any, 0, len(components)+1)
+	ownedComponents = append(ownedComponents, OwnershipRecord{Instance: owner})
+	ownedComponents = append(ownedComponents, components...)
+	return world.NewEntity(ownedComponents...)
+}
+
 func rollbackEnter(d *Director, world *core.World, inst *instance, spawned []*core.Entity) {
 	for _, s := range slices.Backward(spawned) {
 		world.DestroyEntity(s)
 	}
+	destroyOwnedEntities(world, []InstanceID{inst.id})
 	delete(d.instances, inst.id)
 }
 
@@ -207,25 +212,11 @@ func teardown(d *Director, ctx *core.Context, inst *instance, keepRoot bool) err
 
 	// Phase 2: irreversible work. Collect handles before destroying;
 	// destroying during a query pass invalidates the iteration.
-	ids := make(map[InstanceID]struct{}, len(order))
+	ids := make([]InstanceID, 0, len(order))
 	for _, item := range order {
-		ids[item.id] = struct{}{}
+		ids = append(ids, item.id)
 	}
-	doomed := []*core.Entity{}
-	q := core.NewQuery(ctx.World).With(OwnershipRecord{}).Where(func(e core.Entry) bool {
-		rec, ok := e.Component[OwnershipRecord]()
-		if !ok {
-			return false
-		}
-		_, owned := ids[rec.Instance]
-		return owned
-	})
-	for e := range q.Execute() {
-		doomed = append(doomed, core.NewEntity(e.ID()))
-	}
-	for _, e := range doomed {
-		ctx.World.DestroyEntity(e) // best-effort, like rollback
-	}
+	destroyOwnedEntities(ctx.World, ids)
 
 	// Records go children-first; order already is.
 	for _, item := range order {
@@ -242,6 +233,28 @@ func teardown(d *Director, ctx *core.Context, inst *instance, keepRoot bool) err
 		return fmt.Errorf("scene: teardown committed despite exit hook errors: %w", errors.Join(hookErrs...))
 	}
 	return nil
+}
+
+func destroyOwnedEntities(world *core.World, owners []InstanceID) {
+	ids := make(map[InstanceID]struct{}, len(owners))
+	for _, owner := range owners {
+		ids[owner] = struct{}{}
+	}
+	doomed := []*core.Entity{}
+	q := core.NewQuery(world).With(OwnershipRecord{}).Where(func(e core.Entry) bool {
+		rec, ok := e.Component[OwnershipRecord]()
+		if !ok {
+			return false
+		}
+		_, owned := ids[rec.Instance]
+		return owned
+	})
+	for e := range q.Execute() {
+		doomed = append(doomed, core.NewEntity(e.ID()))
+	}
+	for _, e := range doomed {
+		world.DestroyEntity(e) // best-effort, like rollback
+	}
 }
 
 func unlinkFromParent(d *Director, inst *instance) {
