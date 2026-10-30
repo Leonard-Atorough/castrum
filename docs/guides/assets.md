@@ -25,6 +25,31 @@ if err != nil {
 
 The asset paths do not change when you switch from a directory to `embed.FS`; only the filesystem that resolves them changes. Keep every referenced file under the embedded directory. See [Publishing your game](publishing-your-game.md) for the complete release pattern.
 
+## Built-in assets
+
+The [`builtin`](../../builtin) package ships the Go Regular font at `builtin.Font`. `castrum.New` makes built-in assets available automatically, alongside the default working-directory filesystem or any filesystem you provide:
+
+```go
+import (
+	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/builtin"
+)
+
+g, err := castrum.New(
+	castrum.WithFilesystem(files),
+)
+if err != nil {
+	return err
+}
+
+if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
+	return err
+}
+```
+
+The font is embedded in binaries that use Castrum and is otherwise loaded lazily. `builtin.Register` preloads and caches it, returning errors during setup instead of on the first rendered frame. Paths under `builtin/` are reserved for engine-shipped assets.
+
 ## Loading assets
 
 ### Supported asset formats

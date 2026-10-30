@@ -1,6 +1,6 @@
 # Credits
 
-Every asset shipped in this repository, acknowledged once per source. Each example is self-contained via `//go:embed`; this file is the single place asset sources are recorded.
+Every asset shipped in this repository, acknowledged once per source. Examples embed their own assets; this file is the single place asset sources are recorded.
 
 ## [ARPMedia](https://pixabay.com/users/arpmedia-56546950/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=577821) from [Pixabay](https://pixabay.com/music//?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=577821)
 
@@ -25,6 +25,6 @@ All sound effects, currently:
 - `Dungeon_Character_2.png` (examples/wander)
 - `torch_light.png` (examples/animate)
 
-## [The Go Authors](https://go.googlesource.com/go/image/#gofont) (BSD-3-Clause)
+## [The Go Fonts](https://go.googlesource.com/image/+/refs/heads/master/font/gofont) (BSD-style license)
 
-- `fonts/GoRegular.ttf` (examples/text, examples/your-first-game)
+- `GoRegular.ttf` (the `builtin` package; based on the Go font family by Bigelow & Holmes)

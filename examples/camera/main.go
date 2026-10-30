@@ -10,12 +10,13 @@
 package main
 
 import (
-	"embed"
 	"fmt"
 	"image/color"
 	"math"
 
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -23,11 +24,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/render"
 )
 
-//go:embed fonts/GoRegular.ttf
-var files embed.FS
-
 const (
-	goFont = "fonts/GoRegular.ttf"
+	goFont = builtin.Font
 
 	// The level rectangle is also the camera's bounds. Panning stops at
 	// its edges, and zooming out beyond its size centers the view.
@@ -88,10 +86,12 @@ func run() error {
 
 	g, err := castrum.New(
 		castrum.WithTitle("castrum — camera"),
-		castrum.WithFilesystem(files),
 		castrum.WithBindings(bindings),
 	)
 	if err != nil {
+		return err
+	}
+	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 		return err
 	}
 

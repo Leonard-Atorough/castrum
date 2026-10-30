@@ -35,7 +35,7 @@ Familiarity with the [introduction](intro.md) and [key concepts](concepts.md) ch
 
 Each step leaves the game runnable.
 
-Download `castrum-tutorial-assets-<version>.zip` from the [GitHub release matching your Castrum version](https://github.com/Leonard-Atorough/castrum/releases) and extract it into your project folder. The bundle supplies the `audio/`, `sprites/`, and `fonts/` files at the paths used below; you can substitute your own assets, but this bundle is the set the tutorial is verified with.
+Download `castrum-tutorial-assets-<version>.zip` from the [GitHub release matching your Castrum version](https://github.com/Leonard-Atorough/castrum/releases) and extract it into your project folder. The bundle supplies the `audio/` and `sprites/` files at the paths used below; Castrum supplies the font.
 
 ## Setting up your environment
 
@@ -58,6 +58,7 @@ package main
 
 import (
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/input"
 )
@@ -790,10 +791,10 @@ Run it again. Enemies now converge from every side, and one bullet destroys each
 
 Finish the combat feedback with a reload readout. While the gun reloads, the remaining time appears under the tank. It disappears when the gun is ready again.
 
-Add `fmt` to the import block, and the font's path alongside the other asset constants - the bundle's `fonts/` directory holds a regular text font, and any ttf or otf file you drop in works the same:
+Add `fmt` to the import block, and use the built-in font alongside the other asset constants. You can substitute any ttf or otf file you load yourself:
 
 ```go
-const AssetFont = "fonts/GoRegular.ttf"
+const AssetFont = builtin.Font
 ```
 
 The readout is one text sprite, spawned under the tank's start position. It begins empty and hidden:
@@ -836,7 +837,7 @@ func reloadReadoutSystem(readout, turret *core.Entity) core.System {
 }
 ```
 
-Register the system and preload the font next to the texture preloads - fonts and textures are different asset types, so each loads with its own:
+Register the system and register the built-in font next to the texture preloads. The helper loads and caches the font, returning failures during setup:
 
 ```go
 if err := g.AddSystem(core.PhaseFixed, "reload.readout", reloadReadoutSystem(cooldown, turret)); err != nil {
@@ -845,7 +846,7 @@ if err := g.AddSystem(core.PhaseFixed, "reload.readout", reloadReadoutSystem(coo
 ```
 
 ```go
-if _, err := g.World().MustResource[*asset.Loader]().Load[asset.FontData](AssetFont); err != nil {
+if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 	return err
 }
 ```
