@@ -9,7 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > prototyping phase. The first rendered release is v0.1.0, the first
 > public beta. See git history for v0.0.x details.
 
-## [Unreleased]
+## [0.3.0] - 2026-10-30
+
+### Added
+- Implement built-in assets package with Go Regular font (#129)
+- Add starter project template with basic game structure and movement system (#125)
+- Add blueprint-based scene management (#124)
+- Add system group management with AddSystemToGroup and SetGroupEnabled (#123)
+- Integrate and enhance debug panel with tests and documentation (#117)
+- Emit collision entered and exit signals, and audio finished signal. (#116)
+- Add typed signals with tick and frame delivery windows (#115)
+
+### Changed
+- Replace Drain with Next for signal reading (#130)
+- Strengthen and simplify package tests (#127)
+- Refactor tests and remove deprecated time control and tween integration tests (#126)
+- Update roadmap documentation and remove outdated files (#121)
+
+### Fixed
+- Release tutorial asset packaging (#131)
+- **breaking:** Reject pointer components (#122)
 
 ## [0.2.0] - 2026-10-19
 
