@@ -758,6 +758,9 @@ func TestDrainRollsBackOnEnterHookFailure(t *testing.T) {
 	ctx := &core.Context{World: core.NewWorld()}
 	bp := testBlueprint("level")
 	bp.Hooks = Hooks{Enter: func(ctx *core.Context, self *Instance) error {
+		if _, err := d.Spawn(ctx, self.ID, position{X: 2}); err != nil {
+			t.Fatalf("Spawn from Enter: %v", err)
+		}
 		return errors.New("no entry")
 	}}
 	id, err := d.Load(bp)
@@ -772,6 +775,66 @@ func TestDrainRollsBackOnEnterHookFailure(t *testing.T) {
 	}
 	if _, ok := d.Get(id); ok {
 		t.Fatal("record survived rollback")
+	}
+}
+
+func TestSpawnCreatesEntityOwnedByLiveInstance(t *testing.T) {
+	d := NewDirector()
+	ctx := &core.Context{World: core.NewWorld()}
+	id := enterTestInstance(t, d, ctx, testBlueprint("level"))
+
+	entity, err := d.Spawn(ctx, id, position{X: 42})
+	if err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	owner, ok := entity.Component[OwnershipRecord](ctx.World)
+	if !ok || owner.Instance != id {
+		t.Fatalf("Spawn ownership = %+v, found = %t; want instance %d", owner, ok, id)
+	}
+	if got, ok := entity.Component[position](ctx.World); !ok || got.X != 42 {
+		t.Fatalf("Spawn position = %+v, found = %t; want X=42", got, ok)
+	}
+
+	if err := d.Remove(id); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if err := drainOnce(t, d, ctx); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	if entity.HasComponent[OwnershipRecord](ctx.World) {
+		t.Fatal("scene-owned spawned entity survived removal")
+	}
+}
+
+func TestSpawnRejectsInvalidOwnerContextAndOwnershipComponent(t *testing.T) {
+	d := NewDirector()
+	ctx := &core.Context{World: core.NewWorld()}
+	id := enterTestInstance(t, d, ctx, testBlueprint("level"))
+	pending, err := d.Load(testBlueprint("pending"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	cases := []struct {
+		name  string
+		ctx   *core.Context
+		owner InstanceID
+		comps []any
+	}{
+		{name: "nil context", owner: id},
+		{name: "nil world", ctx: &core.Context{}, owner: id},
+		{name: "unknown owner", ctx: ctx, owner: pending + 100},
+		{name: "pending owner", ctx: ctx, owner: pending},
+		{name: "caller ownership record", ctx: ctx, owner: id, comps: []any{OwnershipRecord{Instance: pending}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := d.Spawn(tc.ctx, tc.owner, tc.comps...); err == nil {
+				t.Fatal("Spawn succeeded, want error")
+			}
+		})
+	}
+	if n := ownedCount(ctx.World, id); n != 1 {
+		t.Fatalf("owner entities after rejected spawns = %d, want blueprint entity only", n)
 	}
 }
 
