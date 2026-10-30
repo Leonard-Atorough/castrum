@@ -9,6 +9,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
+	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
@@ -42,6 +43,9 @@ type Game struct {
 
 // New creates a [Game] with default options overridden by opts. It returns
 // an error if the resulting configuration is invalid.
+//
+// The asset loader resolves engine-shipped assets under "builtin/" alongside
+// the configured filesystem.
 func New(opts ...option) (*Game, error) {
 	options := defaultOptions()
 	for _, o := range opts {
@@ -59,7 +63,7 @@ func New(opts ...option) (*Game, error) {
 	}
 	g.ctx.World = g.world
 
-	loader := asset.NewLoader(options.Filesystem)
+	loader := asset.NewLoader(builtin.WithFilesystem(options.Filesystem))
 	if err := g.world.Provide(func(*core.World) (*asset.Loader, error) {
 		return loader, nil
 	}); err != nil {

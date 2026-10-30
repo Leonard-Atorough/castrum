@@ -2,15 +2,18 @@ package castrum
 
 import (
 	"errors"
+	"io"
 	"math"
 	"os/exec"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
+	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -38,6 +41,50 @@ func TestNewDefaults(t *testing.T) {
 	}
 	if opts.FixedDT() != time.Second/60 {
 		t.Errorf("FixedDT = %v, want %v", opts.FixedDT(), time.Second/60)
+	}
+}
+
+func TestNewMakesBuiltinAssetsAvailable(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	loader := g.World().MustResource[*asset.Loader]()
+	font, err := loader.Load[asset.FontData](builtin.Font)
+	if err != nil {
+		t.Fatalf("load built-in font: %v", err)
+	}
+	if len(font.Raw) == 0 {
+		t.Fatal("built-in font has no raw data")
+	}
+}
+
+func TestNewComposesBuiltinsWithProvidedFilesystem(t *testing.T) {
+	filesystem := fstest.MapFS{
+		"sprites/player.txt": &fstest.MapFile{Data: []byte("player")},
+	}
+	g, err := New(WithFilesystem(filesystem))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	loader := g.World().MustResource[*asset.Loader]()
+	if _, err := loader.Load[asset.FontData](builtin.Font); err != nil {
+		t.Fatalf("load built-in font: %v", err)
+	}
+
+	file, _, err := loader.Open("sprites/player.txt")
+	if err != nil {
+		t.Fatalf("open game asset: %v", err)
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		t.Fatalf("read game asset: %v", err)
+	}
+	if string(data) != "player" {
+		t.Fatalf("game asset = %q, want %q", data, "player")
 	}
 }
 

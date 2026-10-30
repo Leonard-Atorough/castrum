@@ -21,6 +21,7 @@ import (
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
+	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
@@ -33,7 +34,7 @@ import (
 // This example embeds its assets; the tutorial loads them from a downloaded
 // bundle in the working directory. See docs/guides/assets.md.
 //
-//go:embed sprites audio fonts
+//go:embed sprites audio
 var files embed.FS
 
 const (
@@ -42,7 +43,8 @@ const (
 	AssetHull   = "sprites/T-34/ww2_top_view_hull4.png"
 	AssetTurret = "sprites/T-34/ww2_top_view_turret4.png"
 	AssetEnemy  = "sprites/Panzer 4/ww2_top_view_hull2.png"
-	AssetFont   = "fonts/GoRegular.ttf"
+	// AssetFont is the font path used by the game's text sprites.
+	AssetFont = builtin.Font
 
 	Speed     = 100 // world units per second
 	TurnSpeed = 3   // radians per second
@@ -245,7 +247,7 @@ func run() error {
 	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData](AssetEnemy); err != nil {
 		return err
 	}
-	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.FontData](AssetFont); err != nil {
+	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 		return err
 	}
 

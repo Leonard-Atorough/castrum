@@ -17,12 +17,13 @@
 package main
 
 import (
-	"embed"
 	"fmt"
 	"image/color"
 	"math"
 
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -30,13 +31,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/render"
 )
 
-//go:embed fonts/GoRegular.ttf
-var files embed.FS
-
 const (
 	screenW, screenH = 1280, 720
 
-	goFont = "fonts/GoRegular.ttf"
+	goFont = builtin.Font
 
 	// The HUD sits above page center, clear of both the orbit - the
 	// outer body's top edge reaches y≈88 at its apex - and the runner's
@@ -78,10 +76,12 @@ func run() error {
 
 	g, err := castrum.New(
 		castrum.WithTitle("castrum — time control"),
-		castrum.WithFilesystem(files),
 		castrum.WithBindings(bindings),
 	)
 	if err != nil {
+		return err
+	}
+	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 		return err
 	}
 

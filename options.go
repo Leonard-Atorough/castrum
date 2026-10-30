@@ -24,8 +24,9 @@ type Options struct {
 	// Title is the title displayed by the runner.
 	Title string
 
-	// Filesystem supplies the asset files resolved by the game. If nil, the
-	// game uses the current working directory.
+	// Filesystem supplies game asset files. Engine-shipped assets under
+	// "builtin/" are available alongside it. If nil, game assets resolve from
+	// the current working directory.
 	Filesystem fs.FS
 
 	// FixedTPS is the number of fixed simulation ticks per second.
@@ -93,7 +94,8 @@ func WithTitle(title string) option {
 	return optionFunc(func(o *Options) { o.Title = title })
 }
 
-// WithFilesystem sets the filesystem used to resolve assets.
+// WithFilesystem sets the filesystem used to resolve game assets. Built-in
+// assets under "builtin/" remain available.
 func WithFilesystem(filesystem fs.FS) option {
 	return optionFunc(func(o *Options) { o.Filesystem = filesystem })
 }

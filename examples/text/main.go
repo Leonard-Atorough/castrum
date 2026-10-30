@@ -4,9 +4,8 @@
 // lives on a Sprite with a Transform, so it culls, sorts, moves,
 // and fades exactly like a shape or a texture.
 //
-// The font is a regular ttf loaded through the asset loader from an
-// embedded filesystem; nothing registers at draw time - the sprite
-// names the font, the collector measures it, the runner draws it.
+// The built-in font is preloaded through the asset loader; each sprite names
+// it, the collector measures it, and the runner draws it.
 //
 // Run from the repository root:
 //
@@ -14,25 +13,23 @@
 package main
 
 import (
-	"embed"
 	"fmt"
 	"image/color"
 	"time"
 
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
 )
 
-//go:embed fonts/GoRegular.ttf
-var fontFiles embed.FS
-
 const (
 	screenW, screenH = 1280, 720
 
-	goFont = "fonts/GoRegular.ttf"
+	goFont = builtin.Font
 
 	// rowY places the three text rows; every row is a separate text
 	// sprite, centered on its own position.
@@ -50,9 +47,11 @@ func main() {
 func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - text"),
-		castrum.WithFilesystem(fontFiles),
 	)
 	if err != nil {
+		return err
+	}
+	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 		return err
 	}
 
