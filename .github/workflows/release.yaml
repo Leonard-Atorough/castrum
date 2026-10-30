@@ -164,11 +164,10 @@ jobs:
         run: |
           mkdir -p dist
           archive="dist/castrum-tutorial-assets-${VERSION}.zip"
-          (cd examples/your-first-game && zip -qr "../../${archive}" audio sprites fonts)
+          (cd examples/your-first-game && zip -qr "../../${archive}" audio sprites)
           unzip -t "${archive}"
           unzip -Z1 "${archive}" | grep -q '^audio/'
           unzip -Z1 "${archive}" | grep -q '^sprites/'
-          unzip -Z1 "${archive}" | grep -q '^fonts/'
 
       - name: Generate CHANGELOG.md
         run: git-cliff --tag "${{ steps.version.outputs.version }}" --skip-tags 'v0\.0\.' --output CHANGELOG.md
