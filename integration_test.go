@@ -342,10 +342,10 @@ func TestTimerEmitsCompletedSignal(t *testing.T) {
 
 	var got []timer.Completed
 	if err := g.AddSystem(core.PhaseFrame, "signal collector", core.SystemFunc(func(ctx *core.Context) error {
-		return reader.Drain(func(c timer.Completed) error {
-			got = append(got, c)
-			return nil
-		})
+		for event, ok := reader.Next(); ok; event, ok = reader.Next() {
+			got = append(got, event)
+		}
+		return nil
 	})); err != nil {
 		t.Fatalf("AddSystem: %v", err)
 	}
@@ -388,10 +388,10 @@ func TestCollisionEmitsEnteredSignal(t *testing.T) {
 	reader := hub.NewReader[collision.Entered]()
 	var got []collision.Entered
 	if err := g.AddSystem(core.PhaseFrame, "signal collector", core.SystemFunc(func(ctx *core.Context) error {
-		return reader.Drain(func(e collision.Entered) error {
-			got = append(got, e)
-			return nil
-		})
+		for event, ok := reader.Next(); ok; event, ok = reader.Next() {
+			got = append(got, event)
+		}
+		return nil
 	})); err != nil {
 		t.Fatalf("AddSystem: %v", err)
 	}

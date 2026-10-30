@@ -82,14 +82,17 @@ func (h *Hub) NewReader[T any]() *Reader[T] {
 // T in the current window. Each returned system has an independent [Reader],
 // so consumers do not compete for signals.
 //
-// Use [Hub.NewReader] when one system drains several signal types or needs to
+// Use [Hub.NewReader] when one system reads several signal types or needs to
 // manage the reader's lifetime directly.
 func (h *Hub) Consumer[T any](update func(ctx *core.Context, value T) error) core.System {
 	reader := h.NewReader[T]()
 	return core.SystemFunc(func(ctx *core.Context) error {
-		return reader.Drain(func(value T) error {
-			return update(ctx, value)
-		})
+		for value, ok := reader.Next(); ok; value, ok = reader.Next() {
+			if err := update(ctx, value); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -106,7 +109,7 @@ func (h *Hub) EndFrame() {
 	h.mode = modeTick
 }
 
-// EndTick moves tick signals into the frame window for readers to drain.
+// EndTick moves tick signals into the frame window for readers to read.
 func (h *Hub) EndTick() {
 	for _, w := range h.buffers {
 		w.flushTick()
@@ -126,41 +129,55 @@ func (h *Hub) bufferFor[T any]() *buffer[T] {
 	return b
 }
 
-// Reader tracks an independent position while draining signals of type T.
+// Reader tracks an independent position while reading signals of type T.
 // Sharing a Reader between consumers splits delivery between them.
 type Reader[T any] struct {
-	hub                *Hub
-	buf                *buffer[T]
-	tickGen, tickIdx   uint32
-	frameGen, frameIdx uint32
+	hub                   *Hub
+	buf                   *buffer[T]
+	tickGen, frameGen     uint32
+	tickIdx, frameIdx     int
+	tickEnd, frameEnd     int
+	tickBatch, frameBatch bool
 }
 
-// Drain calls fn for each unread signal in the current window.
-// A signal is considered read even if fn returns an error; Drain then stops
-// and returns that error.
-func (r *Reader[T]) Drain(fn func(value T) error) error {
+// Next returns the next unread signal in the current window. The signal is
+// consumed when returned. It reports false when the current batch is exhausted;
+// signals emitted during that batch are available on the next read pass.
+func (r *Reader[T]) Next() (T, bool) {
 	if r.hub.mode == modeTick {
 		if r.tickGen != r.buf.tickGen {
 			r.tickGen = r.buf.tickGen
 			r.tickIdx = 0
+			r.tickBatch = false
 		}
-		for _, v := range r.buf.tick[r.tickIdx:] {
+		if !r.tickBatch {
+			r.tickEnd = len(r.buf.tick)
+			r.tickBatch = true
+		}
+		if r.tickIdx < r.tickEnd {
+			value := r.buf.tick[r.tickIdx]
 			r.tickIdx++
-			if err := fn(v); err != nil {
-				return err
-			}
+			return value, true
 		}
-		return nil
+		r.tickBatch = false
+		var zero T
+		return zero, false
 	}
 	if r.frameGen != r.buf.frameGen {
 		r.frameGen = r.buf.frameGen
 		r.frameIdx = 0
+		r.frameBatch = false
 	}
-	for _, v := range r.buf.frame[r.frameIdx:] {
+	if !r.frameBatch {
+		r.frameEnd = len(r.buf.frame)
+		r.frameBatch = true
+	}
+	if r.frameIdx < r.frameEnd {
+		value := r.buf.frame[r.frameIdx]
 		r.frameIdx++
-		if err := fn(v); err != nil {
-			return err
-		}
+		return value, true
 	}
-	return nil
+	r.frameBatch = false
+	var zero T
+	return zero, false
 }

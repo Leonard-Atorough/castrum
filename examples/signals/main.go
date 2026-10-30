@@ -3,7 +3,7 @@
 // sequence.
 //
 // The engine half: an injector timer repeats once a second. The
-// charge system drains the engine's [timer.Completed] signals and
+// charge system reads the engine's [timer.Completed] signals and
 // grows the core by one step per injection while charging - no system
 // reads a Timer field to detect a completion, and nothing polls
 // JustCompleted.
@@ -156,7 +156,7 @@ func run() error {
 	launchedFrame := hub.NewReader[launched]()
 
 	// Signal-driven state. No value here is written by polling a timer
-	// component; every write traces back to a drained signal, and the
+	// component; every write traces back to a consumed signal, and the
 	// paint system's use of the state is rendering only.
 	state := &sequence{
 		phase:     charging,
@@ -262,16 +262,13 @@ func run() error {
 	// readers, and every transition it observes is narrated onto the
 	// debug panel.
 	if err := g.AddSystem(core.PhaseFrame, "core.announce", core.SystemFunc(func(_ *core.Context) error {
-		if err := chargedFrame.Drain(func(coreCharged) error {
+		for _, ok := chargedFrame.Next(); ok; _, ok = chargedFrame.Next() {
 			panel.Message("CORE CHARGED - arming launch countdown")
-			return nil
-		}); err != nil {
-			return err
 		}
-		return launchedFrame.Drain(func(l launched) error {
-			panel.Message(fmt.Sprintf("LAUNCHED on tick %d", l.tick))
-			return nil
-		})
+		for event, ok := launchedFrame.Next(); ok; event, ok = launchedFrame.Next() {
+			panel.Message(fmt.Sprintf("LAUNCHED on tick %d", event.tick))
+		}
+		return nil
 	})); err != nil {
 		return err
 	}

@@ -451,11 +451,8 @@ func TestSystemEmitsCompletedSignal(t *testing.T) {
 	tick(t, sys, ctx, 1)
 
 	var got []Completed
-	if err := reader.Drain(func(c Completed) error {
-		got = append(got, c)
-		return nil
-	}); err != nil {
-		t.Fatalf("drain: %v", err)
+	for event, ok := reader.Next(); ok; event, ok = reader.Next() {
+		got = append(got, event)
 	}
 	if len(got) != 1 || got[0] != (Completed{Entity: entity.ID(), Tick: 2}) {
 		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
@@ -477,11 +474,8 @@ func TestLoopForeverEmitsOnEachWrap(t *testing.T) {
 	tick(t, sys, ctx, 1)
 
 	var got []Completed
-	if err := reader.Drain(func(c Completed) error {
-		got = append(got, c)
-		return nil
-	}); err != nil {
-		t.Fatalf("drain: %v", err)
+	for event, ok := reader.Next(); ok; event, ok = reader.Next() {
+		got = append(got, event)
 	}
 	want := []Completed{{Entity: entity.ID(), Tick: 1}, {Entity: entity.ID(), Tick: 2}}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
