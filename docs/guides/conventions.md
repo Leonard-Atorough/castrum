@@ -35,7 +35,7 @@ func run() error {
 }
 ```
 
-The runner calls `Startup` before entering its platform loop. Startup systems run once, and eager resources are resolved before they run. `g.Run` is the canonical handoff and can be called only once. For headless tests or custom runners, call `Startup` and `Advance` directly instead of inventing a second game loop.
+The runner calls `Startup` before entering its platform loop. Eager resources resolve first, then pre-startup systems run before startup systems. `g.Run` is the canonical handoff and can be called only once. For headless tests or custom runners, call `Startup` and `Advance` directly instead of inventing a second game loop.
 
 Capture setup state in system constructors. A system can retain an entity handle, configuration, or service pointer; it should not rediscover setup state on every tick.
 
@@ -65,15 +65,17 @@ The point of validating at the boundary is when the error surfaces. A spawn-time
 
 ## Choose the phase deliberately
 
-The game has three phases:
+The game has five phases:
 
 | Phase | Use it for |
 | --- | --- |
+| `core.PhasePreStartup` | Initial state hooks that must run before startup scene operations. |
 | `core.PhaseStartup` | One-time setup and loading. |
-| `core.PhaseFrame` | Display-frame work and raw per-frame input. |
+| `core.PhasePreFrame` | State transitions before frame scene operations. Input actions are updated first. |
+| `core.PhaseFrame` | Display-frame work, scene operations, and raw per-frame input. |
 | `core.PhaseFixed` | Simulation, movement, and gameplay rules. |
 
-`PhaseFrame` runs once per display frame with elapsed frame time. `PhaseFixed` runs zero or more times after it, with a stable `DeltaTime` derived from `FixedTPS` (60 by default). Put simulation in the fixed phase so it does not depend on display refresh rate. Read named actions in the phase appropriate to the behavior; the [input guide](input.md) covers how action edges are carried into fixed ticks.
+`PhasePreStartup` runs once after eager resources resolve and before `PhaseStartup`. `PhasePreFrame` runs once per display frame after the engine updates frame input and before `PhaseFrame`. `PhaseFrame` then runs once per display frame with elapsed frame time, followed by zero or more fixed ticks with a stable `DeltaTime` derived from `FixedTPS` (60 by default). Register the same [state system](../../state/state.go) in both pre phases to run initial enter hooks before startup scenes and later transitions before frame scenes. Put simulation in the fixed phase so it does not depend on display refresh rate. Read named actions in the phase appropriate to the behavior; the [input guide](input.md) covers how action edges are carried into fixed ticks.
 
 Systems run in registration order within a phase. Register a reader after the system that writes the state it needs. The engine's built-in systems are registered during `New`, before game systems are added; this includes transform snapshots, the optional subsystem systems their `With*` option enabled, and input systems when bindings are configured. Do not rely on ordering between systems that are not explicitly ordered by registration.
 

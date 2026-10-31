@@ -230,8 +230,9 @@ func (g *Game) SetGroupEnabled(group string, enabled bool) error {
 	return nil
 }
 
-// Startup runs the [core.PhaseStartup] systems once. Runners call it before
-// entering the platform loop; a second call returns an error.
+// Startup runs [core.PhasePreStartup] and then [core.PhaseStartup] once, after
+// resolving eager resources. Runners call it before entering the platform
+// loop; a second call returns an error.
 func (g *Game) Startup() error {
 	if !g.startup.CompareAndSwap(false, true) {
 		return errors.New("castrum: Startup already ran")
@@ -239,12 +240,15 @@ func (g *Game) Startup() error {
 	if err := g.world.ResolveEager(); err != nil {
 		return err
 	}
+	if err := g.run(core.PhasePreStartup); err != nil {
+		return err
+	}
 	return g.run(core.PhaseStartup)
 }
 
-// Advance runs one display frame: [core.PhaseFrame], then every fixed tick due
-// for elapsed, clamped to MaxFrameTime. Runners call it once per platform
-// frame with the time since the previous call.
+// Advance runs one display frame: [core.PhasePreFrame], [core.PhaseFrame],
+// then every fixed tick due for elapsed, clamped to MaxFrameTime. Runners call
+// it once per platform frame with the time since the previous call.
 //
 // While the game is paused (see [Game.Pause]), the frame phase still runs
 // and DeltaTime still reports unscaled wall-clock elapsed time, but no
@@ -259,6 +263,9 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	g.ctx.Frame++
 	g.ctx.DeltaTime = elapsed
 	g.hub.BeginFrame()
+	if err := g.run(core.PhasePreFrame); err != nil {
+		return err
+	}
 	if err := g.run(core.PhaseFrame); err != nil {
 		return err
 	}

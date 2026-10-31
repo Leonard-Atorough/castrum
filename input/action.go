@@ -9,9 +9,9 @@ import (
 // Axis values with magnitude below it are treated as zero.
 const DefaultDeadzone = 0.15
 
-// FrameSystemName is the name castrum.New registers the frame input
-// system under: the system that resolves one display frame of input
-// into the frame view by calling [ActionMap.Update].
+// FrameSystemName is the name castrum.New registers the pre-frame input
+// system under: the system that resolves one display frame of input into
+// the frame view by calling [ActionMap.Update].
 const FrameSystemName = "engine.input-update"
 
 // TickSystemName is the name castrum.New registers the fixed input

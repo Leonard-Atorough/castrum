@@ -2,6 +2,7 @@ package castrum
 
 import (
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
+	"github.com/Leonard-Atorough/castrum/state"
 	"github.com/Leonard-Atorough/castrum/timer"
 	"github.com/Leonard-Atorough/castrum/tween"
 )
@@ -236,6 +238,7 @@ func TestWithScenesDoesNotControlGroups(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve scene director: %v", err)
 	}
+
 	var updates int
 	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "mission", core.SystemFunc(func(*core.Context) error {
 		updates++
@@ -296,6 +299,78 @@ func TestWithScenesDoesNotControlGroups(t *testing.T) {
 		t.Fatalf("Remove: %v", err)
 	}
 	check("remove while enabled", 5)
+}
+
+func TestStateTransitionsRunBeforeSceneOperationsAndFrameSystems(t *testing.T) {
+	g := newTestGame(t, WithScenes())
+	director := g.World().MustResource[*scene.Director]()
+	var got []string
+	blueprint := func(name string) *scene.Blueprint {
+		return &scene.Blueprint{
+			Name:       name,
+			EntityList: []scene.EntitySpec{{Name: "root"}},
+			Hooks: scene.Hooks{Enter: func(*core.Context, *scene.Instance) error {
+				got = append(got, "scene:"+name)
+				return nil
+			}},
+		}
+	}
+	if _, err := director.Switch(blueprint("setup")); err != nil {
+		t.Fatalf("queue setup scene: %v", err)
+	}
+
+	machine := state.New("boot")
+	machine.OnEnter("boot", core.SystemFunc(func(*core.Context) error {
+		got = append(got, "state:boot")
+		_, err := director.Switch(blueprint("startup"))
+		return err
+	}))
+	machine.OnExit("boot", core.SystemFunc(func(*core.Context) error {
+		got = append(got, "state:exit-boot")
+		return nil
+	}))
+	machine.OnEnter("play", core.SystemFunc(func(*core.Context) error {
+		got = append(got, "state:play")
+		_, err := director.Switch(blueprint("frame"))
+		return err
+	}))
+	system := state.NewSystem(machine)
+	addTestSystem(t, g, core.PhasePreStartup, "state.startup", system)
+	addTestSystem(t, g, core.PhasePreFrame, "state.frame", system)
+	addTestSystem(t, g, core.PhaseStartup, "user.startup", core.SystemFunc(func(*core.Context) error {
+		got = append(got, "user:startup")
+		return nil
+	}))
+	addTestSystem(t, g, core.PhaseFrame, "user.frame", core.SystemFunc(func(*core.Context) error {
+		got = append(got, "user:frame")
+		return nil
+	}))
+	addTestSystem(t, g, core.PhaseFixed, "user.fixed", core.SystemFunc(func(*core.Context) error {
+		got = append(got, "user:fixed")
+		return nil
+	}))
+
+	if err := g.Startup(); err != nil {
+		t.Fatalf("Startup(): %v", err)
+	}
+	wantStartup := []string{"state:boot", "scene:setup", "scene:startup", "user:startup"}
+	if !slices.Equal(got, wantStartup) {
+		t.Fatalf("startup order = %v, want %v", got, wantStartup)
+	}
+
+	if err := machine.Request("play"); err != nil {
+		t.Fatalf("Request(play): %v", err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance(): %v", err)
+	}
+	want := []string{
+		"state:boot", "scene:setup", "scene:startup", "user:startup",
+		"state:exit-boot", "state:play", "scene:frame", "user:frame", "user:fixed",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("execution order = %v, want %v", got, want)
+	}
 }
 
 func TestWithScenesProcessesStartupRequests(t *testing.T) {
