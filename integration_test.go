@@ -1,8 +1,10 @@
 package castrum
 
 import (
+	"errors"
 	"math"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -301,9 +303,111 @@ func TestWithScenesDoesNotControlGroups(t *testing.T) {
 	check("remove while enabled", 5)
 }
 
+func TestWithoutStateHasNoMachine(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		opts []option
+	}{
+		{"default", nil},
+		{"default systems", []option{WithDefaultSystems()}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := newTestGame(t, tt.opts...)
+			if _, err := g.World().Resource[*state.Machine[string]](); !errors.Is(err, core.ErrResourceNotRegistered) {
+				t.Fatalf("state resource error = %v, want ErrResourceNotRegistered", err)
+			}
+		})
+	}
+}
+
+func TestWithStateRegistersMultipleMachines(t *testing.T) {
+	first := state.New[int]().WithInitial(1)
+	last := state.New[string]().WithInitial("boot")
+	g := newTestGame(t, WithState(first), WithState(last))
+	if g.World().MustResource[*state.Machine[int]]() != first ||
+		g.World().MustResource[*state.Machine[string]]() != last {
+		t.Fatal("configured machines were not both provided")
+	}
+	var got []string
+	first.OnEnter(1, func(*core.Context) error { got = append(got, "first"); return nil })
+	last.OnEnter("boot", func(*core.Context) error { got = append(got, "last"); return nil })
+	first.OnEnter(2, func(*core.Context) error { return last.Request("play") })
+	if err := g.Startup(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, []string{"first", "last"}) {
+		t.Fatalf("initial hook order = %v", got)
+	}
+	if err := first.Request(2); err != nil {
+		t.Fatal(err)
+	}
+	advanceTestGame(t, g, 0)
+	if !first.Is(2) || !last.Is("play") {
+		t.Fatal("later machine did not process the earlier machine's hook request")
+	}
+	boom := errors.New("first machine failed")
+	first.OnEnter(3, func(*core.Context) error { return boom })
+	if err := first.Request(3); err != nil {
+		t.Fatal(err)
+	}
+	if err := last.Request("done"); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(0); !errors.Is(err, boom) || !strings.Contains(err.Error(), "*state.Machine[int]") {
+		t.Fatalf("machine failure = %v, want typed wrapped hook error", err)
+	}
+	if pending, ok := last.Pending(); !last.Is("play") || !ok || pending != "done" {
+		t.Fatal("earlier machine failure consumed a later machine's request")
+	}
+	advanceTestGame(t, g, 0)
+	if !last.Is("done") {
+		t.Fatal("later machine's preserved request was not applied")
+	}
+	for _, duplicate := range []*state.Machine[int]{first, state.New[int]()} {
+		if game, err := New(WithState(first), WithState(duplicate)); err == nil || game != nil {
+			t.Fatal("duplicate machine resource type was accepted")
+		}
+	}
+}
+
+func TestWithStateRejectsNilMachine(t *testing.T) {
+	if g, err := New(WithState[string](nil)); err == nil || g != nil {
+		t.Fatalf("New with nil machine = %v, %v, want nil game and an error", g, err)
+	}
+}
+
+func TestWithStateRunsWhilePaused(t *testing.T) {
+	machine := state.New[string]().WithInitial("boot")
+	g := newTestGame(t, WithState(machine))
+	if err := g.Startup(); err != nil {
+		t.Fatal(err)
+	}
+	g.Pause()
+	if err := machine.Request("play"); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if !machine.Is("play") {
+		t.Fatal("paused game did not process the state transition")
+	}
+}
+
 func TestStateTransitionsRunBeforeSceneOperationsAndFrameSystems(t *testing.T) {
-	g := newTestGame(t, WithScenes())
+	machine := state.New[string]().WithInitial("boot")
+	g := newTestGame(t, WithScenes(), WithState(machine), WithBindings(input.Bindings{
+		"start": {input.KeyInput{Key: input.KeySpace}},
+	}))
+	if got := g.World().MustResource[*state.Machine[string]](); got != machine {
+		t.Fatal("state resource is not the configured machine")
+	}
 	director := g.World().MustResource[*scene.Director]()
+	hub := g.World().MustResource[*signal.Hub]()
+	startupSignal := hub.NewReader[state.Initialized[string]]()
+	frameSignal := hub.NewReader[state.Initialized[string]]()
+	changed := hub.NewReader[state.Changed[string]]()
+	fixedSignal := hub.NewReader[state.Changed[string]]()
 	var got []string
 	blueprint := func(name string) *scene.Blueprint {
 		return &scene.Blueprint{
@@ -319,7 +423,6 @@ func TestStateTransitionsRunBeforeSceneOperationsAndFrameSystems(t *testing.T) {
 		t.Fatalf("queue setup scene: %v", err)
 	}
 
-	machine := state.New("boot")
 	machine.OnEnter("boot", core.SystemFunc(func(*core.Context) error {
 		got = append(got, "state:boot")
 		_, err := director.Switch(blueprint("startup"))
@@ -329,23 +432,35 @@ func TestStateTransitionsRunBeforeSceneOperationsAndFrameSystems(t *testing.T) {
 		got = append(got, "state:exit-boot")
 		return nil
 	}))
-	machine.OnEnter("play", core.SystemFunc(func(*core.Context) error {
+	machine.OnEnter("play", core.SystemFunc(func(ctx *core.Context) error {
+		if !ctx.Actions.JustPressed("start") {
+			t.Fatal("state hook ran before frame input updated")
+		}
 		got = append(got, "state:play")
 		_, err := director.Switch(blueprint("frame"))
 		return err
 	}))
-	system := state.NewSystem(machine)
-	addTestSystem(t, g, core.PhasePreStartup, "state.startup", system)
-	addTestSystem(t, g, core.PhasePreFrame, "state.frame", system)
 	addTestSystem(t, g, core.PhaseStartup, "user.startup", core.SystemFunc(func(*core.Context) error {
+		if event, ok := startupSignal.Next(); !ok || event.State != "boot" {
+			t.Fatalf("startup signal = %+v, %t", event, ok)
+		}
 		got = append(got, "user:startup")
 		return nil
 	}))
 	addTestSystem(t, g, core.PhaseFrame, "user.frame", core.SystemFunc(func(*core.Context) error {
+		if event, ok := frameSignal.Next(); !ok || event.State != "boot" {
+			t.Fatalf("first-frame initialization signal = %+v, %t", event, ok)
+		}
+		if event, ok := changed.Next(); !ok || event != (state.Changed[string]{From: "boot", To: "play"}) {
+			t.Fatalf("frame change signal = %+v, %t", event, ok)
+		}
 		got = append(got, "user:frame")
 		return nil
 	}))
 	addTestSystem(t, g, core.PhaseFixed, "user.fixed", core.SystemFunc(func(*core.Context) error {
+		if _, ok := fixedSignal.Next(); ok {
+			t.Fatal("state signal did not expire before fixed ticks")
+		}
 		got = append(got, "user:fixed")
 		return nil
 	}))
@@ -361,6 +476,9 @@ func TestStateTransitionsRunBeforeSceneOperationsAndFrameSystems(t *testing.T) {
 	if err := machine.Request("play"); err != nil {
 		t.Fatalf("Request(play): %v", err)
 	}
+	snapshot := &input.Snapshot{}
+	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
+	g.Context().Input = snapshot
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance(): %v", err)
 	}
