@@ -16,7 +16,7 @@ import (
 // transition request waiting to be processed.
 var ErrTransitionPending = errors.New("state transition already pending")
 
-// Initialized is a signal emiitted the first time a machine's initial enter
+// Initialized is a signal emitted the first time a machine's initial enter
 // hooks have run successfully. It contains the initial state whose enter hooks
 // completed.
 type Initialized[S comparable] struct {
