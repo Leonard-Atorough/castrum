@@ -1,6 +1,7 @@
 package castrum
 
 import (
+	"errors"
 	"math"
 	"slices"
 	"testing"
@@ -301,8 +302,65 @@ func TestWithScenesDoesNotControlGroups(t *testing.T) {
 	check("remove while enabled", 5)
 }
 
+func TestWithoutStateHasNoMachine(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		opts []option
+	}{
+		{"default", nil},
+		{"default systems", []option{WithDefaultSystems()}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := newTestGame(t, tt.opts...)
+			if _, err := g.World().Resource[*state.Machine[string]](); !errors.Is(err, core.ErrResourceNotRegistered) {
+				t.Fatalf("state resource error = %v, want ErrResourceNotRegistered", err)
+			}
+		})
+	}
+}
+
+func TestWithStateLastOptionWins(t *testing.T) {
+	first := state.New(1)
+	last := state.New("boot")
+	g := newTestGame(t, WithState(first), WithState(last), WithState(last))
+	if _, err := g.World().Resource[*state.Machine[int]](); !errors.Is(err, core.ErrResourceNotRegistered) {
+		t.Fatalf("replaced resource error = %v, want ErrResourceNotRegistered", err)
+	}
+	if got := g.World().MustResource[*state.Machine[string]](); got != last {
+		t.Fatal("last machine was not provided")
+	}
+}
+
+func TestWithStateRejectsNilMachine(t *testing.T) {
+	if g, err := New(WithState[string](nil)); err == nil || g != nil {
+		t.Fatalf("New with nil machine = %v, %v, want nil game and an error", g, err)
+	}
+}
+
+func TestWithStateRunsWhilePaused(t *testing.T) {
+	machine := state.New("boot")
+	g := newTestGame(t, WithState(machine))
+	if err := g.Startup(); err != nil {
+		t.Fatal(err)
+	}
+	g.Pause()
+	if err := machine.Request("play"); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatal(err)
+	}
+	if !machine.Is("play") {
+		t.Fatal("paused game did not process the state transition")
+	}
+}
+
 func TestStateTransitionsRunBeforeSceneOperationsAndFrameSystems(t *testing.T) {
-	g := newTestGame(t, WithScenes())
+	machine := state.New("boot")
+	g := newTestGame(t, WithScenes(), WithState(machine))
+	if got := g.World().MustResource[*state.Machine[string]](); got != machine {
+		t.Fatal("state resource is not the configured machine")
+	}
 	director := g.World().MustResource[*scene.Director]()
 	var got []string
 	blueprint := func(name string) *scene.Blueprint {
@@ -319,7 +377,6 @@ func TestStateTransitionsRunBeforeSceneOperationsAndFrameSystems(t *testing.T) {
 		t.Fatalf("queue setup scene: %v", err)
 	}
 
-	machine := state.New("boot")
 	machine.OnEnter("boot", core.SystemFunc(func(*core.Context) error {
 		got = append(got, "state:boot")
 		_, err := director.Switch(blueprint("startup"))
@@ -334,9 +391,6 @@ func TestStateTransitionsRunBeforeSceneOperationsAndFrameSystems(t *testing.T) {
 		_, err := director.Switch(blueprint("frame"))
 		return err
 	}))
-	system := state.NewSystem(machine)
-	addTestSystem(t, g, core.PhasePreStartup, "state.startup", system)
-	addTestSystem(t, g, core.PhasePreFrame, "state.frame", system)
 	addTestSystem(t, g, core.PhaseStartup, "user.startup", core.SystemFunc(func(*core.Context) error {
 		got = append(got, "user:startup")
 		return nil

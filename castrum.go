@@ -17,6 +17,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
+	"github.com/Leonard-Atorough/castrum/state"
 	"github.com/Leonard-Atorough/castrum/timer"
 )
 
@@ -116,6 +117,18 @@ func New(opts ...option) (*Game, error) {
 			return timer.NewGroups(), nil
 		}); err != nil {
 			return nil, fmt.Errorf("castrum: provide timer groups: %w", err)
+		}
+	}
+
+	if options.systems&sysState != 0 {
+		if err := options.provideState(g.world); err != nil {
+			return nil, fmt.Errorf("castrum: provide state machine: %w", err)
+		}
+		if err := g.AddSystem(core.PhasePreStartup, state.SystemName, options.stateSystem); err != nil {
+			return nil, err
+		}
+		if err := g.AddSystem(core.PhasePreFrame, state.SystemName, options.stateSystem); err != nil {
+			return nil, err
 		}
 	}
 

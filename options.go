@@ -5,7 +5,9 @@ import (
 	"io/fs"
 	"time"
 
+	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
+	"github.com/Leonard-Atorough/castrum/state"
 )
 
 // Bit flags make repeated system options idempotent.
@@ -14,6 +16,7 @@ const (
 	sysCollision
 	sysTimer
 	sysScenes
+	sysState
 )
 
 // Options contains the configuration used to create a [Game]. Use [New] with
@@ -47,6 +50,9 @@ type Options struct {
 	fixedDT time.Duration
 
 	systems uint8
+
+	stateSystem  core.System
+	provideState func(*core.World) error
 }
 
 // FixedDT returns the interval between fixed simulation ticks. [New] derives
@@ -146,6 +152,25 @@ func WithAnimation() option {
 // WithScenes enables the scene system and provides a scene Director resource.
 func WithScenes() option {
 	return optionFunc(func(o *Options) { o.systems |= sysScenes })
+}
+
+// WithState provides machine as a world resource and enables its system in
+// [core.PhasePreStartup] and [core.PhasePreFrame]. The last WithState option
+// wins. [New] returns an error if machine is nil.
+func WithState[S comparable](machine *state.Machine[S]) option {
+	system := state.NewSystem(machine)
+	return optionFunc(func(o *Options) {
+		o.systems |= sysState
+		o.stateSystem = system
+		o.provideState = func(world *core.World) error {
+			if machine == nil {
+				return fmt.Errorf("state machine must not be nil")
+			}
+			return world.Provide(func(*core.World) (*state.Machine[S], error) {
+				return machine, nil
+			})
+		}
+	})
 }
 
 // WithDefaultSystems enables animation, collision, and timer processing. It

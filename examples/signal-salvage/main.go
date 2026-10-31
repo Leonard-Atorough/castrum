@@ -1,5 +1,5 @@
 // Command signal-salvage is a small, asset-free game built from Castrum's
-// scenes, signals, collision, timers, system groups, and built-in font.
+// states, scenes, signals, collision, timers, system groups, and built-in font.
 // Collect five cores before time runs out; avoid the moving pulse.
 //
 // Run from the repository root:
@@ -25,6 +25,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
+	"github.com/Leonard-Atorough/castrum/state"
 	"github.com/Leonard-Atorough/castrum/timer"
 )
 
@@ -74,10 +75,17 @@ type roundEnded struct {
 	won bool
 }
 
+type gamePhase int
+
+const (
+	phaseBriefing gamePhase = iota
+	phasePlaying
+	phaseWon
+	phaseLost
+)
+
 type runState struct {
-	active           bool
-	finished         bool
-	won              bool
+	machine          *state.Machine[gamePhase]
 	score            int
 	displayedSeconds int
 }
@@ -101,6 +109,7 @@ func run() error {
 }
 
 func newGame() (*castrum.Game, *runState, error) {
+	machine := state.New(phaseBriefing)
 	bindings := input.Bindings{
 		"move_x": {
 			input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD},
@@ -119,6 +128,7 @@ func newGame() (*castrum.Game, *runState, error) {
 		castrum.WithCollision(),
 		castrum.WithScenes(),
 		castrum.WithTimer(),
+		castrum.WithState(machine),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -137,7 +147,7 @@ func newGame() (*castrum.Game, *runState, error) {
 	director := game.World().MustResource[*scene.Director]()
 	hub := game.World().MustResource[*signal.Hub]()
 	panel := game.World().MustResource[*debug.Panel]()
-	state := &runState{displayedSeconds: -1}
+	state := &runState{machine: machine, displayedSeconds: -1}
 
 	arena, scoreQuery, clockQuery, playerQuery, droneQuery, err := makeArenaBlueprint(game.World())
 	if err != nil {
@@ -145,32 +155,43 @@ func newGame() (*castrum.Game, *runState, error) {
 	}
 	briefing := makeBriefingBlueprint()
 
-	if err := addRoundSystems(game, director, hub, panel, state, scoreQuery, clockQuery, playerQuery, droneQuery); err != nil {
+	if err := addRoundSystems(game, hub, panel, state, scoreQuery, clockQuery, playerQuery, droneQuery); err != nil {
 		return nil, nil, err
 	}
 	if err := game.SetGroupEnabled(roundGroup, false); err != nil {
 		return nil, nil, err
 	}
-	if err := game.AddSystem(core.PhaseFrame, "demo.scene-controls", core.SystemFunc(func(ctx *core.Context) error {
-		if ctx.Actions.JustPressed("start") {
-			if _, ready := director.ByName("briefing"); ready {
-				state.active = true
-				state.finished = false
-				state.won = false
-				state.score = 0
-				state.displayedSeconds = -1
-				if err := game.SetGroupEnabled(roundGroup, true); err != nil {
-					return err
-				}
-				_, err := director.Switch(arena)
-				return err
-			}
+	machine.OnEnter(phaseBriefing, func(*core.Context) error {
+		_, err := director.Switch(briefing)
+		return err
+	})
+	machine.OnEnter(phasePlaying, func(*core.Context) error {
+		state.score = 0
+		state.displayedSeconds = -1
+		if err := game.SetGroupEnabled(roundGroup, true); err != nil {
+			return err
 		}
-		if ctx.Actions.JustPressed("restart") {
-			if _, done := director.ByName("result"); done {
-				_, err := director.Switch(briefing)
-				return err
-			}
+		_, err := director.Switch(arena)
+		return err
+	})
+	showResult := core.SystemFunc(func(*core.Context) error {
+		won := machine.Is(phaseWon)
+		message := "SIGNAL LOST"
+		if won {
+			message = "SIGNAL RECOVERED"
+		}
+		panel.Message(message)
+		_, err := director.Switch(makeResultBlueprint(won, state.score))
+		return err
+	})
+	machine.OnEnter(phaseWon, showResult)
+	machine.OnEnter(phaseLost, showResult)
+	if err := game.AddSystem(core.PhaseFrame, "demo.scene-controls", core.SystemFunc(func(ctx *core.Context) error {
+		if ctx.Actions.JustPressed("start") && machine.Is(phaseBriefing) {
+			return machine.Request(phasePlaying)
+		}
+		if ctx.Actions.JustPressed("restart") && (machine.Is(phaseWon) || machine.Is(phaseLost)) {
+			return machine.Request(phaseBriefing)
 		}
 		return nil
 	})); err != nil {
@@ -178,13 +199,10 @@ func newGame() (*castrum.Game, *runState, error) {
 	}
 	panel.Status("controls", "WASD / arrows: move   SPACE: start   ENTER: briefing")
 	panel.Status("objective", "Recover five cores. Avoid the red pulse.")
-	if _, err := director.Load(briefing); err != nil {
-		return nil, nil, err
-	}
 	return game, state, nil
 }
 
-func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.Hub, panel *debug.Panel, state *runState, scoreQuery, clockQuery, playerQuery, droneQuery *core.Query) error {
+func addRoundSystems(game *castrum.Game, hub *signal.Hub, panel *debug.Panel, state *runState, scoreQuery, clockQuery, playerQuery, droneQuery *core.Query) error {
 	world := game.World()
 	coreEvents := hub.NewReader[collision.Entered]()
 
@@ -239,7 +257,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 					return nil
 				}
 				for event, ok := coreEvents.Next(); ok; event, ok = coreEvents.Next() {
-					if !state.active || state.finished || event.Entity != player.ID() {
+					if !state.machine.Is(phasePlaying) || event.Entity != player.ID() {
 						continue
 					}
 					other := core.NewEntity(event.Other)
@@ -270,7 +288,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 		{
 			name: "round.score",
 			run: hub.Consumer(func(_ *core.Context, _ coreCollected) error {
-				if !state.active || state.finished {
+				if !state.machine.Is(phasePlaying) {
 					return nil
 				}
 				state.score++
@@ -289,7 +307,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 		{
 			name: "round.clock",
 			run: hub.Consumer(func(_ *core.Context, event timer.Completed) error {
-				if !state.active || state.finished ||
+				if !state.machine.Is(phasePlaying) ||
 					!core.NewEntity(event.Entity).HasComponent[roundClock](world) {
 					return nil
 				}
@@ -317,25 +335,18 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 		{
 			name: "round.resolve",
 			run: hub.Consumer(func(_ *core.Context, event roundEnded) error {
-				if !state.active || state.finished {
+				if _, pending := state.machine.Pending(); pending || !state.machine.Is(phasePlaying) {
 					return nil
 				}
-				state.finished = true
-				state.active = false
-				state.won = event.won
-
-				if err := game.SetGroupEnabled(roundGroup, false); err != nil {
+				next := phaseLost
+				if event.won {
+					next = phaseWon
+				}
+				if err := state.machine.Request(next); err != nil {
 					return err
 				}
-
-				message := "SIGNAL LOST"
-				if event.won {
-					message = "SIGNAL RECOVERED"
-				}
-				panel.Message(message)
-
-				_, err := director.Switch(makeResultBlueprint(state.won, state.score))
-				return err
+				// Stop catch-up ticks while the result waits for pre-frame.
+				return game.SetGroupEnabled(roundGroup, false)
 			}),
 		},
 	}
