@@ -4,9 +4,9 @@ The runner supplies elapsed platform time; `Game.Advance` turns it into frame wo
 
 ## Startup and a display frame
 
-`Game.Startup` resolves eager resources, then runs the startup schedule once. Calling it a second time returns an error.
+`Game.Startup` resolves eager resources, runs the pre-startup schedule, then runs the startup schedule once. This lets initial state hooks queue scene work before the startup scene system applies requests. Calling `Startup` a second time returns an error.
 
-A runner calls `Advance(elapsed)` once per display frame. `Advance` clamps the elapsed duration to `MaxFrameTime`, increments the frame counter, publishes that duration as frame `Context.DeltaTime`, and runs the frame schedule. It then adds the clamped duration to the fixed accumulator.
+A runner calls `Advance(elapsed)` once per display frame. `Advance` clamps the elapsed duration to `MaxFrameTime`, increments the frame counter, publishes that duration as frame `Context.DeltaTime`, then runs pre-frame systems followed by frame systems. The engine updates bound actions before user pre-frame systems; the frame scene system then applies requests before user frame systems. `Advance` adds the clamped duration to the fixed accumulator after frame work.
 
 A frame can run zero fixed ticks. A slow frame runs as many fixed ticks as the accumulator can pay for, up to `MaxTicksPerFrame`. Each fixed tick increments `Context.Tick`, sets `Context.DeltaTime` to the fixed interval, runs the fixed schedule, and subtracts one interval from the accumulator.
 
@@ -20,7 +20,7 @@ When the catch-up cap drops the backlog, the accumulator is reset and alpha beco
 
 ## Schedule order
 
-Systems in one phase run in registration order. `castrum.New` registers engine systems before user systems, so user systems observe the engine's published state for that phase. A system error stops the current schedule and is returned through `Advance` and, for a normal runner, through `g.Run`.
+Systems in one phase run in registration order. The engine defines ordering between phases: pre-startup before startup, and pre-frame before frame before fixed ticks. Within startup and frame schedules, `castrum.New` registers scene systems before user systems, so scene requests queued by pre-phase hooks are applied before ordinary startup or frame systems. A system error stops the current schedule and is returned through `Startup` or `Advance`, and for a normal runner through `g.Run`.
 
 The engine's normal registrations are:
 
@@ -31,7 +31,7 @@ The engine's normal registrations are:
 | `engine.collision`      | fixed | `WithCollision`         | Detects contacts and records their lifecycle.           |
 | `engine.timer`          | fixed | `WithTimer`              | Advances timers and stamps completions.                 |
 | `engine.input-tick`     | fixed | with bindings            | Publishes tick-scoped input edges.                      |
-| `engine.input-update`   | frame | with bindings            | Publishes the frame-scoped action view.                 |
+| `engine.input-update`   | pre-frame | with bindings            | Publishes the frame-scoped action view before state hooks. |
 | `engine.audio`          | frame | the runner               | Reconciles audio source state with runner players.      |
 | `scene-startup`         | startup | `WithScenes`           | Applies requests queued before startup.                 |
 | `scene`                 | frame | `WithScenes`             | Applies queued scene requests before user frame systems. |
@@ -58,7 +58,7 @@ Read frame-level state in frame systems and apply deterministic gameplay in fixe
 
 ## Signal rotation
 
-The signal hub rotates with the loop: `Advance` brackets the frame phase (`BeginFrame` before it, `EndFrame` after it), then calls `EndTick` after each fixed run. A signal emitted during a fixed tick is visible to fixed systems registered after its emitter in that tick, and once to frame systems in the next display frame's frame phase; then it is dropped. Frame-phase signals live only inside their frame phase. The [signals guide](../guides/signals.md) covers the authoring side: emitting, readers, and consumer systems.
+The signal hub rotates with the loop: `Advance` brackets both pre-frame and frame work (`BeginFrame` before pre-frame, `EndFrame` after frame), then calls `EndTick` after each fixed run. A signal emitted during a fixed tick is visible to fixed systems registered after its emitter in that tick, and once to pre-frame and frame systems in the next display frame; then it is dropped. Frame signals live only through that display frame. The [signals guide](../guides/signals.md) covers the authoring side: emitting, readers, and consumer systems.
 
 ## Why the capture order matters
 

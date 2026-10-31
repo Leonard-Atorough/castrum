@@ -19,7 +19,7 @@ func (g *Game) wireInput(bindings input.Bindings) error {
 		return fmt.Errorf("castrum: provide action map: %w", err)
 	}
 
-	if err := g.AddSystem(core.PhaseFrame, input.FrameSystemName, newInputUpdateSystem(am)); err != nil {
+	if err := g.AddSystem(core.PhasePreFrame, input.FrameSystemName, newInputUpdateSystem(am)); err != nil {
 		return err
 	}
 
@@ -28,7 +28,7 @@ func (g *Game) wireInput(bindings input.Bindings) error {
 }
 
 // Capturing the provided map avoids per-frame resource resolution.
-// New registers this before user frame systems so they see fresh actions.
+// New registers this before user pre-frame systems so hooks see fresh actions.
 func newInputUpdateSystem(am *input.ActionMap) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		am.Update(ctx.Input, ctx.DeltaTime.Seconds())

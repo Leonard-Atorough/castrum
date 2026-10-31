@@ -44,11 +44,13 @@ err = e.AddComponent(ctx.World, extraComponent)
 
 ## Systems and phases
 
-| Phase               | Runs                         | Use for              |
-| ------------------- | ---------------------------- | -------------------- |
-| `core.PhaseStartup` | once, before the first frame | loading, world setup |
-| `core.PhaseFrame`   | once per display frame       | reading input, UI    |
-| `core.PhaseFixed`   | once per tick (default 60/s) | simulation, movement |
+| Phase                   | Runs                                          | Use for                                      |
+| ----------------------- | --------------------------------------------- | ------------------------------------------- |
+| `core.PhasePreStartup`  | once, before startup systems                 | initial state hooks                         |
+| `core.PhaseStartup`     | once, before the first frame                 | loading, world setup                        |
+| `core.PhasePreFrame`    | once per display frame, after input updates  | state transitions before scene operations   |
+| `core.PhaseFrame`       | once per display frame                       | scene operations, UI, presentation          |
+| `core.PhaseFixed`       | once per tick (default 60/s)                 | simulation, movement                        |
 
 ```go
 g.AddSystem(core.PhaseFixed, "name", core.SystemFunc(func(ctx *core.Context) error {

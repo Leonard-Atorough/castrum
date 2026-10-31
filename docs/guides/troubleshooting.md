@@ -12,7 +12,7 @@ Use this order:
 2. **Construction failure:** `castrum.New` rejected options or bindings.
 3. **Setup failure:** an entity, resource, asset, clip, or runner registration returned an error.
 4. **Startup failure:** eager resource resolution or a startup system failed.
-5. **Loop failure:** a frame, fixed, or draw system returned an error.
+5. **Loop failure:** a pre-frame, frame, fixed, or draw system returned an error.
 6. **Late resolution failure:** a lazy texture, atlas region, or streamed asset failed on first use.
 
 Preserve the original error when adding context:
@@ -110,7 +110,7 @@ Every game starts with an engine camera. A user-spawned `Camera{Primary: true}` 
 
 ## A system runs at the wrong time
 
-`PhaseFrame` runs once per display frame with elapsed frame time. `PhaseFixed` runs zero or more times after it with the fixed tick interval. `PhaseStartup` runs once before the loop. Check that the system is registered in the phase matching its responsibility and that it uses that phase's `ctx.DeltaTime`.
+`PhasePreStartup` and `PhaseStartup` run once before the loop, in that order. Each display frame runs `PhasePreFrame` and then `PhaseFrame`; fixed ticks follow. Check that the system is registered in the phase matching its responsibility and that it uses that phase's `ctx.DeltaTime`.
 
 Within a phase, systems run in registration order. Register a reader after the system that writes the value it consumes. Engine systems are registered during `New`, before game systems are added; this matters for transform snapshots and configured input systems.
 

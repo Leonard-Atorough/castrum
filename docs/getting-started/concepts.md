@@ -47,17 +47,19 @@ if err := g.AddSystem(core.PhaseFixed, "move", moveSystem(square)); err != nil {
 }
 ```
 
-The name appears in error messages, which is reason enough to pick a good one. Systems run in registration order within their phase, and the engine registers its own first - the transform snapshot, the optional subsystem systems their `With*` option enabled, animation and audio among them - so your systems always run after the enabled ones: a `PhaseFixed` system of yours sees animation and audio already advanced for the tick.
+The name appears in error messages, which is reason enough to pick a good one. Systems run in registration order within their phase, and the engine defines order between phases. Frame input updates before pre-frame systems; scene operations run before user frame systems.
 
-There are three phases:
+There are five phases:
 
-| Phase               | Runs                         | Use for              |
-| ------------------- | ---------------------------- | -------------------- |
-| `core.PhaseStartup` | once, before the first frame | loading, world setup |
-| `core.PhaseFrame`   | once per display frame       | reading input, UI    |
-| `core.PhaseFixed`   | once per simulation tick     | gameplay, movement   |
+| Phase                   | Runs                                         | Use for                                     |
+| ----------------------- | -------------------------------------------- | ------------------------------------------ |
+| `core.PhasePreStartup`  | once, before startup systems                | initial state hooks                        |
+| `core.PhaseStartup`     | once, before the first frame                | loading, world setup                       |
+| `core.PhasePreFrame`    | once per frame, after input updates         | state transitions before scene operations  |
+| `core.PhaseFrame`       | once per display frame                      | scene operations, reading input, UI         |
+| `core.PhaseFixed`       | once per simulation tick                    | gameplay, movement                         |
 
-Use `PhaseFixed` for simulation and `PhaseFrame` for work that belongs to the display frame, such as reading raw input or updating UI.
+Startup runs pre-startup systems before startup systems. Each frame runs pre-frame systems, then frame systems, then zero or more fixed ticks. Use `PhaseFixed` for simulation and `PhaseFrame` for work that belongs to the display frame, such as reading raw input or updating UI.
 
 Here is a complete system, the payoff of this chapter. It moves a square left and right:
 

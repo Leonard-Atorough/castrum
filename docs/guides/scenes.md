@@ -16,7 +16,7 @@ if err != nil {
 director := g.World().MustResource[*scene.Director]()
 ```
 
-`WithDefaultSystems` also enables scenes. `WithScenes` registers a startup system that applies requests queued before startup and a frame system that applies requests made during gameplay. The frame system runs before user frame systems, so a request queued by one of those systems is applied on the next frame. `MustResource` is appropriate when scenes are enabled because the option provides the director. The director is single-threaded; do not access it concurrently.
+`WithDefaultSystems` also enables scenes. `WithScenes` registers a startup system that applies requests queued before startup and a frame system that applies requests made during gameplay. Pre-frame state transitions run before the frame scene system, so a scene request made by a state hook is applied before user frame systems in that same frame. A request queued by an ordinary frame system is applied on the next frame. `MustResource` is appropriate when scenes are enabled because the option provides the director. The director is single-threaded; do not access it concurrently.
 
 ## Define a blueprint
 
@@ -79,7 +79,7 @@ if err != nil {
 }
 ```
 
-The instance remains pending until the scene system processes the request. The startup system processes requests queued during setup before the game loop; the frame system processes gameplay requests on a later frame. `Load` and `Switch` validate the blueprint when called, but spawning entities and running hooks happen later and can still fail.
+The instance remains pending until the scene system processes the request. During startup, pre-startup systems run before the startup scene system; during each frame, pre-frame systems run before the frame scene system. `Load` and `Switch` validate the blueprint when called, but spawning entities and running hooks happen later and can still fail.
 
 For example, queue a replacement for the current root scene with `Switch`:
 
