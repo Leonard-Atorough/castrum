@@ -67,6 +67,7 @@ Use these writing rules:
 - State current limitations instead of implying unsupported features.
 - Link to neighboring guides for concepts already explained elsewhere.
 - Preserve valid user-authored material and avoid unrelated reformatting.
+- Do not hard-wrap Markdown prose at 80 characters or any other column limit. Keep each paragraph and list item on one source line and let the editor soft-wrap it. Preserve meaningful line breaks in code blocks, tables, and other structured content.
 - Use ASCII by default and avoid filler, placeholders, and speculative future promises.
 
 After the edit, run the focused executable check when available, then documentation checks. Typical checks are:
@@ -110,4 +111,5 @@ A guide rewrite is complete when:
 - Current limitations and failure timing are clear.
 - The focused package check passes, or the reason it could not run is reported.
 - `git diff --check` passes.
+- Prose paragraphs and list items have no column-limit hard wrapping.
 - A final end-to-end prose sniff finds no obvious stale claims, placeholders, or awkward transitions.

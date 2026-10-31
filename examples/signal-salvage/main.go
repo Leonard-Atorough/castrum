@@ -109,7 +109,7 @@ func run() error {
 }
 
 func newGame() (*castrum.Game, *runState, error) {
-	machine := state.New(phaseBriefing)
+	machine := state.New[gamePhase]().WithInitial(phaseBriefing)
 	bindings := input.Bindings{
 		"move_x": {
 			input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD},

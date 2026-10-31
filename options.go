@@ -51,8 +51,13 @@ type Options struct {
 
 	systems uint8
 
-	stateSystem  core.System
-	provideState func(*core.World) error
+	states []stateRegistration
+}
+
+type stateRegistration struct {
+	name    string
+	system  core.System
+	provide func(*core.World) error
 }
 
 // FixedDT returns the interval between fixed simulation ticks. [New] derives
@@ -155,21 +160,25 @@ func WithScenes() option {
 }
 
 // WithState provides machine as a world resource and enables its system in
-// [core.PhasePreStartup] and [core.PhasePreFrame]. The last WithState option
-// wins. [New] returns an error if machine is nil.
+// [core.PhasePreStartup] and [core.PhasePreFrame]. Repeated options register
+// machines in order. [New] returns an error for a nil machine or duplicate
+// machine resource type.
 func WithState[S comparable](machine *state.Machine[S]) option {
 	system := state.NewSystem(machine)
 	return optionFunc(func(o *Options) {
 		o.systems |= sysState
-		o.stateSystem = system
-		o.provideState = func(world *core.World) error {
-			if machine == nil {
-				return fmt.Errorf("state machine must not be nil")
-			}
-			return world.Provide(func(*core.World) (*state.Machine[S], error) {
-				return machine, nil
-			})
-		}
+		o.states = append(o.states, stateRegistration{
+			name:   fmt.Sprintf("%T", machine),
+			system: system,
+			provide: func(world *core.World) error {
+				if machine == nil {
+					return fmt.Errorf("state machine must not be nil")
+				}
+				return world.Provide(func(*core.World) (*state.Machine[S], error) {
+					return machine, nil
+				})
+			},
+		})
 	})
 }
 

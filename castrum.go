@@ -120,18 +120,6 @@ func New(opts ...option) (*Game, error) {
 		}
 	}
 
-	if options.systems&sysState != 0 {
-		if err := options.provideState(g.world); err != nil {
-			return nil, fmt.Errorf("castrum: provide state machine: %w", err)
-		}
-		if err := g.AddSystem(core.PhasePreStartup, state.SystemName, options.stateSystem); err != nil {
-			return nil, err
-		}
-		if err := g.AddSystem(core.PhasePreFrame, state.SystemName, options.stateSystem); err != nil {
-			return nil, err
-		}
-	}
-
 	if options.systems&sysScenes != 0 {
 		director := scene.NewDirector()
 		if err := g.world.Provide(func(*core.World) (*scene.Director, error) {
@@ -162,6 +150,27 @@ func New(opts ...option) (*Game, error) {
 	g.mainCamera = camera
 	if options.InputBindings != nil {
 		if err := g.wireInput(options.InputBindings); err != nil {
+			return nil, err
+		}
+	}
+	if options.systems&sysState != 0 {
+		for _, registration := range options.states {
+			if err := registration.provide(g.world); err != nil {
+				return nil, fmt.Errorf("castrum: provide state machine %s: %w", registration.name, err)
+			}
+		}
+		states := core.SystemFunc(func(ctx *core.Context) error {
+			for _, registration := range options.states {
+				if err := registration.system.Update(ctx); err != nil {
+					return fmt.Errorf("%s: %w", registration.name, err)
+				}
+			}
+			return nil
+		})
+		if err := g.AddSystem(core.PhasePreStartup, state.SystemName, states); err != nil {
+			return nil, err
+		}
+		if err := g.AddSystem(core.PhasePreFrame, state.SystemName, states); err != nil {
 			return nil, err
 		}
 	}
