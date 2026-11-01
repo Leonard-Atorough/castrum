@@ -172,12 +172,12 @@ func (w *World) NewEntity(components ...any) (*Entity, error) {
 }
 
 // NewEntities creates count entities with the same components and returns
-// their handles. Count must be non-negative. If creation fails, it returns
-// the error and no handles; entities created before the failure remain in
-// the world. Components must be non-nil, non-pointer values.
+// their handles. Count must be positive. If creation fails, it returns
+// the error and no handles, and creates no entities. Components must be
+// non-nil, non-pointer values.
 func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
-	if count < 0 {
-		return nil, fmt.Errorf("castrum: NewEntities: count must be non-negative, got %d", count)
+	if count <= 0 {
+		return nil, fmt.Errorf("castrum: NewEntities: count must be positive, got %d", count)
 	}
 
 	components = createPreviousTransformComponents(components)
@@ -186,15 +186,16 @@ func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
 	}
 	types := componentTypes(components)
 	values := copyValues(components)
-
 	entities := make([]*Entity, count)
+	ids := make([]EntityID, count)
 	for i := range entities {
 		id := w.getNextID()
-		entity := NewEntity(id)
-		if err := w.archetypes.Create(entity.id, types, values); err != nil {
-			return nil, err
-		}
-		entities[i] = entity
+		entities[i] = NewEntity(id)
+		ids[i] = id
+	}
+
+	if err := w.archetypes.CreateBatch(ids, types, values); err != nil {
+		return nil, err
 	}
 	return entities, nil
 }

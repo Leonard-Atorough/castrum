@@ -49,6 +49,62 @@ func TestServiceCreateAndComponent(t *testing.T) {
 	}
 }
 
+func TestServiceCreateBatch(t *testing.T) {
+	svc := NewService()
+	types := []reflect.Type{
+		reflect.TypeFor[Position](),
+		reflect.TypeFor[Velocity](),
+	}
+	initialValues := []any{Position{X: 1}, Velocity{X: 2}}
+	if err := svc.Create(10, types, initialValues); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	values := []any{Position{X: 3, Y: 4}, Velocity{X: 5, Y: 6}}
+	ids := []EntityID{20, 21, 22}
+	if err := svc.CreateBatch(ids, types, values); err != nil {
+		t.Fatalf("CreateBatch: %v", err)
+	}
+
+	for _, id := range ids {
+		position, ok := svc.Component(id, reflect.TypeFor[Position]())
+		if !ok || position != values[0] {
+			t.Errorf("entity %d Position = %v, ok %t; want %v", id, position, ok, values[0])
+		}
+		velocity, ok := svc.Component(id, reflect.TypeFor[Velocity]())
+		if !ok || velocity != values[1] {
+			t.Errorf("entity %d Velocity = %v, ok %t; want %v", id, velocity, ok, values[1])
+		}
+	}
+
+	position, ok := svc.Component(10, reflect.TypeFor[Position]())
+	if !ok || position != initialValues[0] {
+		t.Errorf("existing entity Position = %v, ok %t; want %v", position, ok, initialValues[0])
+	}
+}
+
+func TestServiceCreateBatchRejectsConflictingIDWithoutPartialInsert(t *testing.T) {
+	svc := NewService()
+	typ := reflect.TypeFor[Position]()
+	if err := svc.Create(2, []reflect.Type{typ}, []any{Position{X: 1}}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	err := svc.CreateBatch([]EntityID{1, 2, 3}, []reflect.Type{typ}, []any{Position{X: 9}})
+	if err == nil {
+		t.Fatal("CreateBatch with an existing ID should fail")
+	}
+	for _, id := range []EntityID{1, 3} {
+		if _, exists := svc.locations[id]; exists {
+			t.Errorf("entity %d was inserted despite batch conflict", id)
+		}
+	}
+	position, ok := svc.Component(2, typ)
+	if !ok || position != (Position{X: 1}) {
+		t.Errorf("existing entity component = %v, ok %t; want unchanged Position{X: 1}", position, ok)
+	}
+}
+
 func TestServiceAddComponents(t *testing.T) {
 	svc := NewService()
 
