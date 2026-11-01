@@ -111,7 +111,8 @@ func NewAtlas(id AtlasID, texturePath ID, texW, texH int, regions map[string]Atl
 			return nil, fmt.Errorf("region %q in atlas %q has dimensions %dx%d, want positive",
 				name, id, region.W, region.H)
 		}
-		if region.X < 0 || region.Y < 0 || region.X+region.W > texW || region.Y+region.H > texH {
+		if region.X < 0 || region.Y < 0 ||
+			region.X > texW-region.W || region.Y > texH-region.H {
 			return nil, fmt.Errorf("region %q in atlas %q (%d,%d %dx%d) falls outside texture bounds %dx%d",
 				name, id, region.X, region.Y, region.W, region.H, texW, texH)
 		}
