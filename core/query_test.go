@@ -1,6 +1,7 @@
 package core
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -259,6 +260,71 @@ func TestQueryGenerationInvalidation(t *testing.T) {
 			t.Fatalf("after migration, Execute yielded %d entities with position sum %v, want 3 and 12", count, sum)
 		}
 	}
+
+	t.Run("filter reconfiguration", func(t *testing.T) {
+		world := NewWorld()
+		posOnly := mustQueryEntity(t, world, queryPos{})
+		both := mustQueryEntity(t, world, queryPos{}, queryVel{})
+		tagged := mustQueryEntity(t, world, queryPos{}, queryVel{}, queryTag{})
+		ids := func(q *Query) []EntityID {
+			var result []EntityID
+			for entry := range q.Execute() {
+				result = append(result, entry.ID())
+			}
+			return result
+		}
+		check := func(t *testing.T, q, fresh *Query, want []EntityID) {
+			t.Helper()
+			got, reference := ids(q), ids(fresh)
+			if !slices.Equal(got, want) || !slices.Equal(got, reference) {
+				t.Fatalf("reconfigured query = %v, fresh query = %v, want %v", got, reference, want)
+			}
+		}
+
+		q := NewQuery(world).With(queryPos{})
+		check(t, q, NewQuery(world).With(queryPos{}), []EntityID{posOnly.ID(), both.ID(), tagged.ID()})
+		generation := world.archetypes.Generation()
+		q.With(queryVel{})
+		check(t, q, NewQuery(world).With(queryPos{}, queryVel{}), []EntityID{both.ID(), tagged.ID()})
+		q.Without(queryTag{})
+		check(t, q, NewQuery(world).With(queryPos{}, queryVel{}).Without(queryTag{}), []EntityID{both.ID()})
+		if got := world.archetypes.Generation(); got != generation {
+			t.Fatalf("world generation changed from %d to %d during reconfiguration", generation, got)
+		}
+
+		q = NewQuery(world).With(queryPos{})
+		ids(q)
+		q.Without(queryVel{})
+		check(t, q, NewQuery(world).With(queryPos{}).Without(queryVel{}), []EntityID{posOnly.ID()})
+
+		for _, tc := range []struct {
+			name      string
+			configure func(*Query)
+			fresh     func() *Query
+			want      []EntityID
+		}{
+			{"With", func(q *Query) { q.With(queryVel{}, nil) }, func() *Query {
+				return NewQuery(world).With(queryPos{}, queryVel{})
+			}, []EntityID{both.ID(), tagged.ID()}},
+			{"Without", func(q *Query) { q.Without(queryVel{}, nil) }, func() *Query {
+				return NewQuery(world).With(queryPos{}).Without(queryVel{})
+			}, []EntityID{posOnly.ID()}},
+		} {
+			t.Run(tc.name+" partial panic", func(t *testing.T) {
+				q := NewQuery(world).With(queryPos{})
+				ids(q)
+				func() {
+					defer func() {
+						if recover() == nil {
+							t.Error("invalid marker should panic")
+						}
+					}()
+					tc.configure(q)
+				}()
+				check(t, q, tc.fresh(), tc.want)
+			})
+		}
+	})
 }
 
 func TestQueryGetLimitedToWithTypes(t *testing.T) {
@@ -370,6 +436,24 @@ func TestEntryUpdateMutates(t *testing.T) {
 	got, ok := e.Component[queryPos](w)
 	if !ok || got.X != 11 {
 		t.Fatalf("position = %v, ok %v, want X 11", got, ok)
+	}
+
+	func() {
+		defer func() {
+			if r := recover(); r != "update failed" {
+				t.Fatalf("panic = %v, want update failed", r)
+			}
+		}()
+		for entry := range NewQuery(w).With(queryPos{}).Execute() {
+			entry.Update(func(p *queryPos) {
+				p.X = 99
+				panic("update failed")
+			})
+		}
+	}()
+	got, ok = e.Component[queryPos](w)
+	if !ok || got.X != 11 {
+		t.Fatalf("position after panic = %v, ok %v, want X 11", got, ok)
 	}
 }
 

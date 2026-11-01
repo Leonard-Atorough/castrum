@@ -73,7 +73,7 @@ func NewPrevTransformCapture() System {
 		// zero-copy writes through the prefetched columns.
 		for e := range update.Execute() {
 			t, _ := e.Component[Transform]()
-			e.Update(func(p *PrevTransform) { *p = t.snapshot() })
+			e.SetComponent(t.snapshot())
 		}
 		return nil
 	})

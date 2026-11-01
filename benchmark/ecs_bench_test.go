@@ -209,21 +209,32 @@ func BenchmarkQuery3(b *testing.B) {
 }
 
 // BenchmarkQueryWhere adds a per-entry predicate to the iteration,
-// the cost of a Where filter at one thousand entities.
+// the cost of a Where filter matching half of one thousand entities.
 func BenchmarkQueryWhere(b *testing.B) {
 	world := core.NewWorld()
-	for range 1000 {
+	for i := range 1000 {
+		sprite := render.Sprite{}
+		if i%2 == 0 {
+			sprite.Drawable = render.CircleShape{Radii: geom.Vector2{X: 1, Y: 1}}
+		}
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: 1, Y: 1}},
-			render.Sprite{},
+			sprite,
 		); err != nil {
 			b.Fatal(err)
 		}
 	}
-	query := core.NewQuery(world).With(core.Transform{}).Where(func(e core.Entry) bool {
+	query := core.NewQuery(world).With(core.Transform{}, render.Sprite{}).Where(func(e core.Entry) bool {
 		s, _ := e.Component[render.Sprite]()
 		return s.Drawable != nil
 	})
+	matched := 0
+	for range query.Execute() {
+		matched++
+	}
+	if matched != 500 {
+		b.Fatalf("query matched %d entities, want 500", matched)
+	}
 	b.ReportAllocs()
 
 	for b.Loop() {

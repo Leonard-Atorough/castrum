@@ -39,12 +39,17 @@ func (e Entry) SetComponent[T any](value T) {
 // the result back. Only types listed in [Query.With] are available; other
 // types cause a panic.
 func (e Entry) Update[T any](fn func(*T)) {
-	value, ok := e.Component[T]()
-	if !ok {
-		panic(fmt.Sprintf("castrum: Entry.Update: type %v was not listed in With", reflect.TypeFor[T]()))
+	typ := reflect.TypeFor[T]()
+	column, ok := e.columns[typ]
+	var value T
+
+	if !ok || e.index >= len(column) {
+		panic(fmt.Sprintf("castrum: Entry.Update: type %v was not listed in With", typ))
 	}
+
+	value = column[e.index].(T)
 	fn(&value)
-	e.SetComponent(value)
+	column[e.index] = value
 }
 
 // Component returns the visited entity's component of type T. It reports
@@ -61,7 +66,8 @@ func (e Entry) Component[T any]() (T, bool) {
 
 // Query selects entities by component presence and an optional predicate.
 // Configure it with [Query.With], [Query.Without], and [Query.Where], then
-// iterate its results with [Query.Execute].
+// iterate its results with [Query.Execute]. Filter changes between passes
+// take effect on the next execution.
 type Query struct {
 	world   *World
 	with    []reflect.Type
@@ -71,6 +77,7 @@ type Query struct {
 	matches    []*ecs.Archetype
 	columns    map[reflect.Type][]any
 	generation uint64
+	matchValid bool
 	iterating  bool
 }
 
@@ -96,6 +103,7 @@ func (q *Query) With(components ...any) *Query {
 			panic("castrum: With: pointer types are not allowed, component types must be non-pointer")
 		}
 		q.with = append(q.with, typ)
+		q.matchValid = false
 	}
 	return q
 }
@@ -112,6 +120,7 @@ func (q *Query) Without(components ...any) *Query {
 			panic("castrum: Without: pointer types are not allowed, component types must be non-pointer")
 		}
 		q.without = append(q.without, typ)
+		q.matchValid = false
 	}
 	return q
 }
@@ -143,10 +152,11 @@ func (q *Query) Execute() iter.Seq[Entry] {
 		defer func() { q.iterating = false }()
 
 		gen := q.world.archetypes.Generation()
-		if gen != q.generation {
+		if !q.matchValid || gen != q.generation {
 			q.matches = q.world.archetypes.MatchInto(q.matches, q.with, q.without)
 			slices.SortFunc(q.matches, byArchetypeID)
 			q.generation = gen
+			q.matchValid = true
 		}
 		stopped := false
 		for _, archetype := range q.matches {

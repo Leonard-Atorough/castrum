@@ -138,7 +138,7 @@ system := core.SystemFunc(func(ctx *core.Context) error {
 
 Pass zero values as type markers. `With(nil)`, `With(&Health{})`, and their `Without` equivalents panic because query component types must be non-nil, non-pointer values. `Entry.Component`, `Entry.SetComponent`, and `Entry.Update` can access only types listed in `With`; attempting to write an unprefetched type panics. `First` returns the first matching entry and a boolean indicating whether one was found.
 
-Entries are valid only during their iteration. Their component columns are shared scratch storage reused across archetypes, so retain `entry.ID()` rather than retaining an `Entry`. Query order is deterministic while the world is unchanged, and a query rematches its archetypes when the world's structure changes. One query supports one active iteration; use a separate query for nested iteration.
+Entries are valid only during their iteration. Their component columns are shared scratch storage reused across archetypes, so retain `entry.ID()` rather than retaining an `Entry`. Query order is deterministic while the world is unchanged. A query rematches its archetypes when the world's structure changes or when `With` or `Without` changes between passes. One query supports one active iteration; use a separate query for nested iteration.
 
 Value writes during `Execute` are supported. Structural changes are not: do not spawn, destroy, add components, or remove components during a pass. Collect IDs, finish the pass, then mint handles or apply structural changes afterward.
 
