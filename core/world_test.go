@@ -294,11 +294,19 @@ func TestNewEntityAssignsSequentialIDs(t *testing.T) {
 
 func TestNewEntitiesCreatesBatch(t *testing.T) {
 	w := NewWorld()
-	entities, _ := w.NewEntities(3, position{x: 1})
+	first, err := w.NewEntity(position{x: 0})
+	if err != nil {
+		t.Fatalf("NewEntity: %v", err)
+	}
+	entities, err := w.NewEntities(3, position{x: 1})
+	if err != nil {
+		t.Fatalf("NewEntities: %v", err)
+	}
 	if len(entities) != 3 {
 		t.Fatalf("NewEntities(3) returned %d entities, want 3", len(entities))
 	}
 	seen := map[EntityID]bool{}
+	seen[first.ID()] = true
 	for _, e := range entities {
 		if seen[e.ID()] {
 			t.Errorf("duplicate ID %d in batch", e.ID())
@@ -307,14 +315,27 @@ func TestNewEntitiesCreatesBatch(t *testing.T) {
 		if !e.HasComponent[position](w) {
 			t.Errorf("entity %d missing its components", e.ID())
 		}
+		component, ok := e.Component[position](w)
+		if !ok || component.x != 1 {
+			t.Errorf("entity %d position = %+v, ok %t; want x=1", e.ID(), component, ok)
+		}
 	}
 }
 
-func TestNewEntitiesRejectsNegativeCount(t *testing.T) {
+func TestNewEntitiesRejectsNonPositiveCount(t *testing.T) {
 	w := NewWorld()
-	entities, err := w.NewEntities(-1, position{})
-	if err == nil || entities != nil {
-		t.Fatal("NewEntities with a negative count should return an error and no entities")
+	for _, count := range []int{0, -1} {
+		entities, err := w.NewEntities(count, position{})
+		if err == nil || entities != nil || !strings.Contains(err.Error(), "count must be positive") {
+			t.Errorf("NewEntities(%d) = %v, %v; want positive-count error and no entities", count, entities, err)
+		}
+	}
+	entity, err := w.NewEntity(position{})
+	if err != nil {
+		t.Fatalf("NewEntity after rejected batch: %v", err)
+	}
+	if entity.ID() != 0 {
+		t.Errorf("ID after rejected batch = %d, want 0", entity.ID())
 	}
 }
 
