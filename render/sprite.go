@@ -44,6 +44,9 @@ func (s Sprite) Validate() error {
 	if s.Layer > 31 {
 		return fmt.Errorf("layer must be between 0 and 31")
 	}
+	if !isFinite(s.StrokeWidth) {
+		return fmt.Errorf("stroke width must be finite")
+	}
 	if s.Outline && s.StrokeWidth <= 0 {
 		return fmt.Errorf("outline requires a positive stroke width")
 	}
@@ -65,14 +68,23 @@ func (s Sprite) Validate() error {
 			return fmt.Errorf("texture source requires a texture")
 		}
 	case RectShape:
+		if !isFiniteVector(d.Size) {
+			return fmt.Errorf("rect size must be finite")
+		}
 		if d.Size.X <= 0 || d.Size.Y <= 0 {
 			return fmt.Errorf("rect size must be positive")
 		}
 	case CircleShape:
+		if !isFiniteVector(d.Radii) {
+			return fmt.Errorf("circle radii must be finite")
+		}
 		if d.Radii.X <= 0 || d.Radii.Y <= 0 {
 			return fmt.Errorf("circle radii must be positive")
 		}
 	case LineShape:
+		if !isFiniteVector(d.From) || !isFiniteVector(d.To) {
+			return fmt.Errorf("line endpoints must be finite")
+		}
 		if d.From == d.To {
 			return fmt.Errorf("line endpoints must be distinct")
 		}
@@ -90,6 +102,14 @@ func (s Sprite) Validate() error {
 		return fmt.Errorf("unknown drawable %T", s.Drawable)
 	}
 	return nil
+}
+
+func isFinite(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+func isFiniteVector(v geom.Vector2) bool {
+	return isFinite(v.X) && isFinite(v.Y)
 }
 
 // Drawable is the image, text, or shape rendered by a [Sprite]. Its

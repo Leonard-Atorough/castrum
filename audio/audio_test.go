@@ -62,6 +62,16 @@ func TestSourceValidate(t *testing.T) {
 			wantErr: "multiplier",
 		},
 		{
+			name:    "nan multiplier",
+			source:  Source{Audio: "sfx/step.wav", Volume: 1, PlaybackMultiplier: math.NaN()},
+			wantErr: "multiplier",
+		},
+		{
+			name:    "infinite multiplier",
+			source:  Source{Audio: "sfx/step.wav", Volume: 1, PlaybackMultiplier: math.Inf(1)},
+			wantErr: "multiplier",
+		},
+		{
 			name:    "invalid loop mode",
 			source:  Source{Audio: "sfx/step.wav", Volume: 1, Loop: LoopMode(7)},
 			wantErr: "loop mode",
