@@ -42,14 +42,12 @@ func (e Entry) Update[T any](fn func(*T)) {
 	typ := reflect.TypeFor[T]()
 	column, ok := e.columns[typ]
 	var value T
-	if ok && e.index < len(column) {
-		value, ok = column[e.index].(T)
-	} else {
-		ok = false
-	}
-	if !ok {
+
+	if !ok || e.index >= len(column) {
 		panic(fmt.Sprintf("castrum: Entry.Update: type %v was not listed in With", typ))
 	}
+
+	value = column[e.index].(T)
 	fn(&value)
 	column[e.index] = value
 }
