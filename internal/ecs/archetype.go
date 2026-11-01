@@ -154,6 +154,18 @@ func (a *Archetype) insertEntity(entityID EntityID) int {
 	return len(a.entityIDs) - 1
 }
 
+func (a *Archetype) insertEntities(entityIDs []EntityID) int {
+	start := len(a.entityIDs)
+	a.entityIDs = append(a.entityIDs, entityIDs...)
+	for typ, col := range a.columns {
+		oldLen := len(col)
+		col = slices.Grow(col, len(entityIDs))
+		col = col[:oldLen+len(entityIDs)]
+		a.columns[typ] = col
+	}
+	return start
+}
+
 func (a *Archetype) removeEntity(index int) (movedID EntityID, moved bool) {
 	lastIndex := len(a.entityIDs) - 1
 	if index < 0 || index > lastIndex {

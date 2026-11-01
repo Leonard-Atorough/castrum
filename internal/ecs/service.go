@@ -61,7 +61,7 @@ func (s *Service) Create(entityID EntityID, types []reflect.Type, values []any) 
 	arch := s.store.getOrCreate(types...)
 	index := arch.insertEntity(entityID)
 	for i, t := range types {
-		arch.setComponent(index, t, values[i])
+		arch.columns[t][index] = values[i]
 	}
 	s.locations[entityID] = Location{
 		ArchetypeID: arch.ID(),
@@ -93,14 +93,18 @@ func (s *Service) CreateBatch(ids []EntityID, types []reflect.Type, values []any
 	}
 
 	arch := s.store.getOrCreate(types...)
-	for _, id := range ids {
-		index := arch.insertEntity(id)
-		for j, t := range types {
-			arch.setComponent(index, t, values[j])
+	start := arch.insertEntities(ids)
+	end := start + len(ids)
+	for j, t := range types {
+		col := arch.columns[t]
+		for i := start; i < end; i++ {
+			col[i] = values[j]
 		}
+	}
+	for i, id := range ids {
 		s.locations[id] = Location{
 			ArchetypeID: arch.ID(),
-			Index:       index,
+			Index:       start + i,
 		}
 	}
 	return nil

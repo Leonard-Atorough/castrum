@@ -165,7 +165,7 @@ func (w *World) NewEntity(components ...any) (*Entity, error) {
 	id := w.getNextID()
 	entity := NewEntity(id)
 
-	if err := w.archetypes.Create(entity.id, componentTypes(components), copyValues(components)); err != nil {
+	if err := w.archetypes.Create(entity.id, componentTypes(components), components); err != nil {
 		return nil, err
 	}
 	return entity, nil
@@ -185,7 +185,6 @@ func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
 		return nil, fmt.Errorf("castrum: NewEntities: %w", err)
 	}
 	types := componentTypes(components)
-	values := copyValues(components)
 	entities := make([]*Entity, count)
 	ids := make([]EntityID, count)
 	for i := range entities {
@@ -194,7 +193,7 @@ func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
 		ids[i] = id
 	}
 
-	if err := w.archetypes.CreateBatch(ids, types, values); err != nil {
+	if err := w.archetypes.CreateBatch(ids, types, components); err != nil {
 		return nil, err
 	}
 	return entities, nil
@@ -277,10 +276,4 @@ func componentTypes(components []any) []reflect.Type {
 		types[i] = reflect.TypeOf(c)
 	}
 	return types
-}
-
-func copyValues(components []any) []any {
-	values := make([]any, len(components))
-	copy(values, components)
-	return values
 }
