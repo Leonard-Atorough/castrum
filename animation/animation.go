@@ -5,6 +5,7 @@ package animation
 
 import (
 	"fmt"
+	"math"
 	"slices"
 
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -35,8 +36,8 @@ type Animation struct {
 	Loop LoopMode
 }
 
-// Validate reports an error if Clip is empty, Current, Elapsed, or
-// PlaybackMultiplier is negative, or Loop is invalid. A zero
+// Validate reports an error if Clip is empty, Current is negative, Elapsed
+// or PlaybackMultiplier is non-finite or negative, or Loop is invalid. A zero
 // PlaybackMultiplier means normal speed.
 func (a Animation) Validate() error {
 	if a.Clip == "" {
@@ -45,11 +46,11 @@ func (a Animation) Validate() error {
 	if a.Current < 0 {
 		return fmt.Errorf("animation: current must not be negative, got %d", a.Current)
 	}
-	if a.Elapsed < 0 {
-		return fmt.Errorf("animation: elapsed time must not be negative, got %v", a.Elapsed)
+	if !isFinite(a.Elapsed) || a.Elapsed < 0 {
+		return fmt.Errorf("animation: elapsed time must be finite and not negative, got %v", a.Elapsed)
 	}
-	if a.PlaybackMultiplier < 0 {
-		return fmt.Errorf("animation: playback multiplier must not be negative (0 is the normal rate), got %v", a.PlaybackMultiplier)
+	if !isFinite(a.PlaybackMultiplier) || a.PlaybackMultiplier < 0 {
+		return fmt.Errorf("animation: playback multiplier must be finite and not negative (0 is the normal rate), got %v", a.PlaybackMultiplier)
 	}
 	if a.Loop != LoopNone && a.Loop != LoopForever {
 		return fmt.Errorf("animation: invalid loop mode %v", a.Loop)
@@ -112,8 +113,8 @@ type Clip struct {
 	FPS float64
 }
 
-// Validate reports an error if Source or Frames is empty, or FPS is less
-// than or equal to zero.
+// Validate reports an error if Source or Frames is empty, or FPS is not
+// finite and positive.
 func (c Clip) Validate() error {
 	if c.Source == "" {
 		return fmt.Errorf("animation: clip source must not be empty")
@@ -121,10 +122,14 @@ func (c Clip) Validate() error {
 	if len(c.Frames) == 0 {
 		return fmt.Errorf("animation: clip must have at least one frame")
 	}
-	if c.FPS <= 0 {
-		return fmt.Errorf("animation: clip fps must be positive, got %v", c.FPS)
+	if !isFinite(c.FPS) || c.FPS <= 0 {
+		return fmt.Errorf("animation: clip fps must be finite and positive, got %v", c.FPS)
 	}
 	return nil
+}
+
+func isFinite(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
 // ClipStore holds named [Clip] definitions for [NewAnimationSystem].

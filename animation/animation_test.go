@@ -215,7 +215,11 @@ func TestAnimationValidate(t *testing.T) {
 		{"empty clip", Animation{}, false},
 		{"negative current", Animation{Clip: "walk", Current: -1}, false},
 		{"negative elapsed", Animation{Clip: "walk", Elapsed: -1}, false},
+		{"NaN elapsed", Animation{Clip: "walk", Elapsed: math.NaN()}, false},
+		{"infinite elapsed", Animation{Clip: "walk", Elapsed: math.Inf(1)}, false},
 		{"negative multiplier", Animation{Clip: "walk", PlaybackMultiplier: -1}, false},
+		{"NaN multiplier", Animation{Clip: "walk", PlaybackMultiplier: math.NaN()}, false},
+		{"infinite multiplier", Animation{Clip: "walk", PlaybackMultiplier: math.Inf(1)}, false},
 		{"invalid loop mode", Animation{Clip: "walk", Loop: LoopMode(7)}, false},
 	}
 	for _, tc := range cases {
@@ -241,6 +245,8 @@ func TestAnimationClipValidate(t *testing.T) {
 		{"empty source", Clip{Frames: []string{"a"}, FPS: 10}, false},
 		{"no frames", Clip{Source: "atlas", FPS: 10}, false},
 		{"zero fps", Clip{Source: "atlas", Frames: []string{"a"}}, false},
+		{"NaN fps", Clip{Source: "atlas", Frames: []string{"a"}, FPS: math.NaN()}, false},
+		{"infinite fps", Clip{Source: "atlas", Frames: []string{"a"}, FPS: math.Inf(1)}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

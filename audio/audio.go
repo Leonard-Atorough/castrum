@@ -93,8 +93,8 @@ type Source struct {
 }
 
 // Validate reports an error if Audio is empty, Volume is non-finite or outside
-// (0, 1], PlaybackMultiplier is negative, Balance is non-finite or outside
-// [-1, 1], or Group, Loop, Pause, or Load has an unsupported value.
+// (0, 1], PlaybackMultiplier is non-finite or negative, Balance is non-finite
+// or outside [-1, 1], or Group, Loop, Pause, or Load has an unsupported value.
 func (s Source) Validate() error {
 	if s.Audio == "" {
 		return fmt.Errorf("audio: source audio ID must not be empty")
@@ -102,8 +102,8 @@ func (s Source) Validate() error {
 	if math.IsNaN(s.Volume) || s.Volume <= 0 || s.Volume > 1 {
 		return fmt.Errorf("audio: source volume must be finite and in (0, 1], got %v", s.Volume)
 	}
-	if s.PlaybackMultiplier < 0 {
-		return fmt.Errorf("audio: source playback multiplier must not be negative (0 is the normal rate), got %v", s.PlaybackMultiplier)
+	if math.IsNaN(s.PlaybackMultiplier) || math.IsInf(s.PlaybackMultiplier, 0) || s.PlaybackMultiplier < 0 {
+		return fmt.Errorf("audio: source playback multiplier must be finite and not negative (0 is the normal rate), got %v", s.PlaybackMultiplier)
 	}
 	if s.Loop != LoopNone && s.Loop != LoopForever {
 		return fmt.Errorf("audio: invalid loop mode %d", s.Loop)
