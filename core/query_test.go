@@ -371,6 +371,24 @@ func TestEntryUpdateMutates(t *testing.T) {
 	if !ok || got.X != 11 {
 		t.Fatalf("position = %v, ok %v, want X 11", got, ok)
 	}
+
+	func() {
+		defer func() {
+			if r := recover(); r != "update failed" {
+				t.Fatalf("panic = %v, want update failed", r)
+			}
+		}()
+		for entry := range NewQuery(w).With(queryPos{}).Execute() {
+			entry.Update(func(p *queryPos) {
+				p.X = 99
+				panic("update failed")
+			})
+		}
+	}()
+	got, ok = e.Component[queryPos](w)
+	if !ok || got.X != 11 {
+		t.Fatalf("position after panic = %v, ok %v, want X 11", got, ok)
+	}
 }
 
 func TestEntryUpdateUnprefetchedPanics(t *testing.T) {

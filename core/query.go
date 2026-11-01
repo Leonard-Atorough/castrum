@@ -39,12 +39,19 @@ func (e Entry) SetComponent[T any](value T) {
 // the result back. Only types listed in [Query.With] are available; other
 // types cause a panic.
 func (e Entry) Update[T any](fn func(*T)) {
-	value, ok := e.Component[T]()
+	typ := reflect.TypeFor[T]()
+	column, ok := e.columns[typ]
+	var value T
+	if ok && e.index < len(column) {
+		value, ok = column[e.index].(T)
+	} else {
+		ok = false
+	}
 	if !ok {
-		panic(fmt.Sprintf("castrum: Entry.Update: type %v was not listed in With", reflect.TypeFor[T]()))
+		panic(fmt.Sprintf("castrum: Entry.Update: type %v was not listed in With", typ))
 	}
 	fn(&value)
-	e.SetComponent(value)
+	column[e.index] = value
 }
 
 // Component returns the visited entity's component of type T. It reports
