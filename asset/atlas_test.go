@@ -47,6 +47,7 @@ func TestAtlasRegionRect(t *testing.T) {
 
 func TestNewAtlasValidates(t *testing.T) {
 	good := map[string]AtlasRegion{"player": {X: 0, Y: 0, W: 4, H: 3}}
+	maxInt := int(^uint(0) >> 1)
 	cases := []struct {
 		name    string
 		id      AtlasID
@@ -63,6 +64,7 @@ func TestNewAtlasValidates(t *testing.T) {
 		{"zero region width", "atlas", "tex.png", 4, 3, map[string]AtlasRegion{"player": {X: 0, Y: 0, W: 0, H: 3}}},
 		{"region exceeds width", "atlas", "tex.png", 4, 3, map[string]AtlasRegion{"player": {X: 2, Y: 0, W: 3, H: 3}}},
 		{"region exceeds height", "atlas", "tex.png", 4, 3, map[string]AtlasRegion{"player": {X: 0, Y: 1, W: 4, H: 3}}},
+		{"overflowing region width", "atlas", "tex.png", 4, 3, map[string]AtlasRegion{"player": {X: maxInt - 1, Y: 0, W: 10, H: 1}}},
 		{"negative region x", "atlas", "tex.png", 4, 3, map[string]AtlasRegion{"player": {X: -1, Y: 0, W: 2, H: 2}}},
 		{"no regions", "atlas", "tex.png", 4, 3, map[string]AtlasRegion{}},
 	}
