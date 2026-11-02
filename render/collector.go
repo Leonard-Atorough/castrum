@@ -69,8 +69,7 @@ type workingItem struct {
 // Collector resolves drawable assets, culls against the camera viewport, and
 // sorts draw items for each frame. Reuse a Collector across frames.
 type Collector struct {
-	userCamera,
-	engineCamera,
+	camera  *CameraResolver
 	sprites *core.Query
 	working []workingItem
 	// view is the published [*CameraView] resource; every Collect writes
@@ -84,28 +83,6 @@ type Collector struct {
 // NewCollector creates a [Collector] for world. A user primary camera takes
 // precedence over the engine camera.
 func NewCollector(world *core.World) *Collector {
-	// User-spawned primaries are preferred; the engine camera
-	// (SpawnEngineCamera) is the fallback when none exists.
-	userCamera := core.NewQuery(world).
-		With(Camera{}, core.Transform{}, core.PrevTransform{}).
-		Without(engineCamera{}).
-		Where(func(e core.Entry) bool {
-			cam, ok := e.Component[Camera]()
-			if !ok {
-				return false
-			}
-			return cam.Primary
-		})
-	engineCamera := core.NewQuery(world).
-		With(Camera{}, core.Transform{}, core.PrevTransform{}, engineCamera{}).
-		Where(func(e core.Entry) bool {
-			cam, ok := e.Component[Camera]()
-			if !ok {
-				return false
-			}
-			return cam.Primary
-		})
-
 	sprites := core.NewQuery(world).
 		With(Sprite{}, core.Transform{}, core.PrevTransform{}).
 		Where(func(e core.Entry) bool {
@@ -117,11 +94,10 @@ func NewCollector(world *core.World) *Collector {
 		})
 
 	return &Collector{
-		userCamera:   userCamera,
-		engineCamera: engineCamera,
-		sprites:      sprites,
-		working:      make([]workingItem, 0),
-		SortedItems:  make([]DrawItem, 0),
+		camera:      NewCameraResolver(world),
+		sprites:     sprites,
+		working:     make([]workingItem, 0),
+		SortedItems: make([]DrawItem, 0),
 	}
 }
 
@@ -140,21 +116,12 @@ func NewCollector(world *core.World) *Collector {
 // If no primary camera is available, Collect returns an empty list without an
 // error. Asset lookup and loading errors are returned; shapes require no assets.
 func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
-	// A user-spawned primary wins; the engine camera is the
-	// fallback. Query iteration order is deterministic within each.
-	entry, ok := c.userCamera.First()
-	if !ok {
-		entry, ok = c.engineCamera.First()
+	camera, ok, err := c.camera.Resolve(ctx.Alpha, ctx.LogicalWidth, ctx.LogicalHeight)
+	if err != nil {
+		return DrawList{}, err
 	}
 	if !ok {
 		return DrawList{}, nil
-	}
-	cam, _ := entry.Component[Camera]()
-	camTransform, _ := entry.Component[core.Transform]()
-	camPrev, _ := entry.Component[core.PrevTransform]()
-	camera, err := resolveCamera(cam, camPrev, camTransform, ctx.Alpha, ctx.LogicalWidth, ctx.LogicalHeight)
-	if err != nil {
-		return DrawList{}, err
 	}
 
 	viewport := camera.aabb

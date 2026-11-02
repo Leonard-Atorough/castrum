@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/animation"
+	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -20,6 +22,55 @@ import (
 	"github.com/Leonard-Atorough/castrum/timer"
 	"github.com/Leonard-Atorough/castrum/tween"
 )
+
+type spatialTestController struct {
+	playbacks []audio.Playback
+}
+
+func (c *spatialTestController) Sync(_ core.EntityID, _ asset.ID, want audio.Playback) (bool, error) {
+	c.playbacks = append(c.playbacks, want)
+	return true, nil
+}
+
+func (c *spatialTestController) Sweep() error { return nil }
+
+func TestSpatialAudioFrameAndFixedOrder(t *testing.T) {
+	g, err := New(WithFixedTPS(4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener := g.World().MustResource[*audio.Listener]()
+	listener.Enabled, listener.Mode, listener.Range = true, audio.FixedPosition, 100
+	source := audio.NewSource()
+	source.Spatial = true
+	entity, err := g.World().NewEntity(source, audio.Clip{Audio: "sound.wav"}, core.Transform{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	controller := &spatialTestController{}
+	if err := g.AddSystem(core.PhaseFrame, "audio", audio.NewAudioSystem(controller, g.World().MustResource[*audio.Mixer]())); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "move", core.SystemFunc(func(ctx *core.Context) error {
+		return entity.Update(ctx.World, func(tr *core.Transform) { tr.Position.X += 50 })
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Startup(); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(250 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	g.Pause()
+	if err := g.Advance(250 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if len(controller.playbacks) != 2 || controller.playbacks[0].Volume != 1 ||
+		controller.playbacks[1].Volume != 0.5 || !controller.playbacks[1].Playing || controller.playbacks[1].Restart {
+		t.Fatalf("frame playbacks = %+v, want initial position then fixed movement during game pause", controller.playbacks)
+	}
+}
 
 func TestWithBindingsWiresInput(t *testing.T) {
 	bindings := input.Bindings{

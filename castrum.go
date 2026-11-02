@@ -141,6 +141,11 @@ func New(opts ...option) (*Game, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide audio mixer: %w", err)
 	}
+	if err := g.world.Provide(func(*core.World) (*audio.Listener, error) {
+		return &audio.Listener{}, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide audio listener: %w", err)
+	}
 
 	// The engine's default camera yields to user-spawned primary cameras.
 	camera, err := render.SpawnEngineCamera(g.world)

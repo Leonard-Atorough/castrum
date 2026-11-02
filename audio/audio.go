@@ -12,6 +12,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/geom"
 )
 
 // LoadMode selects how a play's audio reaches players.
@@ -83,6 +84,13 @@ type Source struct {
 	// 1 mutes the left, and zero preserves the original mix.
 	// Values must be finite and in [-1, 1].
 	Balance float64
+	// Spatial enables position-derived volume and balance using the entity's
+	// [core.Transform] and the world's [Listener].
+	Spatial bool
+	// Attenuation maps normalized distance to attenuation. Nil means linear.
+	// A custom curve must be pure, map 0 to 0 and 1 to 1, and return finite
+	// values in [0, 1].
+	Attenuation geom.Ease
 
 	restarts              uint64
 	syncedRestarts        uint64

@@ -149,6 +149,8 @@ Looping and position resets require a seek-capable file. Normal directory files 
 
 - `Volume` is the finite per-play level in `(0, 1]`. Use mixer levels for muting; zero and NaN are rejected.
 - `Balance` attenuates the opposite stereo channel: `-1` mutes the right, `1` mutes the left, and zero preserves the original mix. Values must be finite and in `[-1, 1]`.
+- `Spatial` opts the play into listener-relative volume and balance. It is off by default.
+- `Attenuation` shapes spatial volume falloff; nil uses a linear curve.
 - `Group` selects `GroupSFX` or `GroupMusic`. The zero value is `GroupSFX`.
 - `Loop` selects `LoopNone` or `LoopForever`. The zero value is `LoopNone`.
 - `Pause` selects `PauseHolds` or `PauseContinues`. The zero value is `PauseHolds`.
@@ -189,13 +191,60 @@ In the [balance example](../../../examples/audio/balance), hold Left/Right to ad
 
 The backend currently used by `ebitrun` supports only a resolved playback rate of `1`. The audio component accepts positive multipliers and the engine resolves zero to `1`, but creating or recreating a player with another multiplier returns an error.
 
+## Place sounds in the world
+
+`castrum.New` provides a disabled `*audio.Listener` resource. Enable it and set a positive, finite range in world units. The default `FollowCamera` mode uses the primary camera; `FixedPosition` instead uses `Listener.Position` and world axes.
+
+```go
+listener := g.World().MustResource[*audio.Listener]()
+listener.Range = 600
+listener.Enabled = true
+
+source := audio.NewSource()
+source.Spatial = true
+source.Attenuation = geom.EaseInQuad
+source.Loop = audio.LoopForever
+_, err := g.World().NewEntity(
+	source,
+	audio.Clip{Audio: "audio/waterfall.ogg"},
+	core.Transform{Position: geom.Vector2{X: 200, Y: 40}},
+)
+if err != nil {
+	return err
+}
+```
+
+An enabled spatial source needs a `core.Transform`; its position is the sound's world position. Either a clip or a playlist can be spatial. A source without `Spatial`, or any source while the listener is disabled, plays without spatial adjustment. For a positional `OneShot`, add a `Transform` to its returned entity before the next audio reconciliation:
+
+```go
+source := audio.NewSource()
+source.Spatial = true
+shot, err := audio.OneShot(ctx.World, source, audio.Clip{Audio: "audio/impact.wav"})
+if err != nil {
+	return err
+}
+if err := shot.AddComponent(ctx.World, core.Transform{Position: impactPosition}); err != nil {
+	return err
+}
+```
+
+Distance is measured from the listener to the source. The system clamps `distance / Range` to `[0, 1]`, passes it to `Source.Attenuation`, and subtracts the result from 1 to obtain the volume gain. A nil curve is linear; `geom.EaseInQuad` and the other easing functions offer alternatives. A custom curve must be pure, map 0 to 0 and 1 to 1, and return finite values in `[0, 1]`. Invalid results are reported during reconciliation.
+
+The horizontal displacement divided by range produces a balance adjustment clamped to `[-1, 1]`. Camera-follow mode uses camera-local horizontal direction, including camera rotation; fixed-position mode uses world X. The system adds this adjustment to the source's authored balance and clamps the result. This is stereo channel attenuation, not true positional panning: sound in the attenuated channel is lost.
+
+The camera listener uses the same primary-camera selection and bounds as rendering, but uses the current camera transform rather than the interpolated drawn view. Zoom does not alter range. Audio runs in the frame phase before fixed ticks; movement from those ticks reaches audio on the next frame. Other frame-system changes follow registration order. Moving a listener or source, changing its curve, or toggling `Spatial` changes the resolved playback without restarting it, including while paused. The system does not write derived volume or balance to the source or change the transform.
+
+An enabled listener requires a valid range and, in camera mode, a primary camera and positive logical viewport. Manual `NewAudioSystem` setups must provide a `*audio.Listener` resource when using spatial sources. Invalid listener state, missing transforms, and invalid curves are returned as audio errors. At or beyond range the play is silent, not paused, and may still finish or advance a playlist. Existing source and mixer pause, completion, restart, and one-shot cleanup rules still apply. Like balance changes, spatial updates may be buffered and are not smoothed.
+
 ## Mix and pause globally
 
 The mixer is a world resource provided by `castrum.New`. Each play's effective volume is:
 
 ```text
-master volume x group volume x source volume
+master volume x group volume x source volume x spatial gain
 ```
+
+Spatial gain is 1 for a non-spatial source or a disabled listener.
 
 Adjust the master or one group without rewriting every source:
 
