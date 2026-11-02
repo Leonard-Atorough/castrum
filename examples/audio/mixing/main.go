@@ -1,9 +1,9 @@
 // Command mixing demonstrates master/group volume and global pause policies.
 // Music holds during a global pause; OneShot effects continue through it.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/audio/mixing
+//	go run .
 package main
 
 import (

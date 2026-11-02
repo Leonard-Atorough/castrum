@@ -19,9 +19,9 @@
 // Each timer is its own entity, so any number of them can run for
 // the same game: this program keeps five handles and reads them.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/timer
+//	go run .
 package main
 
 import (

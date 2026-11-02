@@ -2,9 +2,9 @@
 // change while paused and survives a restart; it attenuates a channel rather
 // than moving its content into the other channel.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/audio/balance
+//	go run .
 package main
 
 import (
