@@ -171,8 +171,8 @@ func TestCreatePlayerBalance(t *testing.T) {
 					for i := 0; i < len(want); i += stereoFrameBytes {
 						left := int16(binary.LittleEndian.Uint16(original[i:]))
 						right := int16(binary.LittleEndian.Uint16(original[i+2:]))
-						binary.LittleEndian.PutUint16(want[i:], uint16(int16(float64(left)*(1-math.Max(balance, 0)))))
-						binary.LittleEndian.PutUint16(want[i+2:], uint16(int16(float64(right)*(1+math.Min(balance, 0)))))
+						binary.LittleEndian.PutUint16(want[i:], uint16(int16(float64(left)*math.Sqrt(1-math.Max(balance, 0)))))
+						binary.LittleEndian.PutUint16(want[i+2:], uint16(int16(float64(right)*math.Sqrt(1-math.Max(-balance, 0)))))
 					}
 					if loop == audio.LoopForever {
 						want = bytes.Repeat(want, 3)

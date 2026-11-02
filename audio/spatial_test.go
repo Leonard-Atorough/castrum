@@ -178,6 +178,55 @@ func TestSpatialCameraFollow(t *testing.T) {
 	}
 }
 
+func TestSpatialErrorKeepsHealthyPlaysSynced(t *testing.T) {
+	w := newWorldWithHub(t)
+	provideListener(t, w, &Listener{Enabled: true, Mode: FixedPosition, Range: 100})
+	if _, err := w.NewEntity(Source{Volume: 1, Spatial: true}, Clip{Audio: "sfx/broken.wav"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.NewEntity(
+		Source{Volume: 1, Spatial: true}, Clip{Audio: "sfx/healthy.wav"},
+		core.Transform{Position: geom.Vector2{X: 50}},
+	); err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeController{live: true}
+	err := NewAudioSystem(fake, NewMixer()).Update(&core.Context{World: w})
+	if err == nil || !strings.Contains(err.Error(), "requires a Transform") {
+		t.Fatalf("Update() = %v, want Transform error", err)
+	}
+	if len(fake.syncs) != 1 || fake.syncs[0].source != "sfx/healthy.wav" {
+		t.Fatalf("syncs = %+v, want the healthy play only", fake.syncs)
+	}
+	if got := fake.syncs[0].want; got.Volume != 0.5 || got.Balance != 0.5 {
+		t.Fatalf("healthy playback = %+v, want spatialized mix", got)
+	}
+	if fake.sweeps != 1 {
+		t.Fatalf("sweeps = %d, want the pass to complete", fake.sweeps)
+	}
+}
+
+func TestAttenuationEndpointsValidatedOnce(t *testing.T) {
+	endpoints := 0
+	curve := func(t float64) float64 {
+		if t == 0 || t == 1 {
+			endpoints++
+		}
+		return t
+	}
+	entity, ctx := newAudioWorld(t, Source{Volume: 1, Spatial: true, Attenuation: curve}, "sound.wav")
+	if err := entity.AddComponent(ctx.World, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
+		t.Fatal(err)
+	}
+	provideListener(t, ctx.World, &Listener{Enabled: true, Mode: FixedPosition, Range: 100})
+	sys := NewAudioSystem(&fakeController{live: true}, NewMixer())
+	runAudio(t, sys, ctx)
+	runAudio(t, sys, ctx)
+	if endpoints != 2 {
+		t.Fatalf("endpoint calls = %d, want 2 (one validation) across two updates", endpoints)
+	}
+}
+
 func TestSpatialErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name       string

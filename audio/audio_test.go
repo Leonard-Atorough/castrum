@@ -703,20 +703,17 @@ func TestOneShotPlaysAndIsReclaimed(t *testing.T) {
 	fake := &fakeController{live: true}
 	sys := NewAudioSystem(fake, NewMixer())
 
-	entity, err := OneShot(w, Source{Volume: 1, Spatial: true}, Clip{Audio: "sfx/step.wav"})
+	entity, err := OneShotAt(w, Source{Volume: 1}, Clip{Audio: "sfx/step.wav"}, geom.Vector2{X: 150})
 	if err != nil {
-		t.Fatalf("OneShot: %v", err)
-	}
-	if err := entity.AddComponent(w, core.Transform{Position: geom.Vector2{X: 150}}); err != nil {
-		t.Fatal(err)
+		t.Fatalf("OneShotAt: %v", err)
 	}
 	if !entity.IsAlive() {
 		t.Fatal("one-shot must be alive at spawn")
 	}
 
 	runAudio(t, sys, ctx) // plays: live
-	if got := fake.syncs[0].want; !got.Playing || got.Volume != 0 {
-		t.Fatalf("out-of-range one-shot = %+v, want silent playback", got)
+	if got := fake.syncs[0].want; !got.Playing || got.Volume != 0 || got.Balance != 1 {
+		t.Fatalf("out-of-range one-shot = %+v, want silent playback panned hard right", got)
 	}
 	if !entity.IsAlive() {
 		t.Fatal("a live one-shot must not be destroyed")
@@ -756,10 +753,16 @@ func TestOneShotDoesNotTouchUserSources(t *testing.T) {
 	}
 }
 
-func TestOneShotRejectsLoopForever(t *testing.T) {
+func TestOneShotRejectsInvalidSources(t *testing.T) {
 	w := newWorldWithHub(t)
 	if _, err := OneShot(w, Source{Volume: 1, Loop: LoopForever}, Clip{Audio: "ambience.ogg"}); err == nil {
 		t.Fatal("a looping one-shot must be rejected")
+	}
+	if _, err := OneShot(w, Source{Volume: 1, Spatial: true}, Clip{Audio: "sfx/step.wav"}); err == nil {
+		t.Fatal("a spatial one-shot must be rejected")
+	}
+	if _, err := OneShotAt(w, Source{Volume: 1, Loop: LoopForever}, Clip{Audio: "ambience.ogg"}, geom.Vector2{}); err == nil {
+		t.Fatal("a looping positional one-shot must be rejected")
 	}
 }
 

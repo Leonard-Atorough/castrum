@@ -3,6 +3,8 @@ package audio
 import (
 	"fmt"
 	"math"
+	"reflect"
+	"sync"
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -28,7 +30,9 @@ type Listener struct {
 	Mode ListenerMode
 	// Position is the world-space listener position in [FixedPosition] mode.
 	Position geom.Vector2
-	// Range is the positive finite distance in world units at which sound is silent.
+	// Range is the positive finite distance in world units at which sound is
+	// silent. Lateral displacement is divided by Range before it offsets
+	// Balance.
 	Range float64
 }
 
@@ -82,6 +86,25 @@ func (p *spatialPass) resolve() error {
 	return nil
 }
 
+// endpointCurves remembers attenuation curves whose endpoint contract has been
+// verified in this process. Curves are not comparable, so they are keyed by
+// code pointer; values that share code share the cached verdict.
+var endpointCurves sync.Map // uintptr -> struct{}
+
+// checkAttenuation verifies curve's endpoint contract once per distinct
+// curve. Per-distance results are still checked on every use.
+func checkAttenuation(curve geom.Ease) error {
+	key := reflect.ValueOf(curve).Pointer()
+	if _, ok := endpointCurves.Load(key); ok {
+		return nil
+	}
+	if curve(0) != 0 || curve(1) != 1 {
+		return fmt.Errorf("attenuation curve must map 0 to 0 and 1 to 1")
+	}
+	endpointCurves.Store(key, struct{}{})
+	return nil
+}
+
 func (p *spatialPass) apply(id core.EntityID, s Source, want *Playback) error {
 	if !s.Spatial {
 		return nil
@@ -111,9 +134,12 @@ func (p *spatialPass) apply(id core.EntityID, s Source, want *Playback) error {
 	if curve == nil {
 		curve = geom.EaseLinear
 	}
-	start, end, attenuation := curve(0), curve(1), curve(t)
-	if start != 0 || end != 1 || !finite(attenuation) || attenuation < 0 || attenuation > 1 {
-		return fmt.Errorf("audio: entity %d: attenuation curve must map 0 to 0 and 1 to 1 and return finite values in [0, 1]", id)
+	if err := checkAttenuation(curve); err != nil {
+		return fmt.Errorf("audio: entity %d: %w", id, err)
+	}
+	attenuation := curve(t)
+	if !finite(attenuation) || attenuation < 0 || attenuation > 1 {
+		return fmt.Errorf("audio: entity %d: attenuation curve must return finite values in [0, 1], got %v", id, attenuation)
 	}
 	want.Volume *= 1 - attenuation
 	want.Balance = math.Max(-1, math.Min(1, s.Balance+local.X/p.listener.Range))

@@ -251,12 +251,31 @@ type oneshot struct {
 //
 // The source must not loop: a [LoopForever] play never finishes and its
 // entity would not be reclaimed. Use a regular [Source] for looping audio.
-// OneShot returns an error for a looping or invalid source.
+// OneShot returns an error for a looping, spatial, or invalid source.
 func OneShot(world *core.World, src Source, clip Clip) (*core.Entity, error) {
+	if src.Spatial {
+		return nil, fmt.Errorf("audio: one-shot %q must not be spatial: use OneShotAt", clip.Audio)
+	}
+	return oneShot(world, src, clip, core.Transform{})
+}
+
+// OneShotAt starts clip at position on a new engine-owned entity and returns
+// its handle. It enables [Source.Spatial] and sets the entity's
+// [core.Transform] position. The world must provide a [Listener]; spatial
+// adjustment is applied only when it is enabled.
+//
+// The source must not loop: a [LoopForever] play never finishes and its entity
+// would not be reclaimed. Use a regular [Source] for looping audio.
+func OneShotAt(world *core.World, src Source, clip Clip, position geom.Vector2) (*core.Entity, error) {
+	src.Spatial = true
+	return oneShot(world, src, clip, core.Transform{Position: position})
+}
+
+func oneShot(world *core.World, src Source, clip Clip, transform core.Transform) (*core.Entity, error) {
 	if src.Loop == LoopForever {
 		return nil, fmt.Errorf("audio: one-shot %q must not loop: use a Source on a game entity", clip.Audio)
 	}
-	entity, err := world.NewEntity(src, clip)
+	entity, err := world.NewEntity(src, clip, transform)
 	if err != nil {
 		return nil, err
 	}

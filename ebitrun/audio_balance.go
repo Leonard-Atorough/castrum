@@ -60,7 +60,7 @@ func (r *balanceReader) Read(p []byte) (int, error) {
 		return 0, nil
 	}
 	balance := math.Float64frombits(r.balance.Load())
-	left, right := 1-math.Max(balance, 0), 1+math.Min(balance, 0)
+	left, right := math.Sqrt(1-math.Max(balance, 0)), math.Sqrt(1-math.Max(-balance, 0))
 	written := 0
 	for {
 

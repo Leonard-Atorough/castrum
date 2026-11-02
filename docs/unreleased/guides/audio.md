@@ -214,16 +214,11 @@ if err != nil {
 }
 ```
 
-An enabled spatial source needs a `core.Transform`; its position is the sound's world position. Either a clip or a playlist can be spatial. A source without `Spatial`, or any source while the listener is disabled, plays without spatial adjustment. For a positional `OneShot`, add a `Transform` to its returned entity before the next audio reconciliation:
+An enabled spatial source needs a `core.Transform`; its position is the sound's world position. Either a clip or a playlist can be spatial. A source without `Spatial`, or any source while the listener is disabled, plays without spatial adjustment. For a fire-and-forget spatial play, use `audio.OneShotAt`, which enables `Spatial` and attaches the transform for you:
 
 ```go
-source := audio.NewSource()
-source.Spatial = true
-shot, err := audio.OneShot(ctx.World, source, audio.Clip{Audio: "audio/impact.wav"})
+shot, err := audio.OneShotAt(ctx.World, audio.NewSource(), audio.Clip{Audio: "audio/impact.wav"}, impactPosition)
 if err != nil {
-	return err
-}
-if err := shot.AddComponent(ctx.World, core.Transform{Position: impactPosition}); err != nil {
 	return err
 }
 ```

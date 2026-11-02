@@ -97,6 +97,7 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 			camera = render.NewCameraResolver(ctx.World)
 		}
 		spatial := spatialPass{ctx: ctx, camera: camera}
+		var spatialErr error
 		if sourceQuery == nil {
 			sourceQuery = core.NewQuery(ctx.World).With(Source{}, Clip{}).Without(Playlist{})
 		}
@@ -134,7 +135,10 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 
 			want := fold(s, mixer)
 			if err := spatial.apply(e.ID(), s, &want); err != nil {
-				return err
+				if spatialErr == nil {
+					spatialErr = err
+				}
+				continue
 			}
 			want.Restart = restart
 			live, err := controller.Sync(e.ID(), cl.Audio, want)
@@ -181,7 +185,10 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 
 			want := fold(s, mixer)
 			if err := spatial.apply(e.ID(), s, &want); err != nil {
-				return err
+				if spatialErr == nil {
+					spatialErr = err
+				}
+				continue
 			}
 			want.Restart = restart
 			live, err := controller.Sync(e.ID(), current, want)
@@ -222,6 +229,6 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 		if err := controller.Sweep(); err != nil {
 			return fmt.Errorf("audio: sweep: %w", err)
 		}
-		return nil
+		return spatialErr
 	})
 }
