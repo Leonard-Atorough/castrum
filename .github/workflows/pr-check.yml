@@ -85,6 +85,17 @@ jobs:
         run: |
           xvfb-run -a go test -v -race -coverprofile=coverage.out $(go list ./... | grep -vE '/internal/render|/(cmd|examples)(/|$)')
 
+      - name: Test shared example assets
+        run: go test ./examples/audio
+
+      - name: Test standalone examples
+        run: |
+          find examples -name go.mod -print0 | while IFS= read -r -d '' module_file; do
+            directory="$(dirname "$module_file")"
+            echo "Testing $directory"
+            (cd "$directory" && xvfb-run -a go test -race ./...)
+          done
+
       - name: Check coverage threshold
         run: |
           coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')

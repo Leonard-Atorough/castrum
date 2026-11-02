@@ -4,9 +4,9 @@
 // the final view to that rectangle, while Camera.MovePosition keeps the
 // controls within the area where the view can move.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/camera
+//	go run .
 package main
 
 import (

@@ -7,9 +7,9 @@
 // The built-in font is preloaded through the asset loader; each sprite names
 // it, the collector measures it, and the runner draws it.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/text
+//	go run .
 package main
 
 import (
