@@ -11,9 +11,9 @@
 // same effect from the runner's side: fps holds steady while tps falls
 // to zero on pause and tracks the scale when running.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/time-control
+//	go run .
 package main
 
 import (

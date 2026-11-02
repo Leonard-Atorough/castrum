@@ -11,9 +11,9 @@
 // player stopped reads the same Contacts state and moves the player
 // back itself.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/collision
+//	go run .
 package main
 
 import (

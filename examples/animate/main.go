@@ -4,10 +4,9 @@
 // the entity; the renderer stays animation-blind.
 //
 // Assets are embedded into the binary via //go:embed, passed to the
-// engine with castrum.WithFilesystem. Run from the repository root
-// (or anywhere):
+// engine with castrum.WithFilesystem. Run from this directory:
 //
-//	go run ./examples/animate
+//	go run .
 package main
 
 import (

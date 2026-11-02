@@ -1,9 +1,9 @@
 // Command scenes demonstrates scene transitions and entity queries.
 // Space switches between the hangar and salvage field; S toggles the scanner.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/scenes
+//	go run .
 package main
 
 import (

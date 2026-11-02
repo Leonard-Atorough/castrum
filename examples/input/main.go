@@ -3,9 +3,9 @@
 // ActionMap (named bindings, axis actions) and raw snapshot polling
 // run side by side, so both input styles are visible in one program.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/input
+//	go run .
 package main
 
 import (
