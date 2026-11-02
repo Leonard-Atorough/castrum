@@ -2,9 +2,9 @@
 // Space pauses the simulation, 1/2/3 select half/normal/double speed, and R
 // restarts both tweens. The tint continues while movement is paused.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/tween
+//	go run .
 package main
 
 import (

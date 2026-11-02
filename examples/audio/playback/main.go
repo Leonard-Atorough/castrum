@@ -2,9 +2,9 @@
 // streamed music source. Space plays an effect; P pauses the music and R
 // restarts it. Each effect owns its playback and is reclaimed on completion.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/audio/playback
+//	go run .
 package main
 
 import (

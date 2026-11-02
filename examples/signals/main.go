@@ -25,9 +25,9 @@
 // both observe it exactly once from a single emission. When the core
 // clears the screen, the sequence resets and the cycle begins again.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/signals
+//	go run .
 package main
 
 import (

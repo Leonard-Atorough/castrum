@@ -5,9 +5,9 @@
 // row, so each column reads as one knob and each row as one geometry.
 // Shapes are pure geometry: no assets are loaded.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/primitive
+//	go run .
 package main
 
 import (

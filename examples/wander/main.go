@@ -7,9 +7,9 @@
 // alternative to the default working-directory filesystem that
 // animate demonstrates - passed via castrum.WithFilesystem.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/wander
+//	go run .
 package main
 
 import (

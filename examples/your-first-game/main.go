@@ -4,9 +4,9 @@
 // collision with an enemy ends the run. The game also demonstrates audio,
 // timers, collision, and camera-following text.
 //
-// Run from the repository root:
+// Run from this directory:
 //
-//	go run ./examples/your-first-game
+//	go run .
 package main
 
 import (
