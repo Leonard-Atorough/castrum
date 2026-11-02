@@ -12,6 +12,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/geom"
 )
 
 // LoadMode selects how a play's audio reaches players.
@@ -83,6 +84,13 @@ type Source struct {
 	// 1 mutes the left, and zero preserves the original mix.
 	// Values must be finite and in [-1, 1].
 	Balance float64
+	// Spatial enables position-derived volume and balance using the entity's
+	// [core.Transform] and the world's [Listener].
+	Spatial bool
+	// Attenuation maps normalized distance to attenuation. Nil means linear.
+	// A custom curve must be pure, map 0 to 0 and 1 to 1, and return finite
+	// values in [0, 1].
+	Attenuation geom.Ease
 
 	restarts              uint64
 	syncedRestarts        uint64
@@ -243,12 +251,31 @@ type oneshot struct {
 //
 // The source must not loop: a [LoopForever] play never finishes and its
 // entity would not be reclaimed. Use a regular [Source] for looping audio.
-// OneShot returns an error for a looping or invalid source.
+// OneShot returns an error for a looping, spatial, or invalid source.
 func OneShot(world *core.World, src Source, clip Clip) (*core.Entity, error) {
+	if src.Spatial {
+		return nil, fmt.Errorf("audio: one-shot %q must not be spatial: use OneShotAt", clip.Audio)
+	}
+	return oneShot(world, src, clip, core.Transform{})
+}
+
+// OneShotAt starts clip at position on a new engine-owned entity and returns
+// its handle. It enables [Source.Spatial] and sets the entity's
+// [core.Transform] position. The world must provide a [Listener]; spatial
+// adjustment is applied only when it is enabled.
+//
+// The source must not loop: a [LoopForever] play never finishes and its entity
+// would not be reclaimed. Use a regular [Source] for looping audio.
+func OneShotAt(world *core.World, src Source, clip Clip, position geom.Vector2) (*core.Entity, error) {
+	src.Spatial = true
+	return oneShot(world, src, clip, core.Transform{Position: position})
+}
+
+func oneShot(world *core.World, src Source, clip Clip, transform core.Transform) (*core.Entity, error) {
 	if src.Loop == LoopForever {
 		return nil, fmt.Errorf("audio: one-shot %q must not loop: use a Source on a game entity", clip.Audio)
 	}
-	entity, err := world.NewEntity(src, clip)
+	entity, err := world.NewEntity(src, clip, transform)
 	if err != nil {
 		return nil, err
 	}

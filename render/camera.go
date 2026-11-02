@@ -124,6 +124,51 @@ func SpawnEngineCamera(w *core.World) (*core.Entity, error) {
 	)
 }
 
+// CameraResolver selects and resolves the world's primary camera.
+type CameraResolver struct {
+	userCamera   *core.Query
+	engineCamera *core.Query
+}
+
+// NewCameraResolver creates a resolver for world. User primary cameras take
+// precedence over the engine camera.
+func NewCameraResolver(world *core.World) *CameraResolver {
+	primary := func(e core.Entry) bool {
+		cam, _ := e.Component[Camera]()
+		return cam.Primary
+	}
+	return &CameraResolver{
+		userCamera: core.NewQuery(world).
+			With(Camera{}, core.Transform{}, core.PrevTransform{}).
+			Without(engineCamera{}).Where(primary),
+		engineCamera: core.NewQuery(world).
+			With(Camera{}, core.Transform{}, core.PrevTransform{}, engineCamera{}).
+			Where(primary),
+	}
+}
+
+// Resolve returns the primary camera's bounds-clamped view, interpolated by
+// alpha for the given logical viewport. An alpha of 1 uses current transforms.
+// The boolean is false when no primary camera is available. If several cameras
+// are eligible, the first in query order wins.
+func (r *CameraResolver) Resolve(alpha float64, width, height int) (CameraView, bool, error) {
+	entry, ok := r.userCamera.First()
+	if !ok {
+		entry, ok = r.engineCamera.First()
+	}
+	if !ok {
+		return CameraView{}, false, nil
+	}
+	cam, _ := entry.Component[Camera]()
+	transform, _ := entry.Component[core.Transform]()
+	prev, _ := entry.Component[core.PrevTransform]()
+	view, err := resolveCamera(cam, prev, transform, alpha, width, height)
+	if err != nil {
+		return CameraView{}, false, err
+	}
+	return view, true, nil
+}
+
 // CameraView is the resolved framing of a camera for one collected frame.
 //
 // A [Collector] publishes it as the world's *CameraView resource after

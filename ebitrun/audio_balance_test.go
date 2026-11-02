@@ -38,8 +38,8 @@ func TestBalanceReaderSamples(t *testing.T) {
 		{"unchanged", 0, input},
 		{"left", -1, balancePCM(1000, 0, -32768, 0, -3, 0)},
 		{"right", 1, balancePCM(0, -1000, 0, 32767, 0, 3)},
-		{"half left", -0.5, balancePCM(1000, -500, -32768, 16383, -3, 1)},
-		{"half right", 0.5, balancePCM(500, -1000, -16384, 32767, -1, 3)},
+		{"half left", -0.5, balancePCM(1000, -707, -32768, 23169, -3, 2)},
+		{"half right", 0.5, balancePCM(707, -1000, -23170, 32767, -2, 3)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -66,7 +66,7 @@ func (r fragmentedPCMReader) Read(p []byte) (int, error) {
 
 func TestBalanceReaderFragmentedReads(t *testing.T) {
 	input := bytes.Repeat(balancePCM(-32768, 32767, 1234, -5678), 1100)
-	want := bytes.Repeat(balancePCM(-32768, 16383, 1234, -2839), 1100)
+	want := bytes.Repeat(balancePCM(-32768, 23169, 1234, -4014), 1100)
 	for _, inputSize := range []int{1, 2, 3, 4, 7, 4096} {
 		for _, outputSize := range []int{1, 2, 3, 4, 7, 5000} {
 			r := mustBalanceReader(t, fragmentedPCMReader{bytes.NewReader(input), inputSize}, -0.5)
@@ -171,7 +171,7 @@ func TestBalanceReaderValidationAndUpdates(t *testing.T) {
 
 func TestBalanceReaderSeek(t *testing.T) {
 	input := balancePCM(1000, -1000, -32768, 32767, -3, 3)
-	want := balancePCM(500, -1000, -16384, 32767, -1, 3)
+	want := balancePCM(707, -1000, -23170, 32767, -2, 3)
 	for offset := range len(input) + 1 {
 		r := mustBalanceReader(t, bytes.NewReader(input), 0.5)
 		seeker := r.(io.Seeker)

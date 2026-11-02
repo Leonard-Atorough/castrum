@@ -8,6 +8,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/signal"
 )
 
@@ -471,7 +472,11 @@ func TestSystemFoldsAndFlagsRestartOnFirstSync(t *testing.T) {
 
 func TestPlaylistSystemAdvancesAfterCompletion(t *testing.T) {
 	w := newWorldWithHub(t)
-	entity, err := w.NewEntity(Source{Volume: 1}, NewPlaylist([]asset.ID{"music/one.ogg", "music/two.ogg"}))
+	listener := &Listener{Enabled: true, Mode: FixedPosition, Range: 100}
+	if err := w.Provide(func(*core.World) (*Listener, error) { return listener, nil }); err != nil {
+		t.Fatal(err)
+	}
+	entity, err := w.NewEntity(Source{Volume: 1, Spatial: true}, core.Transform{Position: geom.Vector2{X: 50}}, NewPlaylist([]asset.ID{"music/one.ogg", "music/two.ogg"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,9 +488,18 @@ func TestPlaylistSystemAdvancesAfterCompletion(t *testing.T) {
 	if len(fake.syncs) != 1 || fake.syncs[0].source != "music/one.ogg" || !fake.syncs[0].want.Restart {
 		t.Fatalf("initial playlist syncs = %+v, want first track with restart", fake.syncs)
 	}
+	if got := fake.syncs[0].want; got.Volume != 0.5 || got.Balance != 0.5 {
+		t.Fatalf("spatial playlist playback = %+v, want volume and balance 0.5", got)
+	}
 
+	if err := entity.Update(w, func(tr *core.Transform) { tr.Position.X = 150 }); err != nil {
+		t.Fatal(err)
+	}
 	fake.live = false
 	runAudio(t, sys, ctx)
+	if got := fake.syncs[len(fake.syncs)-1].want; got.Volume != 0 || !got.Playing {
+		t.Fatalf("out-of-range playlist playback = %+v, want silent playback", got)
+	}
 	playlist, ok := entity.Component[Playlist](w)
 	if !ok || playlist.Current() != "music/two.ogg" {
 		t.Fatalf("playlist after completion = %+v, want music/two.ogg", playlist)
@@ -494,11 +508,17 @@ func TestPlaylistSystemAdvancesAfterCompletion(t *testing.T) {
 		t.Fatal("advancing to the next track should clear completion")
 	}
 
+	if err := entity.Update(w, func(tr *core.Transform) { tr.Position.X = 50 }); err != nil {
+		t.Fatal(err)
+	}
 	fake.live = true
 	runAudio(t, sys, ctx)
 	last := fake.syncs[len(fake.syncs)-1]
 	if last.source != "music/two.ogg" || !last.want.Restart {
 		t.Fatalf("next track sync = %+v, want music/two.ogg with restart", last)
+	}
+	if last.want.Volume != 0.5 || last.want.Balance != 0.5 {
+		t.Fatalf("next track lost spatialization: %+v", last.want)
 	}
 }
 
@@ -674,19 +694,27 @@ func TestSystemSyncErrorPropagates(t *testing.T) {
 
 func TestOneShotPlaysAndIsReclaimed(t *testing.T) {
 	w := newWorldWithHub(t)
+	if err := w.Provide(func(*core.World) (*Listener, error) {
+		return &Listener{Enabled: true, Mode: FixedPosition, Range: 100}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
 	ctx := &core.Context{World: w}
 	fake := &fakeController{live: true}
 	sys := NewAudioSystem(fake, NewMixer())
 
-	entity, err := OneShot(w, Source{Volume: 1}, Clip{Audio: "sfx/step.wav"})
+	entity, err := OneShotAt(w, Source{Volume: 1}, Clip{Audio: "sfx/step.wav"}, geom.Vector2{X: 150})
 	if err != nil {
-		t.Fatalf("OneShot: %v", err)
+		t.Fatalf("OneShotAt: %v", err)
 	}
 	if !entity.IsAlive() {
 		t.Fatal("one-shot must be alive at spawn")
 	}
 
 	runAudio(t, sys, ctx) // plays: live
+	if got := fake.syncs[0].want; !got.Playing || got.Volume != 0 || got.Balance != 1 {
+		t.Fatalf("out-of-range one-shot = %+v, want silent playback panned hard right", got)
+	}
 	if !entity.IsAlive() {
 		t.Fatal("a live one-shot must not be destroyed")
 	}
@@ -725,10 +753,16 @@ func TestOneShotDoesNotTouchUserSources(t *testing.T) {
 	}
 }
 
-func TestOneShotRejectsLoopForever(t *testing.T) {
+func TestOneShotRejectsInvalidSources(t *testing.T) {
 	w := newWorldWithHub(t)
 	if _, err := OneShot(w, Source{Volume: 1, Loop: LoopForever}, Clip{Audio: "ambience.ogg"}); err == nil {
 		t.Fatal("a looping one-shot must be rejected")
+	}
+	if _, err := OneShot(w, Source{Volume: 1, Spatial: true}, Clip{Audio: "sfx/step.wav"}); err == nil {
+		t.Fatal("a spatial one-shot must be rejected")
+	}
+	if _, err := OneShotAt(w, Source{Volume: 1, Loop: LoopForever}, Clip{Audio: "ambience.ogg"}, geom.Vector2{}); err == nil {
+		t.Fatal("a looping positional one-shot must be rejected")
 	}
 }
 

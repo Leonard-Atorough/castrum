@@ -180,6 +180,9 @@ func TestNewProvidesResources(t *testing.T) {
 	if mixer, err := g.World().Resource[*audio.Mixer](); err != nil || mixer == nil {
 		t.Errorf("audio mixer = %v, error %v", mixer, err)
 	}
+	if listener, err := g.World().Resource[*audio.Listener](); err != nil || listener == nil || listener.Enabled {
+		t.Errorf("audio listener = %v, error %v, want disabled listener", listener, err)
+	}
 	if hub, err := g.World().Resource[*signal.Hub](); err != nil || hub == nil {
 		t.Errorf("signal hub = %v, error %v", hub, err)
 	}

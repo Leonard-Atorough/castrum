@@ -79,8 +79,8 @@ func balanceSystem(music *core.Entity, panel *debug.Panel) core.System {
 				s.Balance = 1
 			}
 
-			left := 1 - math.Max(s.Balance, 0)
-			right := 1 + math.Min(s.Balance, 0)
+			left := math.Sqrt(1 - math.Max(s.Balance, 0))
+			right := math.Sqrt(1 - math.Max(-s.Balance, 0))
 			panel.Status("balance", fmt.Sprintf("balance %+.2f   left %3.0f%%   right %3.0f%%   paused: %t",
 				s.Balance, left*100, right*100, s.Paused))
 			if ctx.Input.KeyPressed(input.KeySpace) {

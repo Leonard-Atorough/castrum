@@ -824,6 +824,10 @@ func TestEngineCameraPreference(t *testing.T) {
 	if list.Camera.Position != (geom.Vector2{X: 30, Y: 30}) || list.Camera.Zoom != 2 {
 		t.Fatalf("user camera should win: view = %+v, want (30, 30) zoom 2", list.Camera)
 	}
+	view, ok, err := NewCameraResolver(w).Resolve(ctx.Alpha, ctx.LogicalWidth, ctx.LogicalHeight)
+	if err != nil || !ok || view != list.Camera {
+		t.Fatalf("resolved camera = %+v, %v, %v; want collected view %+v", view, ok, err, list.Camera)
+	}
 }
 
 func TestCollectTextItem(t *testing.T) {

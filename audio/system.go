@@ -5,6 +5,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
 )
 
@@ -24,7 +25,7 @@ type Finished struct {
 }
 
 // Playback is the resolved state that a [Controller] applies to a play.
-// [NewAudioSystem] derives it from a [Source] and a [Mixer].
+// [NewAudioSystem] derives it from a [Source], a [Mixer], and optionally a [Listener].
 type Playback struct {
 	// Playing reports whether playback should advance. False holds its position.
 	Playing bool
@@ -32,7 +33,7 @@ type Playback struct {
 	// sets it on the first sync, a clip or playlist selection change, or
 	// [Source.Restart].
 	Restart bool
-	// Volume is the final mix — master x group x play — in [0, 1].
+	// Volume is the final mix, including spatial attenuation, in [0, 1].
 	// Zero is silence: runtime fade targets are safe here.
 	Volume float64
 	// Rate is the resolved playback multiplier; 1 is the normal rate.
@@ -41,8 +42,7 @@ type Playback struct {
 	Loop LoopMode
 	// Load selects eager decode or per-play streaming.
 	Load LoadMode
-	// Balance is the per-play channel attenuation from [Source.Balance],
-	// independent of Volume.
+	// Balance is the resolved channel attenuation, independent of Volume.
 	Balance float64
 }
 
@@ -84,10 +84,20 @@ type Controller interface {
 // with controller and mixer, emits a [Finished] signal when a [LoopNone] play
 // completes, and destroys completed [OneShot] entities. Without an audio
 // system, sources do not play.
+//
+// Spatial sources require a [*Listener] resource. An enabled listener also
+// requires a [core.Transform] on each spatial source. Invalid listener state,
+// transforms, and attenuation results are reported during reconciliation.
 func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 	var sourceQuery, oneshotQuery, playlistQuery, ambiguousSelectorQuery *core.Query
 	var hub *signal.Hub
+	var camera *render.CameraResolver
 	return core.SystemFunc(func(ctx *core.Context) error {
+		if camera == nil {
+			camera = render.NewCameraResolver(ctx.World)
+		}
+		spatial := spatialPass{ctx: ctx, camera: camera}
+		var spatialErr error
 		if sourceQuery == nil {
 			sourceQuery = core.NewQuery(ctx.World).With(Source{}, Clip{}).Without(Playlist{})
 		}
@@ -124,6 +134,12 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 			}
 
 			want := fold(s, mixer)
+			if err := spatial.apply(e.ID(), s, &want); err != nil {
+				if spatialErr == nil {
+					spatialErr = err
+				}
+				continue
+			}
 			want.Restart = restart
 			live, err := controller.Sync(e.ID(), cl.Audio, want)
 			if err != nil {
@@ -168,6 +184,12 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 			}
 
 			want := fold(s, mixer)
+			if err := spatial.apply(e.ID(), s, &want); err != nil {
+				if spatialErr == nil {
+					spatialErr = err
+				}
+				continue
+			}
 			want.Restart = restart
 			live, err := controller.Sync(e.ID(), current, want)
 			if err != nil {
@@ -207,6 +229,6 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 		if err := controller.Sweep(); err != nil {
 			return fmt.Errorf("audio: sweep: %w", err)
 		}
-		return nil
+		return spatialErr
 	})
 }
