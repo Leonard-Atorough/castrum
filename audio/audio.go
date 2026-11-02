@@ -12,7 +12,6 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
-	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 // LoadMode selects how a play's audio reaches players.
@@ -59,10 +58,8 @@ const (
 // applies its settings to a runner's player.
 //
 // The zero value is invalid. Use [NewSource] to create a source at unity
-// volume, and set Audio to a non-empty asset ID.
+// volume, and pair it with a [Clip] or [Playlist] component.
 type Source struct {
-	// Audio is the asset ID of the audio file to play.
-	Audio asset.ID
 	// Group is the volume bus the play mixes through.
 	Group Group
 	// Volume is the finite per-play level in (0, 1]; use a bus to mute its plays.
@@ -80,25 +77,30 @@ type Source struct {
 	Paused bool
 	// Completed reports whether a [LoopNone] play has finished. The audio
 	// system owns this field: it sets it on completion and clears it on
-	// restart, including an Audio change.
+	// restart, including a clip or playlist selection change.
 	Completed bool
 	// Balance attenuates the opposite stereo channel: -1 mutes the right,
 	// 1 mutes the left, and zero preserves the original mix.
 	// Values must be finite and in [-1, 1].
 	Balance float64
 
-	restarts       uint64
-	syncedRestarts uint64
-	syncedAudio    asset.ID
+	restarts              uint64
+	syncedRestarts        uint64
+	syncedAudio           asset.ID
+	syncedPlaylist        bool
+	syncedPlaylistVersion uint64
 }
 
-// Validate reports an error if Audio is empty, Volume is non-finite or outside
-// (0, 1], PlaybackMultiplier is non-finite or negative, Balance is non-finite
-// or outside [-1, 1], or Group, Loop, Pause, or Load has an unsupported value.
+// NewSource creates a source at unity volume with all other settings at their
+// zero values.
+func NewSource() Source {
+	return Source{Volume: 1}
+}
+
+// Validate reports an error if Volume is non-finite or outside (0, 1],
+// PlaybackMultiplier is non-finite or negative, Balance is non-finite or
+// outside [-1, 1], or Group, Loop, Pause, or Load has an unsupported value.
 func (s Source) Validate() error {
-	if s.Audio == "" {
-		return fmt.Errorf("audio: source audio ID must not be empty")
-	}
 	if math.IsNaN(s.Volume) || s.Volume <= 0 || s.Volume > 1 {
 		return fmt.Errorf("audio: source volume must be finite and in (0, 1], got %v", s.Volume)
 	}
@@ -123,19 +125,25 @@ func (s Source) Validate() error {
 	return nil
 }
 
-// NewSource creates a source at unity volume with all other settings at their
-// zero values. The audio ID must be non-empty for the source to pass
-// [Source.Validate].
-func NewSource(audio asset.ID) Source {
-	return Source{Audio: audio, Volume: 1}
-}
-
 // Restart requests playback from the beginning, clears [Source.Completed],
 // and resumes the source.
 func (s *Source) Restart() {
 	s.Completed = false
 	s.Paused = false
 	s.restarts++
+}
+
+// Clip selects one audio asset for a [Source].
+type Clip struct {
+	// Audio is the asset ID of the audio file to play.
+	Audio asset.ID
+}
+
+func (c Clip) Validate() error {
+	if c.Audio == "" {
+		return fmt.Errorf("audio: clip audio must not be empty")
+	}
+	return nil
 }
 
 // Mixer holds the master and group volume levels and the global pause state
@@ -223,146 +231,24 @@ func clamp01(v float64) float64 {
 	return v
 }
 
-// Playback is the resolved state that a [Controller] applies to a play.
-// [NewAudioSystem] derives it from a [Source] and a [Mixer].
-type Playback struct {
-	// Playing reports whether playback should advance. False holds its position.
-	Playing bool
-	// Restart requests a fresh player from the beginning. The audio system
-	// sets it on the first sync, an Audio change, or [Source.Restart].
-	Restart bool
-	// Volume is the final mix — master x group x play — in [0, 1].
-	// Zero is silence: runtime fade targets are safe here.
-	Volume float64
-	// Rate is the resolved playback multiplier; 1 is the normal rate.
-	Rate float64
-	// Loop is the play's repeat behavior after the last sample.
-	Loop LoopMode
-	// Load selects eager decode or per-play streaming.
-	Load LoadMode
-	// Balance is the per-play channel attenuation from [Source.Balance],
-	// independent of Volume.
-	Balance float64
-}
-
-// Controller applies resolved [Playback] state to backend players. Runners
-// implement it and pass it to [NewAudioSystem].
-type Controller interface {
-	// Sync applies want to the player for entityID and source. live reports
-	// whether the play has not finished, not whether it is currently playing:
-	// a paused play is live, while a finished [LoopNone] play is not.
-	//
-	// A finished play must not resume merely because want.Playing is true;
-	// want.Restart requests an explicit restart. The audio system calls Sync
-	// for each [Source] on every run.
-	Sync(entityID core.EntityID, source asset.ID, want Playback) (live bool, err error)
-	// Sweep releases players for entities not passed to Sync since the
-	// previous sweep. The audio system calls it after each reconciliation pass.
-	Sweep() error
-}
-
-// Finished is the signal the audio system emits on the update that observes
-// a [LoopNone] play finishing, the same update that sets [Source.Completed].
-//
-// The audio system runs in the frame schedule, so Finished is readable only
-// by frame systems registered after it during the same frame phase; it does
-// not survive into the next frame. React to it from a frame system, or poll
-// [Source.Completed] from anywhere when the exact frame does not matter.
-type Finished struct {
-	// Entity is the entity whose Source finished. A [OneShot]'s entity is
-	// destroyed on the same update, so its ID identifies the play only.
-	Entity core.EntityID
-	// Audio is the asset ID of the finished play.
-	Audio asset.ID
-}
-
-// NewAudioSystem returns a [core.System] that reconciles [Source] components
-// with controller and mixer, emits a [Finished] signal when a [LoopNone] play
-// completes, and destroys completed [OneShot] entities. Without an audio
-// system, sources do not play.
-func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
-	var sourceQuery, oneshotQuery *core.Query
-	var hub *signal.Hub
-	return core.SystemFunc(func(ctx *core.Context) error {
-		if sourceQuery == nil {
-			sourceQuery = core.NewQuery(ctx.World).With(Source{})
-			oneshotQuery = core.NewQuery(ctx.World).With(Source{}, oneshot{})
-		}
-		if hub == nil {
-			resolved, err := ctx.World.Resource[*signal.Hub]()
-			if err != nil {
-				return fmt.Errorf("audio system: resolve signal hub: %w; provide *signal.Hub to the world, typically signal.NewHub() through World.Provide, or construct the game with castrum.New", err)
-			}
-			hub = resolved
-		}
-		for e := range sourceQuery.Execute() {
-			s, _ := e.Component[Source]()
-
-			restart := s.syncedRestarts != s.restarts || s.syncedAudio != s.Audio
-			if restart {
-				s.Completed = false
-				s.syncedRestarts = s.restarts
-				s.syncedAudio = s.Audio
-			}
-
-			want := fold(s, mixer)
-			want.Restart = restart
-			live, err := controller.Sync(e.ID(), s.Audio, want)
-			if err != nil {
-				return fmt.Errorf("audio: entity %d: %w", e.ID(), err)
-			}
-
-			changed := restart
-			if !live && s.Loop == LoopNone && !s.Completed {
-				s.Completed = true
-				changed = true
-				hub.Emit(Finished{Entity: e.ID(), Audio: s.Audio})
-			}
-			if changed {
-				e.SetComponent(s)
-			}
-		}
-
-		var done []*core.Entity
-		for e := range oneshotQuery.Execute() {
-			s, _ := e.Component[Source]()
-			if !s.Completed {
-				continue
-			}
-			shot, _ := e.Component[oneshot]()
-			done = append(done, shot.self)
-		}
-		for _, entity := range done {
-			if err := ctx.World.DestroyEntity(entity); err != nil {
-				return fmt.Errorf("audio: destroy one-shot: %w", err)
-			}
-		}
-
-		if err := controller.Sweep(); err != nil {
-			return fmt.Errorf("audio: sweep: %w", err)
-		}
-		return nil
-	})
-}
-
 // oneshot retains the handle so cleanup destroys only the entity spawned by
 // [OneShot].
 type oneshot struct {
 	self *core.Entity
 }
 
-// OneShot starts src on a new engine-owned entity and returns its handle. The
-// audio system destroys the entity when playback finishes; it never destroys
-// entities that carry ordinary [Source] components.
+// OneShot starts src playing clip on a new engine-owned entity and returns its
+// handle. The audio system destroys the entity when playback finishes; it
+// never destroys entities that carry ordinary [Source] components.
 //
 // The source must not loop: a [LoopForever] play never finishes and its
 // entity would not be reclaimed. Use a regular [Source] for looping audio.
 // OneShot returns an error for a looping or invalid source.
-func OneShot(world *core.World, src Source) (*core.Entity, error) {
+func OneShot(world *core.World, src Source, clip Clip) (*core.Entity, error) {
 	if src.Loop == LoopForever {
-		return nil, fmt.Errorf("audio: one-shot %q must not loop: use a Source on a game entity", src.Audio)
+		return nil, fmt.Errorf("audio: one-shot %q must not loop: use a Source on a game entity", clip.Audio)
 	}
-	entity, err := world.NewEntity(src)
+	entity, err := world.NewEntity(src, clip)
 	if err != nil {
 		return nil, err
 	}
@@ -370,22 +256,4 @@ func OneShot(world *core.World, src Source) (*core.Entity, error) {
 		return nil, err
 	}
 	return entity, nil
-}
-
-func fold(s Source, mixer *Mixer) Playback {
-	return Playback{
-		Playing: !s.Paused && (!mixer.Paused() || s.Pause == PauseContinues),
-		Volume:  s.Volume * mixer.Master() * mixer.GroupVolume(s.Group),
-		Rate:    resolveMultiplier(s.PlaybackMultiplier),
-		Loop:    s.Loop,
-		Load:    s.Load,
-		Balance: s.Balance,
-	}
-}
-
-func resolveMultiplier(multiplier float64) float64 {
-	if multiplier == 0 {
-		return 1
-	}
-	return multiplier
 }

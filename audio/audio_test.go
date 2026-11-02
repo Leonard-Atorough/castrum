@@ -19,12 +19,11 @@ func TestSourceValidate(t *testing.T) {
 	}{
 		{
 			name:   "minimal sfx valid",
-			source: Source{Audio: "sfx/step.wav", Volume: 1},
+			source: Source{Volume: 1},
 		},
 		{
 			name: "streamed music valid",
 			source: Source{
-				Audio:  "music/theme.ogg",
 				Volume: 0.8,
 				Group:  GroupMusic,
 				Loop:   LoopForever,
@@ -33,62 +32,57 @@ func TestSourceValidate(t *testing.T) {
 			},
 		},
 		{
-			name:    "empty audio",
-			source:  Source{Volume: 1},
-			wantErr: "audio ID must not be empty",
-		},
-		{
 			name:    "zero volume",
-			source:  Source{Audio: "sfx/step.wav"},
+			source:  Source{},
 			wantErr: "volume",
 		},
 		{
 			name:    "volume above unity",
-			source:  Source{Audio: "sfx/step.wav", Volume: 1.5},
+			source:  Source{Volume: 1.5},
 			wantErr: "volume",
 		},
 		{
 			name:    "nan volume",
-			source:  Source{Audio: "sfx/step.wav", Volume: math.NaN()},
+			source:  Source{Volume: math.NaN()},
 			wantErr: "volume",
 		},
 		{
 			name:   "positive multiplier",
-			source: Source{Audio: "sfx/step.wav", Volume: 1, PlaybackMultiplier: 2},
+			source: Source{Volume: 1, PlaybackMultiplier: 2},
 		},
 		{
 			name:    "negative multiplier",
-			source:  Source{Audio: "sfx/step.wav", Volume: 1, PlaybackMultiplier: -1},
+			source:  Source{Volume: 1, PlaybackMultiplier: -1},
 			wantErr: "multiplier",
 		},
 		{
 			name:    "nan multiplier",
-			source:  Source{Audio: "sfx/step.wav", Volume: 1, PlaybackMultiplier: math.NaN()},
+			source:  Source{Volume: 1, PlaybackMultiplier: math.NaN()},
 			wantErr: "multiplier",
 		},
 		{
 			name:    "infinite multiplier",
-			source:  Source{Audio: "sfx/step.wav", Volume: 1, PlaybackMultiplier: math.Inf(1)},
+			source:  Source{Volume: 1, PlaybackMultiplier: math.Inf(1)},
 			wantErr: "multiplier",
 		},
 		{
 			name:    "invalid loop mode",
-			source:  Source{Audio: "sfx/step.wav", Volume: 1, Loop: LoopMode(7)},
+			source:  Source{Volume: 1, Loop: LoopMode(7)},
 			wantErr: "loop mode",
 		},
 		{
 			name:    "invalid pause mode",
-			source:  Source{Audio: "sfx/step.wav", Volume: 1, Pause: PauseMode(7)},
+			source:  Source{Volume: 1, Pause: PauseMode(7)},
 			wantErr: "pause mode",
 		},
 		{
 			name:    "invalid load mode",
-			source:  Source{Audio: "sfx/step.wav", Volume: 1, Load: LoadMode(7)},
+			source:  Source{Volume: 1, Load: LoadMode(7)},
 			wantErr: "load mode",
 		},
 		{
 			name:    "invalid group",
-			source:  Source{Audio: "sfx/step.wav", Volume: 1, Group: Group(7)},
+			source:  Source{Volume: 1, Group: Group(7)},
 			wantErr: "group",
 		},
 	}
@@ -108,14 +102,14 @@ func TestSourceValidate(t *testing.T) {
 	}
 }
 
-func TestSourceValidatedAtSpawn(t *testing.T) {
+func TestClipValidatedAtSpawn(t *testing.T) {
 	w := newWorldWithHub(t)
-	if _, err := w.NewEntity(Source{Audio: "sfx/step.wav", Volume: 1}); err != nil {
-		t.Fatalf("spawn valid source: %v", err)
+	if _, err := w.NewEntity(Source{Volume: 1}, Clip{Audio: "sfx/step.wav"}); err != nil {
+		t.Fatalf("spawn valid clip: %v", err)
 	}
-	_, err := w.NewEntity(Source{Audio: "sfx/step.wav"})
-	if err == nil || !strings.Contains(err.Error(), "volume") {
-		t.Fatalf("spawn invalid source: err = %v, want validation error", err)
+	_, err := w.NewEntity(Source{Volume: 1}, Clip{})
+	if err == nil || !strings.Contains(err.Error(), "clip audio") {
+		t.Fatalf("spawn invalid clip: err = %v, want validation error", err)
 	}
 }
 
@@ -137,7 +131,7 @@ func TestSourceBalanceValidation(t *testing.T) {
 		{"positive infinity", math.Inf(1), false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			source := NewSource("sfx/step.wav")
+			source := NewSource()
 			source.Balance = tt.balance
 			err := source.Validate()
 			if tt.valid {
@@ -153,7 +147,7 @@ func TestSourceBalanceValidation(t *testing.T) {
 
 func TestSourceBalanceValidatedAtSpawnAndUpdate(t *testing.T) {
 	world := newWorldWithHub(t)
-	source := NewSource("sfx/step.wav")
+	source := NewSource()
 	source.Balance = math.NaN()
 	if _, err := world.NewEntity(source); err == nil || !strings.Contains(err.Error(), "balance") {
 		t.Fatalf("spawn error = %v, want balance error", err)
@@ -172,7 +166,7 @@ func TestSourceBalanceValidatedAtSpawnAndUpdate(t *testing.T) {
 }
 
 func TestSourceRestart(t *testing.T) {
-	s := Source{Audio: "sfx/step.wav", Volume: 1, Balance: -0.5}
+	s := Source{Volume: 1, Balance: -0.5}
 
 	// Pausing and resuming are plain Paused writes.
 	s.Paused = true
@@ -292,12 +286,12 @@ func TestFold(t *testing.T) {
 	}{
 		{
 			name:   "defaults: playing at the authored mix",
-			source: Source{Audio: "sfx/step.wav", Volume: 1},
+			source: Source{Volume: 1},
 			want:   Playback{Playing: true, Volume: 1, Rate: 1},
 		},
 		{
 			name:   "mix is multiplicative",
-			source: Source{Audio: "sfx/step.wav", Volume: 0.5, Group: GroupSFX},
+			source: Source{Volume: 0.5, Group: GroupSFX},
 			mixer: func(m *Mixer) error {
 				if err := m.SetMaster(0.5); err != nil {
 					return err
@@ -308,7 +302,7 @@ func TestFold(t *testing.T) {
 		},
 		{
 			name:   "unoverridden group reads unity",
-			source: Source{Audio: "sfx/step.wav", Volume: 1, Group: GroupMusic},
+			source: Source{Volume: 1, Group: GroupMusic},
 			mixer: func(m *Mixer) error {
 				return m.SetGroupVolume(GroupSFX, 0.25)
 			},
@@ -316,43 +310,43 @@ func TestFold(t *testing.T) {
 		},
 		{
 			name:   "source pause holds",
-			source: Source{Audio: "sfx/step.wav", Volume: 1, Paused: true},
+			source: Source{Volume: 1, Paused: true},
 			want:   Playback{Playing: false, Volume: 1, Rate: 1},
 		},
 		{
 			name:   "mixer pause holds a PauseHolds play",
-			source: Source{Audio: "sfx/step.wav", Volume: 1, Pause: PauseHolds},
+			source: Source{Volume: 1, Pause: PauseHolds},
 			mixer:  func(m *Mixer) error { m.PauseAll(); return nil },
 			want:   Playback{Playing: false, Volume: 1, Rate: 1},
 		},
 		{
 			name:   "mixer pause does not hold a PauseContinues play",
-			source: Source{Audio: "ui/click.wav", Volume: 1, Pause: PauseContinues},
+			source: Source{Volume: 1, Pause: PauseContinues},
 			mixer:  func(m *Mixer) error { m.PauseAll(); return nil },
 			want:   Playback{Playing: true, Volume: 1, Rate: 1},
 		},
 		{
 			name:   "source pause overrides PauseContinues",
-			source: Source{Audio: "ui/click.wav", Volume: 1, Pause: PauseContinues, Paused: true},
+			source: Source{Volume: 1, Pause: PauseContinues, Paused: true},
 			mixer:  func(m *Mixer) error { m.PauseAll(); return nil },
 			want:   Playback{Playing: false, Volume: 1, Rate: 1},
 		},
 		{
 			name:   "explicit multiplier passes through",
-			source: Source{Audio: "sfx/step.wav", Volume: 1, PlaybackMultiplier: 2},
+			source: Source{Volume: 1, PlaybackMultiplier: 2},
 			want:   Playback{Playing: true, Volume: 1, Rate: 2},
 		},
 		{
 			name: "loop and load pass through",
 			source: Source{
-				Audio: "music/theme.ogg", Volume: 1,
-				Group: GroupMusic, Loop: LoopForever, Load: LoadStream,
+				Volume: 1,
+				Group:  GroupMusic, Loop: LoopForever, Load: LoadStream,
 			},
 			want: Playback{Playing: true, Volume: 1, Rate: 1, Loop: LoopForever, Load: LoadStream},
 		},
 		{
 			name:   "balance is independent of mixed volume",
-			source: Source{Audio: "sfx/step.wav", Volume: 0.5, Balance: -0.5},
+			source: Source{Volume: 0.5, Balance: -0.5},
 			mixer: func(m *Mixer) error {
 				if err := m.SetMaster(0.5); err != nil {
 					return err
@@ -363,12 +357,12 @@ func TestFold(t *testing.T) {
 		},
 		{
 			name:   "balance survives source pause",
-			source: Source{Audio: "sfx/step.wav", Volume: 1, Balance: 0.5, Paused: true},
+			source: Source{Volume: 1, Balance: 0.5, Paused: true},
 			want:   Playback{Volume: 1, Rate: 1, Balance: 0.5},
 		},
 		{
 			name:   "balance survives mixer pause and mute",
-			source: Source{Audio: "sfx/step.wav", Volume: 1, Balance: -1},
+			source: Source{Volume: 1, Balance: -1},
 			mixer: func(m *Mixer) error {
 				m.PauseAll()
 				return m.SetMaster(0)
@@ -377,7 +371,7 @@ func TestFold(t *testing.T) {
 		},
 		{
 			name:   "mute does not pause",
-			source: Source{Audio: "sfx/step.wav", Volume: 1},
+			source: Source{Volume: 1},
 			mixer:  func(m *Mixer) error { return m.SetMaster(0) },
 			want:   Playback{Playing: true, Rate: 1},
 		},
@@ -421,10 +415,10 @@ func (f *fakeController) Sweep() error {
 	return nil
 }
 
-func newAudioWorld(t *testing.T, src Source) (*core.Entity, *core.Context) {
+func newAudioWorld(t *testing.T, src Source, audioID asset.ID) (*core.Entity, *core.Context) {
 	t.Helper()
 	w := newWorldWithHub(t)
-	entity, err := w.NewEntity(src)
+	entity, err := w.NewEntity(src, Clip{Audio: audioID})
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
@@ -448,7 +442,7 @@ func readSource(t *testing.T, e *core.Entity, ctx *core.Context) Source {
 }
 
 func TestSystemFoldsAndFlagsRestartOnFirstSync(t *testing.T) {
-	entity, ctx := newAudioWorld(t, Source{Audio: "sfx/step.wav", Volume: 1})
+	entity, ctx := newAudioWorld(t, Source{Volume: 1}, "sfx/step.wav")
 	fake := &fakeController{live: true}
 	sys := NewAudioSystem(fake, NewMixer())
 
@@ -475,8 +469,104 @@ func TestSystemFoldsAndFlagsRestartOnFirstSync(t *testing.T) {
 	}
 }
 
+func TestPlaylistSystemAdvancesAfterCompletion(t *testing.T) {
+	w := newWorldWithHub(t)
+	entity, err := w.NewEntity(Source{Volume: 1}, NewPlaylist([]asset.ID{"music/one.ogg", "music/two.ogg"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &core.Context{World: w}
+	fake := &fakeController{live: true}
+	sys := NewAudioSystem(fake, NewMixer())
+
+	runAudio(t, sys, ctx)
+	if len(fake.syncs) != 1 || fake.syncs[0].source != "music/one.ogg" || !fake.syncs[0].want.Restart {
+		t.Fatalf("initial playlist syncs = %+v, want first track with restart", fake.syncs)
+	}
+
+	fake.live = false
+	runAudio(t, sys, ctx)
+	playlist, ok := entity.Component[Playlist](w)
+	if !ok || playlist.Current() != "music/two.ogg" {
+		t.Fatalf("playlist after completion = %+v, want music/two.ogg", playlist)
+	}
+	if source := readSource(t, entity, ctx); source.Completed {
+		t.Fatal("advancing to the next track should clear completion")
+	}
+
+	fake.live = true
+	runAudio(t, sys, ctx)
+	last := fake.syncs[len(fake.syncs)-1]
+	if last.source != "music/two.ogg" || !last.want.Restart {
+		t.Fatalf("next track sync = %+v, want music/two.ogg with restart", last)
+	}
+}
+
+func TestPlaylistSystemRestartsRepeatedAssetSelection(t *testing.T) {
+	w := newWorldWithHub(t)
+	entity, err := w.NewEntity(Source{Volume: 1}, NewPlaylist([]asset.ID{"music/same.ogg", "music/same.ogg"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &core.Context{World: w}
+	fake := &fakeController{live: true}
+	sys := NewAudioSystem(fake, NewMixer())
+	runAudio(t, sys, ctx)
+
+	if err := entity.Update(w, func(p *Playlist) { p.Next() }); err != nil {
+		t.Fatal(err)
+	}
+	runAudio(t, sys, ctx)
+	last := fake.syncs[len(fake.syncs)-1]
+	if last.source != "music/same.ogg" || !last.want.Restart {
+		t.Fatalf("repeated asset sync = %+v, want same asset with restart", last)
+	}
+}
+
+func TestPlaylistSystemRepeatsAll(t *testing.T) {
+	w := newWorldWithHub(t)
+	playlist := NewPlaylist([]asset.ID{"music/loop.ogg"})
+	playlist.Repeat = RepeatAll
+	entity, err := w.NewEntity(Source{Volume: 1}, playlist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &core.Context{World: w}
+	fake := &fakeController{live: true}
+	sys := NewAudioSystem(fake, NewMixer())
+	runAudio(t, sys, ctx)
+
+	fake.live = false
+	runAudio(t, sys, ctx)
+	got, ok := entity.Component[Playlist](w)
+	if !ok || got.Current() != "music/loop.ogg" {
+		t.Fatalf("repeated playlist = %+v, want its only track selected", got)
+	}
+	if source := readSource(t, entity, ctx); source.Completed {
+		t.Fatal("repeat-all should clear completion when wrapping")
+	}
+
+	fake.live = true
+	runAudio(t, sys, ctx)
+	if last := fake.syncs[len(fake.syncs)-1]; !last.want.Restart {
+		t.Fatal("repeat-all should restart the wrapped track")
+	}
+}
+
+func TestAudioSystemRejectsBothSelectors(t *testing.T) {
+	w := newWorldWithHub(t)
+	if _, err := w.NewEntity(Source{Volume: 1}, Clip{Audio: "music/clip.ogg"}, NewPlaylist([]asset.ID{"music/list.ogg"})); err != nil {
+		t.Fatal(err)
+	}
+	sys := NewAudioSystem(&fakeController{}, NewMixer())
+	err := sys.Update(&core.Context{World: w})
+	if err == nil || !strings.Contains(err.Error(), "both Clip and Playlist") {
+		t.Fatalf("Update() = %v, want ambiguous selector error", err)
+	}
+}
+
 func TestSystemCompletesAndHolds(t *testing.T) {
-	entity, ctx := newAudioWorld(t, Source{Audio: "sfx/step.wav", Volume: 1})
+	entity, ctx := newAudioWorld(t, Source{Volume: 1}, "sfx/step.wav")
 	fake := &fakeController{live: true}
 	sys := NewAudioSystem(fake, NewMixer())
 
@@ -503,7 +593,7 @@ func TestSystemCompletesAndHolds(t *testing.T) {
 }
 
 func TestSystemManualCompletedClearIsCorrected(t *testing.T) {
-	entity, ctx := newAudioWorld(t, Source{Audio: "sfx/step.wav", Volume: 1})
+	entity, ctx := newAudioWorld(t, Source{Volume: 1}, "sfx/step.wav")
 	fake := &fakeController{live: false}
 	sys := NewAudioSystem(fake, NewMixer())
 
@@ -521,7 +611,7 @@ func TestSystemManualCompletedClearIsCorrected(t *testing.T) {
 }
 
 func TestSystemRestartEdgesClearCompleted(t *testing.T) {
-	entity, ctx := newAudioWorld(t, Source{Audio: "sfx/step.wav", Volume: 1, Balance: 0.5})
+	entity, ctx := newAudioWorld(t, Source{Volume: 1, Balance: 0.5}, "sfx/step.wav")
 	fake := &fakeController{live: false}
 	sys := NewAudioSystem(fake, NewMixer())
 
@@ -554,18 +644,18 @@ func TestSystemRestartEdgesClearCompleted(t *testing.T) {
 	if s := readSource(t, entity, ctx); !s.Completed {
 		t.Fatal("finished play must be completed")
 	}
-	if err := entity.Update(ctx.World, func(s *Source) { s.Audio = "sfx/other.wav" }); err != nil {
+	if err := entity.Update(ctx.World, func(c *Clip) { c.Audio = "sfx/other.wav" }); err != nil {
 		t.Fatal(err)
 	}
 	fake.live = true
 	runAudio(t, sys, ctx)
 	s = readSource(t, entity, ctx)
 	if s.Completed {
-		t.Fatal("an Audio change must clear Completed")
+		t.Fatal("a Clip change must clear Completed")
 	}
 	last = fake.syncs[len(fake.syncs)-1]
 	if !last.want.Restart || last.source != "sfx/other.wav" {
-		t.Fatalf("Audio change must reach the provider as a restart, got %+v", last)
+		t.Fatalf("Clip change must reach the provider as a restart, got %+v", last)
 	}
 	if s.Balance != 0.5 || last.want.Balance != 0.5 {
 		t.Fatalf("audio change balance: source=%v playback=%v, want 0.5", s.Balance, last.want.Balance)
@@ -573,7 +663,7 @@ func TestSystemRestartEdgesClearCompleted(t *testing.T) {
 }
 
 func TestSystemSyncErrorPropagates(t *testing.T) {
-	_, ctx := newAudioWorld(t, Source{Audio: "sfx/step.wav", Volume: 1})
+	_, ctx := newAudioWorld(t, Source{Volume: 1}, "sfx/step.wav")
 	fake := &fakeController{live: true, err: errors.New("boom")}
 	sys := NewAudioSystem(fake, NewMixer())
 	err := sys.Update(ctx)
@@ -588,7 +678,7 @@ func TestOneShotPlaysAndIsReclaimed(t *testing.T) {
 	fake := &fakeController{live: true}
 	sys := NewAudioSystem(fake, NewMixer())
 
-	entity, err := OneShot(w, Source{Audio: "sfx/step.wav", Volume: 1})
+	entity, err := OneShot(w, Source{Volume: 1}, Clip{Audio: "sfx/step.wav"})
 	if err != nil {
 		t.Fatalf("OneShot: %v", err)
 	}
@@ -622,7 +712,7 @@ func TestOneShotDoesNotTouchUserSources(t *testing.T) {
 	fake := &fakeController{live: false}
 	sys := NewAudioSystem(fake, NewMixer())
 
-	user, err := w.NewEntity(Source{Audio: "sfx/step.wav", Volume: 1})
+	user, err := w.NewEntity(Source{Volume: 1}, Clip{Audio: "sfx/step.wav"})
 	if err != nil {
 		t.Fatalf("spawn user source: %v", err)
 	}
@@ -637,17 +727,15 @@ func TestOneShotDoesNotTouchUserSources(t *testing.T) {
 
 func TestOneShotRejectsLoopForever(t *testing.T) {
 	w := newWorldWithHub(t)
-	if _, err := OneShot(w, Source{
-		Audio: "ambience.ogg", Volume: 1, Loop: LoopForever,
-	}); err == nil {
+	if _, err := OneShot(w, Source{Volume: 1, Loop: LoopForever}, Clip{Audio: "ambience.ogg"}); err == nil {
 		t.Fatal("a looping one-shot must be rejected")
 	}
 }
 
 func TestNewSourceDefaults(t *testing.T) {
-	s := NewSource("sfx/step.wav")
-	if s.Audio != "sfx/step.wav" || s.Volume != 1 || s.Balance != 0 {
-		t.Fatalf("NewSource() = %+v, want the audio file at unity volume and zero balance", s)
+	s := NewSource()
+	if s.Volume != 1 || s.Balance != 0 {
+		t.Fatalf("NewSource() = %+v, want unity volume and zero balance", s)
 	}
 	if err := s.Validate(); err != nil {
 		t.Fatalf("Validate() = %v, want nil: the constructor result must be a valid play as-is", err)
@@ -668,7 +756,7 @@ func newWorldWithHub(t *testing.T) *core.World {
 }
 
 func TestFinishedSignalOnCompletion(t *testing.T) {
-	entity, ctx := newAudioWorld(t, Source{Audio: "sfx/step.wav", Volume: 1})
+	entity, ctx := newAudioWorld(t, Source{Volume: 1}, "sfx/step.wav")
 	fake := &fakeController{live: true}
 	sys := NewAudioSystem(fake, NewMixer())
 	hub := ctx.World.MustResource[*signal.Hub]()

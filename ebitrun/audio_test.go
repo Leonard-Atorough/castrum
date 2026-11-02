@@ -523,18 +523,18 @@ func TestDefaultRunnerAudioPlaybackAndCleanup(t *testing.T) {
 	world := g.World()
 
 	// One eager play and one streaming loop, as games build them.
-	shot := audio.NewSource("tone.wav")
+	shot := audio.NewSource()
 	shot.Load = audio.LoadEager
 	shot.Balance = -1
-	shotEntity, err := world.NewEntity(shot)
+	shotEntity, err := world.NewEntity(shot, audio.Clip{Audio: "tone.wav"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	music := audio.NewSource("tone.wav")
+	music := audio.NewSource()
 	music.Load = audio.LoadStream
 	music.Loop = audio.LoopForever
 	music.Balance = 0.5
-	musicEntity, err := world.NewEntity(music)
+	musicEntity, err := world.NewEntity(music, audio.Clip{Audio: "tone.wav"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -647,14 +647,14 @@ func TestDefaultRunnerAudioPlaybackAndCleanup(t *testing.T) {
 		t.Error("destroyed eager play should release its session")
 	}
 
-	stream := audio.NewSource("tone.wav")
+	stream := audio.NewSource()
 	stream.Load = audio.LoadStream
 	stream.Balance = -0.5
-	persistent, err := world.NewEntity(stream)
+	persistent, err := world.NewEntity(stream, audio.Clip{Audio: "tone.wav"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	oneShot, err := audio.OneShot(world, stream)
+	oneShot, err := audio.OneShot(world, stream, audio.Clip{Audio: "tone.wav"})
 	if err != nil {
 		t.Fatal(err)
 	}
