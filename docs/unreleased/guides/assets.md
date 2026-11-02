@@ -136,9 +136,14 @@ Streaming avoids decoding and caching the entire asset, but the consumer must pe
 The `ebitrun` audio provider performs the streaming path for you when an `audio.Source` uses `audio.LoadStream`. It opens the file, selects the WAV, MP3, or OGG decoder, and keeps the source open for the lifetime of that play. When the play ends or is removed, the provider closes the source.
 
 ```go
-source := audio.NewSource("assets/audio/music.ogg")
+source := audio.NewSource()
 source.Load = audio.LoadStream
 source.Loop = audio.LoopForever
+clip := audio.Clip{Audio: "assets/audio/music.ogg"}
+_, err := g.World().NewEntity(source, clip)
+if err != nil {
+	return err
+}
 ```
 
 Use streaming for long tracks that should not occupy memory as one decoded PCM buffer. Streaming is still lazy: missing files, unsupported formats, and decoder errors appear when the provider creates the play.
