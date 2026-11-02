@@ -23,7 +23,7 @@ Every change keeps the gates green, and the gates are the floor, not the ceiling
 - `gofmt -l .` is empty, `go vet ./...` and `go test ./...` pass, and merged coverage stays at or above the threshold in the PR checks (85% at the time of writing, with per-package coverage published on every run).
 - Public API has Go documentation that states the contract - what a caller can rely on and what fails how - rather than the implementation's internals. A reader who cannot act on a sentence does not need it.
 - A behavior change comes with a test that fails without it. A performance claim comes with a number from the `benchmark/` module, before and after, compared with benchstat.
-- Docs move with the code: a feature lands with its guide section and, where it helps, a runnable example. The getting-started tutorial's code blocks are verbatim-synced with `examples/your-first-game` - a change to one needs the other.
+- Put in-progress documentation under `docs/unreleased`. At release, snapshot it into `docs/vX.Y.Z` and keep that released copy aligned with the tagged API. Runnable examples are independent modules pinned to the release they demonstrate; CI tests them separately from the root module.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org); CI validates the PR title against the same types the release tooling derives versions from.
 
 ## Pull requests
