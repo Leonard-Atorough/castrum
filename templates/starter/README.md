@@ -31,6 +31,6 @@ Before publishing your game, replace `example.com/mygame` in `go.mod` and
   template was prepared.
 
 Add assets under your project as needed and configure Castrum's asset loader
-for their location. See the [asset guide](https://github.com/Leonard-Atorough/castrum/blob/main/docs/guides/assets.md)
-and [first-game tutorial](https://github.com/Leonard-Atorough/castrum/blob/main/docs/getting-started/your-first-game.md)
+for their location. See the [asset guide](https://github.com/Leonard-Atorough/castrum/blob/main/docs/v0.3.0/guides/assets.md)
+and [first-game tutorial](https://github.com/Leonard-Atorough/castrum/blob/main/docs/v0.3.0/getting-started/your-first-game.md)
 for the next steps.
