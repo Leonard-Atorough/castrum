@@ -35,7 +35,7 @@ Familiarity with the [introduction](intro.md) and [key concepts](concepts.md) ch
 
 Each step leaves the game runnable.
 
-Download `castrum-tutorial-assets-<version>.zip` from the [GitHub release matching your Castrum version](https://github.com/Leonard-Atorough/castrum/releases) and extract it into your project folder. The bundle supplies the `audio/` and `sprites/` files at the paths used below; Castrum supplies the font.
+Download the v0.3.0 `castrum-tutorial-assets` bundle from the [GitHub releases](https://github.com/Leonard-Atorough/castrum/releases) and extract it into your project folder. The assets are unchanged for the unreleased API; the bundle supplies the `audio/` and `sprites/` files used below, and Castrum supplies the font.
 
 ## Setting up your environment
 
@@ -44,8 +44,10 @@ Start with an empty directory and a fresh module. Keep your shell in this projec
 ```sh
 mkdir firstgame && cd firstgame
 go mod init firstgame
-go get github.com/Leonard-Atorough/castrum
+go get github.com/Leonard-Atorough/castrum@main
 ```
+
+`@main` uses unreleased engine code. It may change before a version is published; use the [v0.3.0 tutorial](../../v0.3.0/getting-started/your-first-game.md) for a stable, released API.
 
 Create `main.go` and extract the asset bundle in the project root. Asset paths resolve from the process working directory, so run the commands below from that directory.
 
@@ -309,14 +311,13 @@ Let's start with the background music. Declare the asset path and create an audi
 ```go
 const AssetMusic = "audio/arpmedia-retro-arcade-game-music-577821.mp3"
 
-if _, err := g.World().NewEntity(audio.Source{
-	Audio:  AssetMusic,
-	Volume: 0.5,
-	Group:  audio.GroupMusic,
-	Loop:   audio.LoopForever,
-	Load:   audio.LoadStream,
-	Pause:  audio.PauseHolds,
-}); err != nil {
+music := audio.NewSource()
+music.Volume = 0.5
+music.Group = audio.GroupMusic
+music.Loop = audio.LoopForever
+music.Load = audio.LoadStream
+music.Pause = audio.PauseHolds
+if _, err := g.World().NewEntity(music, audio.Clip{Audio: AssetMusic}); err != nil {
 	return err
 }
 ```
@@ -347,9 +348,9 @@ func sfxSystem() core.System {
 		if !ctx.Input.MousePressed(input.MouseButtonLeft) {
 			return nil
 		}
-		shot := audio.NewSource(AssetSFX)
+		shot := audio.NewSource()
 		shot.Pause = audio.PauseContinues
-		_, err := audio.OneShot(ctx.World, shot)
+		_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: AssetSFX})
 		return err
 	})
 }
@@ -474,9 +475,9 @@ func fireSystem(turret *core.Entity) core.System {
 			return err
 		}
 
-		shot := audio.NewSource(AssetSFX)
+		shot := audio.NewSource()
 		shot.Pause = audio.PauseContinues
-		_, err := audio.OneShot(ctx.World, shot)
+		_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: AssetSFX})
 		return err
 	})
 }
@@ -618,9 +619,9 @@ func fireSystem(turret *core.Entity) core.System {
 			return err
 		}
 
-		shot := audio.NewSource(AssetSFX)
+		shot := audio.NewSource()
 		shot.Pause = audio.PauseContinues
-		_, err := audio.OneShot(ctx.World, shot)
+		_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: AssetSFX})
 		return err
 	})
 }
