@@ -6,7 +6,7 @@ The reference pages are deliberately optional. Start with [getting started](../g
 
 ## The game declares, the engine decides
 
-The game writes state; the engine makes it true. An entity with a `Sprite` renders. An entity with an audio `Source` plays. To steer either, the game writes fields, and the engine reconciles the world to match on its own schedule.
+The game writes state; the engine makes it true. An entity with a `Sprite` renders. An entity with an audio `Source` paired with a `Clip` or `Playlist` plays. To steer either, the game writes fields, and the engine reconciles the world to match on its own schedule.
 
 This split keeps scheduling where it belongs. Which tick, which frame, drawn interpolated by how much - these are engine decisions, made with the whole frame in view. A game issuing draw calls and play calls would be making them blind.
 

@@ -1,31 +1,31 @@
 # Audio
 
-Audio is state on the world. An `audio.Source` identifies an asset and describes how it should play; the engine reconciles that state with the runner's players. You do not call a backend player directly. The default runner reconciles audio during frame updates, independently of simulation pause and time scale.
+This guide describes the in-development audio API and is not compatible with Castrum v0.3.0. Use the [released v0.3.0 audio guide](../../v0.3.0/guides/audio.md) for projects pinned to that version.
 
-There are two common shapes:
+Audio is state on the world. An `audio.Source` describes how playback should behave; a separate `audio.Clip` or `audio.Playlist` selects what to play. The engine reconciles those components with the runner's players. You do not call a backend player directly. The default runner reconciles audio during frame updates, independently of simulation pause and time scale.
 
-- Use `audio.OneShot` for a short effect that the engine should reclaim after it finishes.
-- Attach `audio.Source` to a game entity for music, ambience, or any play whose lifetime you control.
+An entity playing audio has one `Source` and exactly one selector: `Clip` for a single asset or `Playlist` for a sequence. A `Source` without a selector does not play audio, and an entity with both selectors is rejected by the audio system.
 
-Three focused examples share embedded recordings in [examples/audio](../../../examples/audio):
+The runnable audio examples are standalone projects pinned to v0.3.0. They show the released API, not the split API described here. Their assets are in the shared [examples/audio package](../../../examples/audio):
 
-| Example | Run from the repository root | Focus |
+| Example | Run command | Focus |
 | --- | --- | --- |
-| [Playback](../../../examples/audio/playback) | `go run ./examples/audio/playback` | Eager OneShots, streamed looping music, source pause and restart |
-| [Mixing](../../../examples/audio/mixing) | `go run ./examples/audio/mixing` | Master/group volume and global pause policies |
-| [Balance](../../../examples/audio/balance) | `go run ./examples/audio/balance` | Live stereo balance, updates while paused, and preservation on restart |
+| [Playback](../../../examples/audio/playback) | `go -C examples/audio/playback run .` | Eager OneShots, streamed looping music, source pause and restart |
+| [Mixing](../../../examples/audio/mixing) | `go -C examples/audio/mixing run .` | Master/group volume and global pause policies |
+| [Balance](../../../examples/audio/balance) | `go -C examples/audio/balance run .` | Live stereo balance, updates while paused, and preservation on restart |
 
 The parent directory contains the shared asset package, not a runnable command. Each example binary embeds the recordings and needs no external asset directory. Attribution is in [CREDITS.md](../../../CREDITS.md).
 
 ## Play a sound effect
 
-For a fire-and-forget effect, create a source with `audio.NewSource` and pass it to `audio.OneShot`:
+For a fire-and-forget effect, pass a source and clip to `audio.OneShot`:
 
 ```go
 if ctx.Input.KeyPressed(input.KeySpace) {
-	shot := audio.NewSource(AssetMagic)
+	shot := audio.NewSource()
 	shot.Pause = audio.PauseContinues
-	if _, err := audio.OneShot(ctx.World, shot); err != nil {
+	clip := audio.Clip{Audio: AssetMagic}
+	if _, err := audio.OneShot(ctx.World, shot, clip); err != nil {
 		return err
 	}
 }
@@ -35,40 +35,77 @@ if ctx.Input.KeyPressed(input.KeySpace) {
 
 A one-shot must not use `LoopForever`; a play that never finishes could never be reclaimed. Use a regular `Source` on a game entity for looping audio or for a play you need to keep and control.
 
-When a non-looping play finishes, the audio system sets `Source.Completed` and emits an `audio.Finished` signal carrying the source's entity ID and asset ID. The audio system runs in the frame schedule, so `Finished` reaches frame systems only. Poll `Source.Completed` from anywhere when the exact frame does not matter. See the [signals guide](signals.md) for reader rules.
+When a non-looping track finishes, the audio system emits an `audio.Finished` signal carrying the source's entity ID and asset ID. For a clip or an exhausted playlist, it also sets `Source.Completed`; an automatically advancing playlist clears it for the next track. The audio system runs in the frame schedule, so `Finished` reaches frame systems only. Poll `Source.Completed` from anywhere when the exact frame does not matter. See the [signals guide](signals.md) for reader rules.
 
 ## Play music or ambience
 
-Create a `Source` directly when the entity should remain in your world. This example puts a looping track on the music bus and streams it from its file:
+Create a `Source` and `Clip` on the same entity when the play should remain in your world. This example puts a looping track on the music bus and streams it from its file:
 
 ```go
-_, err := g.World().NewEntity(audio.Source{
-	Audio:  AssetMusic,
-	Volume: 1,
-	Group:  audio.GroupMusic,
-	Loop:   audio.LoopForever,
-	Load:   audio.LoadStream,
-	Pause:  audio.PauseHolds,
-})
+music := audio.NewSource()
+music.Group = audio.GroupMusic
+music.Loop = audio.LoopForever
+music.Load = audio.LoadStream
+music.Pause = audio.PauseHolds
+_, err := g.World().NewEntity(music, audio.Clip{Audio: AssetMusic})
 if err != nil {
 	return err
 }
 ```
 
-The entity owns the playback state. Destroying it or removing its `Source` causes the runner to release its player on the next reconciliation. A finished non-looping play also releases its playback resources, but its entity remains. An entity can carry other components, making it useful for sounds attached to a character, vehicle, or zone.
+The entity owns both the playback settings and selected clip. Destroying it or removing its selector causes the runner to release its player on the next reconciliation. A finished non-looping play also releases its playback resources, but its entity remains. An entity can carry other components, making it useful for sounds attached to a character, vehicle, or zone.
+
+## Play a playlist
+
+Use `Playlist` when an entity should advance between assets. `NewPlaylist` copies the supplied track list and selects the first track when one is present. Before adding it to an entity, provide at least one non-empty asset ID. Set `RepeatAll` to wrap automatically after the last track; the default `RepeatNone` stops at the last track:
+
+```go
+playlist := audio.NewPlaylist([]asset.ID{
+	"audio/menu.ogg",
+	"audio/level.ogg",
+})
+playlist.Repeat = audio.RepeatAll
+
+music := audio.NewSource()
+music.Group = audio.GroupMusic
+music.Load = audio.LoadStream
+entity, err := g.World().NewEntity(music, playlist)
+if err != nil {
+	return err
+}
+```
+
+`Source.Loop` repeats the current asset; `Playlist.Repeat` controls whether the sequence wraps. Leave `Source.Loop` at `LoopNone` when the playlist should advance automatically. A `LoopForever` source never completes a track, so the playlist cannot advance on completion.
+
+The audio system emits `audio.Finished` for each completed track. When another track is available, it advances the playlist and starts that selection on the next audio-system pass. At the final track with `RepeatNone`, the source becomes completed. `Playlist.Next` and `Previous` wrap when called directly, regardless of `Repeat`; `Seek` selects a position without wrapping. Write the updated component back to the entity:
+
+```go
+if err := entity.Update(g.World(), func(p *audio.Playlist) {
+	p.Next()
+}); err != nil {
+	return err
+}
+```
+
+Track edits use the same component-update pattern. `AddTrack`, `InsertTrack`, and `RemoveTrack` return errors for invalid input. A playlist must remain non-empty when stored on an entity; an empty playlist fails component validation. To stop selecting a playlist, remove the `Playlist` component or replace it with a `Clip`.
 
 ## Choose how audio loads
 
-`Source.Load` selects how audio reaches the player. `audio.LoadEager` is the zero value; `audio.LoadStream` is the explicit streaming choice.
+`Source.Load` selects how audio reaches the player. `audio.LoadEager` is the zero value; `audio.LoadStream` is the explicit streaming choice. `Clip` and each playlist entry select asset IDs independently of this loading policy.
 
 ### Eager loading
 
 Eager loading decodes the complete file into cached `asset.AudioData`. Multiple players can share those decoded samples, so it is a good fit for short effects that play often:
 
 ```go
-shot := audio.NewSource("audio/confirm.ogg")
+shot := audio.NewSource()
 // LoadEager is the zero value, so this is optional.
 shot.Load = audio.LoadEager
+clip := audio.Clip{Audio: "audio/confirm.ogg"}
+_, err := g.World().NewEntity(shot, clip)
+if err != nil {
+	return err
+}
 ```
 
 Preload required effects after creating the runner if you want missing files and decode errors to surface during setup:
@@ -91,10 +128,15 @@ The runner registers the WAV, MP3, and OGG audio decoders when `ebitrun.New` is 
 Streaming opens and decodes a source for each play instead of placing the entire decoded track in the asset cache. Use it for long music or ambience that would be wasteful to hold as one PCM buffer:
 
 ```go
-music := audio.NewSource("audio/music.ogg")
+music := audio.NewSource()
 music.Group = audio.GroupMusic
 music.Load = audio.LoadStream
 music.Loop = audio.LoopForever
+clip := audio.Clip{Audio: "audio/music.ogg"}
+_, err := g.World().NewEntity(music, clip)
+if err != nil {
+	return err
+}
 ```
 
 The `ebitrun` provider opens the file, chooses the WAV, MP3, or OGG decoder, and keeps the source open for that play. It closes the source when the play is released. Streaming playback is lazy, so a missing file, unsupported format, decode error, or non-seekable source appears when the runner creates the player.
@@ -103,9 +145,8 @@ Looping and position resets require a seek-capable file. Normal directory files 
 
 ## Configure a source
 
-`audio.Source` has one required field and several useful defaults:
+`audio.Source` contains playback settings and has several useful defaults:
 
-- `Audio` is the asset ID. It must not be empty.
 - `Volume` is the finite per-play level in `(0, 1]`. Use mixer levels for muting; zero and NaN are rejected.
 - `Balance` attenuates the opposite stereo channel: `-1` mutes the right, `1` mutes the left, and zero preserves the original mix. Values must be finite and in `[-1, 1]`.
 - `Group` selects `GroupSFX` or `GroupMusic`. The zero value is `GroupSFX`.
@@ -114,16 +155,17 @@ Looping and position resets require a seek-capable file. Normal directory files 
 - `Load` selects eager or streaming playback. The zero value is `LoadEager`.
 - `PlaybackMultiplier` scales the desired rate. Zero means normal rate; negative values are invalid.
 - `Paused` holds this play's position without losing it.
+- `Completed` is owned by the audio system and is true when a clip finishes or a playlist exhausts with `RepeatNone`.
 
 `NewSource` is the easiest way to create a valid source:
 
 ```go
-source := audio.NewSource("audio/step.wav")
+source := audio.NewSource()
 source.Group = audio.GroupSFX
 source.Volume = 0.75
 ```
 
-The world validates a source when you spawn it and whenever you write it back with `SetComponent`, `Update`, or `AddComponent`. Invalid source state returns an error before it enters the world.
+`Clip.Audio` must be a non-empty asset ID. A `Playlist` must contain at least one non-empty asset ID and use a supported repeat mode. The world validates each component when you spawn it and whenever you write it back with `SetComponent`, `Update`, or `AddComponent`. Invalid component state returns an error before it enters the world.
 
 ## Control playback
 
@@ -139,13 +181,13 @@ for e := range sources.Execute() {
 }
 ```
 
-`Paused` holds the current position. `Restart` rewinds to the beginning, clears `Completed`, and resumes the play. Changing `Audio` also starts the new asset from the beginning. A finished non-looping play sets `Completed`; it does not restart by itself. Call `Restart` or change `Audio` when the play should begin again.
+`Paused` holds the current position. `Restart` rewinds to the beginning, clears `Completed`, and resumes the play. Changing `Clip.Audio` or selecting another playlist entry also starts that selection from the beginning. A finished non-looping play sets `Completed`; it does not restart by itself. Call `Restart` or change the selection when the play should begin again.
 
 Changing `Balance` does not restart playback and applies independently of mixer volume, including while paused. It works with eager, streamed, and looping audio, and survives restarts. Balance does not move sound between channels: at either endpoint, content in the muted channel is lost. Already-buffered audio retains its previous balance, so updates are not instantaneous. Gain changes are not smoothed and abrupt changes can click.
 
 In the [balance example](../../../examples/audio/balance), hold Left/Right to adjust balance or press 1/2/3 for left/center/right. Space pauses the source; change balance while paused, then resume with Space or restart with R. The displayed left/right gains are independent of source and mixer volume. Use headphones or stereo speakers to hear the difference.
 
-The backend currently used by `ebitrun` supports only a resolved playback rate of `1`. The audio component accepts positive multipliers and the engine resolves zero to `1`, but setting another multiplier with this runner returns an error when the player is created.
+The backend currently used by `ebitrun` supports only a resolved playback rate of `1`. The audio component accepts positive multipliers and the engine resolves zero to `1`, but creating or recreating a player with another multiplier returns an error.
 
 ## Mix and pause globally
 
@@ -183,11 +225,11 @@ The source's own `Paused` field always holds that play, including a `PauseContin
 
 ## Errors and lifecycle
 
-Return errors from setup and systems. Common failures include an empty asset ID, an invalid source field, a missing or malformed audio file, an unsupported format, and a stream that cannot seek.
+Return errors from setup and systems. Common failures include an empty clip or playlist track ID, an empty playlist, an invalid source field, a missing or malformed audio file, an unsupported format, and a stream that cannot seek. Attaching both a `Clip` and a `Playlist` to one `Source` is rejected by the audio system when it runs.
 
-Create the runner before explicit audio preloads, and register required long-lived sources before `g.Run`. Audio errors from the runner are returned through the game loop and include the source involved. A source that is merely paused remains live; a finished `LoopNone` play becomes completed and stays that way until restarted or retargeted.
+Create the runner before explicit audio preloads, and register required long-lived sources before `g.Run`. Audio errors from the runner are returned through the game loop and identify the entity and failure stage; they may also include the selected asset. A source that is merely paused remains live; a finished clip or a playlist at its final non-repeating track becomes completed until restarted or retargeted.
 
-The default runner releases a completed play's player, balance reader, and streaming file once it observes playback has stopped, not merely when decoding reaches EOF. It retains a finished-session record so later reconciliation does not replay the source. Restarting or changing the asset creates a fresh player and reopens streamed audio. Paused and looping plays retain their playback resources.
+The default runner releases a completed play's player, balance reader, and streaming file once it observes playback has stopped, not merely when decoding reaches EOF. It retains a finished-session record so later reconciliation does not replay the source. Restarting or changing the clip or playlist selection creates a fresh player and reopens streamed audio. Paused and looping plays retain their playback resources.
 
 Completion does not destroy an ordinary source entity. `OneShot` entities are destroyed during the reconciliation that observes completion; their playback resources are released then, and their finished-session records are swept on the following reconciliation.
 
@@ -199,7 +241,7 @@ Completion does not destroy an ordinary source entity. `OneShot` entities are de
 - Prefer streaming for long tracks, provided the filesystem is seekable.
 - Put effects and music on separate groups so they can be mixed independently.
 - Use `PauseHolds` for music and `PauseContinues` for sounds that should play through a pause menu.
-- Use `audio.NewSource` so required defaults, especially `Volume`, are present.
+- Use `audio.NewSource` so the required default `Volume` is present, and attach exactly one media selector.
 - Handle errors from entity creation, preload calls, and system updates instead of relying on the first audible use to reveal a problem.
 
 ## Where to go next
