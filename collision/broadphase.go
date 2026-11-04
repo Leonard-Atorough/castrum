@@ -9,7 +9,6 @@ import (
 )
 
 type proxy struct {
-	id       core.EntityID
 	collider Collider
 	position geom.Vector2
 	rotation float64
@@ -83,7 +82,6 @@ func (b *broadphase) Sync(world *core.World, tick uint64) ([]core.EntityID, erro
 		}
 
 		next := proxy{
-			id:       id,
 			collider: collider,
 			position: transform.Position,
 			rotation: transform.Rotation,

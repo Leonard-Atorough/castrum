@@ -115,6 +115,9 @@ func contactBetween(a, b worldShape) contact {
 		case orientedRect:
 			return rectRectContact(a, b)
 		case worldCircle:
+			// When the circle is the second shape and the rectangle is the first,
+			// we compute the contact normally and then invert the normal to point
+			// from the rectangle to the circle.
 			hit := circleRectContact(b, a)
 			hit.normal = hit.normal.Mul(-1)
 			return hit

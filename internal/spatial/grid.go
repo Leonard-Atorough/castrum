@@ -120,11 +120,11 @@ func (idx *Grid) prepareEntry(entityID ecs.EntityID, bounds geom.Rect) (gridEntr
 	if !bounds.IsValid() {
 		return gridEntry{}, fmt.Errorf("invalid bounds for entity %d: %v", entityID, bounds)
 	}
-	minCell, err := idx.worldToGridChecked(bounds.Min)
+	minCell, err := idx.worldToGrid(bounds.Min)
 	if err != nil {
 		return gridEntry{}, fmt.Errorf("invalid bounds for entity %d: %w", entityID, err)
 	}
-	maxCell, err := idx.worldToGridChecked(bounds.Max)
+	maxCell, err := idx.worldToGrid(bounds.Max)
 	if err != nil {
 		return gridEntry{}, fmt.Errorf("invalid bounds for entity %d: %w", entityID, err)
 	}
@@ -191,11 +191,11 @@ func (idx *Grid) queryInto(bounds geom.Rect, ids []ecs.EntityID, overlapsOnly bo
 	if !bounds.IsValid() {
 		return ids[:0]
 	}
-	minCell, err := idx.worldToGridChecked(bounds.Min)
+	minCell, err := idx.worldToGrid(bounds.Min)
 	if err != nil {
 		return ids[:0]
 	}
-	maxCell, err := idx.worldToGridChecked(bounds.Max)
+	maxCell, err := idx.worldToGrid(bounds.Max)
 	if err != nil {
 		return ids[:0]
 	}
@@ -221,7 +221,7 @@ func (idx *Grid) queryInto(bounds geom.Rect, ids []ecs.EntityID, overlapsOnly bo
 	return ids
 }
 
-func (idx *Grid) worldToGridChecked(pos geom.Vector2) (GridCell, error) {
+func (idx *Grid) worldToGrid(pos geom.Vector2) (GridCell, error) {
 	x, y := math.Floor(pos.X/idx.cellSize), math.Floor(pos.Y/idx.cellSize)
 	maxInt := int(^uint(0) >> 1)
 	minInt := -maxInt - 1
@@ -230,13 +230,6 @@ func (idx *Grid) worldToGridChecked(pos geom.Vector2) (GridCell, error) {
 		return GridCell{}, fmt.Errorf("grid coordinates exceed integer range")
 	}
 	return GridCell{X: int(x), Y: int(y)}, nil
-}
-
-func (idx *Grid) worldToGrid(pos geom.Vector2) GridCell {
-	return GridCell{
-		X: int(math.Floor(pos.X / idx.cellSize)),
-		Y: int(math.Floor(pos.Y / idx.cellSize)),
-	}
 }
 
 // Remove deletes entityID from the index. It has no effect if the entity is

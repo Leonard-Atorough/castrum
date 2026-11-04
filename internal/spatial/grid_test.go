@@ -136,7 +136,7 @@ func TestGridWorldToGridHandlesNegativeCoordinates(t *testing.T) {
 		{pos: geom.Vector2{X: -0.1, Y: -10}, want: GridCell{X: -1, Y: -1}},
 		{pos: geom.Vector2{X: 25, Y: -5}, want: GridCell{X: 2, Y: -1}},
 	} {
-		if got := idx.worldToGrid(test.pos); got != test.want {
+		if got, _ := idx.worldToGrid(test.pos); got != test.want {
 			t.Errorf("worldToGrid(%v) = %v, want %v", test.pos, got, test.want)
 		}
 	}
@@ -239,10 +239,12 @@ func TestGridQueriesMatchCellRangesAfterUpdates(t *testing.T) {
 			bounds[id] = rect
 		}
 		query := randomBounds()
-		qmin, qmax := idx.worldToGrid(query.Min), idx.worldToGrid(query.Max)
+		qmin, _ := idx.worldToGrid(query.Min)
+		qmax, _ := idx.worldToGrid(query.Max)
 		var want, wantOverlaps []ecs.EntityID
 		for id, rect := range bounds {
-			min, max := idx.worldToGrid(rect.Min), idx.worldToGrid(rect.Max)
+			min, _ := idx.worldToGrid(rect.Min)
+			max, _ := idx.worldToGrid(rect.Max)
 			if min.X <= qmax.X && max.X >= qmin.X && min.Y <= qmax.Y && max.Y >= qmin.Y {
 				want = append(want, id)
 			}

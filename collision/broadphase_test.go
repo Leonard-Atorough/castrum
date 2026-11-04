@@ -32,7 +32,7 @@ func TestBroadphaseSyncIsTransactional(t *testing.T) {
 		t.Fatalf("raycast before first sync hit entity %d", hit.Entity)
 	}
 	if err := system.Update(&core.Context{World: world, Tick: 1}); err == nil {
-		t.Fatal("sync with a non-finite transform should fail")
+		t.Fatal("sync with an unindexable transform should fail")
 	}
 	if queries.Tick() != 0 {
 		t.Fatalf("failed initial sync published tick %d", queries.Tick())
