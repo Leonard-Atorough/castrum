@@ -29,9 +29,15 @@ type RaycastFilter struct {
 
 // RaycastHit describes the closest collider hit by a raycast.
 type RaycastHit struct {
-	Entity   core.EntityID
-	Point    geom.Vector2
-	Normal   geom.Vector2
+	// Entity identifies the entity whose collider was hit.
+	Entity core.EntityID
+	// Collider is the collider data from the synchronized snapshot that produced the hit.
+	Collider Collider
+	// Point is the hit location in world coordinates.
+	Point geom.Vector2
+	// Normal is the hit surface normal in world coordinates.
+	Normal geom.Vector2
+	// Distance is the distance from the segment start to Point.
 	Distance float64
 }
 
@@ -96,6 +102,7 @@ func (q *Queries) Raycast(segment geom.Segment, filter RaycastFilter) (RaycastHi
 		found = true
 		best = RaycastHit{
 			Entity:   id,
+			Collider: proxy.collider,
 			Point:    hit.point,
 			Normal:   hit.normal,
 			Distance: hit.t * segment.Length(),

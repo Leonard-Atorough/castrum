@@ -1,8 +1,15 @@
 # Examples
 
-Each runnable directory is a standalone Go module pinned to the released Castrum version in its `go.mod`. The examples currently target v0.3.0 and intentionally use that release's API.
+Each released runnable directory is a standalone Go module pinned to the released Castrum version in its `go.mod`. The released examples currently target v0.3.0 and intentionally use that release's API.
 
 Their module paths use the `github.com/Leonard-Atorough/castrum-examples` namespace so they do not conflict with example packages already included in the Castrum v0.3.0 module.
+
+Work-in-progress examples live under `unreleased/` and use a local `replace` to build against this checkout rather than pinning a released Castrum version. For example:
+
+```sh
+cd examples/unreleased/raycast
+go run .
+```
 
 Run an example from its directory:
 

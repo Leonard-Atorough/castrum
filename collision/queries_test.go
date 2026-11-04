@@ -41,6 +41,13 @@ func TestQueriesRaycastUsesBroadphaseAndTargetLayers(t *testing.T) {
 	if !ok || hit.Entity != far.ID() || hit.Distance != 6 {
 		t.Fatalf("layer-filtered hit = %+v, %t; want entity %d at distance 6", hit, ok, far.ID())
 	}
+	if hit.Collider.Layers != Layers(2) || hit.Collider.Mask != math.MaxUint32 {
+		t.Fatalf("hit collider = %+v; want layers %08b and mask %08b", hit.Collider, Layers(2), uint32(math.MaxUint32))
+	}
+	shape, ok := hit.Collider.Shape.(Circle)
+	if !ok || shape.Radius != 1 {
+		t.Fatalf("hit collider shape = %#v; want Circle with radius 1", hit.Collider.Shape)
+	}
 	hit, ok = queries.Raycast(segment, RaycastFilter{Mask: Mask(1)})
 	if !ok || hit.Entity != near.ID() {
 		t.Fatalf("raycast should hit layer-matched collider with empty Collider.Mask: %+v, %t", hit, ok)
