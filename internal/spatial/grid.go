@@ -29,12 +29,22 @@ type Grid struct {
 	cells map[GridCell][]*gridEntry
 	// entities owns the indexed entries, keyed by entity ID.
 	entities map[ecs.EntityID]*gridEntry
+	// batchEntries and batchIDs are reused by ApplyBatch.
+	batchEntries []gridEntry
+	batchIDs     map[ecs.EntityID]struct{}
 }
 
 type gridEntry struct {
 	id       ecs.EntityID
 	min, max GridCell
 	bounds   geom.Rect
+}
+
+// Change updates or removes one entity's indexed bounds.
+type Change struct {
+	EntityID ecs.EntityID
+	Bounds   geom.Rect
+	Remove   bool
 }
 
 func (e *gridEntry) contains(cell GridCell) bool {
@@ -48,27 +58,87 @@ func NewGrid(cellSize float64) (*Grid, error) {
 		return nil, fmt.Errorf("cellSize must be positive, got %f", cellSize)
 	}
 	return &Grid{
-		cellSize: cellSize,
-		cells:    make(map[GridCell][]*gridEntry),
-		entities: make(map[ecs.EntityID]*gridEntry),
+		cellSize:     cellSize,
+		cells:        make(map[GridCell][]*gridEntry),
+		entities:     make(map[ecs.EntityID]*gridEntry),
+		batchEntries: make([]gridEntry, 0, 16),
+		batchIDs:     make(map[ecs.EntityID]struct{}),
 	}, nil
 }
 
 // Update replaces entityID's indexed bounds. Invalid bounds return an error
 // without changing the current index for that entity.
 func (idx *Grid) Update(entityID ecs.EntityID, bounds geom.Rect) error {
-	if !bounds.IsValid() {
-		return fmt.Errorf("invalid bounds for entity %d: %v", entityID, bounds)
+	entry, err := idx.prepareEntry(entityID, bounds)
+	if err != nil {
+		return err
 	}
+	idx.updateEntry(entry)
+	return nil
+}
 
-	minCell := idx.worldToGrid(bounds.Min)
-	maxCell := idx.worldToGrid(bounds.Max)
+// ApplyBatch applies all changes after validating the complete batch. If
+// validation fails, the grid is unchanged. Entity IDs must be unique in the
+// batch.
+func (idx *Grid) ApplyBatch(changes []Change) error {
+	if len(changes) == 0 {
+		return nil
+	}
+	if len(changes) > cap(idx.batchEntries) {
+		idx.batchEntries = make([]gridEntry, len(changes))
+	} else {
+		idx.batchEntries = idx.batchEntries[:len(changes)]
+	}
+	entries := idx.batchEntries
+	clear(idx.batchIDs)
+	for i, change := range changes {
+		if _, ok := idx.batchIDs[change.EntityID]; ok {
+			return fmt.Errorf("duplicate entity %d in grid change batch", change.EntityID)
+		}
+		idx.batchIDs[change.EntityID] = struct{}{}
+		if change.Remove {
+			continue
+		}
+		entry, err := idx.prepareEntry(change.EntityID, change.Bounds)
+		if err != nil {
+			return err
+		}
+		entries[i] = entry
+	}
+	idx.batchEntries = entries
+	for i, change := range changes {
+		if change.Remove {
+			idx.Remove(change.EntityID)
+			continue
+		}
+		idx.updateEntry(entries[i])
+	}
+	return nil
+}
+
+func (idx *Grid) prepareEntry(entityID ecs.EntityID, bounds geom.Rect) (gridEntry, error) {
+	if !bounds.IsValid() {
+		return gridEntry{}, fmt.Errorf("invalid bounds for entity %d: %v", entityID, bounds)
+	}
+	minCell, err := idx.worldToGrid(bounds.Min)
+	if err != nil {
+		return gridEntry{}, fmt.Errorf("invalid bounds for entity %d: %w", entityID, err)
+	}
+	maxCell, err := idx.worldToGrid(bounds.Max)
+	if err != nil {
+		return gridEntry{}, fmt.Errorf("invalid bounds for entity %d: %w", entityID, err)
+	}
+	return gridEntry{id: entityID, min: minCell, max: maxCell, bounds: bounds}, nil
+}
+
+func (idx *Grid) updateEntry(next gridEntry) {
+	entityID := next.id
+	minCell, maxCell := next.min, next.max
 	entry, exists := idx.entities[entityID]
-	next := gridEntry{id: entityID, min: minCell, max: maxCell, bounds: bounds}
 	if exists {
 		if entry.min == minCell && entry.max == maxCell {
-			entry.bounds = bounds
-			return nil
+			entry.bounds = next.bounds
+			return
 		}
 		for x := entry.min.X; x <= entry.max.X; x++ {
 			for y := entry.min.Y; y <= entry.max.Y; y++ {
@@ -92,7 +162,6 @@ func (idx *Grid) Update(entityID ecs.EntityID, bounds geom.Rect) error {
 		}
 	}
 	*entry = next
-	return nil
 }
 
 // Query returns the unique entity IDs indexed in cells overlapped by bounds.
@@ -122,8 +191,14 @@ func (idx *Grid) queryInto(bounds geom.Rect, ids []ecs.EntityID, overlapsOnly bo
 	if !bounds.IsValid() {
 		return ids[:0]
 	}
-	minCell := idx.worldToGrid(bounds.Min)
-	maxCell := idx.worldToGrid(bounds.Max)
+	minCell, err := idx.worldToGrid(bounds.Min)
+	if err != nil {
+		return ids[:0]
+	}
+	maxCell, err := idx.worldToGrid(bounds.Max)
+	if err != nil {
+		return ids[:0]
+	}
 	ids = ids[:0]
 
 	for x := minCell.X; x <= maxCell.X; x++ {
@@ -146,11 +221,15 @@ func (idx *Grid) queryInto(bounds geom.Rect, ids []ecs.EntityID, overlapsOnly bo
 	return ids
 }
 
-func (idx *Grid) worldToGrid(pos geom.Vector2) GridCell {
-	return GridCell{
-		X: int(math.Floor(pos.X / idx.cellSize)),
-		Y: int(math.Floor(pos.Y / idx.cellSize)),
+func (idx *Grid) worldToGrid(pos geom.Vector2) (GridCell, error) {
+	x, y := math.Floor(pos.X/idx.cellSize), math.Floor(pos.Y/idx.cellSize)
+	maxInt := int(^uint(0) >> 1)
+	minInt := -maxInt - 1
+	if x < float64(minInt) || x >= float64(maxInt) ||
+		y < float64(minInt) || y >= float64(maxInt) {
+		return GridCell{}, fmt.Errorf("grid coordinates exceed integer range")
 	}
+	return GridCell{X: int(x), Y: int(y)}, nil
 }
 
 // Remove deletes entityID from the index. It has no effect if the entity is

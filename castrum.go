@@ -104,6 +104,11 @@ func New(opts ...option) (*Game, error) {
 	}
 
 	if options.systems&sysCollision != 0 {
+		if err := g.world.ProvideEager(func(*core.World) (*collision.Queries, error) {
+			return collision.NewQueries()
+		}); err != nil {
+			return nil, fmt.Errorf("castrum: provide collision queries: %w", err)
+		}
 		if err := g.AddSystem(core.PhaseFixed, collision.SystemName, collision.NewSystem()); err != nil {
 			return nil, err
 		}

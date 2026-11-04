@@ -194,6 +194,18 @@ func TestOptionalCollisionSystem(t *testing.T) {
 			if err != nil {
 				t.Fatalf("New: %v", err)
 			}
+			queries, queryErr := g.World().Resource[*collision.Queries]()
+			if (queryErr == nil) != tt.enabled {
+				t.Fatalf("Queries resource error = %v; enabled %t", queryErr, tt.enabled)
+			}
+			if tt.enabled {
+				if queries.Tick() != 0 {
+					t.Fatalf("query tick before first update = %d, want 0", queries.Tick())
+				}
+				if _, ok := queries.Raycast(geom.Segment{Start: geom.Vector2{X: -10}, End: geom.Vector2{X: 10}}, collision.RaycastFilter{Mask: ^uint32(0)}); ok {
+					t.Fatal("raycast hit before the first collision update")
+				}
+			}
 			var entities []*core.Entity
 			for _, x := range []float64{0, 1} {
 				collider, err := collision.NewCollider(collision.Circle{Radius: 8})
@@ -208,6 +220,15 @@ func TestOptionalCollisionSystem(t *testing.T) {
 			}
 			if err := g.Advance(g.Options().FixedDT()); err != nil {
 				t.Fatalf("Advance: %v", err)
+			}
+			if tt.enabled {
+				hit, ok := queries.Raycast(
+					geom.Segment{Start: geom.Vector2{X: -10}, End: geom.Vector2{X: 10}},
+					collision.RaycastFilter{Mask: ^uint32(0)},
+				)
+				if !ok || hit.Entity != entities[0].ID() {
+					t.Fatalf("raycast = %+v, %t; want closest entity %d", hit, ok, entities[0].ID())
+				}
 			}
 			for _, entity := range entities {
 				contacts, ok := entity.Component[collision.Contacts](g.World())

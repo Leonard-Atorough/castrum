@@ -135,8 +135,10 @@ func WithBindings(bindings input.Bindings) option {
 	return optionFunc(func(o *Options) { o.InputBindings = bindings })
 }
 
-// WithCollision enables collision processing during fixed updates. Without
-// it, colliders do not produce contacts. Passing it more than once, or with
+// WithCollision enables collision processing during fixed updates and
+// provides the collision query resource for on-demand spatial queries.
+// Without it, colliders do not produce contacts and no collision query
+// resource is registered. Passing it more than once, or with
 // [WithDefaultSystems], has no additional effect.
 func WithCollision() option {
 	return optionFunc(func(o *Options) { o.systems |= sysCollision })

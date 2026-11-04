@@ -1,12 +1,3 @@
-// Package collision detects overlaps between entity colliders and records
-// them in [Contacts]. [Collider] supports local-space [Box] and [Circle]
-// shapes, transformed by an entity's position and rotation (scale is ignored).
-// Create colliders with [NewCollider], attach them to entities with a
-// [core.Transform], and register [NewSystem] in the fixed schedule. Gameplay
-// reads the enter, stay, and exit lifecycle from [Contacts.Current] and
-// [Contacts.Previous], or reacts to the [Entered] and [Exited] signals the
-// system emits as pairs begin and end; the package does not resolve
-// collisions.
 package collision
 
 import (
@@ -35,13 +26,6 @@ type worldCircle struct {
 
 func (worldCircle) isWorldShape() {}
 
-type contact struct {
-	collided    bool
-	point       geom.Vector2
-	normal      geom.Vector2
-	penetration float64
-}
-
 // bounds must enclose shape so broad-phase queries cannot miss overlaps.
 type transformedShape struct {
 	shape  worldShape
@@ -49,13 +33,7 @@ type transformedShape struct {
 }
 
 // transformShape applies the collider's local-space offset, then the
-// transform's rotation and position. Scale is intentionally ignored:
-// non-uniform scaling would turn circles into ellipses that the narrow phase
-// cannot test. Define the shape explicitly when collision geometry must
-// follow scale.
-//
-// The zero value is returned for a shape outside the sum; storage
-// validation keeps that from ever reaching the system.
+// transform's rotation and position. Scale is intentionally ignored.
 func transformShape(shape ColliderShape, offset geom.Vector2, transform core.Transform) transformedShape {
 	switch local := shape.(type) {
 	case Box:
@@ -120,6 +98,13 @@ func boundsOf(points []geom.Vector2) geom.Rect {
 	return geom.Rect{Min: min, Max: max}
 }
 
+type contact struct {
+	collided    bool
+	point       geom.Vector2
+	normal      geom.Vector2
+	penetration float64
+}
+
 // contactBetween runs the exact narrow-phase test for a shape pair.
 // Touching counts: a pair sharing only a boundary point collides.
 // Normal always points from the first shape toward the second.
@@ -130,8 +115,9 @@ func contactBetween(a, b worldShape) contact {
 		case orientedRect:
 			return rectRectContact(a, b)
 		case worldCircle:
-			// circleRectContact reports circle toward rect; the pair
-			// here is rect toward circle.
+			// When the circle is the second shape and the rectangle is the first,
+			// we compute the contact normally and then invert the normal to point
+			// from the rectangle to the circle.
 			hit := circleRectContact(b, a)
 			hit.normal = hit.normal.Mul(-1)
 			return hit
@@ -156,7 +142,6 @@ func circleCircleContact(a, b worldCircle) contact {
 	}
 
 	if dist == 0 {
-		// Coincident centers have no unique normal. Use a stable fallback.
 		return contact{
 			collided:    true,
 			penetration: minDist,
@@ -193,13 +178,6 @@ func circleRectContact(circle worldCircle, rect orientedRect) contact {
 	}
 
 	if dist == 0 {
-		// The circle's center lies inside the rectangle or exactly on
-		// its boundary: the contact is the shortest push out through
-		// the nearest face. Normal points from the center to the
-		// contact point on that face; penetration is the full depth
-		// to separate - the boundary distance plus the radius. A
-		// center on the boundary reads depth zero, so the touch
-		// case keeps its radius.
 		depthX := rect.halfExtents.X - math.Abs(projectionX)
 		depthY := rect.halfExtents.Y - math.Abs(projectionY)
 		var normal, depth = geom.Vector2{}, 0.0
@@ -258,5 +236,138 @@ func rectRectContact(a, b orientedRect) contact {
 		penetration: minimumOverlap,
 		normal:      minimumAxis,
 		point:       point,
+	}
+}
+
+type segmentHit struct {
+	hit    bool
+	t      float64
+	point  geom.Vector2
+	normal geom.Vector2
+}
+
+func segmentShapeHit(segment geom.Segment, shape worldShape) segmentHit {
+	switch s := shape.(type) {
+	case worldCircle:
+		return segmentCircleHit(segment, s)
+	case orientedRect:
+		return segmentRectHit(segment, s)
+	}
+	return segmentHit{}
+}
+
+func radialNormal(offset geom.Vector2) geom.Vector2 {
+	if offset.X == 0 && offset.Y == 0 {
+		return geom.Vector2{X: 1, Y: 0}
+	}
+	return offset.Normalize()
+}
+
+func segmentCircleHit(segment geom.Segment, circle worldCircle) segmentHit {
+	direction := segment.End.Sub(segment.Start)
+	offset := segment.Start.Sub(circle.center)
+	a := direction.Dot(direction)
+	c := offset.Dot(offset) - circle.radius*circle.radius
+
+	if c == 0 {
+		return segmentHit{
+			hit:    true,
+			point:  segment.Start,
+			normal: offset.Normalize(),
+		}
+	}
+
+	if a == 0 {
+		if c < 0 {
+			return segmentHit{hit: true, point: segment.Start, normal: radialNormal(offset)}
+		}
+		return segmentHit{}
+	}
+
+	if c < 0 {
+		return segmentHit{hit: true, point: segment.Start, normal: radialNormal(offset)}
+	}
+
+	b := 2 * offset.Dot(direction)
+	discriminant := b*b - 4*a*c
+	if discriminant < 0 {
+		return segmentHit{}
+	}
+
+	t := (-b - math.Sqrt(discriminant)) / (2 * a)
+	if t < 0 || t > 1 {
+		return segmentHit{}
+	}
+
+	point := segment.Start.Add(direction.Mul(t))
+	return segmentHit{
+		hit:    true,
+		t:      t,
+		point:  point,
+		normal: point.Sub(circle.center).Normalize(),
+	}
+}
+
+func segmentRectHit(segment geom.Segment, rect orientedRect) segmentHit {
+	localStart := segment.Start.Sub(rect.center)
+	localEnd := segment.End.Sub(rect.center)
+	origins := [2]float64{localStart.Dot(rect.axes[0]), localStart.Dot(rect.axes[1])}
+	directions := [2]float64{
+		localEnd.Dot(rect.axes[0]) - origins[0],
+		localEnd.Dot(rect.axes[1]) - origins[1],
+	}
+	extents := [2]float64{rect.halfExtents.X, rect.halfExtents.Y}
+
+	tEnter, tExit := math.Inf(-1), math.Inf(1)
+	var normal geom.Vector2
+	for axis := range origins {
+		if directions[axis] == 0 {
+			if math.Abs(origins[axis]) > extents[axis] {
+				return segmentHit{}
+			}
+			continue
+		}
+
+		t1 := (-extents[axis] - origins[axis]) / directions[axis]
+		t2 := (extents[axis] - origins[axis]) / directions[axis]
+		if t1 > t2 {
+			t1, t2 = t2, t1
+		}
+		if t1 > tEnter {
+			tEnter = t1
+			normal = rect.axes[axis]
+			if directions[axis] > 0 {
+				normal = normal.Mul(-1)
+			}
+		}
+		tExit = math.Min(tExit, t2)
+		if tEnter > tExit {
+			return segmentHit{}
+		}
+	}
+
+	if tExit < 0 || tEnter > 1 {
+		return segmentHit{}
+	}
+
+	t := tEnter
+	if t < 0 {
+		t = 0
+		projectionX, projectionY := origins[0], origins[1]
+		depthX := rect.halfExtents.X - math.Abs(projectionX)
+		depthY := rect.halfExtents.Y - math.Abs(projectionY)
+		if depthX <= depthY {
+			normal = rect.axes[0].Mul(math.Copysign(1, projectionX))
+		} else {
+			normal = rect.axes[1].Mul(math.Copysign(1, projectionY))
+		}
+	}
+
+	direction := segment.End.Sub(segment.Start)
+	return segmentHit{
+		hit:    true,
+		t:      t,
+		point:  segment.Start.Add(direction.Mul(t)),
+		normal: normal,
 	}
 }

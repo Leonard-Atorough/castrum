@@ -2,7 +2,7 @@
 
 Castrum collision is overlap detection, not a physics solver. Give an entity a `collision.Collider` and a `core.Transform`; the engine detects overlaps and writes them to `collision.Contacts`. Your systems decide whether a contact blocks movement, deals damage, collects a pickup, or does nothing.
 
-The engine registers collision detection in the fixed phase before gameplay systems, when the game is created with `castrum.WithCollision()`. It tests the transforms at the start of that tick, so movement your systems make is detected on the following fixed tick. You do not register the collision system yourself.
+The engine registers collision detection in the fixed phase before gameplay systems, when the game is created with `castrum.WithCollision()`. It tests the transforms at the start of that tick, so movement your systems make is detected on the following fixed tick. The option also provides a `collision.Queries` resource backed by the collision system's broadphase.
 
 For a complete runnable example, including walls, rotating hazards, trigger pickups, and contact lifecycle handling, run:
 
@@ -59,6 +59,34 @@ hazardCollider.Mask = collision.Mask(playerLayer)
 `collision.Layers(0, 2)` and `collision.Mask(0, 2)` build `uint32` bitmasks from layer numbers. Layer indexes must be from 0 through 31; an out-of-range index panics. You can also assign raw `uint32` bitmasks directly.
 
 An empty `Layers` value means the collider belongs to no layers; an empty `Mask` means it listens to none. Either makes it collide with nothing. This differs from `Active = false`, which opts the collider out of detection entirely. `Trigger` does not change filtering or suppress contacts; it marks the resulting contacts for game logic.
+
+## Raycast against the collision index
+
+Resolve `collision.Queries` from the world and query the most recently synchronized collider data:
+
+```go
+queries, err := ctx.World.Resource[*collision.Queries]()
+if err != nil {
+	return err // Collision queries were not registered.
+}
+
+hit, ok := queries.Raycast(
+	geom.Segment{Start: playerPosition, End: aimPoint},
+	collision.RaycastFilter{
+		Mask:    collision.Mask(wallLayer, enemyLayer),
+		Exclude: []core.EntityID{player.ID()},
+	},
+)
+if ok {
+	// hit.Entity, hit.Point, hit.Normal, and hit.Distance describe the closest hit.
+}
+```
+
+`RaycastFilter.Mask` selects target colliders by their `Collider.Layers`; a zero mask selects none. A ray query is not a collider pair, so it does not test the target's `Collider.Mask`. This differs from overlap detection, where both colliders' masks must allow the pair. This target-selection model is also used by [Unity's raycast layer mask](https://docs.unity.com/en-us/engine/6000.6/script-reference/unityengine/physics/raycast) and [Godot's ray-query collision mask](https://docs.godotengine.org/en/stable/classes/class_physicsrayqueryparameters2d.html#class-physicsrayqueryparameters2d-property-collision-mask). Inactive colliders are not indexed, and `Exclude` ignores the listed entity IDs.
+
+The query resource is created by `castrum.WithCollision()`. Before the collision system's first successful fixed update, the index is empty and a raycast returns no hit. `Queries.Tick()` reports the fixed tick represented by the last successful sync. Within a fixed tick, gameplay systems run after collision and raycasts see the same transformed collider state used to produce `Contacts`. Frame-phase queries see the last completed fixed tick, so transform changes made since then are reflected after the next collision update.
+
+When registering `collision.NewSystem()` manually, also provide `*collision.Queries` using `collision.NewQueries()` and provide the signal hub required by the system.
 
 ## Understand contact geometry
 
