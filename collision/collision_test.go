@@ -77,6 +77,184 @@ func TestTransformShape_CircleIgnoresScale(t *testing.T) {
 	}
 }
 
+func TestSegmentCircleHit(t *testing.T) {
+	tests := []struct {
+		name       string
+		segment    geom.Segment
+		circle     worldCircle
+		wantHit    bool
+		wantT      float64
+		wantPoint  geom.Vector2
+		wantNormal geom.Vector2
+	}{
+		{
+			name:       "first boundary hit",
+			segment:    geom.Segment{Start: geom.Vector2{X: -2}, End: geom.Vector2{X: 2}},
+			circle:     worldCircle{radius: 1},
+			wantHit:    true,
+			wantT:      0.25,
+			wantPoint:  geom.Vector2{X: -1},
+			wantNormal: geom.Vector2{X: -1},
+		},
+		{
+			name:       "tangent",
+			segment:    geom.Segment{Start: geom.Vector2{X: -2, Y: 1}, End: geom.Vector2{X: 2, Y: 1}},
+			circle:     worldCircle{radius: 1},
+			wantHit:    true,
+			wantT:      0.5,
+			wantPoint:  geom.Vector2{Y: 1},
+			wantNormal: geom.Vector2{Y: 1},
+		},
+		{
+			name:       "starts inside",
+			segment:    geom.Segment{Start: geom.Vector2{}, End: geom.Vector2{X: 2}},
+			circle:     worldCircle{radius: 1},
+			wantHit:    true,
+			wantPoint:  geom.Vector2{},
+			wantNormal: geom.Vector2{X: 1},
+		},
+		{
+			name:       "starts on boundary moving outward",
+			segment:    geom.Segment{Start: geom.Vector2{X: 1}, End: geom.Vector2{X: 2}},
+			circle:     worldCircle{radius: 1},
+			wantHit:    true,
+			wantPoint:  geom.Vector2{X: 1},
+			wantNormal: geom.Vector2{X: 1},
+		},
+		{
+			name:    "miss",
+			segment: geom.Segment{Start: geom.Vector2{X: -2, Y: 2}, End: geom.Vector2{X: 2, Y: 2}},
+			circle:  worldCircle{radius: 1},
+		},
+		{
+			name:       "zero length inside",
+			segment:    geom.Segment{Start: geom.Vector2{}, End: geom.Vector2{}},
+			circle:     worldCircle{radius: 1},
+			wantHit:    true,
+			wantPoint:  geom.Vector2{},
+			wantNormal: geom.Vector2{X: 1},
+		},
+		{
+			name:    "zero length outside",
+			segment: geom.Segment{Start: geom.Vector2{X: 2}, End: geom.Vector2{X: 2}},
+			circle:  worldCircle{radius: 1},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := segmentCircleHit(test.segment, test.circle)
+			if got.hit != test.wantHit {
+				t.Fatalf("hit = %v, want %v", got.hit, test.wantHit)
+			}
+			if !got.hit {
+				return
+			}
+			if math.Abs(got.t-test.wantT) > 1e-9 {
+				t.Errorf("t = %v, want %v", got.t, test.wantT)
+			}
+			if got.point != test.wantPoint {
+				t.Errorf("point = %v, want %v", got.point, test.wantPoint)
+			}
+			if got.normal != test.wantNormal {
+				t.Errorf("normal = %v, want %v", got.normal, test.wantNormal)
+			}
+		})
+	}
+}
+
+func TestSegmentRectHit(t *testing.T) {
+	tests := []struct {
+		name       string
+		segment    geom.Segment
+		rect       orientedRect
+		wantHit    bool
+		wantT      float64
+		wantPoint  geom.Vector2
+		wantNormal geom.Vector2
+	}{
+		{
+			name:       "enters from left",
+			segment:    geom.Segment{Start: geom.Vector2{X: -2}, End: geom.Vector2{X: 2}},
+			rect:       orientedRect{halfExtents: geom.Vector2{X: 1, Y: 1}, axes: [2]geom.Vector2{{X: 1}, {Y: 1}}},
+			wantHit:    true,
+			wantT:      0.25,
+			wantPoint:  geom.Vector2{X: -1},
+			wantNormal: geom.Vector2{X: -1},
+		},
+		{
+			name:       "starts inside nearest face",
+			segment:    geom.Segment{Start: geom.Vector2{}, End: geom.Vector2{Y: 2}},
+			rect:       orientedRect{halfExtents: geom.Vector2{X: 2, Y: 1}, axes: [2]geom.Vector2{{X: 1}, {Y: 1}}},
+			wantHit:    true,
+			wantPoint:  geom.Vector2{},
+			wantNormal: geom.Vector2{Y: 1},
+		},
+		{
+			name:    "parallel outside slab",
+			segment: geom.Segment{Start: geom.Vector2{X: 2, Y: -2}, End: geom.Vector2{X: 2, Y: 2}},
+			rect:    orientedRect{halfExtents: geom.Vector2{X: 1, Y: 1}, axes: [2]geom.Vector2{{X: 1}, {Y: 1}}},
+		},
+		{
+			name:       "zero length inside",
+			segment:    geom.Segment{},
+			rect:       orientedRect{halfExtents: geom.Vector2{X: 2, Y: 1}, axes: [2]geom.Vector2{{X: 1}, {Y: 1}}},
+			wantHit:    true,
+			wantPoint:  geom.Vector2{},
+			wantNormal: geom.Vector2{Y: 1},
+		},
+		{
+			name:       "corner touch",
+			segment:    geom.Segment{Start: geom.Vector2{X: -2}, End: geom.Vector2{Y: 2}},
+			rect:       orientedRect{halfExtents: geom.Vector2{X: 1, Y: 1}, axes: [2]geom.Vector2{{X: 1}, {Y: 1}}},
+			wantHit:    true,
+			wantT:      0.5,
+			wantPoint:  geom.Vector2{X: -1, Y: 1},
+			wantNormal: geom.Vector2{X: -1},
+		},
+		{
+			name: "rotated rectangle",
+			segment: geom.Segment{
+				Start: geom.Vector2{Y: -3},
+				End:   geom.Vector2{Y: 3},
+			},
+			rect: func() orientedRect {
+				shape := transformShape(
+					Box{Min: geom.Vector2{X: -2, Y: -1}, Max: geom.Vector2{X: 2, Y: 1}},
+					geom.Vector2{},
+					core.Transform{Rotation: math.Pi / 2},
+				)
+				return shape.shape.(orientedRect)
+			}(),
+			wantHit:    true,
+			wantT:      1.0 / 6,
+			wantPoint:  geom.Vector2{Y: -2},
+			wantNormal: geom.Vector2{Y: -1},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := segmentShapeHit(test.segment, test.rect)
+			if got.hit != test.wantHit {
+				t.Fatalf("hit = %v, want %v", got.hit, test.wantHit)
+			}
+			if !got.hit {
+				return
+			}
+			if math.Abs(got.t-test.wantT) > 1e-9 {
+				t.Errorf("t = %v, want %v", got.t, test.wantT)
+			}
+			if got.point.Distance(test.wantPoint) > 1e-9 {
+				t.Errorf("point = %v, want %v", got.point, test.wantPoint)
+			}
+			if got.normal.Distance(test.wantNormal) > 1e-9 {
+				t.Errorf("normal = %v, want %v", got.normal, test.wantNormal)
+			}
+		})
+	}
+}
+
 func TestContactBetween_RotatedRectanglesUseOrientedGeometry(t *testing.T) {
 	shape := Box{Min: geom.Vector2{X: -2, Y: -0.5}, Max: geom.Vector2{X: 2, Y: 0.5}}
 	verticalA := transformShape(shape, geom.Vector2{}, core.Transform{Rotation: math.Pi / 2})

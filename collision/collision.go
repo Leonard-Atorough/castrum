@@ -260,3 +260,136 @@ func rectRectContact(a, b orientedRect) contact {
 		point:       point,
 	}
 }
+
+type segmentHit struct {
+	hit    bool
+	t      float64
+	point  geom.Vector2
+	normal geom.Vector2
+}
+
+func segmentShapeHit(segment geom.Segment, shape worldShape) segmentHit {
+	switch s := shape.(type) {
+	case worldCircle:
+		return segmentCircleHit(segment, s)
+	case orientedRect:
+		return segmentRectHit(segment, s)
+	}
+	return segmentHit{}
+}
+
+func radialNormal(offset geom.Vector2) geom.Vector2 {
+	if offset.X == 0 && offset.Y == 0 {
+		return geom.Vector2{X: 1, Y: 0}
+	}
+	return offset.Normalize()
+}
+
+func segmentCircleHit(segment geom.Segment, circle worldCircle) segmentHit {
+	direction := segment.End.Sub(segment.Start)
+	offset := segment.Start.Sub(circle.center)
+	a := direction.Dot(direction)
+	c := offset.Dot(offset) - circle.radius*circle.radius
+
+	if c == 0 {
+		return segmentHit{
+			hit:    true,
+			point:  segment.Start,
+			normal: offset.Normalize(),
+		}
+	}
+
+	if a == 0 {
+		if c < 0 {
+			return segmentHit{hit: true, point: segment.Start, normal: radialNormal(offset)}
+		}
+		return segmentHit{}
+	}
+
+	if c < 0 {
+		return segmentHit{hit: true, point: segment.Start, normal: radialNormal(offset)}
+	}
+
+	b := 2 * offset.Dot(direction)
+	discriminant := b*b - 4*a*c
+	if discriminant < 0 {
+		return segmentHit{}
+	}
+
+	t := (-b - math.Sqrt(discriminant)) / (2 * a)
+	if t < 0 || t > 1 {
+		return segmentHit{}
+	}
+
+	point := segment.Start.Add(direction.Mul(t))
+	return segmentHit{
+		hit:    true,
+		t:      t,
+		point:  point,
+		normal: point.Sub(circle.center).Normalize(),
+	}
+}
+
+func segmentRectHit(segment geom.Segment, rect orientedRect) segmentHit {
+	localStart := segment.Start.Sub(rect.center)
+	localEnd := segment.End.Sub(rect.center)
+	origins := [2]float64{localStart.Dot(rect.axes[0]), localStart.Dot(rect.axes[1])}
+	directions := [2]float64{
+		localEnd.Dot(rect.axes[0]) - origins[0],
+		localEnd.Dot(rect.axes[1]) - origins[1],
+	}
+	extents := [2]float64{rect.halfExtents.X, rect.halfExtents.Y}
+
+	tEnter, tExit := math.Inf(-1), math.Inf(1)
+	var normal geom.Vector2
+	for axis := range origins {
+		if directions[axis] == 0 {
+			if math.Abs(origins[axis]) > extents[axis] {
+				return segmentHit{}
+			}
+			continue
+		}
+
+		t1 := (-extents[axis] - origins[axis]) / directions[axis]
+		t2 := (extents[axis] - origins[axis]) / directions[axis]
+		if t1 > t2 {
+			t1, t2 = t2, t1
+		}
+		if t1 > tEnter {
+			tEnter = t1
+			normal = rect.axes[axis]
+			if directions[axis] > 0 {
+				normal = normal.Mul(-1)
+			}
+		}
+		tExit = math.Min(tExit, t2)
+		if tEnter > tExit {
+			return segmentHit{}
+		}
+	}
+
+	if tExit < 0 || tEnter > 1 {
+		return segmentHit{}
+	}
+
+	t := tEnter
+	if t < 0 {
+		t = 0
+		projectionX, projectionY := origins[0], origins[1]
+		depthX := rect.halfExtents.X - math.Abs(projectionX)
+		depthY := rect.halfExtents.Y - math.Abs(projectionY)
+		if depthX <= depthY {
+			normal = rect.axes[0].Mul(math.Copysign(1, projectionX))
+		} else {
+			normal = rect.axes[1].Mul(math.Copysign(1, projectionY))
+		}
+	}
+
+	direction := segment.End.Sub(segment.Start)
+	return segmentHit{
+		hit:    true,
+		t:      t,
+		point:  segment.Start.Add(direction.Mul(t)),
+		normal: normal,
+	}
+}
