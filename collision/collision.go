@@ -1,12 +1,3 @@
-// Package collision detects overlaps between entity colliders and records
-// them in [Contacts]. [Collider] supports local-space [Box] and [Circle]
-// shapes, transformed by an entity's position and rotation (scale is ignored).
-// Create colliders with [NewCollider], attach them to entities with a
-// [core.Transform], and register [NewSystem] in the fixed schedule. Gameplay
-// reads the enter, stay, and exit lifecycle from [Contacts.Current] and
-// [Contacts.Previous], or reacts to the [Entered] and [Exited] signals the
-// system emits as pairs begin and end; the package does not resolve
-// collisions.
 package collision
 
 import (
@@ -35,13 +26,6 @@ type worldCircle struct {
 
 func (worldCircle) isWorldShape() {}
 
-type contact struct {
-	collided    bool
-	point       geom.Vector2
-	normal      geom.Vector2
-	penetration float64
-}
-
 // bounds must enclose shape so broad-phase queries cannot miss overlaps.
 type transformedShape struct {
 	shape  worldShape
@@ -49,13 +33,7 @@ type transformedShape struct {
 }
 
 // transformShape applies the collider's local-space offset, then the
-// transform's rotation and position. Scale is intentionally ignored:
-// non-uniform scaling would turn circles into ellipses that the narrow phase
-// cannot test. Define the shape explicitly when collision geometry must
-// follow scale.
-//
-// The zero value is returned for a shape outside the sum; storage
-// validation keeps that from ever reaching the system.
+// transform's rotation and position. Scale is intentionally ignored.
 func transformShape(shape ColliderShape, offset geom.Vector2, transform core.Transform) transformedShape {
 	switch local := shape.(type) {
 	case Box:
@@ -120,6 +98,13 @@ func boundsOf(points []geom.Vector2) geom.Rect {
 	return geom.Rect{Min: min, Max: max}
 }
 
+type contact struct {
+	collided    bool
+	point       geom.Vector2
+	normal      geom.Vector2
+	penetration float64
+}
+
 // contactBetween runs the exact narrow-phase test for a shape pair.
 // Touching counts: a pair sharing only a boundary point collides.
 // Normal always points from the first shape toward the second.
@@ -130,8 +115,6 @@ func contactBetween(a, b worldShape) contact {
 		case orientedRect:
 			return rectRectContact(a, b)
 		case worldCircle:
-			// circleRectContact reports circle toward rect; the pair
-			// here is rect toward circle.
 			hit := circleRectContact(b, a)
 			hit.normal = hit.normal.Mul(-1)
 			return hit
@@ -156,7 +139,6 @@ func circleCircleContact(a, b worldCircle) contact {
 	}
 
 	if dist == 0 {
-		// Coincident centers have no unique normal. Use a stable fallback.
 		return contact{
 			collided:    true,
 			penetration: minDist,
@@ -193,13 +175,6 @@ func circleRectContact(circle worldCircle, rect orientedRect) contact {
 	}
 
 	if dist == 0 {
-		// The circle's center lies inside the rectangle or exactly on
-		// its boundary: the contact is the shortest push out through
-		// the nearest face. Normal points from the center to the
-		// contact point on that face; penetration is the full depth
-		// to separate - the boundary distance plus the radius. A
-		// center on the boundary reads depth zero, so the touch
-		// case keeps its radius.
 		depthX := rect.halfExtents.X - math.Abs(projectionX)
 		depthY := rect.halfExtents.Y - math.Abs(projectionY)
 		var normal, depth = geom.Vector2{}, 0.0

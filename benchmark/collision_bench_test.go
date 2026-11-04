@@ -20,6 +20,11 @@ func colliderWorld(b *testing.B, n int) (*core.World, []*core.Entity) {
 	}); err != nil {
 		b.Fatal(err)
 	}
+	if err := world.Provide(func(*core.World) (*collision.Queries, error) {
+		return collision.NewQueries()
+	}); err != nil {
+		b.Fatal(err)
+	}
 	entities := make([]*core.Entity, 0, n)
 	for i := range n {
 		collider, err := collision.NewCollider(collision.Circle{Radius: 8})
