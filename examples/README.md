@@ -11,6 +11,8 @@ cd examples/unreleased/raycast
 go run .
 ```
 
+The [settings example](unreleased/settings/main.go) is a runnable command showing game-owned preferences.
+
 Run an example from its directory:
 
 ```sh
