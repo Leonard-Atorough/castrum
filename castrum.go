@@ -10,15 +10,12 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/builtin"
-	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
-	"github.com/Leonard-Atorough/castrum/state"
 )
 
 // Game owns a game's world, configuration, and update schedules. A [Runner]
@@ -112,46 +109,19 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide debug panel: %w", err)
 	}
 
-	if options.systems&sysAnimation != 0 {
-		if err := g.AddSystem(core.PhaseFixed, animation.SystemName, animation.NewAnimationSystem(clips)); err != nil {
+	if options.InputBindings != nil {
+		if err := g.wireInput(options.InputBindings); err != nil {
 			return nil, err
 		}
 	}
 
-	if options.systems&sysCollision != 0 {
-		if err := g.world.ProvideEager(func(*core.World) (*collision.Queries, error) {
-			return collision.NewQueries()
-		}); err != nil {
-			return nil, fmt.Errorf("castrum: provide collision queries: %w", err)
-		}
-		if err := g.AddSystem(core.PhaseFixed, collision.SystemName, collision.NewSystem()); err != nil {
-			return nil, err
-		}
-	}
-
-	if options.systems&sysTimer != 0 {
-		if err := g.AddSystem(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
-			return nil, err
-		}
-		if err := g.world.Provide(func(*core.World) (*gametime.Groups, error) {
-			return gametime.NewGroups(), nil
-		}); err != nil {
-			return nil, fmt.Errorf("castrum: provide timer groups: %w", err)
-		}
-	}
-
-	if options.systems&sysScenes != 0 {
-		director := scene.NewDirector()
-		if err := g.world.Provide(func(*core.World) (*scene.Director, error) {
-			return director, nil
-		}); err != nil {
-			return nil, fmt.Errorf("castrum: provide scene director: %w", err)
-		}
-		if err := g.AddSystem(core.PhaseStartup, scene.StartupSystemName, scene.NewStartupSystem(director)); err != nil {
-			return nil, err
-		}
-		if err := g.AddSystem(core.PhaseFrame, scene.FrameSystemName, scene.NewFrameSystem(director)); err != nil {
-			return nil, err
+	// Features are applied in registration order: the order options were
+	// passed to New decides the order their systems are registered in. Input
+	// wiring runs first so feature systems in the same phases see fresh
+	// actions.
+	for _, f := range options.features {
+		if err := f.enable(g, &options); err != nil {
+			return nil, fmt.Errorf("castrum: enable %s: %w", f.name, err)
 		}
 	}
 
@@ -173,32 +143,6 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: spawn main camera: %w", err)
 	}
 	g.mainCamera = camera
-	if options.InputBindings != nil {
-		if err := g.wireInput(options.InputBindings); err != nil {
-			return nil, err
-		}
-	}
-	if options.systems&sysState != 0 {
-		for _, registration := range options.states {
-			if err := registration.provide(g.world); err != nil {
-				return nil, fmt.Errorf("castrum: provide state machine %s: %w", registration.name, err)
-			}
-		}
-		states := core.SystemFunc(func(ctx *core.Context) error {
-			for _, registration := range options.states {
-				if err := registration.system.Update(ctx); err != nil {
-					return fmt.Errorf("%s: %w", registration.name, err)
-				}
-			}
-			return nil
-		})
-		if err := g.AddSystem(core.PhasePreStartup, state.SystemName, states); err != nil {
-			return nil, err
-		}
-		if err := g.AddSystem(core.PhasePreFrame, state.SystemName, states); err != nil {
-			return nil, err
-		}
-	}
 	return g, nil
 }
 
