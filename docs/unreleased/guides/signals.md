@@ -38,7 +38,7 @@ In the example, the sequence system consumes `coreCharged` and starts the countd
 if err := g.AddSystem(core.PhaseFixed, "core.sequence", hub.Consumer(
 	func(ctx *core.Context, _ coreCharged) error {
 		state.phase = countdown
-		return state.countdown.Update(ctx.World, func(t *timer.Timer) {
+		return state.countdown.Update(ctx.World, func(t *gametime.Timer) {
 			t.Running = true
 		})
 	},
@@ -108,7 +108,7 @@ Several engine features emit typed signals. Their guides explain each payload, w
 
 | Feature   | Signal                                  | Details                                                                     |
 | --------- | --------------------------------------- | --------------------------------------------------------------------------- |
-| Timers    | `timer.Completed`                       | [Timer signals](timer.md#signals)                                           |
+| Timers    | `gametime.Completed`                       | [Timer signals](gametime.md#signals)                                           |
 | Animation | `animation.Completed`                   | [Animation signals](animation.md#signals)                                   |
 | Collision | `collision.Entered`, `collision.Exited` | [Contact edge signals](collision.md#react-to-enters-and-exits-with-signals) |
 | Audio     | `audio.Finished`                        | [Audio completion](audio.md#play-a-sound-effect)                            |
@@ -122,4 +122,4 @@ Several engine features emit typed signals. Their guides explain each payload, w
 
 ## Where to go next
 
-For timer setup and behavior, see the [timer guide](timer.md); for how systems and phases are scheduled, see [The ECS in depth](ecs.md).
+For timer setup and behavior, see the [timer guide](gametime.md); for how systems and phases are scheduled, see [The ECS in depth](ecs.md).

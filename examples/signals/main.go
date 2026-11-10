@@ -3,7 +3,7 @@
 // sequence.
 //
 // The engine half: an injector timer repeats once a second. The
-// charge system reads the engine's [timer.Completed] signals and
+// charge system reads the engine's [gametime.Completed] signals and
 // grows the core by one step per injection while charging - no system
 // reads a Timer field to detect a completion, and nothing polls
 // JustCompleted.
@@ -42,7 +42,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
-	"github.com/Leonard-Atorough/castrum/timer"
+	"github.com/Leonard-Atorough/castrum/gametime"
 )
 
 const (
@@ -125,7 +125,7 @@ func run() error {
 	injector, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: injectorW / 2, Y: injectorY}},
 		barSprite(runningColor),
-		timer.NewTimer(injectInterval, true),
+		gametime.NewTimer(injectInterval, true),
 	)
 	if err != nil {
 		return err
@@ -133,11 +133,11 @@ func run() error {
 
 	// NewTimer starts running, so stop the countdown before the game loop.
 	// The sequence system starts it when the core charges.
-	countdownTimer, err := g.World().NewEntity(timer.NewTimer(countdownLen, false))
+	countdownTimer, err := g.World().NewEntity(gametime.NewTimer(countdownLen, false))
 	if err != nil {
 		return err
 	}
-	if err := countdownTimer.Update(g.World(), func(t *timer.Timer) { t.Running = false }); err != nil {
+	if err := countdownTimer.Update(g.World(), func(t *gametime.Timer) { t.Running = false }); err != nil {
 		return err
 	}
 
@@ -168,7 +168,7 @@ func run() error {
 	// The charge system links to the engine's existing signal: every
 	// injector completion pumps one charge step into the core, and the
 	// countdown's completion is translated into the launched signal.
-	if err := g.AddSystem(core.PhaseFixed, "core.charge", hub.Consumer(func(ctx *core.Context, c timer.Completed) error {
+	if err := g.AddSystem(core.PhaseFixed, "core.charge", hub.Consumer(func(ctx *core.Context, c gametime.Completed) error {
 		switch c.Entity {
 		case injector.ID():
 			state.flash = flashTicks
@@ -195,7 +195,7 @@ func run() error {
 	// is already in the tick window - and arms the countdown.
 	if err := g.AddSystem(core.PhaseFixed, "core.sequence", hub.Consumer(func(ctx *core.Context, c coreCharged) error {
 		state.phase = countdown
-		return state.countdown.Update(ctx.World, func(t *timer.Timer) { t.Running = true })
+		return state.countdown.Update(ctx.World, func(t *gametime.Timer) { t.Running = true })
 	})); err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func run() error {
 			if err := state.core.SetComponent(ctx.World, core.Transform{Position: geom.Vector2{X: coreX, Y: coreY}}); err != nil {
 				return err
 			}
-			return state.countdown.Update(ctx.World, func(t *timer.Timer) { t.Restart(); t.Running = false })
+			return state.countdown.Update(ctx.World, func(t *gametime.Timer) { t.Restart(); t.Running = false })
 		}
 		return nil
 	})); err != nil {

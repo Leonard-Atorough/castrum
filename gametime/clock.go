@@ -1,9 +1,10 @@
-// Package clock provides the engine's virtual game time as a [Clock]
-// resource. [NewSystem] advances it on fixed ticks, independently of
+// This file holds the engine's virtual game time: the [Clock] resource
+// advanced by [NewClockSystem] on fixed ticks, independently of
 // [core.Context.Tick], so game time can be paused, scaled, and restored
 // without touching the fixed-timestep contract. The clock carries no
 // calendar or cycle structure; games derive such meaning from its ticks.
-package clock
+
+package gametime
 
 import (
 	"errors"
@@ -36,8 +37,8 @@ type Clock struct {
 	carry float64
 }
 
-// New returns a running clock at scale 1, starting at tick 0.
-func New() *Clock {
+// NewClock returns a running clock at scale 1, starting at tick 0.
+func NewClock() *Clock {
 	return &Clock{Scale: 1}
 }
 
@@ -72,22 +73,22 @@ func (c *Clock) advance() uint64 {
 	return ticks
 }
 
-// SystemName is the name used to register the clock system in the fixed
-// schedule.
-const SystemName = "engine.clock"
+// ClockSystemName is the name used to register the clock system in the
+// fixed schedule.
+const ClockSystemName = "engine.clock"
 
-// NewSystem returns the fixed-tick system that provisions the *Clock
-// resource and advances it by Scale each simulation tick. A paused or
-// zero-scaled clock accumulates nothing.
-func NewSystem() core.System {
-	return &system{}
+// NewClockSystem returns the fixed-tick system that provisions the
+// *Clock resource and advances it by Scale each simulation tick. A paused
+// or zero-scaled clock accumulates nothing.
+func NewClockSystem() core.System {
+	return &clockSystem{}
 }
 
-type system struct {
+type clockSystem struct {
 	clock *Clock
 }
 
-func (s *system) Update(ctx *core.Context) error {
+func (s *clockSystem) Update(ctx *core.Context) error {
 	if s.clock == nil {
 		clock, err := ctx.World.Resource[*Clock]()
 		if err != nil {
@@ -95,7 +96,7 @@ func (s *system) Update(ctx *core.Context) error {
 				return fmt.Errorf("clock system: resolve clock: %w", err)
 			}
 			if err := ctx.World.Provide(func(*core.World) (*Clock, error) {
-				return New(), nil
+				return NewClock(), nil
 			}); err != nil {
 				return fmt.Errorf("clock system: provide clock: %w", err)
 			}

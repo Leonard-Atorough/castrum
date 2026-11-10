@@ -10,7 +10,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/Leonard-Atorough/castrum/timer"
+	"github.com/Leonard-Atorough/castrum/gametime"
 )
 
 // newTestGame builds the game headless: no runner, no window - the
@@ -50,23 +50,23 @@ func newTestGame(t *testing.T) (*castrum.Game, *core.Entity, *core.Entity) {
 	// A turret with the gun's cooldown timer, idle as at spawn.
 	turret, err := world.NewEntity(
 		core.Transform{Position: geom.Vector2{X: 200, Y: 360}, Scale: geom.Vector2{X: 1, Y: 1}},
-		timer.NewTimer(FireCooldown, false),
+		gametime.NewTimer(FireCooldown, false),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := turret.Update(world, func(t *timer.Timer) { t.Running = false }); err != nil {
+	if err := turret.Update(world, func(t *gametime.Timer) { t.Running = false }); err != nil {
 		t.Fatal(err)
 	}
 
 	// The spawner, paused so no wave fires in a test.
 	spawner, err := world.NewEntity(
-		timer.NewTimer(SpawnEvery, true),
+		gametime.NewTimer(SpawnEvery, true),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := spawner.Update(world, func(t *timer.Timer) { t.Running = false }); err != nil {
+	if err := spawner.Update(world, func(t *gametime.Timer) { t.Running = false }); err != nil {
 		t.Fatal(err)
 	}
 
@@ -295,7 +295,7 @@ func TestSpawnPacingFollowsScore(t *testing.T) {
 		t.Fatal(err)
 	}
 	advance(t, g, 1)
-	sp, _ := spawner.Component[timer.Timer](world)
+	sp, _ := spawner.Component[gametime.Timer](world)
 	if want := SpawnEvery - 50*SpawnShave; sp.Duration != want {
 		t.Errorf("interval = %v, want %v", sp.Duration, want)
 	}
@@ -305,7 +305,7 @@ func TestSpawnPacingFollowsScore(t *testing.T) {
 		t.Fatal(err)
 	}
 	advance(t, g, 1)
-	sp, _ = spawner.Component[timer.Timer](world)
+	sp, _ = spawner.Component[gametime.Timer](world)
 	if sp.Duration != MinSpawnEvery {
 		t.Errorf("interval = %v, want the floor %v", sp.Duration, MinSpawnEvery)
 	}
@@ -327,7 +327,7 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 	}
 
 	// Fire: the cooldown restarts and the readout shows the count.
-	if err := turret.Update(world, func(t *timer.Timer) { t.Restart() }); err != nil {
+	if err := turret.Update(world, func(t *gametime.Timer) { t.Restart() }); err != nil {
 		t.Fatal(err)
 	}
 	advance(t, g, 3)
@@ -375,12 +375,12 @@ func findBanner(t *testing.T, world *core.World, want string) *core.Entity {
 	return nil
 }
 
-// findSpawner resolves the paused spawner entity by its timer.
+// findSpawner resolves the paused spawner entity by its gametime.
 func findSpawner(t *testing.T, world *core.World) *core.Entity {
 	t.Helper()
-	query := core.NewQuery(world).With(timer.Timer{})
+	query := core.NewQuery(world).With(gametime.Timer{})
 	for e := range query.Execute() {
-		timerData, _ := e.Component[timer.Timer]()
+		timerData, _ := e.Component[gametime.Timer]()
 		if timerData.Repeating {
 			return core.NewEntity(e.ID())
 		}

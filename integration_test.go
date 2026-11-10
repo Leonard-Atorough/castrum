@@ -13,13 +13,13 @@ import (
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/state"
-	"github.com/Leonard-Atorough/castrum/timer"
 	"github.com/Leonard-Atorough/castrum/tween"
 )
 
@@ -161,18 +161,18 @@ func TestOptionalTimerSystems(t *testing.T) {
 				t.Fatalf("New: %v", err)
 			}
 			if tt.enabled {
-				if _, err := g.World().Resource[*timer.Groups](); err != nil {
+				if _, err := g.World().Resource[*gametime.Groups](); err != nil {
 					t.Fatalf("resolve timer groups: %v", err)
 				}
 			}
-			entity, err := g.World().NewEntity(timer.NewTimer(2*g.Options().FixedDT(), false))
+			entity, err := g.World().NewEntity(gametime.NewTimer(2*g.Options().FixedDT(), false))
 			if err != nil {
 				t.Fatalf("spawn timer: %v", err)
 			}
 			if err := g.Advance(2 * g.Options().FixedDT()); err != nil {
 				t.Fatalf("Advance: %v", err)
 			}
-			tm, ok := entity.Component[timer.Timer](g.World())
+			tm, ok := entity.Component[gametime.Timer](g.World())
 			if !ok || (tm.CompletedOn != 0) != tt.enabled {
 				t.Errorf("timer = %+v, found %t; want completed = %t", tm, ok, tt.enabled)
 			}
@@ -286,21 +286,21 @@ func TestWithDefaultSystemsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(WithDefaultSystems, WithTimer): %v", err)
 	}
-	entity, err := g.World().NewEntity(timer.NewTimer(2*g.Options().FixedDT(), false))
+	entity, err := g.World().NewEntity(gametime.NewTimer(2*g.Options().FixedDT(), false))
 	if err != nil {
 		t.Fatalf("spawn timer: %v", err)
 	}
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	tm, ok := entity.Component[timer.Timer](g.World())
+	tm, ok := entity.Component[gametime.Timer](g.World())
 	if !ok || tm.CompletedOn != 0 {
 		t.Fatalf("timer after one tick = %+v, found %t; want a single registration", tm, ok)
 	}
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	tm, ok = entity.Component[timer.Timer](g.World())
+	tm, ok = entity.Component[gametime.Timer](g.World())
 	if !ok || tm.CompletedOn == 0 {
 		t.Fatalf("timer after two ticks = %+v, found %t; want completion", tm, ok)
 	}
@@ -598,14 +598,14 @@ func TestTimerEmitsCompletedSignal(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	hub := g.World().MustResource[*signal.Hub]()
-	reader := hub.NewReader[timer.Completed]()
+	reader := hub.NewReader[gametime.Completed]()
 
-	entity, err := g.World().NewEntity(timer.NewTimer(300*time.Millisecond, false))
+	entity, err := g.World().NewEntity(gametime.NewTimer(300*time.Millisecond, false))
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
 
-	var got []timer.Completed
+	var got []gametime.Completed
 	if err := g.AddSystem(core.PhaseFrame, "signal collector", core.SystemFunc(func(ctx *core.Context) error {
 		for event, ok := reader.Next(); ok; event, ok = reader.Next() {
 			got = append(got, event)
@@ -621,7 +621,7 @@ func TestTimerEmitsCompletedSignal(t *testing.T) {
 			t.Fatalf("Advance: %v", err)
 		}
 	}
-	if len(got) != 1 || got[0] != (timer.Completed{Entity: entity.ID(), Tick: 2}) {
+	if len(got) != 1 || got[0] != (gametime.Completed{Entity: entity.ID(), Tick: 2}) {
 		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
 	}
 }

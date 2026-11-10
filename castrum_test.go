@@ -235,7 +235,7 @@ var enginePackages = []string{
 	"./core",
 	"./signal",
 	"./debug",
-	"./timer",
+	"./gametime",
 	"./animation",
 	"./collision",
 	"./audio",

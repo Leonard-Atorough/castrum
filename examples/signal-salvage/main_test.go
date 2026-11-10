@@ -9,7 +9,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/scene"
-	"github.com/Leonard-Atorough/castrum/timer"
+	"github.com/Leonard-Atorough/castrum/gametime"
 )
 
 func TestRoundWinCollectsEveryCoreAndSwitchesToResult(t *testing.T) {
@@ -66,9 +66,9 @@ func TestRoundLosesOnPulseContact(t *testing.T) {
 
 func TestRoundLosesWhenClockCompletes(t *testing.T) {
 	game, state := startTestRound(t)
-	clock := findEntity(t, game.World(), roundClock{}, timer.Timer{})
+	clock := findEntity(t, game.World(), roundClock{}, gametime.Timer{})
 
-	if err := clock.Update(game.World(), func(t *timer.Timer) { t.Duration = time.Millisecond }); err != nil {
+	if err := gametime.Update(game.World(), func(t *gametime.Timer) { t.Duration = time.Millisecond }); err != nil {
 		t.Fatalf("shorten round clock: %v", err)
 	}
 	advanceTestFrame(t, game, &input.Snapshot{})

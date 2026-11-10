@@ -1,6 +1,6 @@
 # Clock
 
-`clock.Clock` is the engine's virtual game time. It advances on fixed ticks, independently of the fixed-timestep engine tick counter, so game time can be paused, scaled, and restored without touching the simulation loop's contract.
+`gametime.Clock` is the engine's virtual game time. It advances on fixed ticks, independently of the fixed-timestep engine tick counter, so game time can be paused, scaled, and restored without touching the simulation loop's contract.
 
 Unlike the fixed-loop pause and scale described in [time control](time-control.md), which stop or stretch the whole simulation, the clock is a layer *inside* the simulation: fixed systems keep running while the clock is paused. Use the loop controls to pause the game; use the clock when gameplay logic needs its own notion of elapsed time.
 
@@ -9,16 +9,16 @@ The clock carries no calendar structure. Days, phases, and schedules are game-le
 ## Register the clock
 
 ```go
-if err := game.AddSystem(core.PhaseFixed, clock.SystemName, clock.NewSystem()); err != nil {
+if err := game.AddSystem(core.PhaseFixed, gametime.ClockSystemName, gametime.NewClockSystem()); err != nil {
 	return err
 }
 ```
 
-`clock.NewSystem()` provisions the `*clock.Clock` resource on its first update, so a game that wants the defaults only registers the system. To configure the clock up front, provide the resource yourself:
+`gametime.NewClockSystem()` provisions the `*gametime.Clock` resource on its first update, so a game that wants the defaults only registers the system. To configure the clock up front, provide the resource yourself:
 
 ```go
-if err := game.World().Provide(func(*core.World) (*clock.Clock, error) {
-	return clock.New(), nil
+if err := game.World().Provide(func(*core.World) (*gametime.Clock, error) {
+	return gametime.NewClock(), nil
 }); err != nil {
 	return err
 }
@@ -27,7 +27,7 @@ if err := game.World().Provide(func(*core.World) (*clock.Clock, error) {
 Any system can then read it:
 
 ```go
-c, err := ctx.World.Resource[*clock.Clock]()
+c, err := ctx.World.Resource[*gametime.Clock]()
 if err != nil {
 	return err
 }
@@ -48,7 +48,7 @@ c.Scale = 2       // double game time
 
 ## Save and restore
 
-A clock is fully defined by its exported fields: `Tick`, `Paused`, and `Scale`. Reading them snapshots the clock; writing them to a fresh `*clock.Clock` restores it. The internal fractional carry is deliberately not part of a save: a partially accumulated fraction does not matter after a restore.
+A clock is fully defined by its exported fields: `Tick`, `Paused`, and `Scale`. Reading them snapshots the clock; writing them to a fresh `*gametime.Clock` restores it. The internal fractional carry is deliberately not part of a save: a partially accumulated fraction does not matter after a restore.
 
 ## What the clock is not
 

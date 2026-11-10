@@ -30,7 +30,7 @@ in the frame phase; a fixed-phase system cannot resume a paused game because
 fixed updates are stopped. The frame phase receives unscaled elapsed time
 (clamped by `MaxFrameTime`), and input polling and rendering continue. Timer
 and animation systems advance on fixed ticks, so they stop with the simulation
-when enabled. See the [timer](./timer.md) and [animation](./animation.md)
+when enabled. See the [timer](./gametime.md) and [animation](./animation.md)
 guides for their setup and behavior.
 
 Caller-owned [tweens](tweening.md) follow the phase that advances them:

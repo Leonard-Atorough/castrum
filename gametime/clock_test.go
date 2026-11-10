@@ -1,4 +1,4 @@
-package clock
+package gametime
 
 import (
 	"math"
@@ -12,10 +12,10 @@ import (
 func newClockHarness(t *testing.T) (*core.World, core.System) {
 	t.Helper()
 	world := core.NewWorld()
-	return world, NewSystem()
+	return world, NewClockSystem()
 }
 
-func tick(t *testing.T, world *core.World, sys core.System, number uint64, dt time.Duration) {
+func tickClock(t *testing.T, world *core.World, sys core.System, number uint64, dt time.Duration) {
 	t.Helper()
 	if err := sys.Update(&core.Context{World: world, Tick: number, DeltaTime: dt}); err != nil {
 		t.Fatalf("clock tick %d: %v", number, err)
@@ -33,7 +33,7 @@ func clockOf(t *testing.T, world *core.World) *Clock {
 
 func TestNewSystemProvisionsClock(t *testing.T) {
 	world, sys := newClockHarness(t)
-	tick(t, world, sys, 1, time.Second)
+	tickClock(t, world, sys, 1, time.Second)
 	c := clockOf(t, world)
 	if c == nil {
 		t.Fatal("provisioned clock is nil")
@@ -57,8 +57,8 @@ func TestNewSystemUsesProvidedClock(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("provide clock: %v", err)
 	}
-	sys := NewSystem()
-	tick(t, world, sys, 1, time.Second)
+	sys := NewClockSystem()
+	tickClock(t, world, sys, 1, time.Second)
 	if c.Tick != 42 {
 		t.Fatalf("Tick = %d, want 42", c.Tick)
 	}
@@ -69,7 +69,7 @@ func TestNewSystemUsesProvidedClock(t *testing.T) {
 
 func TestClockValidate(t *testing.T) {
 	valid := []*Clock{
-		New(),
+		NewClock(),
 		{Scale: 0},
 		{Scale: 0.5},
 		{Scale: 2},
@@ -99,7 +99,7 @@ func TestSystemRejectsInvalidScale(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("provide clock: %v", err)
 	}
-	sys := NewSystem()
+	sys := NewClockSystem()
 	err := sys.Update(&core.Context{World: world, Tick: 1})
 	if err == nil {
 		t.Fatal("system accepted a negative scale")
@@ -112,7 +112,7 @@ func TestSystemRejectsInvalidScale(t *testing.T) {
 func TestAdvanceCountsTicks(t *testing.T) {
 	world, sys := newClockHarness(t)
 	for i := uint64(1); i <= 5; i++ {
-		tick(t, world, sys, i, time.Second)
+		tickClock(t, world, sys, i, time.Second)
 	}
 	if c := clockOf(t, world); c.Tick != 5 {
 		t.Fatalf("Tick = %d, want 5", c.Tick)
@@ -121,16 +121,16 @@ func TestAdvanceCountsTicks(t *testing.T) {
 
 func TestPausedClockDoesNotAdvance(t *testing.T) {
 	world, sys := newClockHarness(t)
-	tick(t, world, sys, 1, time.Second)
+	tickClock(t, world, sys, 1, time.Second)
 	c := clockOf(t, world)
 	c.Paused = true
-	tick(t, world, sys, 2, time.Second)
-	tick(t, world, sys, 3, time.Second)
+	tickClock(t, world, sys, 2, time.Second)
+	tickClock(t, world, sys, 3, time.Second)
 	if c.Tick != 1 {
 		t.Fatalf("Tick = %d, want 1", c.Tick)
 	}
 	c.Paused = false
-	tick(t, world, sys, 4, time.Second)
+	tickClock(t, world, sys, 4, time.Second)
 	if c.Tick != 2 {
 		t.Fatalf("Tick = %d, want 2 after resume", c.Tick)
 	}
@@ -143,9 +143,9 @@ func TestZeroScaleStopsClock(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("provide clock: %v", err)
 	}
-	sys := NewSystem()
+	sys := NewClockSystem()
 	for i := uint64(1); i <= 3; i++ {
-		tick(t, world, sys, i, time.Second)
+		tickClock(t, world, sys, i, time.Second)
 	}
 	if c := clockOf(t, world); c.Tick != 0 {
 		t.Fatalf("Tick = %d, want 0", c.Tick)
@@ -159,9 +159,9 @@ func TestFractionalScaleAccumulates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("provide clock: %v", err)
 	}
-	sys := NewSystem()
+	sys := NewClockSystem()
 	for i := uint64(1); i <= 4; i++ {
-		tick(t, world, sys, i, time.Second)
+		tickClock(t, world, sys, i, time.Second)
 	}
 	// One game tick every other simulation tick.
 	if c := clockOf(t, world); c.Tick != 2 {
@@ -176,9 +176,9 @@ func TestDoubleScaleAdvancesTwoPerTick(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("provide clock: %v", err)
 	}
-	sys := NewSystem()
+	sys := NewClockSystem()
 	for i := uint64(1); i <= 3; i++ {
-		tick(t, world, sys, i, time.Second)
+		tickClock(t, world, sys, i, time.Second)
 	}
 	if c := clockOf(t, world); c.Tick != 6 {
 		t.Fatalf("Tick = %d, want 6", c.Tick)
@@ -187,17 +187,17 @@ func TestDoubleScaleAdvancesTwoPerTick(t *testing.T) {
 
 func TestScaleChangeTakesEffectImmediately(t *testing.T) {
 	world, sys := newClockHarness(t)
-	tick(t, world, sys, 1, time.Second)
+	tickClock(t, world, sys, 1, time.Second)
 	c := clockOf(t, world)
 	c.Scale = 3
-	tick(t, world, sys, 2, time.Second)
+	tickClock(t, world, sys, 2, time.Second)
 	if c.Tick != 4 {
 		t.Fatalf("Tick = %d, want 4", c.Tick)
 	}
 }
 
 func TestAdvanceDirect(t *testing.T) {
-	c := New()
+	c := NewClock()
 	if ticks := c.advance(); ticks != 1 {
 		t.Fatalf("advance = %d, want 1", ticks)
 	}

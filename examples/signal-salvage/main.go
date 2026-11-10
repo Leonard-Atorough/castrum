@@ -25,7 +25,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
-	"github.com/Leonard-Atorough/castrum/timer"
+	"github.com/Leonard-Atorough/castrum/gametime"
 )
 
 const (
@@ -288,7 +288,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 		},
 		{
 			name: "round.clock",
-			run: hub.Consumer(func(_ *core.Context, event timer.Completed) error {
+			run: hub.Consumer(func(_ *core.Context, event gametime.Completed) error {
 				if !state.active || state.finished ||
 					!core.NewEntity(event.Entity).HasComponent[roundClock](world) {
 					return nil
@@ -301,8 +301,8 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 			name: "round.clock-display",
 			run: core.SystemFunc(func(_ *core.Context) error {
 				for entry := range clockQuery.Execute() {
-					clock, _ := entry.Component[timer.Timer]()
-					seconds := int(math.Ceil(max(0, clock.Duration-clock.Elapsed).Seconds()))
+					clock, _ := entry.Component[gametime.Timer]()
+					seconds := int(math.Ceil(max(0, gametime.Duration-gametime.Elapsed).Seconds()))
 					if seconds == state.displayedSeconds {
 						continue
 					}
@@ -406,7 +406,7 @@ func makeArenaBlueprint(world *core.World) (*scene.Blueprint, *core.Query, *core
 				render.Sprite{Drawable: textDrawable("TIME  20", 24), Color: color.White, Layer: 5},
 				clockLabel{},
 				roundClock{},
-				timer.NewTimer(roundLength, false),
+				gametime.NewTimer(roundLength, false),
 			},
 		},
 		textSpec("instructions", geom.Vector2{X: screenWidth / 2, Y: 519}, "COLLECT GOLD  /  DODGE RED", 16, borderColor),
@@ -470,7 +470,7 @@ func makeArenaBlueprint(world *core.World) (*scene.Blueprint, *core.Query, *core
 
 	return blueprint,
 		core.NewQuery(world).With(scoreLabel{}, render.Sprite{}),
-		core.NewQuery(world).With(clockLabel{}, timer.Timer{}, render.Sprite{}),
+		core.NewQuery(world).With(clockLabel{}, gametime.Timer{}, render.Sprite{}),
 		core.NewQuery(world).With(pilot{}, core.Transform{}),
 		core.NewQuery(world).With(core.Transform{}, pulseDrone{}),
 		nil

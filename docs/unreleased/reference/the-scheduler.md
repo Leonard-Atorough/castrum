@@ -36,7 +36,7 @@ The engine's normal registrations are:
 | `scene-startup`         | startup | `WithScenes`           | Applies requests queued before startup.                 |
 | `scene`                 | frame | `WithScenes`             | Applies queued scene requests before user frame systems. |
 
-The optional subsystems are opt-in: `castrum.WithAnimation`, `castrum.WithCollision`, and `castrum.WithTimer` each register their system, and `castrum.WithDefaultSystems` registers all three. Every system's registration name is exported as a constant from the package that owns the system - `core.PrevTransformSystemName`, `input.FrameSystemName`, `input.TickSystemName`, `animation.SystemName`, `collision.SystemName`, `timer.SystemName`, `ebitrun.AudioSystemName` - so no call site hand-types the strings; the names identify registrations in error messages and will serve as the handles for future ordering constraints.
+The optional subsystems are opt-in: `castrum.WithAnimation`, `castrum.WithCollision`, and `castrum.WithTimer` each register their system, and `castrum.WithDefaultSystems` registers all three. Every system's registration name is exported as a constant from the package that owns the system - `core.PrevTransformSystemName`, `input.FrameSystemName`, `input.TickSystemName`, `animation.SystemName`, `collision.SystemName`, `gametime.TimerSystemName`, `ebitrun.AudioSystemName` - so no call site hand-types the strings; the names identify registrations in error messages and will serve as the handles for future ordering constraints.
 
 ## System groups
 

@@ -13,12 +13,12 @@ import (
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/state"
-	"github.com/Leonard-Atorough/castrum/timer"
 )
 
 // Game owns a game's world, configuration, and update schedules. A [Runner]
@@ -115,11 +115,11 @@ func New(opts ...option) (*Game, error) {
 	}
 
 	if options.systems&sysTimer != 0 {
-		if err := g.AddSystem(core.PhaseFixed, timer.SystemName, timer.NewSystem()); err != nil {
+		if err := g.AddSystem(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
 			return nil, err
 		}
-		if err := g.world.Provide(func(*core.World) (*timer.Groups, error) {
-			return timer.NewGroups(), nil
+		if err := g.world.Provide(func(*core.World) (*gametime.Groups, error) {
+			return gametime.NewGroups(), nil
 		}); err != nil {
 			return nil, fmt.Errorf("castrum: provide timer groups: %w", err)
 		}
