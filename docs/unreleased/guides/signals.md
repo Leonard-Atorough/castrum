@@ -4,7 +4,7 @@ If you're coming from an engine like Godot, the idea is familiar: one part of th
 
 Readers don't compete for a shared queue. Each reader has its own cursor, so multiple systems can react to the same signal independently.
 
-The runnable [signal example](../../../examples/signals) demonstrates how to react to an engine signal, define and emit game signals, and carry a sequence across fixed and frame systems.
+The runnable [signal example](../../../examples/unreleased/signals) demonstrates how to react to an engine signal, define and emit game signals, and carry a sequence across fixed and frame systems.
 
 ## The signal model
 
@@ -108,7 +108,7 @@ Several engine features emit typed signals. Their guides explain each payload, w
 
 | Feature   | Signal                                  | Details                                                                     |
 | --------- | --------------------------------------- | --------------------------------------------------------------------------- |
-| Timers    | `gametime.Completed`                       | [Timer signals](gametime.md#signals)                                           |
+| Timers    | `gametime.Completed`                       | [Timer signals](timer.md#signals)                                           |
 | Animation | `animation.Completed`                   | [Animation signals](animation.md#signals)                                   |
 | Collision | `collision.Entered`, `collision.Exited` | [Contact edge signals](collision.md#react-to-enters-and-exits-with-signals) |
 | Audio     | `audio.Finished`                        | [Audio completion](audio.md#play-a-sound-effect)                            |
@@ -122,4 +122,4 @@ Several engine features emit typed signals. Their guides explain each payload, w
 
 ## Where to go next
 
-For timer setup and behavior, see the [timer guide](gametime.md); for how systems and phases are scheduled, see [The ECS in depth](ecs.md).
+For timer setup and behavior, see the [timer guide](timer.md); for how systems and phases are scheduled, see [The ECS in depth](ecs.md).

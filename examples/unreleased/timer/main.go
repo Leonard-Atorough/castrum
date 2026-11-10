@@ -33,10 +33,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/Leonard-Atorough/castrum/gametime"
 )
 
 const (
@@ -267,7 +267,7 @@ func run() error {
 // timer under that group's pause and scale state.
 func spawnBar(world *core.World, y float64, duration time.Duration, repeating bool, group string) (*core.Entity, error) {
 	timer := gametime.NewTimer(duration, repeating)
-	gametime.Group = group
+	timer.Group = group
 	return world.NewEntity(
 		core.Transform{Position: geom.Vector2{X: barWidth / 2, Y: y}},
 		barSprite(runningColor),

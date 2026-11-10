@@ -8,9 +8,9 @@ import (
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/Leonard-Atorough/castrum/gametime"
 )
 
 // newTestGame builds the game headless: no runner, no window - the

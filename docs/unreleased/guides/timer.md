@@ -2,10 +2,10 @@
 
 Timers are countdowns stored on entities as `gametime.Timer`. Castrum advances each running timer on fixed ticks. You can read progress and completion from the component, or react to a `gametime.Completed` signal when an interval finishes. Timers are not removed automatically.
 
-The [timer example](../../../examples/timer/main.go) shows one-shot, repeating, and paused timers in a running game:
+The [timer example](../../../examples/unreleased/timer/main.go) shows one-shot, repeating, and paused timers in a running game:
 
 ```text
-go run ./examples/timer
+go run ./examples/unreleased/timer
 ```
 
 ## Create a timer

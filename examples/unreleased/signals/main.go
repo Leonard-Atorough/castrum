@@ -39,10 +39,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
-	"github.com/Leonard-Atorough/castrum/gametime"
 )
 
 const (

@@ -12,7 +12,7 @@ Castrum is a 2D game engine for Go. You compose entities from data, update that 
 
 - **Input** supports named actions bound to keyboard, mouse, and gamepad controls, as well as raw input snapshots. See the [input guide](../guides/input.md).
 - **Signals** provide typed event streams with separate tick and frame delivery windows. Timers, animation, collision, and audio emit engine signals. See the [signals guide](../guides/signals.md).
-- **Timers** provide one-shot and repeating countdowns as entity components. Read elapsed time and completion state from the component. See the [timer guide](../guides/gametime.md).
+- **Timers** provide one-shot and repeating countdowns as entity components. Read elapsed time and completion state from the component. See the [timer guide](../guides/timer.md).
 - **Clock** provides virtual game time: a pausable, scalable tick counter independent of the simulation loop, for games whose logic runs on its own notion of elapsed time. See the [clock guide](../guides/clock.md).
 - **Collision** detects box and circle overlaps using layers and masks, then records contacts as component state. It detects overlaps only; it does not resolve physics. See the [collision guide](../guides/collision.md).
 - **Animation** advances atlas-frame clips with looping, pause, and playback-rate controls. See the [animation guide](../guides/animation.md).
@@ -35,4 +35,4 @@ Timers, collision, and animation are optional systems; enable them individually 
 
 ## Explore working examples
 
-The [examples](../../../examples) directory contains runnable programs covering rendering, shapes, input, animation, audio, collision, timers, signals, and scenes. [Signal Salvage](../../../examples/signal-salvage) is a small playable demo that combines states, scenes, signals, timers, collision, system groups, and the built-in font.
+The [examples](../../../examples) directory contains runnable programs covering rendering, shapes, input, animation, audio, collision, timers, signals, and scenes. [Signal Salvage](../../../examples/unreleased/signal-salvage) is a small playable demo that combines states, scenes, signals, timers, collision, system groups, and the built-in font.

@@ -25,10 +25,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/Leonard-Atorough/castrum/gametime"
 )
 
 // This example embeds its assets; the tutorial loads them from a downloaded
@@ -148,14 +148,16 @@ func run() error {
 	}
 
 	// Add the tutorial's looping background music as a streamed source.
-	if _, err := g.World().NewEntity(audio.Source{
-		Audio:  AssetMusic,
-		Volume: 0.5,
-		Group:  audio.GroupMusic,
-		Loop:   audio.LoopForever,
-		Load:   audio.LoadStream,
-		Pause:  audio.PauseHolds,
-	}); err != nil {
+	if _, err := g.World().NewEntity(
+		audio.Source{
+			Volume: 0.5,
+			Group:  audio.GroupMusic,
+			Loop:   audio.LoopForever,
+			Load:   audio.LoadStream,
+			Pause:  audio.PauseHolds,
+		},
+		audio.Clip{Audio: AssetMusic},
+	); err != nil {
 		return err
 	}
 
@@ -426,9 +428,9 @@ func fireSystem(turret, stats *core.Entity) core.System {
 			return err
 		}
 
-		shot := audio.NewSource(AssetSFX)
+		shot := audio.NewSource()
 		shot.Pause = audio.PauseContinues
-		_, err := audio.OneShot(ctx.World, shot)
+		_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: AssetSFX})
 		return err
 	})
 }

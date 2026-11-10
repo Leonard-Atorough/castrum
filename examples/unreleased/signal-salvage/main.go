@@ -20,12 +20,12 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
-	"github.com/Leonard-Atorough/castrum/gametime"
 )
 
 const (
@@ -302,7 +302,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 			run: core.SystemFunc(func(_ *core.Context) error {
 				for entry := range clockQuery.Execute() {
 					clock, _ := entry.Component[gametime.Timer]()
-					seconds := int(math.Ceil(max(0, gametime.Duration-gametime.Elapsed).Seconds()))
+					seconds := int(math.Ceil(max(0, clock.Duration-clock.Elapsed).Seconds()))
 					if seconds == state.displayedSeconds {
 						continue
 					}
