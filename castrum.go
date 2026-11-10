@@ -13,12 +13,12 @@ import (
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/state"
-	"github.com/Leonard-Atorough/castrum/timer"
 )
 
 // Game owns a game's world, configuration, and update schedules. A [Runner]
@@ -38,8 +38,8 @@ type Game struct {
 	startup atomic.Bool
 	quit    atomic.Bool
 
-	paused    bool
-	timeScale float64
+	sim  *gametime.Simulation
+	real *gametime.Real
 }
 
 // New creates a [Game] with default options overridden by opts. It returns
@@ -60,9 +60,24 @@ func New(opts ...option) (*Game, error) {
 		world:       core.NewWorld(),
 		schedules:   map[core.Phase]*runtime.Schedule[core.System]{},
 		groupStates: make(map[string]bool),
-		timeScale:   1,
 	}
 	g.ctx.World = g.world
+
+	sim := gametime.NewSimulation(options.fixedDT)
+	if err := g.world.ProvideEager(func(*core.World) (*gametime.Simulation, error) {
+		return sim, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide simulation time: %w", err)
+	}
+	g.sim = sim
+
+	real := gametime.NewReal(options.MaxFrameTime)
+	if err := g.world.ProvideEager(func(*core.World) (*gametime.Real, error) {
+		return real, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide real time: %w", err)
+	}
+	g.real = real
 
 	loader := asset.NewLoader(builtin.WithFilesystem(options.Filesystem))
 	if err := g.world.Provide(func(*core.World) (*asset.Loader, error) {
@@ -115,11 +130,11 @@ func New(opts ...option) (*Game, error) {
 	}
 
 	if options.systems&sysTimer != 0 {
-		if err := g.AddSystem(core.PhaseFixed, timer.SystemName, timer.NewSystem()); err != nil {
+		if err := g.AddSystem(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
 			return nil, err
 		}
-		if err := g.world.Provide(func(*core.World) (*timer.Groups, error) {
-			return timer.NewGroups(), nil
+		if err := g.world.Provide(func(*core.World) (*gametime.Groups, error) {
+			return gametime.NewGroups(), nil
 		}); err != nil {
 			return nil, fmt.Errorf("castrum: provide timer groups: %w", err)
 		}
@@ -289,10 +304,13 @@ func (g *Game) Startup() error {
 // fixed-loop accumulator; DeltaTime and the frame phase are unaffected.
 // Both controls take effect on the next call.
 func (g *Game) Advance(elapsed time.Duration) error {
-	if elapsed > g.opts.MaxFrameTime {
-		elapsed = g.opts.MaxFrameTime
+	g.real.Delta = elapsed
+	g.real.Elapsed += elapsed
+	if elapsed > g.real.MaxFrameTime {
+		elapsed = g.real.MaxFrameTime
 	}
-	g.ctx.Frame++
+	g.real.Frame++
+	g.ctx.Frame = g.real.Frame
 	g.ctx.DeltaTime = elapsed
 	g.hub.BeginFrame()
 	if err := g.run(core.PhasePreFrame); err != nil {
@@ -302,19 +320,20 @@ func (g *Game) Advance(elapsed time.Duration) error {
 		return err
 	}
 	g.hub.EndFrame()
-	if g.paused {
+	if g.sim.Paused {
 		return nil
 	}
-	g.acc += time.Duration(float64(elapsed) * g.timeScale)
+	g.acc += time.Duration(float64(elapsed) * g.sim.Scale)
 	ticked := 0
-	for g.acc >= g.opts.fixedDT {
-		g.ctx.Tick++
-		g.ctx.DeltaTime = g.opts.fixedDT
+	for g.acc >= g.sim.Delta {
+		g.sim.Tick++
+		g.ctx.Tick = g.sim.Tick
+		g.ctx.DeltaTime = g.sim.Delta
 		if err := g.run(core.PhaseFixed); err != nil {
 			return err
 		}
 		g.hub.EndTick()
-		g.acc -= g.opts.fixedDT
+		g.acc -= g.sim.Delta
 		ticked++
 		if ticked >= g.opts.MaxTicksPerFrame {
 			g.acc = 0 // drop the backlog rather than spiral
@@ -329,7 +348,7 @@ func (g *Game) Advance(elapsed time.Duration) error {
 // While the game is paused, the accumulator holds its value, so Alpha stays
 // fixed; renderers keep the last interpolated position instead of jumping.
 func (g *Game) Alpha() float64 {
-	return float64(g.acc) / float64(g.opts.fixedDT)
+	return float64(g.acc) / float64(g.sim.Delta)
 }
 
 // Pause stops fixed updates and stops adding time to the fixed-loop
@@ -340,24 +359,24 @@ func (g *Game) Alpha() float64 {
 // [Game.Resume] continues from where the game stopped. Audio is not paused
 // automatically.
 func (g *Game) Pause() {
-	g.paused = true
+	g.sim.Pause()
 }
 
 // Resume clears the paused state. The next [Game.Advance] continues fixed
 // updates from the accumulator position preserved by [Game.Pause].
 func (g *Game) Resume() {
-	g.paused = false
+	g.sim.Resume()
 }
 
 // Paused reports whether fixed updates are stopped by [Game.Pause].
 func (g *Game) Paused() bool {
-	return g.paused
+	return g.sim.Paused
 }
 
 // TimeScale returns the multiplier applied to the time accumulated toward
 // fixed ticks: 0.5 is half speed, 2 is fast forward. The default is 1.
 func (g *Game) TimeScale() float64 {
-	return g.timeScale
+	return g.sim.Scale
 }
 
 // SetTimeScale sets the multiplier applied to the time accumulated toward
@@ -368,10 +387,9 @@ func (g *Game) TimeScale() float64 {
 // phase and [core.Context.DeltaTime] during frame updates are unaffected.
 // The new scale takes effect on the next [Game.Advance] call.
 func (g *Game) SetTimeScale(scale float64) error {
-	if scale <= 0 {
-		return fmt.Errorf("castrum: time scale %v, want > 0; use Pause to stop the simulation", scale)
+	if err := g.sim.SetScale(scale); err != nil {
+		return fmt.Errorf("castrum: %w", err)
 	}
-	g.timeScale = scale
 	return nil
 }
 

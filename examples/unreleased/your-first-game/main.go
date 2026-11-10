@@ -25,10 +25,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/Leonard-Atorough/castrum/timer"
 )
 
 // This example embeds its assets; the tutorial loads them from a downloaded
@@ -148,14 +148,16 @@ func run() error {
 	}
 
 	// Add the tutorial's looping background music as a streamed source.
-	if _, err := g.World().NewEntity(audio.Source{
-		Audio:  AssetMusic,
-		Volume: 0.5,
-		Group:  audio.GroupMusic,
-		Loop:   audio.LoopForever,
-		Load:   audio.LoadStream,
-		Pause:  audio.PauseHolds,
-	}); err != nil {
+	if _, err := g.World().NewEntity(
+		audio.Source{
+			Volume: 0.5,
+			Group:  audio.GroupMusic,
+			Loop:   audio.LoopForever,
+			Load:   audio.LoadStream,
+			Pause:  audio.PauseHolds,
+		},
+		audio.Clip{Audio: AssetMusic},
+	); err != nil {
 		return err
 	}
 
@@ -193,18 +195,18 @@ func run() error {
 	turret, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
 		render.Sprite{Drawable: render.TextureSource{Texture: AssetTurret}, Layer: 1},
-		timer.NewTimer(FireCooldown, false),
+		gametime.NewTimer(FireCooldown, false),
 	)
 	if err != nil {
 		return err
 	}
-	if err := turret.Update(g.World(), func(t *timer.Timer) { t.Running = false }); err != nil {
+	if err := turret.Update(g.World(), func(t *gametime.Timer) { t.Running = false }); err != nil {
 		return err
 	}
 
 	// Each completion of this running repeating timer spawns a wave.
 	spawner, err := g.World().NewEntity(
-		timer.NewTimer(SpawnEvery, true),
+		gametime.NewTimer(SpawnEvery, true),
 	)
 	if err != nil {
 		return err
@@ -411,7 +413,7 @@ func fireSystem(turret, stats *core.Entity) core.System {
 		if !ctx.Actions.Pressed("fire") {
 			return nil
 		}
-		gun, _ := turret.Component[timer.Timer](ctx.World)
+		gun, _ := turret.Component[gametime.Timer](ctx.World)
 		if gun.Running {
 			return nil // still reloading
 		}
@@ -422,13 +424,13 @@ func fireSystem(turret, stats *core.Entity) core.System {
 			return err
 		}
 
-		if err := turret.Update(ctx.World, func(t *timer.Timer) { t.Restart() }); err != nil {
+		if err := turret.Update(ctx.World, func(t *gametime.Timer) { t.Restart() }); err != nil {
 			return err
 		}
 
-		shot := audio.NewSource(AssetSFX)
+		shot := audio.NewSource()
 		shot.Pause = audio.PauseContinues
-		_, err := audio.OneShot(ctx.World, shot)
+		_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: AssetSFX})
 		return err
 	})
 }
@@ -530,11 +532,11 @@ func spawnSystem(spawner, hull, camera, stats *core.Entity) core.System {
 		if interval < MinSpawnEvery {
 			interval = MinSpawnEvery
 		}
-		if err := spawner.Update(ctx.World, func(t *timer.Timer) { t.Duration = interval }); err != nil {
+		if err := spawner.Update(ctx.World, func(t *gametime.Timer) { t.Duration = interval }); err != nil {
 			return err
 		}
 
-		waves, _ := spawner.Component[timer.Timer](ctx.World)
+		waves, _ := spawner.Component[gametime.Timer](ctx.World)
 		if !waves.JustCompleted(ctx.Tick) {
 			return nil
 		}
@@ -640,7 +642,7 @@ func reloadReadoutSystem(readout, turret, stats *core.Entity) core.System {
 		if over(stats, ctx) {
 			return readout.Update(ctx.World, func(s *render.Sprite) { s.Hidden = true })
 		}
-		gun, _ := turret.Component[timer.Timer](ctx.World)
+		gun, _ := turret.Component[gametime.Timer](ctx.World)
 		turretTransform, _ := turret.Component[core.Transform](ctx.World)
 		if err := readout.Update(ctx.World, func(t *core.Transform) {
 			t.Position = turretTransform.Position.Add(geom.Vector2{X: 0, Y: 72})

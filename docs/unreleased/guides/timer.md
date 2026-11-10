@@ -1,20 +1,20 @@
 # Timers
 
-Timers are countdowns stored on entities as `timer.Timer`. Castrum advances each running timer on fixed ticks. You can read progress and completion from the component, or react to a `timer.Completed` signal when an interval finishes. Timers are not removed automatically.
+Timers are countdowns stored on entities as `gametime.Timer`. Castrum advances each running timer on fixed ticks. You can read progress and completion from the component, or react to a `gametime.Completed` signal when an interval finishes. Timers are not removed automatically.
 
-The [timer example](../../../examples/timer/main.go) shows one-shot, repeating, and paused timers in a running game:
+The [timer example](../../../examples/unreleased/timer/main.go) shows one-shot, repeating, and paused timers in a running game:
 
 ```text
-go run ./examples/timer
+go run ./examples/unreleased/timer
 ```
 
 ## Create a timer
 
-`timer.NewTimer(duration, repeating)` returns a timer that starts running. Durations are `time.Duration` values, so `3*time.Second` means three seconds of simulation time, regardless of how many fixed ticks it takes.
+`gametime.NewTimer(duration, repeating)` returns a timer that starts running. Durations are `time.Duration` values, so `3*time.Second` means three seconds of simulation time, regardless of how many fixed ticks it takes.
 
 ```go
 countdown, err := game.World().NewEntity(
-	timer.NewTimer(3*time.Second, false),
+	gametime.NewTimer(3*time.Second, false),
 )
 if err != nil {
 	return err
@@ -30,7 +30,7 @@ Castrum registers the timer system when the game is created with `castrum.WithTi
 `NewTimer` starts the countdown immediately. Pause or resume it by setting `Running` inside an entity update:
 
 ```go
-err := countdown.Update(game.World(), func(t *timer.Timer) {
+err := countdown.Update(game.World(), func(t *gametime.Timer) {
 	t.Running = false // Pause without losing elapsed time.
 })
 if err != nil {
@@ -41,7 +41,7 @@ if err != nil {
 Set `Running` to `true` to continue from the saved elapsed time. Use `Restart` to begin again from zero instead:
 
 ```go
-err := countdown.Update(game.World(), func(t *timer.Timer) {
+err := countdown.Update(game.World(), func(t *gametime.Timer) {
 	t.Restart()
 })
 if err != nil {
@@ -51,15 +51,15 @@ if err != nil {
 
 ## Timer groups
 
-Use a timer's `Group` field to put it in one named group. The `timer.Groups` resource controls whether timers in each group accumulate time and at what rate. `castrum.WithTimer()` provides the resource along with the timer system; `castrum.WithDefaultSystems()` includes it too.
+Use a timer's `Group` field to put it in one named group. The `gametime.Groups` resource controls whether timers in each group accumulate time and at what rate. `castrum.WithTimer()` provides the resource along with the timer system; `castrum.WithDefaultSystems()` includes it too.
 
 Retrieve the resource after creating the game:
 
 ```go
-groups := game.World().MustResource[*timer.Groups]()
+groups := game.World().MustResource[*gametime.Groups]()
 ```
 
-`MustResource` is appropriate when the game was created with `WithTimer` or `WithDefaultSystems`, which provide the resource. If you register `timer.NewSystem()` yourself, provide a `*timer.Groups` resource (for example, one returned by `timer.NewGroups()`) as well; the timer system returns an error on its first update if it is missing.
+`MustResource` is appropriate when the game was created with `WithTimer` or `WithDefaultSystems`, which provide the resource. If you register `gametime.NewTimerSystem()` yourself, provide a `*gametime.Groups` resource (for example, one returned by `gametime.NewGroups()`) as well; the timer system returns an error on its first update if it is missing.
 
 Use the groups resource from the game's single-threaded loop; it is not safe for concurrent access.
 
@@ -68,7 +68,7 @@ Use the groups resource from the game's single-threaded loop; it is not safe for
 Set `Timer.Group` before storing the timer, or change it later with `Entity.Update`. An empty group name leaves the timer ungrouped. Group names need no registration, and each timer belongs to at most one group; groups do not nest.
 
 ```go
-combatTimer := timer.NewTimer(2*time.Second, true)
+combatTimer := gametime.NewTimer(2*time.Second, true)
 combatTimer.Group = "combat"
 combat, err := game.World().NewEntity(combatTimer)
 if err != nil {
@@ -103,7 +103,7 @@ Group pause does not record a completion; any existing `CompletedOn` value remai
 Read the stored component to inspect progress:
 
 ```go
-t, ok := countdown.Component[timer.Timer](game.World())
+t, ok := countdown.Component[gametime.Timer](game.World())
 if ok {
 	fmt.Printf("%v / %v\n", t.Elapsed, t.Duration)
 }
@@ -132,7 +132,7 @@ If a repeating timer is shorter than one tick, it may complete multiple interval
 
 ## Signals
 
-When the timer system is enabled with `castrum.WithTimer()` or `castrum.WithDefaultSystems()`, it emits a `timer.Completed` signal when a timer completes. The signal carries the timer entity ID and fixed tick. A repeating timer emits at most one completion signal per fixed tick, even if it completes several intervals in that tick.
+When the timer system is enabled with `castrum.WithTimer()` or `castrum.WithDefaultSystems()`, it emits a `gametime.Completed` signal when a timer completes. The signal carries the timer entity ID and fixed tick. A repeating timer emits at most one completion signal per fixed tick, even if it completes several intervals in that tick.
 
 Use a consumer system when you want to react to a particular timer without checking its component every tick:
 
@@ -140,7 +140,7 @@ Use a consumer system when you want to react to a particular timer without check
 hub := g.World().MustResource[*signal.Hub]()
 
 if err := g.AddSystem(core.PhaseFixed, "game.countdown_complete", hub.Consumer(
-	func(_ *core.Context, completed timer.Completed) error {
+	func(_ *core.Context, completed gametime.Completed) error {
 		if completed.Entity == countdown.ID() {
 			// Start the next game action.
 		}
@@ -158,11 +158,11 @@ The [signals guide](signals.md) explains the windows, ordering, and reader rules
 Because component storage has one slot per type on each entity, attach each timer to a separate entity. Keep those handles with the actor's other game state:
 
 ```go
-cooldown, err := game.World().NewEntity(timer.NewTimer(2*time.Second, false))
+cooldown, err := game.World().NewEntity(gametime.NewTimer(2*time.Second, false))
 if err != nil {
 	return err
 }
-buff, err := game.World().NewEntity(timer.NewTimer(30*time.Second, false))
+buff, err := game.World().NewEntity(gametime.NewTimer(30*time.Second, false))
 if err != nil {
 	return err
 }

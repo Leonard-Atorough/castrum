@@ -1,8 +1,11 @@
-// Package timer provides countdowns as [Timer] components. [NewSystem]
-// advances them on fixed ticks, records completions in
+// Package gametime is the home of the engine's time work: the fixed loop's
+// state as the [Simulation] resource and countdowns as [Timer] components.
+//
+// [NewTimerSystem] advances timers on fixed ticks, records completions in
 // [Timer.CompletedOn], and emits one [Completed] signal per completion
-// tick. It does not remove timers.
-package timer
+// tick. It does not remove timers. See simulation.go for the simulation
+// time resource.
+package gametime
 
 import (
 	"fmt"
@@ -180,27 +183,27 @@ func (g *Groups) SetScale(name string, scale float64) error {
 	return nil
 }
 
-// SystemName is the name used to register the timer system in the fixed
-// schedule.
-const SystemName = "engine.timer"
+// TimerSystemName is the name used to register the timer system in the
+// fixed schedule.
+const TimerSystemName = "engine.timer"
 
-// NewSystem returns the fixed-tick system that advances running [Timer]
-// components, records completions in [Timer.CompletedOn], and emits one
-// [Completed] signal per completion.
+// NewTimerSystem returns the fixed-tick system that advances running
+// [Timer] components, records completions in [Timer.CompletedOn], and
+// emits one [Completed] signal per completion.
 //
-// The game constructor registers this system under [SystemName] when
+// The game constructor registers this system under [TimerSystemName] when
 // `castrum.WithTimer` is enabled. Otherwise, register it yourself.
-func NewSystem() core.System {
-	return &system{}
+func NewTimerSystem() core.System {
+	return &timerSystem{}
 }
 
-type system struct {
+type timerSystem struct {
 	timers *core.Query
 	groups *Groups
 	hub    *signal.Hub
 }
 
-func (s *system) Update(ctx *core.Context) error {
+func (s *timerSystem) Update(ctx *core.Context) error {
 	if s.timers == nil {
 		s.timers = core.NewQuery(ctx.World).With(Timer{})
 	}

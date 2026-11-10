@@ -584,12 +584,12 @@ The cooldown timer belongs to the turret - one timer per entity, and the turret 
 	turret, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
 		render.Sprite{Drawable: render.TextureSource{Texture: AssetTurret}, Layer: 1},
-		timer.NewTimer(FireCooldown, false),
+		gametime.NewTimer(FireCooldown, false),
 	)
 	if err != nil {
 		return err
 	}
-	if err := turret.Update(g.World(), func(t *timer.Timer) { t.Running = false }); err != nil {
+	if err := turret.Update(g.World(), func(t *gametime.Timer) { t.Running = false }); err != nil {
 		return err
 	}
 ```
@@ -604,7 +604,7 @@ func fireSystem(turret *core.Entity) core.System {
 		if !ctx.Actions.Pressed("fire") {
 			return nil
 		}
-		gun, _ := turret.Component[timer.Timer](ctx.World)
+		gun, _ := turret.Component[gametime.Timer](ctx.World)
 		if gun.Running {
 			return nil
 		}
@@ -615,7 +615,7 @@ func fireSystem(turret *core.Entity) core.System {
 			return err
 		}
 
-		if err := turret.Update(ctx.World, func(t *timer.Timer) { t.Restart() }); err != nil {
+		if err := turret.Update(ctx.World, func(t *gametime.Timer) { t.Restart() }); err != nil {
 			return err
 		}
 
@@ -629,7 +629,7 @@ func fireSystem(turret *core.Entity) core.System {
 
 `Restart` resets the elapsed time, clears the completion, and runs the timer again - the same timer counts down every shot. The reload is 750 milliseconds of real time, and the timer advances on fixed ticks, so it pauses with the game for free.
 
-Click the left mouse button after each reload to fire again. The [timers guide](../guides/timer.md) covers completion edges and repeating timers; the [timer example](../../../examples/timer) shows them in a complete program.
+Click the left mouse button after each reload to fire again. The [timers guide](../guides/timer.md) covers completion edges and repeating timers; the [timer example](../../../examples/unreleased/timer) shows them in a complete program.
 
 ### Adding enemies
 
@@ -676,7 +676,7 @@ Create the spawner next. Its timer starts immediately, so the first enemy appear
 
 ```go
 	spawner, err := g.World().NewEntity(
-		timer.NewTimer(SpawnEvery, true),
+		gametime.NewTimer(SpawnEvery, true),
 	)
 	if err != nil {
 		return err
@@ -688,7 +688,7 @@ Add the spawn system. When the timer completes, it chooses a point just beyond t
 ```go
 func spawnSystem(spawner, hull, camera *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		waves, _ := spawner.Component[timer.Timer](ctx.World)
+		waves, _ := spawner.Component[gametime.Timer](ctx.World)
 		if !waves.JustCompleted(ctx.Tick) {
 			return nil
 		}
@@ -815,7 +815,7 @@ Add this system. It follows the turret and updates the text while the reload tim
 ```go
 func reloadReadoutSystem(readout, turret *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		gun, _ := turret.Component[timer.Timer](ctx.World)
+		gun, _ := turret.Component[gametime.Timer](ctx.World)
 		turretTransform, _ := turret.Component[core.Transform](ctx.World)
 		if err := readout.Update(ctx.World, func(t *core.Transform) {
 			t.Position = turretTransform.Position.Add(geom.Vector2{X: 0, Y: 72})
@@ -990,11 +990,11 @@ func spawnSystem(spawner, hull, camera, stats *core.Entity) core.System {
 		if interval < MinSpawnEvery {
 			interval = MinSpawnEvery
 		}
-		if err := spawner.Update(ctx.World, func(t *timer.Timer) { t.Duration = interval }); err != nil {
+		if err := spawner.Update(ctx.World, func(t *gametime.Timer) { t.Duration = interval }); err != nil {
 			return err
 		}
 
-		waves, _ := spawner.Component[timer.Timer](ctx.World)
+		waves, _ := spawner.Component[gametime.Timer](ctx.World)
 		if !waves.JustCompleted(ctx.Tick) {
 			return nil
 		}
@@ -1148,7 +1148,7 @@ func reloadReadoutSystem(readout, turret, stats *core.Entity) core.System {
 		if over(stats, ctx) {
 			return readout.Update(ctx.World, func(s *render.Sprite) { s.Hidden = true })
 		}
-		gun, _ := turret.Component[timer.Timer](ctx.World)
+		gun, _ := turret.Component[gametime.Timer](ctx.World)
 		turretTransform, _ := turret.Component[core.Transform](ctx.World)
 		if err := readout.Update(ctx.World, func(t *core.Transform) {
 			t.Position = turretTransform.Position.Add(geom.Vector2{X: 0, Y: 72})

@@ -11,7 +11,7 @@ cd examples/unreleased/raycast
 go run .
 ```
 
-The [settings example](unreleased/settings/main.go) is a runnable command showing game-owned preferences.
+The [settings example](unreleased/settings/main.go) is a runnable command showing game-owned preferences, the [raycast example](unreleased/raycast) demonstrates collision raycasts, and the [timer](unreleased/timer), [signals](unreleased/signals), [signal-salvage](unreleased/signal-salvage), and [your-first-game](unreleased/your-first-game) examples moved here while they use the unreleased `gametime` package.
 
 Run an example from its directory:
 
@@ -33,13 +33,9 @@ The runnable projects are:
 - `input`
 - `primitive`
 - `scenes`
-- `signal-salvage`
-- `signals`
 - `text`
 - `time-control`
-- `timer`
 - `tween`
 - `wander`
-- `your-first-game`
 
 The repository's root Go module tests the engine. CI tests these nested example modules separately.

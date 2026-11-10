@@ -31,7 +31,7 @@ if err != nil {
 }
 ```
 
-The examples below use this `g` and `modes`. Register their systems and hooks during setup, before starting the runner. See [Input](input.md) for named actions and [the engine concepts](../getting-started/concepts.md) for running the game. For a working game that combines modes, scenes, and signals, see [Signal Salvage](../../../examples/signal-salvage/main.go).
+The examples below use this `g` and `modes`. Register their systems and hooks during setup, before starting the runner. See [Input](input.md) for named actions and [the engine concepts](../getting-started/concepts.md) for running the game. For a working game that combines modes, scenes, and signals, see [Signal Salvage](../../../examples/unreleased/signal-salvage/main.go).
 
 `WithState` registers the machine's system for startup and each display frame. Keep the `modes` pointer to use it from your systems, or retrieve the same machine from the world when you need it elsewhere:
 

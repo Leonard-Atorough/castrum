@@ -1,4 +1,4 @@
-package timer
+package gametime
 
 import (
 	"math"
@@ -23,7 +23,7 @@ func newTimerHarness(t *testing.T) (*core.World, core.System) {
 	}); err != nil {
 		t.Fatalf("provide signal hub: %v", err)
 	}
-	return world, NewSystem()
+	return world, NewTimerSystem()
 }
 
 func tick(t *testing.T, world *core.World, sys core.System, number uint64, dt time.Duration) {
@@ -467,7 +467,7 @@ func TestGroups_RegistryContract(t *testing.T) {
 }
 
 func TestSystem_RequiresGroupsResource(t *testing.T) {
-	sys := NewSystem()
+	sys := NewTimerSystem()
 	err := sys.Update(&core.Context{World: core.NewWorld(), Tick: 1, DeltaTime: time.Second})
 	if err == nil || !strings.Contains(err.Error(), "timer groups") {
 		t.Errorf("system without groups = %v, want an error naming the timer groups resource", err)

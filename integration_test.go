@@ -13,13 +13,13 @@ import (
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/state"
-	"github.com/Leonard-Atorough/castrum/timer"
 	"github.com/Leonard-Atorough/castrum/tween"
 )
 
@@ -161,18 +161,18 @@ func TestOptionalTimerSystems(t *testing.T) {
 				t.Fatalf("New: %v", err)
 			}
 			if tt.enabled {
-				if _, err := g.World().Resource[*timer.Groups](); err != nil {
+				if _, err := g.World().Resource[*gametime.Groups](); err != nil {
 					t.Fatalf("resolve timer groups: %v", err)
 				}
 			}
-			entity, err := g.World().NewEntity(timer.NewTimer(2*g.Options().FixedDT(), false))
+			entity, err := g.World().NewEntity(gametime.NewTimer(2*g.Options().FixedDT(), false))
 			if err != nil {
 				t.Fatalf("spawn timer: %v", err)
 			}
 			if err := g.Advance(2 * g.Options().FixedDT()); err != nil {
 				t.Fatalf("Advance: %v", err)
 			}
-			tm, ok := entity.Component[timer.Timer](g.World())
+			tm, ok := entity.Component[gametime.Timer](g.World())
 			if !ok || (tm.CompletedOn != 0) != tt.enabled {
 				t.Errorf("timer = %+v, found %t; want completed = %t", tm, ok, tt.enabled)
 			}
@@ -286,21 +286,21 @@ func TestWithDefaultSystemsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(WithDefaultSystems, WithTimer): %v", err)
 	}
-	entity, err := g.World().NewEntity(timer.NewTimer(2*g.Options().FixedDT(), false))
+	entity, err := g.World().NewEntity(gametime.NewTimer(2*g.Options().FixedDT(), false))
 	if err != nil {
 		t.Fatalf("spawn timer: %v", err)
 	}
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	tm, ok := entity.Component[timer.Timer](g.World())
+	tm, ok := entity.Component[gametime.Timer](g.World())
 	if !ok || tm.CompletedOn != 0 {
 		t.Fatalf("timer after one tick = %+v, found %t; want a single registration", tm, ok)
 	}
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	tm, ok = entity.Component[timer.Timer](g.World())
+	tm, ok = entity.Component[gametime.Timer](g.World())
 	if !ok || tm.CompletedOn == 0 {
 		t.Fatalf("timer after two ticks = %+v, found %t; want completion", tm, ok)
 	}
@@ -598,14 +598,14 @@ func TestTimerEmitsCompletedSignal(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	hub := g.World().MustResource[*signal.Hub]()
-	reader := hub.NewReader[timer.Completed]()
+	reader := hub.NewReader[gametime.Completed]()
 
-	entity, err := g.World().NewEntity(timer.NewTimer(300*time.Millisecond, false))
+	entity, err := g.World().NewEntity(gametime.NewTimer(300*time.Millisecond, false))
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
 
-	var got []timer.Completed
+	var got []gametime.Completed
 	if err := g.AddSystem(core.PhaseFrame, "signal collector", core.SystemFunc(func(ctx *core.Context) error {
 		for event, ok := reader.Next(); ok; event, ok = reader.Next() {
 			got = append(got, event)
@@ -621,7 +621,7 @@ func TestTimerEmitsCompletedSignal(t *testing.T) {
 			t.Fatalf("Advance: %v", err)
 		}
 	}
-	if len(got) != 1 || got[0] != (timer.Completed{Entity: entity.ID(), Tick: 2}) {
+	if len(got) != 1 || got[0] != (gametime.Completed{Entity: entity.ID(), Tick: 2}) {
 		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
 	}
 }
@@ -792,5 +792,176 @@ func TestTweenSchedulerClocks(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSimulationTimeIsTheLoopResource(t *testing.T) {
+	g, err := New(WithFixedTPS(4))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	sim, err := g.World().Resource[*gametime.Simulation]()
+	if err != nil {
+		t.Fatalf("resolve simulation: %v", err)
+	}
+	if sim.Tick != 0 || sim.Paused || sim.Scale != 1 {
+		t.Fatalf("simulation = %+v, want a running simulation at tick 0 scale 1", *sim)
+	}
+
+	// FixedTPS 4 => fixedDT 250ms; one 250ms advance runs exactly one tick.
+	for range 3 {
+		if err := g.Advance(g.Options().FixedDT()); err != nil {
+			t.Fatalf("Advance: %v", err)
+		}
+	}
+	if sim.Tick != 3 {
+		t.Fatalf("Tick = %d, want 3", sim.Tick)
+	}
+
+	sim.Pause()
+	if !g.Paused() {
+		t.Fatal("resource pause is not visible through Game.Paused")
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance while paused: %v", err)
+	}
+	if sim.Tick != 3 {
+		t.Fatalf("Tick = %d while paused, want 3", sim.Tick)
+	}
+
+	sim.Resume()
+	if err := sim.SetScale(2); err != nil {
+		t.Fatalf("SetScale: %v", err)
+	}
+	if g.TimeScale() != 2 {
+		t.Fatalf("TimeScale = %v, want 2", g.TimeScale())
+	}
+	// Double scale: one 250ms advance accumulates 500ms => two ticks.
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if sim.Tick != 5 {
+		t.Fatalf("Tick = %d at double scale, want 5", sim.Tick)
+	}
+
+	// The game-level API drives the same resource.
+	if err := g.SetTimeScale(0.5); err != nil {
+		t.Fatalf("SetTimeScale: %v", err)
+	}
+	if sim.Scale != 0.5 {
+		t.Fatalf("Scale = %v, want 0.5 via SetTimeScale", sim.Scale)
+	}
+	g.Pause()
+	if !sim.Paused {
+		t.Fatal("Game.Pause did not pause the resource")
+	}
+	g.Resume()
+	if sim.Paused {
+		t.Fatal("Game.Resume did not resume the resource")
+	}
+}
+
+func TestRealTimeIsWallClock(t *testing.T) {
+	g, err := New(WithFixedTPS(4), WithMaxFrameTime(250*time.Millisecond))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	real, err := g.World().Resource[*gametime.Real]()
+	if err != nil {
+		t.Fatalf("resolve real time: %v", err)
+	}
+	sim := g.World().MustResource[*gametime.Simulation]()
+
+	// Real time accumulates raw elapsed, clamped nowhere.
+	if err := g.Advance(time.Second); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if real.Elapsed != time.Second || real.Delta != time.Second {
+		t.Fatalf("real = %v/%v, want 1s/1s", real.Elapsed, real.Delta)
+	}
+
+	// Pause stops simulation time; real time keeps flowing, frames included.
+	g.Pause()
+	if err := g.Advance(time.Second); err != nil {
+		t.Fatalf("Advance while paused: %v", err)
+	}
+	if real.Elapsed != 2*time.Second {
+		t.Fatalf("real Elapsed = %v while paused, want 2s", real.Elapsed)
+	}
+	if real.Frame != 2 {
+		t.Fatalf("real Frame = %d while paused, want 2", real.Frame)
+	}
+	if sim.Tick != 1 {
+		t.Fatalf("sim Tick = %d while paused, want 1 (held from the first advance)", sim.Tick)
+	}
+
+	// Scale changes tick rate; real time is unaffected.
+	g.Resume()
+	if err := g.SetTimeScale(2); err != nil {
+		t.Fatalf("SetTimeScale: %v", err)
+	}
+	if err := g.Advance(125 * time.Millisecond); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if real.Elapsed != 2125*time.Millisecond {
+		t.Fatalf("real Elapsed = %v at double scale, want 2125ms", real.Elapsed)
+	}
+
+	// The clamp limits simulation ingestion, never real time.
+	if err := g.Advance(10 * time.Second); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if real.Delta != 10*time.Second || real.Elapsed != 12125*time.Millisecond {
+		t.Fatalf("real = %v/%v, want unclamped 10s/12125ms", real.Delta, real.Elapsed)
+	}
+	// 10s clamped to 250ms at double scale = 500ms => two more fixed ticks.
+	if sim.Tick != 4 {
+		t.Fatalf("sim Tick = %d after clamped advance, want 4", sim.Tick)
+	}
+
+	// The clamp is runtime-adjustable through the resource.
+	real.MaxFrameTime = 500 * time.Millisecond
+	if err := g.Advance(2 * time.Second); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	// 2s clamped to 500ms at double scale = 1s => four more ticks of 250ms.
+	if sim.Tick != 8 {
+		t.Fatalf("sim Tick = %d after adjusted clamp, want 8", sim.Tick)
+	}
+}
+
+func TestDeltaTimeMirrorsThePhaseResources(t *testing.T) {
+	g, err := New(WithFixedTPS(4), WithMaxFrameTime(250*time.Millisecond))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	sim := g.World().MustResource[*gametime.Simulation]()
+	var frameDelta, fixedDelta time.Duration
+	if err := g.AddSystem(core.PhaseFrame, "frame.delta", core.SystemFunc(func(ctx *core.Context) error {
+		frameDelta = ctx.DeltaTime
+		return nil
+	})); err != nil {
+		t.Fatalf("AddSystem: %v", err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "fixed.delta", core.SystemFunc(func(ctx *core.Context) error {
+		fixedDelta = ctx.DeltaTime
+		return nil
+	})); err != nil {
+		t.Fatalf("AddSystem: %v", err)
+	}
+
+	// A 1s advance is clamped to 250ms for the frame phase; fixed ticks
+	// always see Simulation.Delta.
+	if err := g.Advance(time.Second); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if frameDelta != 250*time.Millisecond {
+		t.Fatalf("frame DeltaTime = %v, want 250ms (clamped)", frameDelta)
+	}
+	if fixedDelta != sim.Delta || fixedDelta != 250*time.Millisecond {
+		t.Fatalf("fixed DeltaTime = %v, want Simulation.Delta (250ms)", fixedDelta)
+	}
+	if sim.Elapsed() != 250*time.Millisecond {
+		t.Fatalf("sim Elapsed = %v, want 250ms", sim.Elapsed())
 	}
 }

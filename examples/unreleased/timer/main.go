@@ -7,11 +7,11 @@
 //
 // Timers advance on their own each fixed tick; a game never calls an
 // update function on them. Completions are read straight from the
-// component - [timer.Timer.JustCompleted] against the current
-// tick is the completion edge, and [timer.Timer.CompletedOn] keeps
+// component - [gametime.Timer.JustCompleted] against the current
+// tick is the completion edge, and [gametime.Timer.CompletedOn] keeps
 // the tick of the last fire for as long as it is useful.
 //
-// Group state lives in the timer.Groups resource, provided by
+// Group state lives in the gametime.Groups resource, provided by
 // castrum.WithTimer alongside the timer system. A group pause never
 // writes the timers it holds: their Running fields stay as they
 // were, and only their accumulation stops.
@@ -33,10 +33,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/Leonard-Atorough/castrum/timer"
 )
 
 const (
@@ -97,7 +97,7 @@ func run() error {
 
 	// The groups resource is engine wiring: WithTimer provides it
 	// before the loop starts, so MustResource is the right read.
-	groups := g.World().MustResource[*timer.Groups]()
+	groups := g.World().MustResource[*gametime.Groups]()
 
 	camera := g.MainCamera()
 	if err := camera.Update(g.World(), func(t *core.Transform) {
@@ -130,7 +130,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := held.Update(g.World(), func(t *timer.Timer) { t.Running = false }); err != nil {
+	if err := held.Update(g.World(), func(t *gametime.Timer) { t.Running = false }); err != nil {
 		return err
 	}
 
@@ -153,12 +153,12 @@ func run() error {
 
 	// One fixed system reads all five timers and reacts to their
 	// state; it is the only gameplay logic in the program.
-	if err := g.AddSystem(core.PhaseFixed, "timer.reactions", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "gametime.reactions", core.SystemFunc(func(ctx *core.Context) error {
 		// R restarts the one-shot from zero: elapsed time resets and
 		// the completion stamp clears, so the "fired" color reverts
 		// until it fires again.
 		if ctx.Actions.Pressed("restart_one_shot") {
-			if err := oneShot.Update(ctx.World, func(t *timer.Timer) { t.Restart() }); err != nil {
+			if err := oneShot.Update(ctx.World, func(t *gametime.Timer) { t.Restart() }); err != nil {
 				return err
 			}
 			panel.Message("one-shot restarted")
@@ -167,7 +167,7 @@ func run() error {
 		// SPACE starts the paused timer by writing Running. The
 		// countdown then advances on its own.
 		if ctx.Actions.Pressed("start_held") {
-			if err := held.Update(ctx.World, func(t *timer.Timer) { t.Running = true }); err != nil {
+			if err := held.Update(ctx.World, func(t *gametime.Timer) { t.Running = true }); err != nil {
 				return err
 			}
 			panel.Message("paused timer started")
@@ -190,10 +190,10 @@ func run() error {
 		// set, so the color sticks without anything remembering the
 		// completion.
 		oneShotColor := runningColor
-		if oneShotTimer, _ := oneShot.Component[timer.Timer](ctx.World); oneShotTimer.CompletedOn != 0 {
+		if oneShotTimer, _ := oneShot.Component[gametime.Timer](ctx.World); oneShotTimer.CompletedOn != 0 {
 			oneShotColor = firedColor
 		}
-		if oneShotTimer, _ := oneShot.Component[timer.Timer](ctx.World); oneShotTimer.JustCompleted(ctx.Tick) {
+		if oneShotTimer, _ := oneShot.Component[gametime.Timer](ctx.World); oneShotTimer.JustCompleted(ctx.Tick) {
 			panel.Message("one-shot fired")
 		}
 		if err := oneShot.SetComponent(ctx.World, barSprite(oneShotColor)); err != nil {
@@ -204,7 +204,7 @@ func run() error {
 		// completion: JustCompleted reads true this tick and false
 		// the next, with nothing to reset.
 		pulseColor := runningColor
-		if pulseTimer, _ := pulse.Component[timer.Timer](ctx.World); pulseTimer.JustCompleted(ctx.Tick) {
+		if pulseTimer, _ := pulse.Component[gametime.Timer](ctx.World); pulseTimer.JustCompleted(ctx.Tick) {
 			pulseColor = flashColor
 			panel.Message(fmt.Sprintf("repeating pulse completed on tick %d", ctx.Tick))
 		}
@@ -218,7 +218,7 @@ func run() error {
 		// back false, so nesting the check under Running would
 		// leave it gray forever.
 		heldColor := pendingColor
-		if heldTimer, _ := held.Component[timer.Timer](ctx.World); heldTimer.HasCompleted() {
+		if heldTimer, _ := held.Component[gametime.Timer](ctx.World); heldTimer.HasCompleted() {
 			heldColor = firedColor
 		} else if heldTimer.Running {
 			heldColor = runningColor
@@ -231,7 +231,7 @@ func run() error {
 		// own Running field stays true - the group is the reason it
 		// stopped. The ui bar never sees the combat toggle.
 		combatColor := runningColor
-		if combatTimer, _ := combat.Component[timer.Timer](ctx.World); combatTimer.JustCompleted(ctx.Tick) {
+		if combatTimer, _ := combat.Component[gametime.Timer](ctx.World); combatTimer.JustCompleted(ctx.Tick) {
 			combatColor = flashColor
 			panel.Message(fmt.Sprintf("combat timer completed on tick %d", ctx.Tick))
 		} else if groups.Paused(combatGroup) {
@@ -241,7 +241,7 @@ func run() error {
 			return err
 		}
 		uiColor := runningColor
-		if uiTimer, _ := ui.Component[timer.Timer](ctx.World); uiTimer.JustCompleted(ctx.Tick) {
+		if uiTimer, _ := ui.Component[gametime.Timer](ctx.World); uiTimer.JustCompleted(ctx.Tick) {
 			uiColor = flashColor
 			panel.Message(fmt.Sprintf("ui timer completed on tick %d", ctx.Tick))
 		}
@@ -266,7 +266,7 @@ func run() error {
 // and color are the whole presentation. A non-empty group puts the
 // timer under that group's pause and scale state.
 func spawnBar(world *core.World, y float64, duration time.Duration, repeating bool, group string) (*core.Entity, error) {
-	timer := timer.NewTimer(duration, repeating)
+	timer := gametime.NewTimer(duration, repeating)
 	timer.Group = group
 	return world.NewEntity(
 		core.Transform{Position: geom.Vector2{X: barWidth / 2, Y: y}},
