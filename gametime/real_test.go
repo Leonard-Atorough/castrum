@@ -7,8 +7,8 @@ import (
 
 func TestNewRealDefaults(t *testing.T) {
 	r := NewReal(250 * time.Millisecond)
-	if r.Elapsed != 0 || r.Delta != 0 {
-		t.Fatalf("real = %+v, want zero elapsed and delta", *r)
+	if r.Elapsed != 0 || r.Delta != 0 || r.Frame != 0 {
+		t.Fatalf("real = %+v, want zero frame, elapsed, and delta", *r)
 	}
 	if r.MaxFrameTime != 250*time.Millisecond {
 		t.Fatalf("MaxFrameTime = %v, want 250ms", r.MaxFrameTime)

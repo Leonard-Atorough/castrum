@@ -880,13 +880,16 @@ func TestRealTimeIsWallClock(t *testing.T) {
 		t.Fatalf("real = %v/%v, want 1s/1s", real.Elapsed, real.Delta)
 	}
 
-	// Pause stops simulation time; real time keeps flowing.
+	// Pause stops simulation time; real time keeps flowing, frames included.
 	g.Pause()
 	if err := g.Advance(time.Second); err != nil {
 		t.Fatalf("Advance while paused: %v", err)
 	}
 	if real.Elapsed != 2*time.Second {
 		t.Fatalf("real Elapsed = %v while paused, want 2s", real.Elapsed)
+	}
+	if real.Frame != 2 {
+		t.Fatalf("real Frame = %d while paused, want 2", real.Frame)
 	}
 	if sim.Tick != 1 {
 		t.Fatalf("sim Tick = %d while paused, want 1 (held from the first advance)", sim.Tick)

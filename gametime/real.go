@@ -17,6 +17,9 @@ import "time"
 // Real time cannot be paused or scaled; that is its purpose. All fields
 // are exported and value-shaped for snapshot and restore.
 type Real struct {
+	// Frame counts advances since the game started. It increments once per
+	// advance regardless of pause, mirroring [core.Context.Frame].
+	Frame uint64
 	// Elapsed is total real time since the first advance. It accumulates
 	// raw elapsed time, unaffected by [Real.MaxFrameTime], pause, or scale.
 	Elapsed time.Duration

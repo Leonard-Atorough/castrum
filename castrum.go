@@ -309,7 +309,8 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	if elapsed > g.real.MaxFrameTime {
 		elapsed = g.real.MaxFrameTime
 	}
-	g.ctx.Frame++
+	g.real.Frame++
+	g.ctx.Frame = g.real.Frame
 	g.ctx.DeltaTime = elapsed
 	g.hub.BeginFrame()
 	if err := g.run(core.PhasePreFrame); err != nil {
