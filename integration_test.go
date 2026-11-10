@@ -860,3 +860,105 @@ func TestSimulationTimeIsTheLoopResource(t *testing.T) {
 		t.Fatal("Game.Resume did not resume the resource")
 	}
 }
+
+func TestRealTimeIsWallClock(t *testing.T) {
+	g, err := New(WithFixedTPS(4), WithMaxFrameTime(250*time.Millisecond))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	real, err := g.World().Resource[*gametime.Real]()
+	if err != nil {
+		t.Fatalf("resolve real time: %v", err)
+	}
+	sim := g.World().MustResource[*gametime.Simulation]()
+
+	// Real time accumulates raw elapsed, clamped nowhere.
+	if err := g.Advance(time.Second); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if real.Elapsed != time.Second || real.Delta != time.Second {
+		t.Fatalf("real = %v/%v, want 1s/1s", real.Elapsed, real.Delta)
+	}
+
+	// Pause stops simulation time; real time keeps flowing.
+	g.Pause()
+	if err := g.Advance(time.Second); err != nil {
+		t.Fatalf("Advance while paused: %v", err)
+	}
+	if real.Elapsed != 2*time.Second {
+		t.Fatalf("real Elapsed = %v while paused, want 2s", real.Elapsed)
+	}
+	if sim.Tick != 1 {
+		t.Fatalf("sim Tick = %d while paused, want 1 (held from the first advance)", sim.Tick)
+	}
+
+	// Scale changes tick rate; real time is unaffected.
+	g.Resume()
+	if err := g.SetTimeScale(2); err != nil {
+		t.Fatalf("SetTimeScale: %v", err)
+	}
+	if err := g.Advance(125 * time.Millisecond); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if real.Elapsed != 2125*time.Millisecond {
+		t.Fatalf("real Elapsed = %v at double scale, want 2125ms", real.Elapsed)
+	}
+
+	// The clamp limits simulation ingestion, never real time.
+	if err := g.Advance(10 * time.Second); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if real.Delta != 10*time.Second || real.Elapsed != 12125*time.Millisecond {
+		t.Fatalf("real = %v/%v, want unclamped 10s/12125ms", real.Delta, real.Elapsed)
+	}
+	// 10s clamped to 250ms at double scale = 500ms => two more fixed ticks.
+	if sim.Tick != 4 {
+		t.Fatalf("sim Tick = %d after clamped advance, want 4", sim.Tick)
+	}
+
+	// The clamp is runtime-adjustable through the resource.
+	real.MaxFrameTime = 500 * time.Millisecond
+	if err := g.Advance(2 * time.Second); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	// 2s clamped to 500ms at double scale = 1s => four more ticks of 250ms.
+	if sim.Tick != 8 {
+		t.Fatalf("sim Tick = %d after adjusted clamp, want 8", sim.Tick)
+	}
+}
+
+func TestDeltaTimeMirrorsThePhaseResources(t *testing.T) {
+	g, err := New(WithFixedTPS(4), WithMaxFrameTime(250*time.Millisecond))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	sim := g.World().MustResource[*gametime.Simulation]()
+	var frameDelta, fixedDelta time.Duration
+	if err := g.AddSystem(core.PhaseFrame, "frame.delta", core.SystemFunc(func(ctx *core.Context) error {
+		frameDelta = ctx.DeltaTime
+		return nil
+	})); err != nil {
+		t.Fatalf("AddSystem: %v", err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "fixed.delta", core.SystemFunc(func(ctx *core.Context) error {
+		fixedDelta = ctx.DeltaTime
+		return nil
+	})); err != nil {
+		t.Fatalf("AddSystem: %v", err)
+	}
+
+	// A 1s advance is clamped to 250ms for the frame phase; fixed ticks
+	// always see Simulation.Delta.
+	if err := g.Advance(time.Second); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if frameDelta != 250*time.Millisecond {
+		t.Fatalf("frame DeltaTime = %v, want 250ms (clamped)", frameDelta)
+	}
+	if fixedDelta != sim.Delta || fixedDelta != 250*time.Millisecond {
+		t.Fatalf("fixed DeltaTime = %v, want Simulation.Delta (250ms)", fixedDelta)
+	}
+	if sim.Elapsed() != 250*time.Millisecond {
+		t.Fatalf("sim Elapsed = %v, want 250ms", sim.Elapsed())
+	}
+}

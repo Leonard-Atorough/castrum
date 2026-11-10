@@ -10,6 +10,7 @@ package gametime
 import (
 	"fmt"
 	"math"
+	"time"
 )
 
 // Simulation is the engine's single time resource: the fixed loop's pause,
@@ -26,6 +27,11 @@ type Simulation struct {
 	// and slows or quickens with Scale, mirroring [core.Context.Tick] during
 	// fixed updates.
 	Tick uint64
+	// Delta is the fixed tick interval: the simulation time advanced by one
+	// fixed tick. It is constant per tick at every Scale - scale changes how
+	// often ticks occur, never how long a tick is. It is set at construction
+	// from the fixed rate; changes affect subsequent ticks.
+	Delta time.Duration
 	// Paused stops fixed ticks. Frame-phase systems, input, and rendering
 	// continue; see the game's Pause documentation.
 	Paused bool
@@ -35,9 +41,17 @@ type Simulation struct {
 	Scale float64
 }
 
-// NewSimulation returns a running simulation at scale 1, starting at tick 0.
-func NewSimulation() *Simulation {
-	return &Simulation{Scale: 1}
+// NewSimulation returns a running simulation with the given fixed tick
+// interval, at scale 1, starting at tick 0.
+func NewSimulation(delta time.Duration) *Simulation {
+	return &Simulation{Delta: delta, Scale: 1}
+}
+
+// Elapsed returns total simulation time as a duration: Tick ticks of Delta.
+// It is the world-time view of the tick counter; ticks are the
+// deterministic unit, this is the human-scale one.
+func (s *Simulation) Elapsed() time.Duration {
+	return time.Duration(s.Tick) * s.Delta
 }
 
 // Pause stops fixed updates. The accumulator keeps its value; Resume

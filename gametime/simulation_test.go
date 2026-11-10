@@ -3,10 +3,11 @@ package gametime
 import (
 	"math"
 	"testing"
+	"time"
 )
 
 func TestNewSimulationDefaults(t *testing.T) {
-	s := NewSimulation()
+	s := NewSimulation(time.Second)
 	if s.Tick != 0 {
 		t.Fatalf("Tick = %d, want 0", s.Tick)
 	}
@@ -19,7 +20,7 @@ func TestNewSimulationDefaults(t *testing.T) {
 }
 
 func TestSimulationPauseResume(t *testing.T) {
-	s := NewSimulation()
+	s := NewSimulation(time.Second)
 	s.Pause()
 	if !s.Paused {
 		t.Fatal("Pause did not pause")
@@ -31,7 +32,7 @@ func TestSimulationPauseResume(t *testing.T) {
 }
 
 func TestSimulationSetScale(t *testing.T) {
-	s := NewSimulation()
+	s := NewSimulation(time.Second)
 	for _, scale := range []float64{0.5, 1, 2, 100} {
 		if err := s.SetScale(scale); err != nil {
 			t.Fatalf("SetScale(%v): %v", scale, err)
@@ -58,7 +59,7 @@ func TestSimulationSetScale(t *testing.T) {
 }
 
 func TestSimulationSnapshotRestore(t *testing.T) {
-	s := NewSimulation()
+	s := NewSimulation(time.Second)
 	s.Tick = 41
 	s.Pause()
 	if err := s.SetScale(0.5); err != nil {
@@ -72,5 +73,13 @@ func TestSimulationSnapshotRestore(t *testing.T) {
 	restored.Resume()
 	if restored.Paused {
 		t.Fatal("restored simulation cannot resume")
+	}
+}
+
+func TestSimulationElapsed(t *testing.T) {
+	s := NewSimulation(250 * time.Millisecond)
+	s.Tick = 3
+	if got := s.Elapsed(); got != 750*time.Millisecond {
+		t.Fatalf("Elapsed = %v, want 750ms", got)
 	}
 }

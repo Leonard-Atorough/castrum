@@ -13,7 +13,7 @@ Castrum is a 2D game engine for Go. You compose entities from data, update that 
 - **Input** supports named actions bound to keyboard, mouse, and gamepad controls, as well as raw input snapshots. See the [input guide](../guides/input.md).
 - **Signals** provide typed event streams with separate tick and frame delivery windows. Timers, animation, collision, and audio emit engine signals. See the [signals guide](../guides/signals.md).
 - **Timers** provide one-shot and repeating countdowns as entity components. Read elapsed time and completion state from the component. See the [timer guide](../guides/timer.md).
-- **Simulation time** is the fixed loop's state as a world resource: `gametime.Simulation` exposes the tick counter, pause, and time scale to systems, saves, and tests. See the [time guide](../guides/time-control.md).
+- **Time** is exposed as world resources: `gametime.Simulation` (the fixed loop's tick counter, tick interval, pause, and time scale) and `gametime.Real` (wall-clock elapsed time, unaffected by pause and scale). Systems read them, saves snapshot them, tests drive them. See the [time guide](../guides/time-control.md).
 - **Collision** detects box and circle overlaps using layers and masks, then records contacts as component state. It detects overlaps only; it does not resolve physics. See the [collision guide](../guides/collision.md).
 - **Animation** advances atlas-frame clips with looping, pause, and playback-rate controls. See the [animation guide](../guides/animation.md).
 

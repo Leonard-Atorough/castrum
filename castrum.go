@@ -38,7 +38,8 @@ type Game struct {
 	startup atomic.Bool
 	quit    atomic.Bool
 
-	sim *gametime.Simulation
+	sim  *gametime.Simulation
+	real *gametime.Real
 }
 
 // New creates a [Game] with default options overridden by opts. It returns
@@ -62,13 +63,21 @@ func New(opts ...option) (*Game, error) {
 	}
 	g.ctx.World = g.world
 
-	sim := gametime.NewSimulation()
+	sim := gametime.NewSimulation(options.fixedDT)
 	if err := g.world.ProvideEager(func(*core.World) (*gametime.Simulation, error) {
 		return sim, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide simulation time: %w", err)
 	}
 	g.sim = sim
+
+	real := gametime.NewReal(options.MaxFrameTime)
+	if err := g.world.ProvideEager(func(*core.World) (*gametime.Real, error) {
+		return real, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide real time: %w", err)
+	}
+	g.real = real
 
 	loader := asset.NewLoader(builtin.WithFilesystem(options.Filesystem))
 	if err := g.world.Provide(func(*core.World) (*asset.Loader, error) {
@@ -295,8 +304,10 @@ func (g *Game) Startup() error {
 // fixed-loop accumulator; DeltaTime and the frame phase are unaffected.
 // Both controls take effect on the next call.
 func (g *Game) Advance(elapsed time.Duration) error {
-	if elapsed > g.opts.MaxFrameTime {
-		elapsed = g.opts.MaxFrameTime
+	g.real.Delta = elapsed
+	g.real.Elapsed += elapsed
+	if elapsed > g.real.MaxFrameTime {
+		elapsed = g.real.MaxFrameTime
 	}
 	g.ctx.Frame++
 	g.ctx.DeltaTime = elapsed
@@ -313,15 +324,15 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	}
 	g.acc += time.Duration(float64(elapsed) * g.sim.Scale)
 	ticked := 0
-	for g.acc >= g.opts.fixedDT {
+	for g.acc >= g.sim.Delta {
 		g.sim.Tick++
 		g.ctx.Tick = g.sim.Tick
-		g.ctx.DeltaTime = g.opts.fixedDT
+		g.ctx.DeltaTime = g.sim.Delta
 		if err := g.run(core.PhaseFixed); err != nil {
 			return err
 		}
 		g.hub.EndTick()
-		g.acc -= g.opts.fixedDT
+		g.acc -= g.sim.Delta
 		ticked++
 		if ticked >= g.opts.MaxTicksPerFrame {
 			g.acc = 0 // drop the backlog rather than spiral
@@ -336,7 +347,7 @@ func (g *Game) Advance(elapsed time.Duration) error {
 // While the game is paused, the accumulator holds its value, so Alpha stays
 // fixed; renderers keep the last interpolated position instead of jumping.
 func (g *Game) Alpha() float64 {
-	return float64(g.acc) / float64(g.opts.fixedDT)
+	return float64(g.acc) / float64(g.sim.Delta)
 }
 
 // Pause stops fixed updates and stops adding time to the fixed-loop
