@@ -1,35 +1,20 @@
-// This file holds the engine's real-time resource: [Real], wall-clock
-// elapsed time as world data. Real time is unaffected by pause, time
-// scale, and the frame clamp; it is the time of things that stay true
-// while the game is paused - menu animations, playtime counters, session
-// telemetry. Gameplay logic should read [Simulation] instead: real time
-// is frame-rate dependent and therefore not deterministic.
-
 package gametime
 
 import "time"
 
-// Real is the engine's wall-clock time resource: real elapsed time since
-// the game started, the current advance's real delta, and the frame clamp
-// policy. The engine provisions it when the game is constructed and
-// updates it on every advance, before pause and clamp handling.
+// Real tracks the elapsed time supplied to the engine on each advance.
 //
-// Real time cannot be paused or scaled; that is its purpose. All fields
-// are exported and value-shaped for snapshot and restore.
+// The engine updates it even while paused, without applying time scaling or
+// the frame clamp. Use [Simulation] for fixed-step simulation time.
 type Real struct {
-	// Frame counts advances since the game started. It increments once per
-	// advance regardless of pause, mirroring [core.Context.Frame].
+	// Frame counts advances, including those made while paused.
 	Frame uint64
-	// Elapsed is total real time since the first advance. It accumulates
-	// raw elapsed time, unaffected by [Real.MaxFrameTime], pause, or scale.
+	// Elapsed is the sum of elapsed times supplied to advances.
 	Elapsed time.Duration
-	// Delta is the real elapsed time of the current advance, before
-	// clamping. Frame-phase [core.Context.DeltaTime] is this value clamped
-	// by MaxFrameTime.
+	// Delta is the elapsed time supplied to the most recent advance.
 	Delta time.Duration
-	// MaxFrameTime is the maximum elapsed time one advance may contribute
-	// to the fixed-loop accumulator. Larger advances are clamped to it.
-	// It is wall-clock ingestion policy; real time itself is unclamped.
+	// MaxFrameTime limits elapsed time used for frame updates and, before
+	// scaling, the fixed-loop accumulator.
 	MaxFrameTime time.Duration
 }
 
