@@ -38,8 +38,7 @@ type Game struct {
 	startup atomic.Bool
 	quit    atomic.Bool
 
-	paused    bool
-	timeScale float64
+	sim *gametime.Simulation
 }
 
 // New creates a [Game] with default options overridden by opts. It returns
@@ -60,9 +59,16 @@ func New(opts ...option) (*Game, error) {
 		world:       core.NewWorld(),
 		schedules:   map[core.Phase]*runtime.Schedule[core.System]{},
 		groupStates: make(map[string]bool),
-		timeScale:   1,
 	}
 	g.ctx.World = g.world
+
+	sim := gametime.NewSimulation()
+	if err := g.world.ProvideEager(func(*core.World) (*gametime.Simulation, error) {
+		return sim, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide simulation time: %w", err)
+	}
+	g.sim = sim
 
 	loader := asset.NewLoader(builtin.WithFilesystem(options.Filesystem))
 	if err := g.world.Provide(func(*core.World) (*asset.Loader, error) {
@@ -302,13 +308,14 @@ func (g *Game) Advance(elapsed time.Duration) error {
 		return err
 	}
 	g.hub.EndFrame()
-	if g.paused {
+	if g.sim.Paused {
 		return nil
 	}
-	g.acc += time.Duration(float64(elapsed) * g.timeScale)
+	g.acc += time.Duration(float64(elapsed) * g.sim.Scale)
 	ticked := 0
 	for g.acc >= g.opts.fixedDT {
-		g.ctx.Tick++
+		g.sim.Tick++
+		g.ctx.Tick = g.sim.Tick
 		g.ctx.DeltaTime = g.opts.fixedDT
 		if err := g.run(core.PhaseFixed); err != nil {
 			return err
@@ -340,24 +347,24 @@ func (g *Game) Alpha() float64 {
 // [Game.Resume] continues from where the game stopped. Audio is not paused
 // automatically.
 func (g *Game) Pause() {
-	g.paused = true
+	g.sim.Pause()
 }
 
 // Resume clears the paused state. The next [Game.Advance] continues fixed
 // updates from the accumulator position preserved by [Game.Pause].
 func (g *Game) Resume() {
-	g.paused = false
+	g.sim.Resume()
 }
 
 // Paused reports whether fixed updates are stopped by [Game.Pause].
 func (g *Game) Paused() bool {
-	return g.paused
+	return g.sim.Paused
 }
 
 // TimeScale returns the multiplier applied to the time accumulated toward
 // fixed ticks: 0.5 is half speed, 2 is fast forward. The default is 1.
 func (g *Game) TimeScale() float64 {
-	return g.timeScale
+	return g.sim.Scale
 }
 
 // SetTimeScale sets the multiplier applied to the time accumulated toward
@@ -368,10 +375,9 @@ func (g *Game) TimeScale() float64 {
 // phase and [core.Context.DeltaTime] during frame updates are unaffected.
 // The new scale takes effect on the next [Game.Advance] call.
 func (g *Game) SetTimeScale(scale float64) error {
-	if scale <= 0 {
-		return fmt.Errorf("castrum: time scale %v, want > 0; use Pause to stop the simulation", scale)
+	if err := g.sim.SetScale(scale); err != nil {
+		return fmt.Errorf("castrum: %w", err)
 	}
-	g.timeScale = scale
 	return nil
 }
 

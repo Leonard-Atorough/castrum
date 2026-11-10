@@ -794,3 +794,69 @@ func TestTweenSchedulerClocks(t *testing.T) {
 		})
 	}
 }
+
+func TestSimulationTimeIsTheLoopResource(t *testing.T) {
+	g, err := New(WithFixedTPS(4))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	sim, err := g.World().Resource[*gametime.Simulation]()
+	if err != nil {
+		t.Fatalf("resolve simulation: %v", err)
+	}
+	if sim.Tick != 0 || sim.Paused || sim.Scale != 1 {
+		t.Fatalf("simulation = %+v, want a running simulation at tick 0 scale 1", *sim)
+	}
+
+	// FixedTPS 4 => fixedDT 250ms; one 250ms advance runs exactly one tick.
+	for range 3 {
+		if err := g.Advance(g.Options().FixedDT()); err != nil {
+			t.Fatalf("Advance: %v", err)
+		}
+	}
+	if sim.Tick != 3 {
+		t.Fatalf("Tick = %d, want 3", sim.Tick)
+	}
+
+	sim.Pause()
+	if !g.Paused() {
+		t.Fatal("resource pause is not visible through Game.Paused")
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance while paused: %v", err)
+	}
+	if sim.Tick != 3 {
+		t.Fatalf("Tick = %d while paused, want 3", sim.Tick)
+	}
+
+	sim.Resume()
+	if err := sim.SetScale(2); err != nil {
+		t.Fatalf("SetScale: %v", err)
+	}
+	if g.TimeScale() != 2 {
+		t.Fatalf("TimeScale = %v, want 2", g.TimeScale())
+	}
+	// Double scale: one 250ms advance accumulates 500ms => two ticks.
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if sim.Tick != 5 {
+		t.Fatalf("Tick = %d at double scale, want 5", sim.Tick)
+	}
+
+	// The game-level API drives the same resource.
+	if err := g.SetTimeScale(0.5); err != nil {
+		t.Fatalf("SetTimeScale: %v", err)
+	}
+	if sim.Scale != 0.5 {
+		t.Fatalf("Scale = %v, want 0.5 via SetTimeScale", sim.Scale)
+	}
+	g.Pause()
+	if !sim.Paused {
+		t.Fatal("Game.Pause did not pause the resource")
+	}
+	g.Resume()
+	if sim.Paused {
+		t.Fatal("Game.Resume did not resume the resource")
+	}
+}

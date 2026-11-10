@@ -1,10 +1,10 @@
-// Package gametime is the home of the engine's time work: countdowns as
-// [Timer] components and virtual game time as the [Clock] resource.
+// Package gametime is the home of the engine's time work: the fixed loop's
+// state as the [Simulation] resource and countdowns as [Timer] components.
 //
 // [NewTimerSystem] advances timers on fixed ticks, records completions in
 // [Timer.CompletedOn], and emits one [Completed] signal per completion
-// tick. It does not remove timers. [NewClockSystem] advances the game
-// clock; see clock.go for the clock's semantics.
+// tick. It does not remove timers. See simulation.go for the simulation
+// time resource.
 package gametime
 
 import (

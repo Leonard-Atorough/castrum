@@ -25,7 +25,6 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 - [State](state.md) - game modes, deferred transitions, lifecycle hooks, and signals.
 - [Scenes](scenes.md) - define blueprints and manage scene instance lifecycles.
 - [Time control](time-control.md) - pausing, resuming, and scaling the fixed simulation.
-- [Clock](clock.md) - virtual game time: a pausable, scalable tick counter independent of the simulation loop.
 - [Collision](collision.md) - colliders, layers and masks, and the Contacts lifecycle.
 - [Timers](timer.md) - one-shot and repeating countdowns as component state.
 - [Signals](signals.md) - typed signals, readers, consumers, and the tick and frame windows.
