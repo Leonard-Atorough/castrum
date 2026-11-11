@@ -15,7 +15,8 @@ type Contact struct {
 	Other core.EntityID
 	// Point is the pair's representative contact point.
 	Point geom.Vector2
-	// Normal points from this collider toward Other.
+	// Normal points from this collider toward Other. Moving this collider
+	// by -Normal * Penetration separates the pair to touching.
 	Normal geom.Vector2
 	// Penetration is the overlap depth along the normal. Touching
 	// shapes have zero penetration and still produce a contact.

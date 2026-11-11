@@ -103,6 +103,45 @@ func TestSystem_SettledContactsAllocateNothing(t *testing.T) {
 	}
 }
 
+func TestSystem_ColliderOnlyAllocatesNothing(t *testing.T) {
+	for _, n := range []int{100, 1000} {
+		t.Run(fmt.Sprint(n), func(t *testing.T) {
+			world := newCollisionWorld(t)
+			sys := NewSystem().(*system)
+			collider, err := NewCollider(Circle{Radius: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range n {
+				if _, err := world.NewEntity(collider); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ctx := &core.Context{World: world}
+			for range 4 {
+				tick(t, world, sys)
+			}
+			if allocs := testing.AllocsPerRun(20, func() {
+				ctx.Tick++
+				if err := sys.Update(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}); allocs != 0 {
+				t.Errorf("collider-only world: %v allocations, want zero", allocs)
+			}
+			if len(sys.contacts) != 0 {
+				t.Error("collider-only entities received private contact state")
+			}
+			for e := range sys.ensure.Execute() {
+				t.Errorf("collider-only entity %d is eligible for transient Contacts", e.ID())
+			}
+			for e := range core.NewQuery(world).With(Contacts{}).Execute() {
+				t.Errorf("collider-only entity %d received Contacts", e.ID())
+			}
+		})
+	}
+}
+
 func TestSystem_MatchesFullPairDetection(t *testing.T) {
 	type archetypeTag struct{}
 	world := newCollisionWorld(t)

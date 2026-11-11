@@ -171,13 +171,9 @@ func circleRectContact(circle worldCircle, rect orientedRect) contact {
 		Add(rect.axes[0].Mul(closestLocal.X)).
 		Add(rect.axes[1].Mul(closestLocal.Y))
 
-	delta := circle.center.Sub(closest)
-	dist := delta.Length()
-	if dist > circle.radius {
-		return contact{}
-	}
-
-	if dist == 0 {
+	// Test containment in box space; reconstructing closest in world space
+	// can introduce a nonzero distance for a contained circle in a rotated box.
+	if closestLocal.X == projectionX && closestLocal.Y == projectionY {
 		depthX := rect.halfExtents.X - math.Abs(projectionX)
 		depthY := rect.halfExtents.Y - math.Abs(projectionY)
 		var normal, depth = geom.Vector2{}, 0.0
@@ -189,9 +185,15 @@ func circleRectContact(circle worldCircle, rect orientedRect) contact {
 		return contact{
 			collided:    true,
 			penetration: depth + circle.radius,
-			normal:      normal,
+			normal:      normal.Mul(-1),
 			point:       circle.center.Add(normal.Mul(depth)),
 		}
+	}
+
+	delta := circle.center.Sub(closest)
+	dist := delta.Length()
+	if dist > circle.radius {
+		return contact{}
 	}
 
 	normal := closest.Sub(circle.center).Div(dist)
