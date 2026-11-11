@@ -105,6 +105,99 @@ func TestServiceCreateBatchRejectsConflictingIDWithoutPartialInsert(t *testing.T
 	}
 }
 
+func TestServiceCreateBatchRejectsDuplicateIDsWithoutMutation(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		types  []reflect.Type
+		values []any
+	}{
+		{"existing archetype", []reflect.Type{reflect.TypeFor[Position]()}, []any{Position{X: 9}}},
+		{"new archetype", []reflect.Type{reflect.TypeFor[Velocity]()}, []any{Velocity{X: 9}}},
+		{"no components", nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := NewService()
+			typ := reflect.TypeFor[Position]()
+			if err := svc.Create(2, []reflect.Type{typ}, []any{Position{X: 1}}); err != nil {
+				t.Fatal(err)
+			}
+			location := svc.locations[2]
+			generation, nextID := svc.store.generation, svc.store.nextID
+			err := svc.CreateBatch([]EntityID{0, 1, 0}, tc.types, tc.values)
+			if err == nil {
+				t.Error("CreateBatch accepted duplicate IDs")
+			}
+			if len(svc.locations) != 1 || svc.locations[2] != location {
+				t.Errorf("locations changed after rejection: %v", svc.locations)
+			}
+			if svc.store.Len() != 1 || svc.store.generation != generation || svc.store.nextID != nextID {
+				t.Error("archetype store changed after rejection")
+			}
+			arch, _ := svc.store.get(location.ArchetypeID)
+			if !slices.Equal(arch.EntityIDs(), []EntityID{2}) {
+				t.Errorf("archetype rows changed: %v", arch.EntityIDs())
+			}
+			value, ok := svc.Component(2, typ)
+			if !ok || value != (Position{X: 1}) {
+				t.Errorf("existing component changed: %v, %t", value, ok)
+			}
+		})
+	}
+}
+
+func TestServiceDestroyClearsColumnTail(t *testing.T) {
+	type payload struct{ data []byte }
+	for _, tc := range []struct {
+		name  string
+		count int
+		id    EntityID
+	}{
+		{"only row", 1, 1},
+		{"last row", 3, 3},
+		{"swap removal", 3, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := NewService()
+			types := []reflect.Type{reflect.TypeFor[Position](), reflect.TypeFor[payload]()}
+			for i := 1; i <= tc.count; i++ {
+				if err := svc.Create(EntityID(i), types, []any{Position{X: i}, payload{[]byte{byte(i)}}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			loc := svc.locations[tc.id]
+			arch, _ := svc.store.get(loc.ArchetypeID)
+			result := svc.Destroy(tc.id)
+			if result.Error != nil {
+				t.Fatal(result.Error)
+			}
+			for _, typ := range types {
+				col := arch.Column(typ)
+				if len(col) != tc.count-1 {
+					t.Fatalf("column length = %d, want %d", len(col), tc.count-1)
+				}
+				for i, value := range col[:cap(col)][len(col):] {
+					if value != nil {
+						t.Errorf("%v tail slot %d retains %v", typ, i, value)
+					}
+				}
+			}
+			for i := 1; i <= tc.count; i++ {
+				if EntityID(i) == tc.id {
+					continue
+				}
+				position, ok := svc.Component(EntityID(i), types[0])
+				if !ok || position != (Position{X: i}) {
+					t.Errorf("survivor %d position = %v, %t", i, position, ok)
+				}
+				value, ok := svc.Component(EntityID(i), types[1])
+				if !ok || !slices.Equal(value.(payload).data, []byte{byte(i)}) {
+					t.Errorf("survivor %d payload = %v, %t", i, value, ok)
+				}
+			}
+		})
+	}
+}
+
 func TestServiceAddComponents(t *testing.T) {
 	svc := NewService()
 

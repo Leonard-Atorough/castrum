@@ -151,6 +151,43 @@ func TestFrameWindowHoldsAllTicksOfTheFrame(t *testing.T) {
 	want(t, "frame window", collect(t, h.NewReader[ping]()), []ping{{1}, {2}})
 }
 
+func TestSignalWindowsClearExpiredPayloads(t *testing.T) {
+	h := tickHub()
+	first, second := &ping{1}, &ping{2}
+	h.Emit(first)
+	h.Emit(second)
+	b := h.bufferFor[*ping]()
+	tickStorage := b.tick
+	h.EndTick()
+	for i, value := range tickStorage {
+		if value != nil {
+			t.Errorf("expired tick slot %d retains %v", i, value)
+		}
+	}
+	if len(b.tick) != 0 || cap(b.tick) != cap(tickStorage) {
+		t.Error("tick buffer did not retain empty reusable storage")
+	}
+
+	h.Emit(first)
+	h.EndTick()
+	h.BeginFrame()
+	reader := h.NewReader[*ping]()
+	want(t, "transferred payloads", collect(t, reader), []*ping{first, second, first})
+	h.Emit(second)
+	frameStorage := b.frame
+	h.EndFrame()
+	for i, value := range frameStorage {
+		if value != nil {
+			t.Errorf("expired frame slot %d retains %v", i, value)
+		}
+	}
+	if len(b.frame) != 0 || cap(b.frame) != cap(frameStorage) {
+		t.Error("frame buffer did not retain empty reusable storage")
+	}
+	h.BeginFrame()
+	want(t, "expired frame", collect(t, reader), nil)
+}
+
 func TestFrameSignalsDroppedAfterFramePhase(t *testing.T) {
 	h := tickHub()
 	h.Emit(ping{1})
