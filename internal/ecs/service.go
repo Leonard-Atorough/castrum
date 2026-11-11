@@ -72,7 +72,8 @@ func (s *Service) Create(entityID EntityID, types []reflect.Type, values []any) 
 }
 
 // CreateBatch adds multiple entities with the same component types and values.
-// The same validation rules as [Service.Create] apply.
+// The same validation rules as [Service.Create] apply. IDs must be distinct.
+// Invalid input leaves the service unchanged.
 func (s *Service) CreateBatch(ids []EntityID, types []reflect.Type, values []any) error {
 	if len(ids) <= 0 {
 		return fmt.Errorf("count must be positive")
@@ -86,10 +87,15 @@ func (s *Service) CreateBatch(ids []EntityID, types []reflect.Type, values []any
 		}
 	}
 
+	seen := make(map[EntityID]struct{}, len(ids))
 	for _, id := range ids {
 		if _, exists := s.locations[id]; exists {
 			return fmt.Errorf("entity with ID %d already exists", id)
 		}
+		if _, exists := seen[id]; exists {
+			return fmt.Errorf("duplicate entity ID %d in batch", id)
+		}
+		seen[id] = struct{}{}
 	}
 
 	arch := s.store.getOrCreate(types...)
