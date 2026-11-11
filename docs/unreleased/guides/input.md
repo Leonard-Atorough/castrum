@@ -23,6 +23,9 @@ bindings := input.Bindings{
 g, err := castrum.New(
 	castrum.WithBindings(bindings),
 )
+if err != nil {
+	return err
+}
 ```
 
 The game creates the action map and publishes it as `ctx.Actions`. The engine owns its update order: it resolves the current snapshot before frame systems run, then delivers accumulated press and release edges before fixed systems run. Games do not need to call `Update` or `Tick` themselves.
@@ -133,14 +136,61 @@ Zero inherits the map's deadzone; there is no separate zero-deadzone override. D
 The action map copies the bindings when it is created, so changing the original map or slices later does not silently change the game. For runtime remapping, replace the map through `ctx.Actions.SetBindings`:
 
 ```go
-err := ctx.Actions.SetBindings(input.Bindings{
+if err := ctx.Actions.SetBindings(input.Bindings{
 	"jump": []input.Input{
 		input.KeyInput{Key: input.KeyJ},
 	},
-})
+}); err != nil {
+	return err
+}
 ```
 
-The replacement takes effect on the next input update. Chords restart inactive, so a newly satisfied chord can produce a fresh press. `ctx.Actions.Bindings()` returns a copy suitable for displaying or editing in a settings screen; mutating that returned value, including chord member slices, does not mutate the action map.
+The replacement takes effect on the next input update. Chords restart inactive, so a newly satisfied chord can produce a fresh press. Removing a held action releases it on that update, clears its axis and duration, and delivers the release to the next fixed tick along with any previously accumulated edges. Removing an inactive action does not synthesize a release. `ctx.Actions.Bindings()` returns a copy suitable for displaying or editing in a settings screen; mutating that returned value, including chord member slices, does not mutate the action map.
+
+### Store desired bindings
+
+Use input preferences when the desired bindings need to be read or changed independently of the action map. `input.NewPreferences` validates and copies the initial bindings, including chord members. At startup, create the group from the `bindings` above, optionally set values loaded by your game, and use its value instead of the earlier `castrum.New` call:
+
+```go
+prefs, err := input.NewPreferences(bindings)
+if err != nil {
+	return err
+}
+value, err := prefs.Value()
+if err != nil {
+	return err
+}
+g, err := castrum.New(castrum.WithBindings(value.Bindings))
+if err != nil {
+	return err
+}
+```
+
+Keep `prefs` wherever your settings menu needs it, or register it as a [world resource](ecs.md#resources) for other systems to resolve. `WithBindings` creates the action map, but the preferences group is not registered or applied automatically.
+
+In a settings-menu handler with access to `ctx`, update the desired bindings and apply them to the action map when a player confirms a rebind. This example changes one action without removing the others and uses `reflect.DeepEqual` from the standard library to avoid replacing identical bindings:
+
+```go
+if err := prefs.Update(func(p input.Preferences) input.Preferences {
+	p.Bindings["jump"] = []input.Input{input.KeyInput{Key: input.KeyJ}}
+	return p
+}); err != nil {
+	return err
+}
+value, err := prefs.Value()
+if err != nil {
+	return err
+}
+if !reflect.DeepEqual(ctx.Actions.Bindings(), value.Bindings) {
+	if err := ctx.Actions.SetBindings(value.Bindings); err != nil {
+		return err
+	}
+}
+```
+
+Here `ctx.Actions` is the action map created by `WithBindings`. `Update` works on a copy and validates the result; an invalid update leaves the group and action map unchanged. A successful update changes only the preferences, so if applying them later fails, the preferences remain changed. `SetBindings` takes effect on the next input update and resets chord state; skipping identical bindings avoids an unnecessary reset.
+
+Preferences are not saved automatically. See the [settings guide](settings.md) for value ownership and the [audio guide](audio.md#audio-preferences) for mixer preferences.
 
 ## Raw snapshots
 

@@ -66,6 +66,54 @@ func TestRunnerOptions(t *testing.T) {
 	}
 }
 
+func TestDisplayPreferencesValidate(t *testing.T) {
+	if err := (DisplayPreferences{Window: Size{800, 600}}).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := (DisplayPreferences{}).Validate(); err == nil {
+		t.Fatal("invalid window size accepted")
+	}
+}
+
+func TestDisplayPreferences(t *testing.T) {
+	prefs, err := NewDisplayPreferences()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaults, err := prefs.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := defaultOptions()
+	if defaults != (DisplayPreferences{Window: opts.Window, Resizable: opts.Resizable, VSync: opts.VSync}) {
+		t.Fatalf("defaults = %+v, runner defaults = %+v", defaults, opts)
+	}
+	desired := DisplayPreferences{Window: Size{800, 600}, Resizable: true}
+	if err := prefs.Set(desired); err != nil {
+		t.Fatal(err)
+	}
+	if err := prefs.Set(DisplayPreferences{Window: Size{0, 600}}); err == nil {
+		t.Fatal("invalid size accepted")
+	}
+	if got, _ := prefs.Value(); got != desired {
+		t.Fatalf("invalid update changed display preferences: %+v", got)
+	}
+	snapshot, err := prefs.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := mustRunner(t, mustGame(t), WithDisplayPreferences(snapshot), WithWindowSize(1024, 768))
+	if r.opts.Window != (Size{1024, 768}) || !r.opts.Resizable || r.opts.VSync {
+		t.Fatalf("runner options = %+v", r.opts)
+	}
+	if err := prefs.Set(defaults); err != nil {
+		t.Fatal(err)
+	}
+	if !r.opts.Resizable || r.opts.VSync {
+		t.Fatal("changing preferences modified constructed runner")
+	}
+}
+
 func mustGame(t *testing.T) *castrum.Game {
 	t.Helper()
 	g, err := castrum.New()
@@ -94,6 +142,7 @@ func TestInvalidRunnerOptionsError(t *testing.T) {
 		{"zero logical size", []option{WithLogicalSize(0, 0)}},
 		{"zero sample rate", []option{WithAudioSampleRate(0)}},
 		{"negative sample rate", []option{WithAudioSampleRate(-1)}},
+		{"invalid display preferences", []option{WithDisplayPreferences(DisplayPreferences{})}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

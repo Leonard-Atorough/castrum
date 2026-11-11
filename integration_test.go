@@ -18,21 +18,22 @@ import (
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
+	"github.com/Leonard-Atorough/castrum/settings"
 	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/state"
 	"github.com/Leonard-Atorough/castrum/tween"
 )
 
-type spatialTestController struct {
+type integrationAudioController struct {
 	playbacks []audio.Playback
 }
 
-func (c *spatialTestController) Sync(_ core.EntityID, _ asset.ID, want audio.Playback) (bool, error) {
+func (c *integrationAudioController) Sync(_ core.EntityID, _ asset.ID, want audio.Playback) (bool, error) {
 	c.playbacks = append(c.playbacks, want)
 	return true, nil
 }
 
-func (c *spatialTestController) Sweep() error { return nil }
+func (c *integrationAudioController) Sweep() error { return nil }
 
 func TestSpatialAudioFrameAndFixedOrder(t *testing.T) {
 	g, err := New(WithFixedTPS(4))
@@ -47,7 +48,7 @@ func TestSpatialAudioFrameAndFixedOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	controller := &spatialTestController{}
+	controller := &integrationAudioController{}
 	if err := g.AddSystem(core.PhaseFrame, "audio", audio.NewAudioSystem(controller, g.World().MustResource[*audio.Mixer]())); err != nil {
 		t.Fatal(err)
 	}
@@ -69,6 +70,121 @@ func TestSpatialAudioFrameAndFixedOrder(t *testing.T) {
 	if len(controller.playbacks) != 2 || controller.playbacks[0].Volume != 1 ||
 		controller.playbacks[1].Volume != 0.5 || !controller.playbacks[1].Playing || controller.playbacks[1].Restart {
 		t.Fatalf("frame playbacks = %+v, want initial position then fixed movement during game pause", controller.playbacks)
+	}
+}
+
+func TestSettingsWorldAndFrameApplication(t *testing.T) {
+	type accessibility struct{ Subtitles bool }
+	bindings := input.Bindings{"move": {input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyC}}}
+	inputPrefs, err := input.NewPreferences(bindings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := inputPrefs.Update(func(p input.Preferences) input.Preferences {
+		p.Bindings["move"] = []input.Input{input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD}}
+		return p
+	}); err != nil {
+		t.Fatal(err)
+	}
+	inputValue, err := inputPrefs.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	game, err := New(WithBindings(inputValue.Bindings))
+	if err != nil {
+		t.Fatal(err)
+	}
+	audioPrefs, err := audio.NewPreferences()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := game.World().Provide(func(*core.World) (*settings.Group[audio.Preferences], error) { return audioPrefs, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.World().Provide(func(*core.World) (*settings.Group[input.Preferences], error) { return inputPrefs, nil }); err != nil {
+		t.Fatal(err)
+	}
+	custom, err := settings.New(accessibility{Subtitles: true}, settings.Policy[accessibility]{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := game.World().Provide(func(*core.World) (*settings.Group[accessibility], error) { return custom, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if game.World().MustResource[*settings.Group[audio.Preferences]]() != audioPrefs ||
+		game.World().MustResource[*settings.Group[input.Preferences]]() != inputPrefs ||
+		game.World().MustResource[*settings.Group[accessibility]]() != custom {
+		t.Fatal("typed preference groups did not resolve independently")
+	}
+	mixer := game.World().MustResource[*audio.Mixer]()
+	actions := game.World().MustResource[*input.ActionMap]()
+	controller := &integrationAudioController{}
+	if _, err := game.World().NewEntity(audio.NewSource(), audio.Clip{Audio: asset.ID("sound")}); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddSystem(core.PhaseFrame, "audio.reconcile", audio.NewAudioSystem(controller, mixer)); err != nil {
+		t.Fatal(err)
+	}
+	var volumes, axes []float64
+	if err := game.AddSystem(core.PhaseFrame, "observe", core.SystemFunc(func(ctx *core.Context) error {
+		volumes = append(volumes, mixer.Master())
+		axes = append(axes, ctx.Actions.Axis("move"))
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.Startup(); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := &input.Snapshot{}
+	snapshot.Keys[input.KeyD] = input.State{Held: true}
+	game.Context().Input = snapshot
+	if err := game.Advance(time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := audioPrefs.Set(audio.Preferences{Master: 0.4, Music: 1, SFX: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := inputPrefs.Set(input.Preferences{Bindings: input.Bindings{"move": {input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyB}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.Advance(time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if mixer.Master() != 1 || len(controller.playbacks) != 2 || controller.playbacks[1].Volume != 1 {
+		t.Fatal("changing audio preferences applied them without game code")
+	}
+	if actions.Axis("move") != 1 {
+		t.Fatal("changing input preferences applied them without game code")
+	}
+	value, err := audioPrefs.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mixer.SetMaster(value.Master); err != nil {
+		t.Fatal(err)
+	}
+	inputValue, err = inputPrefs.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := actions.SetBindings(inputValue.Bindings); err != nil {
+		t.Fatal(err)
+	}
+	if actions.Axis("move") != 1 {
+		t.Fatal("applying bindings changed input before the next update")
+	}
+	if err := game.Advance(time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if len(volumes) != 3 || volumes[0] != 1 || volumes[1] != 1 || volumes[2] != 0.4 {
+		t.Fatalf("volumes = %v", volumes)
+	}
+	if len(controller.playbacks) != 3 || controller.playbacks[0].Volume != 1 || controller.playbacks[1].Volume != 1 || controller.playbacks[2].Volume != 0.4 {
+		t.Fatalf("playbacks = %v; explicitly applied preferences should reach the reconciler", controller.playbacks)
+	}
+	if len(axes) != 3 || axes[0] != 1 || axes[1] != 1 || axes[2] != 0 {
+		t.Fatalf("axes = %v; bindings should affect the next input update", axes)
 	}
 }
 
