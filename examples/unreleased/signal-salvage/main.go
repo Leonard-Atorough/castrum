@@ -236,15 +236,15 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 				if !ok {
 					return nil
 				}
-				for event, ok := coreEvents.Next(); ok; event, ok = coreEvents.Next() {
+				return coreEvents.Consume(ctx, func(_ *core.Context, event collision.Entered) error {
 					if !state.active || state.finished || event.Entity != player.ID() {
-						continue
+						return nil
 					}
 					other := core.NewEntity(event.Other)
 					if other.HasComponent[dataCore](world) {
 						coreState, _ := other.Component[dataCore](world)
 						if coreState.collected {
-							continue
+							return nil
 						}
 						if err := other.Update(world, func(c *dataCore) { c.collected = true }); err != nil {
 							return err
@@ -256,13 +256,13 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 							return err
 						}
 						hub.Emit(coreCollected{})
-						continue
+						return nil
 					}
 					if other.HasComponent[pulseDrone](world) {
 						hub.Emit(roundEnded{})
 					}
-				}
-				return nil
+					return nil
+				})
 			}),
 		},
 		{
