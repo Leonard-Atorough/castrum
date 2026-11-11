@@ -2,7 +2,7 @@
 
 Castrum collision is overlap detection, not a physics solver. Give an entity a `collision.Collider` and a `core.Transform`; the engine detects overlaps and writes them to `collision.Contacts`. Your systems decide whether a contact blocks movement, deals damage, collects a pickup, or does nothing.
 
-The engine registers collision detection in the fixed phase for every game: colliders are declared by component presence, so a `Collider` on an entity is the registration. Collision normally runs before gameplay systems appended later, so their movement is detected on the following fixed tick. Movement in pre-fixed or in a system inserted before collision can instead affect the current tick's detection. The engine also provides a `collision.Queries` resource backed by the collision system's broadphase.
+The engine registers collision detection in the fixed phase for every game: colliders are declared by component presence, so a `Collider` on an entity is the registration. Collision runs before user fixed systems, so their movement is detected on the following fixed tick. Movement in pre-fixed can instead affect the current tick's detection. The engine also provides a `collision.Queries` resource backed by the collision system's broadphase.
 
 For a complete runnable example, including walls, rotating hazards, trigger pickups, and contact lifecycle handling, run:
 

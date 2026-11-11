@@ -47,21 +47,21 @@ if err := g.AddSystem(core.PhaseFixed, "move", moveSystem(square)); err != nil {
 }
 ```
 
-The name appears in error messages, which is reason enough to pick a good one. Systems normally run in registration order within their phase, and the engine defines order between phases. Input and scene systems registered by the engine normally run before systems added later in the same phase; relative ordering can change that.
+The name appears in error messages, which is reason enough to pick a good one. User systems normally run in registration order within their phase, and the engine defines order between phases. Engine systems occupy protected positions before or after user systems.
 
 There are nine phases:
 
-| Phase                   | Runs                                         | Use for                                     |
-| ----------------------- | -------------------------------------------- | ------------------------------------------ |
-| `core.PhasePreStartup`  | once, before startup systems                | initial state hooks                        |
-| `core.PhaseStartup`     | once, before the first frame                | loading, world setup                       |
-| `core.PhasePostStartup` | once, after startup systems                 | post-setup work                            |
-| `core.PhasePreFrame`    | once per frame, before frame systems        | state transitions before scene operations  |
-| `core.PhaseFrame`       | once per display frame                      | scene operations, reading input, UI         |
-| `core.PhasePostFrame`   | once per display frame, after frame systems | frame cleanup and observation              |
-| `core.PhasePreFixed`    | once per simulation tick, before fixed work | per-tick setup                             |
-| `core.PhaseFixed`       | once per simulation tick                    | gameplay, movement                         |
-| `core.PhasePostFixed`   | once per simulation tick, after fixed work  | per-tick cleanup and observation           |
+| Phase                   | Runs                                        | Use for                                   |
+| ----------------------- | ------------------------------------------- | ----------------------------------------- |
+| `core.PhasePreStartup`  | once, before startup systems                | initial state hooks                       |
+| `core.PhaseStartup`     | once, before the first frame                | loading, world setup                      |
+| `core.PhasePostStartup` | once, after startup systems                 | post-setup work                           |
+| `core.PhasePreFrame`    | once per frame, before frame systems        | state transitions before scene operations |
+| `core.PhaseFrame`       | once per display frame                      | scene operations, reading input, UI       |
+| `core.PhasePostFrame`   | once per display frame, after frame systems | frame cleanup and observation             |
+| `core.PhasePreFixed`    | once per simulation tick, before fixed work | per-tick setup                            |
+| `core.PhaseFixed`       | once per simulation tick                    | gameplay, movement                        |
+| `core.PhasePostFixed`   | once per simulation tick, after fixed work  | per-tick cleanup and observation          |
 
 Startup runs pre-startup, startup, then post-startup systems. Each frame runs pre-frame, frame, then post-frame systems, followed by zero or more ticks. Each tick runs pre-fixed, fixed, then post-fixed systems. Use `PhaseFixed` for simulation and `PhaseFrame` for work that belongs to the display frame, such as reading raw input or updating UI. See [Scheduling systems](../guides/system-scheduling.md) for registration order, runtime additions, and groups.
 
@@ -159,7 +159,7 @@ The engine provides resources of its own - the asset loader, the clip store, and
 - **Component** - plain data attached to an entity, describing one aspect of it (`Transform`, `Sprite`).
 - **System** - a function that runs on a schedule and changes components.
 - **Query** - a filter over the world that matches entities by their components.
-- **Phase** - one of the three schedules systems run on: startup, frame, or fixed.
+- **Phase** - one of the nine stages in the schedule: startup, fixed, frame, and their respective sub-phases.
 - **Tick** - one fixed step of the simulation; 60 per second by default.
 - **DeltaTime (`ctx.DeltaTime`)** - the step size of the current schedule: one tick interval in fixed phases, real frame time in frame phases.
 - **Interpolation** - drawing between the previous tick's state and the current one, so motion looks smooth at any display rate.

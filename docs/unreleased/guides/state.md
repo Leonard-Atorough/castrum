@@ -151,7 +151,7 @@ run user frame systems
 run any fixed ticks due
 ```
 
-This is why a scene request from a state hook can be applied before normally appended gameplay systems run that frame. State hooks also see the current frame's named actions. Relative registration can insert a user system before an ordinary input, state, or scene system and change what that user system observes. Requests from ordinary frame or fixed systems wait until the next display frame's state pass.
+This is why a scene request from a state hook can be applied before user frame systems run that frame. State hooks also see the current frame's named actions. Requests from user pre-frame, frame, or fixed systems wait until the next display frame's state pass.
 
 State processing continues when the fixed simulation is paused and is not scaled by the game's time scale. To pause simulation rather than change game modes, see [Time control](time-control.md). For the full phase order, see [The scheduler](../reference/the-scheduler.md).
 

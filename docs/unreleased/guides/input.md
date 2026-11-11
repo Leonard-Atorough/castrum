@@ -28,7 +28,7 @@ if err != nil {
 }
 ```
 
-The game creates the action map and publishes it as `ctx.Actions`. The engine resolves the current snapshot in `PhasePreFrame`, then delivers accumulated press and release edges in `PhaseFixed`. Systems normally added to those phases run after the corresponding input system; a `Before` option can insert a system earlier, where it will not yet see that update. `PhasePreFixed` always runs before tick delivery, so read tick-scoped edges after the input system in `PhaseFixed` or in `PhasePostFixed`. Games do not need to call `Update` or `Tick` themselves.
+The game creates the action map and publishes it as `ctx.Actions`. The engine resolves the current snapshot before user systems in `PhasePreFrame`, then delivers accumulated press and release edges before user systems in `PhasePreFixed`. Read tick-scoped edges in pre-fixed, fixed, or post-fixed systems. Games do not need to call `Update` or `Tick` themselves.
 
 The binding types are:
 
@@ -70,7 +70,7 @@ func updatePlayer(ctx *core.Context) error {
 }
 ```
 
-The engine latches edges between fixed ticks. A tap that begins and ends between two ticks still delivers both `Pressed` and `Released` in the next tick. Systems that run after the fixed input system see the same delivered state; systems that run before it do not yet see that tick's delivery. Once published, the state remains unchanged until the next tick consumes the latch. Use frame edges for presentation or frame-rate input, and fixed edges for simulation decisions.
+The engine latches edges between fixed ticks. A tap that begins and ends between two ticks still delivers both `Pressed` and `Released` in the next tick. User tick-phase systems see the same delivered state until the next tick consumes the latch. A scene transition flushes pending edges before tick delivery. Use frame edges for presentation or frame-rate input, and fixed edges for simulation decisions.
 
 Without `WithBindings`, `ctx.Actions` is nil, but its query methods are nil-safe and return zero values. No action map resource is created in that case.
 

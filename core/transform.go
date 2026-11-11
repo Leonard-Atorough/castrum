@@ -53,14 +53,14 @@ func (t Transform) snapshot() PrevTransform {
 }
 
 // PrevTransformSystemName is the name under which castrum.New registers the
-// previous-transform capture system in the fixed schedule.
+// previous-transform capture system in the pre-fixed schedule.
 const PrevTransformSystemName = "engine.prev-transform"
 
 // NewPrevTransformCapture returns the system that updates each existing
 // [PrevTransform] from its entity's [Transform] for rendering interpolation.
 //
 // Run it before systems that change transforms so the snapshot represents
-// the start of the tick. castrum.New registers it first in the fixed phase
+// the start of the tick. castrum.New registers it first in the pre-fixed phase
 // under [PrevTransformSystemName].
 func NewPrevTransformCapture() System {
 	var update *Query

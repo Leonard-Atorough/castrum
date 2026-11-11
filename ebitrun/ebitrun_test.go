@@ -2,6 +2,7 @@ package ebitrun
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
@@ -28,6 +30,58 @@ func TestRunnerDefaults(t *testing.T) {
 	}
 	if r.opts.SampleRate != 44100 {
 		t.Errorf("SampleRate = %d, want 44100", r.opts.SampleRate)
+	}
+}
+
+func TestRunnerAudioIsProtectedAfterFrameSystems(t *testing.T) {
+	for _, runnerFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("runnerFirst=%t", runnerFirst), func(t *testing.T) {
+			g := mustGame(t)
+			if runnerFirst {
+				mustRunner(t, g)
+			}
+			entity, err := g.World().NewEntity(audio.NewSource(), audio.Clip{Audio: "unused"}, audio.NewPlaylist(nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := g.AddSystem(core.PhaseFrame, "remove invalid audio", core.SystemFunc(func(ctx *core.Context) error {
+				return ctx.World.DestroyEntity(entity)
+			})); err != nil {
+				t.Fatal(err)
+			}
+			if !runnerFirst {
+				mustRunner(t, g)
+			}
+			for _, option := range []castrum.SystemOption{castrum.Before(AudioSystemName), castrum.After(AudioSystemName)} {
+				if err := g.AddSystem(core.PhaseFrame, "relative audio", core.SystemFunc(func(*core.Context) error { return nil }), option); err == nil {
+					t.Fatal("relative insertion accepted engine audio")
+				}
+			}
+			if err := g.Advance(time.Millisecond); err != nil {
+				t.Fatalf("audio ran before frame system: %v", err)
+			}
+		})
+	}
+}
+
+func TestRunnerRejectsDuplicateAudioController(t *testing.T) {
+	g := mustGame(t)
+	mustRunner(t, g)
+	if _, err := New(g); err == nil {
+		t.Fatal("runner accepted a duplicate audio controller")
+	}
+}
+
+func TestAudioNameReservedBeforeRunner(t *testing.T) {
+	g := mustGame(t)
+	system := core.SystemFunc(func(*core.Context) error { return nil })
+	if err := g.AddSystem(core.PhaseFrame, AudioSystemName, system); err == nil {
+		t.Fatal("game accepted the reserved audio name")
+	}
+	for _, option := range []castrum.SystemOption{castrum.Before(AudioSystemName), castrum.After(AudioSystemName)} {
+		if err := g.AddSystem(core.PhaseFrame, "relative audio", system, option); err == nil {
+			t.Fatal("relative insertion accepted engine audio before runner construction")
+		}
 	}
 }
 

@@ -2,7 +2,7 @@
 
 This guide describes the in-development audio API and is not compatible with Castrum v0.3.0. Use the [released v0.3.0 audio guide](../../v0.3.0/guides/audio.md) for projects pinned to that version.
 
-Audio is state on the world. An `audio.Source` describes how playback should behave; a separate `audio.Clip` or `audio.Playlist` selects what to play. The engine reconciles those components with the runner's players. You do not call a backend player directly. The default runner reconciles audio during frame updates, independently of simulation pause and time scale.
+Audio is state on the world. An `audio.Source` describes how playback should behave; a separate `audio.Clip` or `audio.Playlist` selects what to play. The engine reconciles those components with the runner's players. You do not call a backend player directly. Reconciliation runs during frame updates, independently of simulation pause and time scale. It is inactive until a runner attaches an `audio.Controller`; the default runner does this during construction.
 
 An entity playing audio has one `Source` and exactly one selector: `Clip` for a single asset or `Playlist` for a sequence. A `Source` without a selector does not play audio, and an entity with both selectors is rejected by the audio system.
 
@@ -35,7 +35,7 @@ if ctx.Input.KeyPressed(input.KeySpace) {
 
 A one-shot must not use `LoopForever`; a play that never finishes could never be reclaimed. Use a regular `Source` on a game entity for looping audio or for a play you need to keep and control.
 
-When a non-looping track finishes, the audio system emits an `audio.Finished` signal carrying the source's entity ID and asset ID. For a clip or an exhausted playlist, it also sets `Source.Completed`; an automatically advancing playlist clears it for the next track. The audio system runs in the frame schedule, so readers later in that phase or in `PhasePostFrame` can receive `Finished` before the frame window closes. Poll `Source.Completed` from anywhere when the exact frame does not matter. See the [signals guide](signals.md) for reader rules.
+When a non-looping track finishes, the audio system emits an `audio.Finished` signal carrying the source's entity ID and asset ID. For a clip or an exhausted playlist, it also sets `Source.Completed`; an automatically advancing playlist clears it for the next track. The game reconciles audio after user frame systems, so read `Finished` in `PhasePostFrame` before the frame window closes. Poll `Source.Completed` from anywhere when the exact frame does not matter. See the [signals guide](signals.md) for reader rules.
 
 ## Play music or ambience
 

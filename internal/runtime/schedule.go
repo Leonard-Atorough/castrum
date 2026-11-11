@@ -19,12 +19,38 @@ type Entry struct {
 
 // Schedule runs registered systems in order for one [core.Phase].
 type Schedule struct {
+	opening   []Entry
 	first     []Entry
 	systems   []Entry
 	last      []Entry
+	closing   []Entry
 	usedNames map[string]bool
 	groups    map[string]bool
 	phase     core.Phase
+}
+
+// SetOpening registers the outermost opening entry.
+func (s *Schedule) SetOpening(entry Entry) error {
+	if len(s.opening) != 0 {
+		return fmt.Errorf("opening system already registered for %s", s.phase)
+	}
+	if err := s.register(entry); err != nil {
+		return err
+	}
+	s.opening = []Entry{entry}
+	return nil
+}
+
+// SetClosing registers the outermost closing entry.
+func (s *Schedule) SetClosing(entry Entry) error {
+	if len(s.closing) != 0 {
+		return fmt.Errorf("closing system already registered for %s", s.phase)
+	}
+	if err := s.register(entry); err != nil {
+		return err
+	}
+	s.closing = []Entry{entry}
+	return nil
 }
 
 // NewSchedule returns an empty schedule sharing group state with other schedules.
@@ -102,7 +128,7 @@ func (s *Schedule) addRelative(target string, entry Entry, after bool) error {
 // Run executes each system in order. Systems added during a run take effect on
 // the next run. It stops at the first error and returns it with the phase and name.
 func (s *Schedule) Run(ctx *core.Context) error {
-	for _, entries := range [][]Entry{s.first, s.systems, s.last} {
+	for _, entries := range [][]Entry{s.opening, s.first, s.systems, s.last, s.closing} {
 		for _, e := range entries {
 			if e.Group != "" && !s.groups[e.Group] {
 				continue
