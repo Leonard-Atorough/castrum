@@ -80,6 +80,17 @@ func (h *Hub) NewReader[T any]() *Reader[T] {
 	}
 }
 
+// Consume calls update for each unread signal. A signal is consumed before
+// update is called; on an error, later signals remain unread for the next call.
+func (r *Reader[T]) Consume(ctx *core.Context, update func(ctx *core.Context, value T) error) error {
+	for value, ok := r.Next(); ok; value, ok = r.Next() {
+		if err := update(ctx, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Consumer returns a system that calls update for each unread signal of type
 // T in the current window. Each returned system has an independent [Reader],
 // so consumers do not compete for signals.
@@ -89,12 +100,7 @@ func (h *Hub) NewReader[T any]() *Reader[T] {
 func (h *Hub) Consumer[T any](update func(ctx *core.Context, value T) error) core.System {
 	reader := h.NewReader[T]()
 	return core.SystemFunc(func(ctx *core.Context) error {
-		for value, ok := reader.Next(); ok; value, ok = reader.Next() {
-			if err := update(ctx, value); err != nil {
-				return err
-			}
-		}
-		return nil
+		return reader.Consume(ctx, update)
 	})
 }
 

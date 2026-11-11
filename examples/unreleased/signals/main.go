@@ -260,14 +260,17 @@ func run() error {
 	// fixed ticks reach it in the next display frame through independent
 	// readers, and every transition it observes is narrated onto the
 	// debug panel.
-	if err := g.AddSystem(core.PhaseFrame, "core.announce", core.SystemFunc(func(_ *core.Context) error {
-		for _, ok := chargedFrame.Next(); ok; _, ok = chargedFrame.Next() {
+	if err := g.AddSystem(core.PhaseFrame, "core.announce", core.SystemFunc(func(ctx *core.Context) error {
+		if err := chargedFrame.Consume(ctx, func(_ *core.Context, _ coreCharged) error {
 			panel.Message("CORE CHARGED - arming launch countdown")
+			return nil
+		}); err != nil {
+			return err
 		}
-		for event, ok := launchedFrame.Next(); ok; event, ok = launchedFrame.Next() {
+		return launchedFrame.Consume(ctx, func(_ *core.Context, event launched) error {
 			panel.Message(fmt.Sprintf("LAUNCHED on tick %d", event.tick))
-		}
-		return nil
+			return nil
+		})
 	})); err != nil {
 		return err
 	}

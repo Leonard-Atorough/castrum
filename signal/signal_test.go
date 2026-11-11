@@ -240,6 +240,26 @@ func TestReaderConsumesSignalBeforeHandling(t *testing.T) {
 	want(t, "remaining signals", collect(t, r), []ping{{3}})
 }
 
+func TestReaderConsume(t *testing.T) {
+	h := tickHub()
+	h.Emit(ping{1})
+	h.Emit(ping{2})
+
+	ctx := &core.Context{}
+	var got []ping
+	r := h.NewReader[ping]()
+	if err := r.Consume(ctx, func(gotCtx *core.Context, value ping) error {
+		if gotCtx != ctx {
+			t.Error("Consume passed a different context")
+		}
+		got = append(got, value)
+		return nil
+	}); err != nil {
+		t.Fatalf("consume: %v", err)
+	}
+	want(t, "consumed signals", got, []ping{{1}, {2}})
+}
+
 func TestConsumerOwnsItsReader(t *testing.T) {
 	h := tickHub()
 	h.Emit(ping{1})

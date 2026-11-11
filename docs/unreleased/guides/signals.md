@@ -49,9 +49,11 @@ if err := g.AddSystem(core.PhaseFixed, "core.sequence", hub.Consumer(
 
 Each call to `Consumer` has an independent reader. Systems consuming the same signal type can each receive the signal while it is still in the window; they don't take turns consuming a shared queue.
 
+Use `Hub.Consumer` when a system handles one signal type and should process every unread signal. Use `Reader.Consume` when a system owns readers for multiple signal types and should drain each stream. Use `Reader.Next` when the system needs manual control, such as handling only one signal per update, stopping early, or interleaving reads from several streams. `Next` consumes a signal as soon as it returns it; signals not yet read remain available for a later update.
+
 ### Reading several streams in one system
 
-When one system needs more than one signal type, create a reader for each type and read each stream from the system's update:
+When one system needs more than one signal type and should process all unread signals from each stream, create a reader for each type and call `Consume` from the system's update:
 
 ```go
 chargedFrame := hub.NewReader[coreCharged]()
@@ -59,13 +61,16 @@ launchedFrame := hub.NewReader[launched]()
 
 if err := g.AddSystem(core.PhaseFrame, "core.announce", core.SystemFunc(
 	func(ctx *core.Context) error {
-		for _, ok := chargedFrame.Next(); ok; _, ok = chargedFrame.Next() {
+		if err := chargedFrame.Consume(ctx, func(_ *core.Context, _ coreCharged) error {
 			state.bannerText = "CORE CHARGED"
+			return nil
+		}); err != nil {
+			return err
 		}
-		for event, ok := launchedFrame.Next(); ok; event, ok = launchedFrame.Next() {
+		return launchedFrame.Consume(ctx, func(_ *core.Context, event launched) error {
 			state.bannerText = fmt.Sprintf("LAUNCHED on tick %d", event.tick)
-		}
-		return nil
+			return nil
+		})
 	},
 )); err != nil {
 	return err
@@ -100,7 +105,7 @@ If the consumer runs first, its read finds no signal. That is safe, but the syst
 
 ## Errors
 
-`Consumer` returns the first handler error from its system update. The signal passed to the handler is already consumed; later unread signals remain available on the reader's next update. When reading manually, `Next` consumes a signal before returning it, so return handler errors from the system update rather than discarding them.
+`Consumer` returns the first handler error from its system update. The signal passed to the handler is already consumed; later unread signals remain available on the reader's next update. `Reader.Consume` has the same error behavior: it consumes the signal passed to the handler and returns the first handler error, leaving later signals unread.
 
 ## Engine signals
 
