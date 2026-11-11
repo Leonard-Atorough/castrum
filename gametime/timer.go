@@ -191,8 +191,9 @@ const TimerSystemName = "engine.timer"
 // [Timer] components, records completions in [Timer.CompletedOn], and
 // emits one [Completed] signal per completion.
 //
-// The game constructor registers this system under [TimerSystemName] when
-// `castrum.WithTimer` is enabled. Otherwise, register it yourself.
+// The game constructor registers this system under [TimerSystemName] for
+// every game: timers are declared by component presence, so the system is
+// always on and costs an empty query when no timers exist.
 func NewTimerSystem() core.System {
 	return &timerSystem{}
 }
@@ -210,7 +211,7 @@ func (s *timerSystem) Update(ctx *core.Context) error {
 	if s.groups == nil {
 		groups, err := ctx.World.Resource[*Groups]()
 		if err != nil {
-			return fmt.Errorf("timer system: resolve timer groups: %w; provide *timer.Groups to the world, typically timer.NewGroups() through World.Provide, or enable castrum.WithTimer", err)
+			return fmt.Errorf("timer system: resolve timer groups: %w; provide *gametime.Groups to the world, typically gametime.NewGroups() through World.Provide", err)
 		}
 		s.groups = groups
 	}

@@ -7,17 +7,18 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
+	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/state"
 )
 
-// Bit flags make repeated system options idempotent.
-const (
-	sysAnimation = 1 << iota
-	sysCollision
-	sysTimer
-	sysScenes
-	sysState
-)
+// A feature wires a named engine capability into a game under construction.
+// Features are applied in registration order when [New] builds the game.
+// Registering an already-registered name is a no-op, which makes repeated
+// argument-less options idempotent.
+type feature struct {
+	name   string
+	enable func(*Game, *Options) error
+}
 
 // Options contains the configuration used to create a [Game]. Use [New] with
 // option constructors to apply defaults and validate values.
@@ -49,15 +50,25 @@ type Options struct {
 
 	fixedDT time.Duration
 
-	systems uint8
-
-	states []stateRegistration
+	features []feature
+	states   []stateRegistration
 }
 
 type stateRegistration struct {
 	name    string
 	system  core.System
 	provide func(*core.World) error
+}
+
+// enableFeature registers f under name unless a feature with that name is
+// already registered, in which case it is a no-op.
+func (o *Options) enableFeature(name string, enable func(*Game, *Options) error) {
+	for _, existing := range o.features {
+		if existing.name == name {
+			return
+		}
+	}
+	o.features = append(o.features, feature{name: name, enable: enable})
 }
 
 // FixedDT returns the interval between fixed simulation ticks. [New] derives
@@ -135,30 +146,24 @@ func WithBindings(bindings input.Bindings) option {
 	return optionFunc(func(o *Options) { o.InputBindings = bindings })
 }
 
-// WithCollision enables collision processing during fixed updates and
-// provides the collision query resource for on-demand spatial queries.
-// Without it, colliders do not produce contacts and no collision query
-// resource is registered. Passing it more than once, or with
-// [WithDefaultSystems], has no additional effect.
-func WithCollision() option {
-	return optionFunc(func(o *Options) { o.systems |= sysCollision })
-}
-
-// WithTimer enables timer updates during fixed updates. Without it, timer
-// components do not advance.
-func WithTimer() option {
-	return optionFunc(func(o *Options) { o.systems |= sysTimer })
-}
-
-// WithAnimation enables animation updates during fixed updates. Without it,
-// animated sprites do not advance.
-func WithAnimation() option {
-	return optionFunc(func(o *Options) { o.systems |= sysAnimation })
-}
-
 // WithScenes enables the scene system and provides a scene Director resource.
+// Passing it more than once, or together with [WithDefaultSystems], has no
+// additional effect.
 func WithScenes() option {
-	return optionFunc(func(o *Options) { o.systems |= sysScenes })
+	return optionFunc(func(o *Options) {
+		o.enableFeature("scenes", func(g *Game, _ *Options) error {
+			director := scene.NewDirector()
+			if err := g.world.Provide(func(*core.World) (*scene.Director, error) {
+				return director, nil
+			}); err != nil {
+				return fmt.Errorf("castrum: provide scene director: %w", err)
+			}
+			if err := g.AddSystem(core.PhaseStartup, scene.StartupSystemName, scene.NewStartupSystem(director)); err != nil {
+				return err
+			}
+			return g.AddSystem(core.PhaseFrame, scene.FrameSystemName, scene.NewFrameSystem(director))
+		})
+	})
 }
 
 // WithState provides machine as a world resource and enables its system in
@@ -168,7 +173,6 @@ func WithScenes() option {
 func WithState[S comparable](machine *state.Machine[S]) option {
 	system := state.NewSystem(machine)
 	return optionFunc(func(o *Options) {
-		o.systems |= sysState
 		o.states = append(o.states, stateRegistration{
 			name:   fmt.Sprintf("%T", machine),
 			system: system,
@@ -181,11 +185,24 @@ func WithState[S comparable](machine *state.Machine[S]) option {
 				})
 			},
 		})
+		o.enableFeature("state", func(g *Game, opts *Options) error {
+			for _, registration := range opts.states {
+				if err := registration.provide(g.world); err != nil {
+					return fmt.Errorf("castrum: provide state machine %s: %w", registration.name, err)
+				}
+			}
+			states := core.SystemFunc(func(ctx *core.Context) error {
+				for _, registration := range opts.states {
+					if err := registration.system.Update(ctx); err != nil {
+						return fmt.Errorf("%s: %w", registration.name, err)
+					}
+				}
+				return nil
+			})
+			if err := g.AddSystem(core.PhasePreStartup, state.SystemName, states); err != nil {
+				return err
+			}
+			return g.AddSystem(core.PhasePreFrame, state.SystemName, states)
+		})
 	})
-}
-
-// WithDefaultSystems enables animation, collision, and timer processing. It
-// is equivalent to passing [WithAnimation], [WithCollision], [WithTimer], and [WithScenes].
-func WithDefaultSystems() option {
-	return optionFunc(func(o *Options) { o.systems |= sysAnimation | sysCollision | sysTimer | sysScenes })
 }

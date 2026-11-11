@@ -39,7 +39,7 @@ The examples below use this `g` and `modes`. Register their systems and hooks du
 modes := g.World().MustResource[*state.Machine[GameMode]]()
 ```
 
-That resource is guaranteed when you configure the game with `WithState`. The engine rejects a nil machine during construction. Without the option, it does not register or process your machine; `WithDefaultSystems` does not enable state processing.
+That resource is guaranteed when you configure the game with `WithState`. The engine rejects a nil machine during construction. Without the option, it does not register or process your machine.
 
 `WithInitial` is setup configuration, not a transition. It returns a new machine with copies of the registered hooks, leaving the original unchanged. Pending requests and initialization progress are not copied. Keep the returned pointer and pass that machine to the engine; calling `WithInitial` on an existing machine does not reset it.
 

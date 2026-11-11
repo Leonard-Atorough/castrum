@@ -16,7 +16,7 @@ if err != nil {
 director := g.World().MustResource[*scene.Director]()
 ```
 
-`WithDefaultSystems` also enables scenes. `WithScenes` registers a startup system that applies requests queued before startup and a frame system that applies requests made during gameplay. Pre-frame state transitions run before the frame scene system, so a scene request made by a state hook is applied before user frame systems in that same frame. A request queued by an ordinary frame system is applied on the next frame. `MustResource` is appropriate when scenes are enabled because the option provides the director. The director is single-threaded; do not access it concurrently.
+Scenes are instance-driven: pass `castrum.WithScenes` to provide the director. `WithScenes` registers a startup system that applies requests queued before startup and a frame system that applies requests made during gameplay. Pre-frame state transitions run before the frame scene system, so a scene request made by a state hook is applied before user frame systems in that same frame. A request queued by an ordinary frame system is applied on the next frame. `MustResource` is appropriate when scenes are enabled because the option provides the director. The director is single-threaded; do not access it concurrently.
 
 ## Define a blueprint
 

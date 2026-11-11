@@ -12,7 +12,7 @@
 // the tick of the last fire for as long as it is useful.
 //
 // Group state lives in the gametime.Groups resource, provided by
-// castrum.WithTimer alongside the timer system. A group pause never
+// the always-registered timer system. A group pause never
 // writes the timers it holds: their Running fields stay as they
 // were, and only their accumulation stops.
 //
@@ -89,13 +89,12 @@ func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - timers"),
 		castrum.WithBindings(bindings),
-		castrum.WithTimer(),
 	)
 	if err != nil {
 		return err
 	}
 
-	// The groups resource is engine wiring: WithTimer provides it
+	// The groups resource is engine wiring: castrum.New provides it
 	// before the loop starts, so MustResource is the right read.
 	groups := g.World().MustResource[*gametime.Groups]()
 

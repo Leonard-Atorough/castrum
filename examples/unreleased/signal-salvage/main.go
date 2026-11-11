@@ -116,9 +116,7 @@ func newGame() (*castrum.Game, *runState, error) {
 	game, err := castrum.New(
 		castrum.WithTitle("Signal Salvage"),
 		castrum.WithBindings(bindings),
-		castrum.WithCollision(),
 		castrum.WithScenes(),
-		castrum.WithTimer(),
 	)
 	if err != nil {
 		return nil, nil, err

@@ -84,3 +84,25 @@ func BenchmarkAdvanceSimpleSystem(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkAdvanceIdleDeclarationDriven reports one engine advance with the
+// always-registered timer, collision, and animation systems matching zero
+// entities - the per-tick floor that declaration-driven registration adds
+// to games that use none of them. This is the acceptance gate for always-on
+// registration: the cost must stay negligible.
+func BenchmarkAdvanceIdleDeclarationDriven(b *testing.B) {
+	g, err := castrum.New()
+	if err != nil {
+		b.Fatal(err)
+	}
+	if err := g.Startup(); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if err := g.Advance(time.Second / 60); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

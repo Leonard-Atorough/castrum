@@ -20,7 +20,7 @@ import (
 // enemies instead.
 func newTestGame(t *testing.T) (*castrum.Game, *core.Entity, *core.Entity) {
 	t.Helper()
-	g, err := castrum.New(castrum.WithTitle("test"), castrum.WithTimer(), castrum.WithCollision())
+	g, err := castrum.New(castrum.WithTitle("test"))
 	if err != nil {
 		t.Fatal(err)
 	}

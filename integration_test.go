@@ -146,163 +146,88 @@ func TestNoBindingsNoActionMap(t *testing.T) {
 	}
 }
 
-func TestOptionalTimerSystems(t *testing.T) {
-	for _, tt := range []struct {
-		name    string
-		options []option
-		enabled bool
-	}{
-		{"disabled", nil, false},
-		{"enabled", []option{WithTimer()}, true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			g, err := New(tt.options...)
-			if err != nil {
-				t.Fatalf("New: %v", err)
-			}
-			if tt.enabled {
-				if _, err := g.World().Resource[*gametime.Groups](); err != nil {
-					t.Fatalf("resolve timer groups: %v", err)
-				}
-			}
-			entity, err := g.World().NewEntity(gametime.NewTimer(2*g.Options().FixedDT(), false))
-			if err != nil {
-				t.Fatalf("spawn timer: %v", err)
-			}
-			if err := g.Advance(2 * g.Options().FixedDT()); err != nil {
-				t.Fatalf("Advance: %v", err)
-			}
-			tm, ok := entity.Component[gametime.Timer](g.World())
-			if !ok || (tm.CompletedOn != 0) != tt.enabled {
-				t.Errorf("timer = %+v, found %t; want completed = %t", tm, ok, tt.enabled)
-			}
-		})
-	}
-}
-
-func TestOptionalCollisionSystem(t *testing.T) {
-	for _, tt := range []struct {
-		name    string
-		options []option
-		enabled bool
-	}{
-		{"disabled", nil, false},
-		{"enabled", []option{WithCollision()}, true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			g, err := New(tt.options...)
-			if err != nil {
-				t.Fatalf("New: %v", err)
-			}
-			queries, queryErr := g.World().Resource[*collision.Queries]()
-			if (queryErr == nil) != tt.enabled {
-				t.Fatalf("Queries resource error = %v; enabled %t", queryErr, tt.enabled)
-			}
-			if tt.enabled {
-				if queries.Tick() != 0 {
-					t.Fatalf("query tick before first update = %d, want 0", queries.Tick())
-				}
-				if _, ok := queries.Raycast(geom.Segment{Start: geom.Vector2{X: -10}, End: geom.Vector2{X: 10}}, collision.RaycastFilter{Mask: ^uint32(0)}); ok {
-					t.Fatal("raycast hit before the first collision update")
-				}
-			}
-			var entities []*core.Entity
-			for _, x := range []float64{0, 1} {
-				collider, err := collision.NewCollider(collision.Circle{Radius: 8})
-				if err != nil {
-					t.Fatalf("NewCollider: %v", err)
-				}
-				entity, err := g.World().NewEntity(collider, core.Transform{Position: geom.Vector2{X: x}})
-				if err != nil {
-					t.Fatalf("spawn collider: %v", err)
-				}
-				entities = append(entities, entity)
-			}
-			if err := g.Advance(g.Options().FixedDT()); err != nil {
-				t.Fatalf("Advance: %v", err)
-			}
-			if tt.enabled {
-				hit, ok := queries.Raycast(
-					geom.Segment{Start: geom.Vector2{X: -10}, End: geom.Vector2{X: 10}},
-					collision.RaycastFilter{Mask: ^uint32(0)},
-				)
-				if !ok || hit.Entity != entities[0].ID() {
-					t.Fatalf("raycast = %+v, %t; want closest entity %d", hit, ok, entities[0].ID())
-				}
-			}
-			for _, entity := range entities {
-				contacts, ok := entity.Component[collision.Contacts](g.World())
-				if ok != tt.enabled || (tt.enabled && len(contacts.Current) != 1) {
-					t.Errorf("entity %d contacts = %+v, found %t; enabled %t", entity.ID(), contacts, ok, tt.enabled)
-				}
-			}
-		})
-	}
-}
-
-func TestOptionalAnimationSystem(t *testing.T) {
-	for _, tt := range []struct {
-		name    string
-		options []option
-		enabled bool
-	}{
-		{"disabled", nil, false},
-		{"enabled", []option{WithAnimation()}, true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			g, err := New(tt.options...)
-			if err != nil {
-				t.Fatalf("New: %v", err)
-			}
-			if err := g.World().MustResource[*animation.ClipStore]().Add("clip", animation.Clip{
-				Source: "sprites", Frames: []string{"frame_0", "frame_1"}, FPS: 60,
-			}); err != nil {
-				t.Fatalf("Add clip: %v", err)
-			}
-			entity, err := g.World().NewEntity(animation.Animation{Clip: "clip"}, render.Sprite{}, core.Transform{})
-			if err != nil {
-				t.Fatalf("spawn animated sprite: %v", err)
-			}
-			if err := g.Advance(g.Options().FixedDT()); err != nil {
-				t.Fatalf("Advance: %v", err)
-			}
-			sprite, ok := entity.Component[render.Sprite](g.World())
-			if !ok {
-				t.Fatal("animated entity has no sprite")
-			}
-			if tt.enabled {
-				if _, ok := sprite.Drawable.(render.AtlasSource); !ok {
-					t.Errorf("drawable = %#v, want an atlas source", sprite.Drawable)
-				}
-			} else if sprite.Drawable != nil {
-				t.Errorf("drawable = %#v, want nil", sprite.Drawable)
-			}
-		})
-	}
-}
-
-func TestWithDefaultSystemsIdempotent(t *testing.T) {
-	g, err := New(WithDefaultSystems(), WithTimer())
+func TestTimerSystemAlwaysRegistered(t *testing.T) {
+	g, err := New()
 	if err != nil {
-		t.Fatalf("New(WithDefaultSystems, WithTimer): %v", err)
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := g.World().Resource[*gametime.Groups](); err != nil {
+		t.Fatalf("resolve timer groups: %v", err)
 	}
 	entity, err := g.World().NewEntity(gametime.NewTimer(2*g.Options().FixedDT(), false))
 	if err != nil {
 		t.Fatalf("spawn timer: %v", err)
 	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
+	if err := g.Advance(2 * g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
 	tm, ok := entity.Component[gametime.Timer](g.World())
-	if !ok || tm.CompletedOn != 0 {
-		t.Fatalf("timer after one tick = %+v, found %t; want a single registration", tm, ok)
+	if !ok || tm.CompletedOn == 0 {
+		t.Fatalf("timer = %+v, found %t; want completion without any option", tm, ok)
+	}
+}
+
+func TestCollisionSystemAlwaysRegistered(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	queries, queryErr := g.World().Resource[*collision.Queries]()
+	if queryErr != nil {
+		t.Fatalf("Queries resource error: %v", queryErr)
+	}
+	if queries.Tick() != 0 {
+		t.Fatalf("query tick before first update = %d, want 0", queries.Tick())
+	}
+	if _, ok := queries.Raycast(geom.Segment{Start: geom.Vector2{X: -10}, End: geom.Vector2{X: 10}}, collision.RaycastFilter{Mask: ^uint32(0)}); ok {
+		t.Fatal("raycast hit before the first collision update")
+	}
+	var entities []*core.Entity
+	for _, x := range []float64{0, 1} {
+		collider, err := collision.NewCollider(collision.Circle{Radius: 8})
+		if err != nil {
+			t.Fatalf("NewCollider: %v", err)
+		}
+		entity, err := g.World().NewEntity(collider, core.Transform{Position: geom.Vector2{X: x}})
+		if err != nil {
+			t.Fatalf("NewEntity: %v", err)
+		}
+		entities = append(entities, entity)
 	}
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	tm, ok = entity.Component[gametime.Timer](g.World())
-	if !ok || tm.CompletedOn == 0 {
-		t.Fatalf("timer after two ticks = %+v, found %t; want completion", tm, ok)
+	for _, entity := range entities {
+		contacts, ok := entity.Component[collision.Contacts](g.World())
+		if !ok || len(contacts.Current) != 1 {
+			t.Errorf("entity %d contacts = %+v, found %t; want one contact without any option", entity.ID(), contacts, ok)
+		}
+	}
+}
+
+func TestAnimationSystemAlwaysRegistered(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := g.World().MustResource[*animation.ClipStore]().Add("clip", animation.Clip{
+		Source: "sprites", Frames: []string{"frame_0", "frame_1"}, FPS: 60,
+	}); err != nil {
+		t.Fatalf("Add clip: %v", err)
+	}
+	entity, err := g.World().NewEntity(animation.Animation{Clip: "clip"}, render.Sprite{}, core.Transform{})
+	if err != nil {
+		t.Fatalf("spawn animated sprite: %v", err)
+	}
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	sprite, ok := entity.Component[render.Sprite](g.World())
+	if !ok {
+		t.Fatal("animated entity has no sprite")
+	}
+	if _, ok := sprite.Drawable.(render.AtlasSource); !ok {
+		t.Errorf("drawable = %#v, want an atlas source without any option", sprite.Drawable)
 	}
 }
 
@@ -381,7 +306,6 @@ func TestWithoutStateHasNoMachine(t *testing.T) {
 		opts []option
 	}{
 		{"default", nil},
-		{"default systems", []option{WithDefaultSystems()}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := newTestGame(t, tt.opts...)
@@ -593,7 +517,7 @@ func TestWithScenesProcessesStartupRequests(t *testing.T) {
 
 func TestTimerEmitsCompletedSignal(t *testing.T) {
 	// FixedTPS 4 => fixedDT 250ms; a 300ms one-shot completes on tick 2.
-	g, err := New(WithTimer(), WithFixedTPS(4))
+	g, err := New(WithFixedTPS(4))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -627,7 +551,7 @@ func TestTimerEmitsCompletedSignal(t *testing.T) {
 }
 
 func TestCollisionEmitsEnteredSignal(t *testing.T) {
-	g, err := New(WithCollision())
+	g, err := New()
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

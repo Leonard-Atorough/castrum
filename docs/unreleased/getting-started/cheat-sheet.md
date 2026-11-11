@@ -21,8 +21,9 @@ Common game options:
 | `castrum.WithFixedTPS`                              | simulation ticks per second (default 60)                                                  |
 | `castrum.WithMaxFrameTime` / `WithMaxTicksPerFrame` | the slow-frame guards ([concepts](concepts.md))                                           |
 | `castrum.WithBindings`                              | the input actions map ([input](../guides/input.md))                                       |
-| `castrum.WithTimer` / `WithCollision` / `WithAnimation` | register one optional engine system ([scheduling](../reference/the-scheduler.md))     |
-| `castrum.WithDefaultSystems`                        | registers all three optional systems (timers, collision, animation)                       |
+| `castrum.WithScenes`                                 | provide a scene director and enable its systems ([scenes](../guides/scenes.md))            |
+| `castrum.WithState`                                 | provide a state machine and enable its systems ([state](../guides/state.md))              |
+| (none)                                               | timer, collision, and animation systems are always on; components declare what runs         |
 
 Common runner options:
 
