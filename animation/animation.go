@@ -177,7 +177,9 @@ const SystemName = "engine.animation"
 // NewAnimationSystem returns a [core.System] that advances [Animation]
 // components on fixed updates using clips from store. Each animated entity
 // must also have a [render.Sprite]. The system returns an error if an
-// animation references a clip that is not registered.
+// animation references a clip that is not registered, its current frame is
+// outside the clip, its frame advance cannot be represented as an int, or
+// advancing its current frame would overflow an int.
 //
 // The system resolves the world's [*signal.Hub] and emits a [Completed]
 // signal when an animation finishes its clip.
@@ -207,6 +209,10 @@ func NewAnimationSystem(store *ClipStore) core.System {
 			if err != nil {
 				return fmt.Errorf("advancing entity %d: %w", e.ID(), err)
 			}
+			if anim.Current < 0 || anim.Current >= len(clip.Frames) {
+				return fmt.Errorf("advancing entity %d: clip %q frame %d is outside [0, %d)",
+					e.ID(), anim.Clip, anim.Current, len(clip.Frames))
+			}
 			if anim.Paused {
 				continue
 			}
@@ -219,7 +225,17 @@ func NewAnimationSystem(store *ClipStore) core.System {
 			if anim.Elapsed < frameDuration {
 				e.SetComponent(anim)
 			} else {
-				crossed := int(anim.Elapsed / frameDuration)
+				advance := anim.Elapsed / frameDuration
+				maxInt := int(^uint(0) >> 1)
+				if !isFinite(advance) || advance >= float64(maxInt) {
+					return fmt.Errorf("advancing entity %d: clip %q frame advance %v is not representable",
+						e.ID(), anim.Clip, advance)
+				}
+				crossed := int(advance)
+				if crossed > maxInt-anim.Current {
+					return fmt.Errorf("advancing entity %d: clip %q frame advance %v overflows the current frame",
+						e.ID(), anim.Clip, advance)
+				}
 				anim.Elapsed -= float64(crossed) * frameDuration
 				anim.Current += crossed
 				if anim.Current > len(clip.Frames)-1 {
