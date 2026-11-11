@@ -35,7 +35,7 @@ if ctx.Input.KeyPressed(input.KeySpace) {
 
 A one-shot must not use `LoopForever`; a play that never finishes could never be reclaimed. Use a regular `Source` on a game entity for looping audio or for a play you need to keep and control.
 
-When a non-looping track finishes, the audio system emits an `audio.Finished` signal carrying the source's entity ID and asset ID. For a clip or an exhausted playlist, it also sets `Source.Completed`; an automatically advancing playlist clears it for the next track. The audio system runs in the frame schedule, so `Finished` reaches frame systems only. Poll `Source.Completed` from anywhere when the exact frame does not matter. See the [signals guide](signals.md) for reader rules.
+When a non-looping track finishes, the audio system emits an `audio.Finished` signal carrying the source's entity ID and asset ID. For a clip or an exhausted playlist, it also sets `Source.Completed`; an automatically advancing playlist clears it for the next track. The audio system runs in the frame schedule, so readers later in that phase or in `PhasePostFrame` can receive `Finished` before the frame window closes. Poll `Source.Completed` from anywhere when the exact frame does not matter. See the [signals guide](signals.md) for reader rules.
 
 ## Play music or ambience
 

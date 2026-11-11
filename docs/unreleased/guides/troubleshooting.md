@@ -12,7 +12,7 @@ Use this order:
 2. **Construction failure:** `castrum.New` rejected options or bindings.
 3. **Setup failure:** an entity, resource, asset, clip, or runner registration returned an error.
 4. **Startup failure:** eager resource resolution or a startup system failed.
-5. **Loop failure:** a pre-frame, frame, fixed, or draw system returned an error.
+5. **Loop failure:** a startup, frame, fixed, or draw system returned an error.
 6. **Late resolution failure:** a lazy texture, atlas region, or streamed asset failed on first use.
 
 Preserve the original error when adding context:
@@ -110,9 +110,9 @@ Every game starts with an engine camera. A user-spawned `Camera{Primary: true}` 
 
 ## A system runs at the wrong time
 
-`PhasePreStartup` and `PhaseStartup` run once before the loop, in that order. Each display frame runs `PhasePreFrame` and then `PhaseFrame`; fixed ticks follow. Check that the system is registered in the phase matching its responsibility and that it uses that phase's `ctx.DeltaTime`.
+Startup runs `PhasePreStartup`, `PhaseStartup`, then `PhasePostStartup` once before the loop. Each display frame runs `PhasePreFrame`, `PhaseFrame`, and `PhasePostFrame`; zero or more fixed ticks follow, each running `PhasePreFixed`, `PhaseFixed`, and `PhasePostFixed`. Check that the system is registered in the phase matching its responsibility and that it uses that phase's `ctx.DeltaTime`.
 
-Within a phase, systems run in registration order. Register a reader after the system that writes the value it consumes. Engine systems are registered during `New`, before game systems are added; this matters for transform snapshots and configured input systems.
+Within a phase, systems run in registration order. Register a reader after the system that writes the value it consumes. Systems registered during `New` run before systems you add later in the same phase; this matters for transform snapshots and configured input systems. See [Scheduling systems](system-scheduling.md) for phase timing and runtime registration behavior.
 
 For visual stutter, do not immediately increase `FixedTPS`. Fixed motion is rendered between the previous and current transform states. Inspect frame cost, interpolation inputs, and the camera before changing the simulation rate.
 

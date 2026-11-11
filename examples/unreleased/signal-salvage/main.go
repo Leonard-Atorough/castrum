@@ -339,7 +339,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 	}
 
 	for _, entry := range systems {
-		if err := game.AddSystemToGroup(core.PhaseFixed, roundGroup, entry.name, entry.run); err != nil {
+		if err := game.AddSystem(core.PhaseFixed, entry.name, entry.run, castrum.InGroup(roundGroup)); err != nil {
 			return err
 		}
 	}

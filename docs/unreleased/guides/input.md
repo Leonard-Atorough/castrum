@@ -28,7 +28,7 @@ if err != nil {
 }
 ```
 
-The game creates the action map and publishes it as `ctx.Actions`. The engine owns its update order: it resolves the current snapshot before frame systems run, then delivers accumulated press and release edges before fixed systems run. Games do not need to call `Update` or `Tick` themselves.
+The game creates the action map and publishes it as `ctx.Actions`. The engine owns its update order: it resolves the current snapshot before pre-frame systems, then delivers accumulated press and release edges in `PhaseFixed` before user fixed systems run. `PhasePreFixed` runs before that tick delivery, so read tick-scoped edges in `PhaseFixed` or `PhasePostFixed`. Games do not need to call `Update` or `Tick` themselves.
 
 The binding types are:
 

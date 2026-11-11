@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -19,16 +20,16 @@ func TestSetGroupEnabledAcrossPhasesAndRegistrations(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	var fixed, frame, late, other, ungrouped int
-	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "first fixed", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "first fixed", core.SystemFunc(func(*core.Context) error {
 		fixed++
 		return nil
-	})); err != nil {
+	}), InGroup("mission")); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.AddSystemToGroup(core.PhaseFixed, "other", "other fixed", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "other fixed", core.SystemFunc(func(*core.Context) error {
 		other++
 		return nil
-	})); err != nil {
+	}), InGroup("other")); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.AddSystem(core.PhaseFixed, "ungrouped fixed", core.SystemFunc(func(*core.Context) error {
@@ -46,16 +47,16 @@ func TestSetGroupEnabledAcrossPhasesAndRegistrations(t *testing.T) {
 	if err := g.SetGroupEnabled("mission", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.AddSystemToGroup(core.PhaseFrame, "mission", "late frame", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "late frame", core.SystemFunc(func(*core.Context) error {
 		frame++
 		return nil
-	})); err != nil {
+	}), InGroup("mission")); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "late fixed", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "late fixed", core.SystemFunc(func(*core.Context) error {
 		late++
 		return nil
-	})); err != nil {
+	}), InGroup("mission")); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
@@ -89,10 +90,10 @@ func TestSetGroupEnabledRejectsUnknownGroups(t *testing.T) {
 		}
 	}
 	var updates int
-	if err := g.AddSystemToGroup(core.PhaseFixed, "missing", "later", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "later", core.SystemFunc(func(*core.Context) error {
 		updates++
 		return nil
-	})); err != nil {
+	}), InGroup("missing")); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
@@ -114,10 +115,10 @@ func TestSetGroupEnabledAffectsLaterSystemsInCurrentPhase(t *testing.T) {
 	})); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.AddSystemToGroup(core.PhaseFrame, "mission", "later", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "later", core.SystemFunc(func(*core.Context) error {
 		updates++
 		return nil
-	})); err != nil {
+	}), InGroup("mission")); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
@@ -125,6 +126,222 @@ func TestSetGroupEnabledAffectsLaterSystemsInCurrentPhase(t *testing.T) {
 	}
 	if updates != 0 {
 		t.Fatalf("disabled system ran in current phase: updates=%d", updates)
+	}
+}
+
+func TestAddSystemBeforeAndAfter(t *testing.T) {
+	g := newTestGame(t)
+	var got []string
+	add := func(name string) core.System {
+		return core.SystemFunc(func(*core.Context) error {
+			got = append(got, name)
+			return nil
+		})
+	}
+	if err := g.AddSystem(core.PhaseFixed, "anchor", add("anchor")); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "before", add("before"), Before("anchor")); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "after", add("after"), After("anchor")); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "after-again", add("after-again"), After("anchor")); err != nil {
+		t.Fatal(err)
+	}
+
+	advanceTestGame(t, g, g.Options().FixedDT())
+	if want := []string{"before", "anchor", "after-again", "after"}; !slices.Equal(got, want) {
+		t.Fatalf("system order = %v, want %v", got, want)
+	}
+}
+
+func TestAddSystemGroupedBeforeAndAfter(t *testing.T) {
+	g := newTestGame(t)
+	var got []string
+	add := func(name string) core.System {
+		return core.SystemFunc(func(*core.Context) error {
+			got = append(got, name)
+			return nil
+		})
+	}
+	if err := g.AddSystem(core.PhaseFixed, "anchor", add("anchor")); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "before", add("before"), Before("anchor"), InGroup("mission")); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "after", add("after"), InGroup("mission"), After("anchor")); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.SetGroupEnabled("mission", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "late", add("late"), InGroup("mission"), After("anchor")); err != nil {
+		t.Fatal(err)
+	}
+
+	advanceTestGame(t, g, g.Options().FixedDT())
+	if want := []string{"anchor"}; !slices.Equal(got, want) {
+		t.Fatalf("disabled group order = %v, want %v", got, want)
+	}
+	got = nil
+	if err := g.SetGroupEnabled("mission", true); err != nil {
+		t.Fatal(err)
+	}
+	advanceTestGame(t, g, g.Options().FixedDT())
+	if want := []string{"before", "anchor", "late", "after"}; !slices.Equal(got, want) {
+		t.Fatalf("enabled group order = %v, want %v", got, want)
+	}
+}
+
+func TestRelativeSystemRegistrationRejectsInvalidTargetsAndNames(t *testing.T) {
+	g := newTestGame(t)
+	system := core.SystemFunc(func(*core.Context) error { return nil })
+
+	if err := g.AddSystem(core.PhaseFixed, "", system, Before("missing")); err == nil {
+		t.Fatal("AddSystem accepted an empty name")
+	}
+	if err := g.AddSystem(core.PhaseFixed, "new", system, After("missing")); err == nil {
+		t.Fatal("AddSystem accepted a missing target")
+	}
+	if err := g.AddSystem(core.PhaseFixed, "anchor", system); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, "anchor", system, Before("anchor")); err == nil {
+		t.Fatal("AddSystem accepted a duplicate name with Before")
+	}
+	if err := g.AddSystem(core.PhaseFixed, "anchor", system, InGroup("group"), After("anchor")); err == nil {
+		t.Fatal("AddSystem accepted a duplicate name with InGroup and After")
+	}
+	if err := g.AddSystem(core.PhaseFixed, "anchor", system); err == nil {
+		t.Fatal("AddSystem accepted a duplicate name")
+	}
+	if err := g.AddSystem(core.PhasePreFrame, "too-early", system, Before("engine.signal-begin-frame")); err == nil {
+		t.Fatal("relative insertion targeted an internal first-boundary system")
+	}
+	if err := g.AddSystem(core.PhasePostFrame, "too-late", system, After("engine.signal-end-frame")); err == nil {
+		t.Fatal("relative insertion targeted an internal last-boundary system")
+	}
+	if err := g.SetGroupEnabled("group", false); err == nil {
+		t.Fatal("failed registration created a group")
+	}
+	if err := g.AddSystem(core.PhaseFixed, "new", system); err != nil {
+		t.Fatalf("failed registration reserved the name: %v", err)
+	}
+}
+
+func TestAddSystemRejectsInvalidOptionsAndPhases(t *testing.T) {
+	g := newTestGame(t)
+	system := core.SystemFunc(func(*core.Context) error { return nil })
+	if err := g.AddSystem(core.PhaseFixed, "anchor", system); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name    string
+		phase   core.Phase
+		options []SystemOption
+	}{
+		{"negative phase", core.Phase(-1), nil},
+		{"unknown phase", core.Phase(core.PhasePostFixed + 1), nil},
+		{"zero option", core.PhaseFixed, []SystemOption{{}}},
+		{"empty group", core.PhaseFixed, []SystemOption{InGroup("")}},
+		{"empty before", core.PhaseFixed, []SystemOption{Before("")}},
+		{"empty after", core.PhaseFixed, []SystemOption{After("")}},
+		{"repeated group", core.PhaseFixed, []SystemOption{InGroup("one"), InGroup("two")}},
+		{"repeated before", core.PhaseFixed, []SystemOption{Before("anchor"), Before("anchor")}},
+		{"conflicting position", core.PhaseFixed, []SystemOption{Before("anchor"), After("anchor")}},
+		{"other phase target", core.PhaseFrame, []SystemOption{After("anchor")}},
+		{"missing target with group", core.PhaseFixed, []SystemOption{InGroup("unregistered"), Before("missing")}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := g.AddSystem(tt.phase, "candidate", system, tt.options...); err == nil {
+				t.Fatal("invalid registration succeeded")
+			}
+		})
+	}
+	if err := g.SetGroupEnabled("unregistered", false); err == nil {
+		t.Fatal("failed registration created a group")
+	}
+	if err := g.AddSystem(core.PhaseFixed, "candidate", system, Before("anchor")); err != nil {
+		t.Fatalf("failed registration reserved the name: %v", err)
+	}
+}
+
+func TestAddSystemRejectsStartupPhasesAfterStartupBegins(t *testing.T) {
+	g := newTestGame(t)
+	system := core.SystemFunc(func(*core.Context) error { return nil })
+	phases := []core.Phase{core.PhasePreStartup, core.PhaseStartup, core.PhasePostStartup}
+	if err := g.AddSystem(core.PhasePreStartup, "check", core.SystemFunc(func(*core.Context) error {
+		for _, phase := range phases {
+			if err := g.AddSystem(phase, "during", system); err == nil {
+				t.Errorf("registration in %s succeeded during startup", phase)
+			}
+		}
+		return g.AddSystem(core.PhaseFrame, "frame-added-during-startup", system)
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Startup(); err != nil {
+		t.Fatal(err)
+	}
+	for _, phase := range phases {
+		if err := g.AddSystem(phase, "after", system); err == nil {
+			t.Errorf("registration in %s succeeded after startup", phase)
+		}
+	}
+}
+
+func TestAddSystemRelativeDuringRun(t *testing.T) {
+	g := newTestGame(t)
+	var got []string
+	add := func(name string) core.System {
+		return core.SystemFunc(func(*core.Context) error {
+			got = append(got, name)
+			return nil
+		})
+	}
+	added := false
+	if err := g.AddSystem(core.PhaseFrame, "inserter", core.SystemFunc(func(*core.Context) error {
+		got = append(got, "inserter")
+		if !added {
+			added = true
+			return g.AddSystem(core.PhaseFrame, "before", add("before"), Before("anchor"))
+		}
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddSystem(core.PhaseFrame, "anchor", add("anchor")); err != nil {
+		t.Fatal(err)
+	}
+	advanceTestGame(t, g, 0)
+	if want := []string{"inserter", "anchor"}; !slices.Equal(got, want) {
+		t.Fatalf("first pass = %v, want %v", got, want)
+	}
+	got = nil
+	advanceTestGame(t, g, 0)
+	if want := []string{"inserter", "before", "anchor"}; !slices.Equal(got, want) {
+		t.Fatalf("second pass = %v, want %v", got, want)
+	}
+}
+
+func TestAddSystemToLaterPhaseDuringRun(t *testing.T) {
+	g := newTestGame(t)
+	var updates int
+	if err := g.AddSystem(core.PhaseFrame, "register", core.SystemFunc(func(*core.Context) error {
+		return g.AddSystem(core.PhaseFixed, "late-fixed", core.SystemFunc(func(*core.Context) error {
+			updates++
+			return nil
+		}))
+	})); err != nil {
+		t.Fatal(err)
+	}
+	advanceTestGame(t, g, g.Options().FixedDT())
+	if updates != 1 {
+		t.Fatalf("later phase updates = %d, want 1", updates)
 	}
 }
 
@@ -309,6 +526,50 @@ func TestStartupRunsOnce(t *testing.T) {
 	}
 	if runs != 1 {
 		t.Errorf("second Startup ran systems again: %d runs, want 1", runs)
+	}
+}
+
+func TestLoopRunsPhasesInOrder(t *testing.T) {
+	g := newTestGame(t, WithFixedTPS(4))
+	var got []string
+	add := func(phase core.Phase, name string) {
+		addTestSystem(t, g, phase, name, core.SystemFunc(func(*core.Context) error {
+			got = append(got, name)
+			return nil
+		}))
+	}
+
+	add(core.PhasePreStartup, "pre-startup")
+	add(core.PhaseStartup, "startup")
+	add(core.PhasePostStartup, "post-startup")
+	if err := g.Startup(); err != nil {
+		t.Fatalf("Startup: %v", err)
+	}
+	if want := []string{"pre-startup", "startup", "post-startup"}; !slices.Equal(got, want) {
+		t.Fatalf("startup phases ran %v, want %v", got, want)
+	}
+
+	got = nil
+	add(core.PhasePreFrame, "pre-frame")
+	add(core.PhaseFrame, "frame")
+	add(core.PhasePostFrame, "post-frame")
+	add(core.PhasePreFixed, "pre-fixed")
+	add(core.PhaseFixed, "fixed")
+	add(core.PhasePostFixed, "post-fixed")
+	if err := g.Advance(100 * time.Millisecond); err != nil {
+		t.Fatalf("Advance without tick: %v", err)
+	}
+	if want := []string{"pre-frame", "frame", "post-frame"}; !slices.Equal(got, want) {
+		t.Fatalf("frame phases without a tick ran %v, want %v", got, want)
+	}
+
+	got = nil
+	if err := g.Advance(150 * time.Millisecond); err != nil {
+		t.Fatalf("Advance with tick: %v", err)
+	}
+	want := []string{"pre-frame", "frame", "post-frame", "pre-fixed", "fixed", "post-fixed"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("phases with a tick ran %v, want %v", got, want)
 	}
 }
 

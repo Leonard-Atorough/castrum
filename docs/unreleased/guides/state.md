@@ -186,7 +186,7 @@ There are two state signals:
 
 Initial entry emits `Initialized`, not `Changed`: starting in the menu is not a transition from some other mode. Use a separate initialization consumer if you need that notification. Requests and no-ops emit neither signal. Signal types include the state type, so `Changed[GameMode]` and `Changed[string]` are separate streams.
 
-In normal engine startup, initialization is available to later startup systems and first-frame consumers. Transition signals are available to later pre-frame and frame systems. Both expire at the frame's end, before fixed ticks: read `Current` or `Is` in fixed systems rather than relying on a frame notification.
+In normal engine startup, initialization is available to later startup systems and first-frame consumers. Transition signals are available to later pre-frame, frame, and post-frame systems. Both expire at the frame's end, before fixed ticks: read `Current` or `Is` in fixed systems rather than relying on a frame notification.
 
 A change signal reports the assignment, not successful enter hooks or scene replacement. An error can stop the game update before later consumers run, even though the signal was emitted. For reader lifetimes and delivery windows, see [Signals](signals.md).
 

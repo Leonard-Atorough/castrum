@@ -91,11 +91,11 @@ if state.charge >= maxCharge {
 
 ## Lifetime: the tick and frame windows
 
-The game loop runs pre-frame and frame schedules followed by zero or more fixed ticks. The frame window opens before pre-frame systems and remains open through frame systems; frame signals can be read by later systems in either schedule and expire after the frame schedule ends.
+The game loop runs pre-frame, frame, and post-frame schedules followed by zero or more fixed ticks. The frame window opens before pre-frame systems and remains open through post-frame systems; frame signals can be read by later systems in any of those schedules and expire after the post-frame schedule ends.
 
 Signals emitted during a fixed tick go into the tick window. At the end of that tick, the hub moves them into the frame window and clears the tick window. This means a tick signal can be read by a fixed system during that tick and by a pre-frame or frame system in the next display frame, using independent readers. If several fixed ticks run before the next frame, their signals collect in the frame window together.
 
-The hub starts in frame mode. In normal game updates, the engine switches to tick mode after running pre-frame and frame systems, then flushes each tick into the frame window after fixed systems run.
+The hub starts in frame mode. In normal game updates, the engine switches to tick mode after post-frame systems, then flushes each tick into the frame window after post-fixed systems run.
 
 ## Ordering
 
@@ -127,4 +127,4 @@ Several engine features emit typed signals. Their guides explain each payload, w
 
 ## Where to go next
 
-For timer setup and behavior, see the [timer guide](timer.md); for how systems and phases are scheduled, see [The ECS in depth](ecs.md).
+For timer setup and behavior, see the [timer guide](timer.md); for how systems and phases are scheduled, see [Scheduling systems](system-scheduling.md).

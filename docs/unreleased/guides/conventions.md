@@ -65,19 +65,23 @@ The point of validating at the boundary is when the error surfaces. A spawn-time
 
 ## Choose the phase deliberately
 
-The game has five phases:
+The game has nine phases:
 
 | Phase | Use it for |
 | --- | --- |
 | `core.PhasePreStartup` | Initial state hooks that must run before startup scene operations. |
 | `core.PhaseStartup` | One-time setup and loading. |
+| `core.PhasePostStartup` | Work that must follow startup systems. |
 | `core.PhasePreFrame` | State transitions before frame scene operations. Input actions are updated first. |
 | `core.PhaseFrame` | Display-frame work, scene operations, and raw per-frame input. |
+| `core.PhasePostFrame` | Work that follows frame systems and precedes fixed ticks. |
+| `core.PhasePreFixed` | Work that precedes fixed systems on each tick. |
 | `core.PhaseFixed` | Simulation, movement, and gameplay rules. |
+| `core.PhasePostFixed` | Work that follows fixed systems on each tick. |
 
-`PhasePreStartup` runs once after eager resources resolve and before `PhaseStartup`. `PhasePreFrame` runs once per display frame after the engine updates frame input and before `PhaseFrame`. `PhaseFrame` then runs once per display frame with elapsed frame time, followed by zero or more fixed ticks with a stable `DeltaTime` derived from `FixedTPS` (60 by default). Pass a machine to `castrum.WithState(machine)` to register the [state system](../../../state/state.go) in both pre phases and provide the machine as a world resource. Initial enter hooks run before startup scenes and later transitions run before frame scenes. For example, a machine created with `state.New[string]().WithInitial("boot")` is available as `g.World().MustResource[*state.Machine[string]]()`. Repeat `WithState` for machines with distinct state types; the engine processes them in option order, so requests from earlier machines can be processed by later machines that same frame. Put simulation in the fixed phase so it does not depend on display refresh rate. Read named actions in the phase appropriate to the behavior; the [input guide](input.md) covers how action edges are carried into fixed ticks.
+`PhasePreStartup` runs once after eager resources resolve and before `PhaseStartup`; `PhasePostStartup` follows startup systems. `PhasePreFrame` runs once per display frame after the engine updates frame input and before `PhaseFrame`; `PhasePostFrame` follows frame systems and precedes fixed ticks. Each tick runs `PhasePreFixed`, `PhaseFixed`, then `PhasePostFixed` with a stable `DeltaTime` derived from `FixedTPS` (60 by default). Pass a machine to `castrum.WithState(machine)` to register the [state system](../../../state/state.go) in both pre phases and provide the machine as a world resource. Initial enter hooks run before startup scenes and later transitions run before frame scenes. For example, a machine created with `state.New[string]().WithInitial("boot")` is available as `g.World().MustResource[*state.Machine[string]]()`. Repeat `WithState` for machines with distinct state types; the engine processes them in option order, so requests from earlier machines can be processed by later machines that same frame. Put simulation in the fixed phase so it does not depend on display refresh rate. Read named actions in the phase appropriate to the behavior; the [input guide](input.md) covers how action edges are carried into fixed ticks.
 
-Systems run in registration order within a phase. Register a reader after the system that writes the state it needs. The engine's built-in systems are registered during `New`, before game systems are added; this includes transform snapshots, the optional subsystem systems their `With*` option enabled, and input systems when bindings are configured. Do not rely on ordering between systems that are not explicitly ordered by registration.
+Systems run in registration order within a phase. Register a reader after the system that writes the state it needs. The engine's built-in systems are registered during `New`, before game systems are added; this includes transform snapshots, the optional subsystem systems their `With*` option enabled, and input systems when bindings are configured. Do not rely on ordering between systems that are not explicitly ordered by registration. See [Scheduling systems](system-scheduling.md) for phase selection, runtime registration, and groups.
 
 ## Errors are values
 

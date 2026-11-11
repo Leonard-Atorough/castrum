@@ -4,11 +4,11 @@ The runner supplies elapsed platform time; `Game.Advance` turns it into frame wo
 
 ## Startup and a display frame
 
-`Game.Startup` resolves eager resources, runs the pre-startup schedule, then runs the startup schedule once. This lets initial state hooks queue scene work before the startup scene system applies requests. Calling `Startup` a second time returns an error.
+`Game.Startup` resolves eager resources, then runs the pre-startup, startup, and post-startup schedules once. This lets initial state hooks queue scene work before the startup scene system applies requests. Calling `Startup` a second time returns an error.
 
-A runner calls `Advance(elapsed)` once per display frame. `Advance` clamps the elapsed duration to `MaxFrameTime`, increments the frame counter, publishes that duration as frame `Context.DeltaTime`, then runs pre-frame systems followed by frame systems. The engine updates bound actions before user pre-frame systems; the frame scene system then applies requests before user frame systems. `Advance` adds the clamped duration to the fixed accumulator after frame work.
+A runner calls `Advance(elapsed)` once per display frame. `Advance` clamps the elapsed duration to `MaxFrameTime`, increments the frame counter, publishes that duration as frame `Context.DeltaTime`, then runs pre-frame, frame, and post-frame systems in order. The engine updates bound actions before user pre-frame systems; the frame scene system then applies requests before user frame systems. `Advance` adds the clamped duration to the fixed accumulator after frame work.
 
-A frame can run zero fixed ticks. A slow frame runs as many fixed ticks as the accumulator can pay for, up to `MaxTicksPerFrame`. Each fixed tick increments `Context.Tick`, sets `Context.DeltaTime` to the fixed interval, runs the fixed schedule, and subtracts one interval from the accumulator.
+A frame can run zero fixed ticks. A slow frame runs as many fixed ticks as the accumulator can pay for, up to `MaxTicksPerFrame`. Each fixed tick increments `Context.Tick`, sets `Context.DeltaTime` to the fixed interval, runs pre-fixed, fixed, and post-fixed systems in order, and subtracts one interval from the accumulator.
 
 The defaults are `FixedTPS=60`, `MaxFrameTime=250ms`, and `MaxTicksPerFrame=5`. When the tick cap is reached, the remaining backlog is dropped rather than carried into every later frame. These limits protect stability; they do not make an expensive system cheaper.
 
@@ -20,7 +20,7 @@ When the catch-up cap drops the backlog, the accumulator is reset and alpha beco
 
 ## Schedule order
 
-Systems in one phase run in registration order. The engine defines ordering between phases: pre-startup before startup, and pre-frame before frame before fixed ticks. Within startup and frame schedules, `castrum.New` registers scene systems before user systems, so scene requests queued by pre-phase hooks are applied before ordinary startup or frame systems. A system error stops the current schedule and is returned through `Startup` or `Advance`, and for a normal runner through `g.Run`.
+Systems in one phase run in registration order. The `castrum.Before` and `castrum.After` registration options insert a new regular system relative to an existing regular system in that phase; they do not move existing systems. The engine defines ordering between phases: pre-startup, startup, post-startup; pre-frame, frame, post-frame; then pre-fixed, fixed, post-fixed for every due tick. Within startup and frame schedules, `castrum.New` registers scene systems before user systems, so scene requests queued by pre-phase hooks are applied before ordinary startup or frame systems. Startup-phase registrations are rejected once `Startup` begins. A system error stops the current schedule and is returned through `Startup` or `Advance`, and for a normal runner through `g.Run`.
 
 The engine's normal registrations are:
 
@@ -32,15 +32,18 @@ The engine's normal registrations are:
 | `engine.timer`          | fixed | always on                | Advances timers and stamps completions.                 |
 | `engine.input-tick`     | fixed | with bindings            | Publishes tick-scoped input edges.                      |
 | `engine.input-update`   | pre-frame | with bindings            | Publishes the frame-scoped action view before state hooks. |
+| `engine.signal-begin-frame` | pre-frame | always | Opens the frame signal window before user systems. |
+| `engine.signal-end-frame` | post-frame | always | Closes the frame signal window after user systems. |
+| `engine.signal-end-tick` | post-fixed | always | Rotates tick signals after user systems. |
 | `engine.audio`          | frame | the runner               | Reconciles audio source state with runner players.      |
 | `scene-startup`         | startup | `WithScenes`           | Applies requests queued before startup.                 |
 | `scene`                 | frame | `WithScenes`             | Applies queued scene requests before user frame systems. |
 
-The timer, collision, and animation systems are always registered: their work is declared by component presence, so the component is the registration and an unmatched system costs an empty query per tick. Scenes and state machines are instance-driven and stay opt-in via `WithScenes` and `WithState`. Every system's registration name is exported as a constant from the package that owns the system - `core.PrevTransformSystemName`, `input.FrameSystemName`, `input.TickSystemName`, `animation.SystemName`, `collision.SystemName`, `gametime.TimerSystemName`, `ebitrun.AudioSystemName` - so no call site hand-types the strings; the names identify registrations in error messages and will serve as the handles for future ordering constraints.
+The timer, collision, and animation systems are always registered: their work is declared by component presence, so the component is the registration and an unmatched system costs an empty query per tick. Scenes and state machines are instance-driven and stay opt-in via `WithScenes` and `WithState`. Public built-in systems export their registration names from the package that owns them - `core.PrevTransformSystemName`, `input.FrameSystemName`, `input.TickSystemName`, `animation.SystemName`, `collision.SystemName`, `gametime.TimerSystemName`, `ebitrun.AudioSystemName` - so call sites do not need to hand-type those names. Internal schedule hooks may use private names.
 
 ## System groups
 
-`Game.AddSystemToGroup` assigns a system to a named group. Groups start
+The `castrum.InGroup` option assigns a system to a named group. Groups start
 enabled, regardless of whether scenes are enabled. `Game.SetGroupEnabled`
 changes a registered group's state across phases and applies it to systems
 registered in the group later. It affects systems that have not yet run in
@@ -58,7 +61,7 @@ Read frame-level state in frame systems and apply deterministic gameplay in fixe
 
 ## Signal rotation
 
-The signal hub rotates with the loop: `Advance` brackets both pre-frame and frame work (`BeginFrame` before pre-frame, `EndFrame` after frame), then calls `EndTick` after each fixed run. A signal emitted during a fixed tick is visible to fixed systems registered after its emitter in that tick, and once to pre-frame and frame systems in the next display frame; then it is dropped. Frame signals live only through that display frame. The [signals guide](../guides/signals.md) covers the authoring side: emitting, readers, and consumer systems.
+The signal hub rotates with the loop: `BeginFrame` runs before pre-frame systems, `EndFrame` after post-frame systems, and `EndTick` after post-fixed systems. A signal emitted during a fixed tick is visible to fixed systems registered after its emitter in that tick, and once to pre-frame, frame, and post-frame systems in the next display frame; then it is dropped. Frame signals live only through that display frame. The [signals guide](../guides/signals.md) covers the authoring side: emitting, readers, and consumer systems.
 
 ## Why the capture order matters
 

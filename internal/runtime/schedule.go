@@ -7,72 +7,126 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
-const systemsInitialCapacity = 10
-
-// Entry associates a system with its registration name.
-type Entry[T any] struct {
+// Entry associates a system with its registration name and group.
+type Entry struct {
 	// Name identifies the registration in execution errors.
 	Name string
-	// System is the value passed to the schedule's invocation function.
-	System T
+	// System runs when the entry is enabled.
+	System core.System
 	// Group determines the execution group for the system.
 	Group string
 }
 
 // Schedule runs registered systems in order for one [core.Phase].
-type Schedule[T any] struct {
-	// systems holds entries in execution order.
-	systems []Entry[T]
-	// disabled tracks groups that are currently disabled.
-	disabled map[string]bool
-	// invoke executes one system with the current context.
-	invoke func(T, *core.Context) error
-	// phase labels execution errors.
-	phase core.Phase
+type Schedule struct {
+	first     []Entry
+	systems   []Entry
+	last      []Entry
+	usedNames map[string]bool
+	groups    map[string]bool
+	phase     core.Phase
 }
 
-// NewSchedule returns an empty schedule for phase. invoke executes each system
-// with the context passed to [Schedule.Run].
-func NewSchedule[T any](phase core.Phase, invoke func(T, *core.Context) error) *Schedule[T] {
-	return &Schedule[T]{
-		systems:  make([]Entry[T], 0, systemsInitialCapacity),
-		disabled: make(map[string]bool),
-		invoke:   invoke,
-		phase:    phase,
+// NewSchedule returns an empty schedule sharing group state with other schedules.
+func NewSchedule(phase core.Phase, groups map[string]bool) *Schedule {
+	return &Schedule{
+		usedNames: make(map[string]bool),
+		groups:    groups,
+		phase:     phase,
 	}
 }
 
-// Add appends entries to the schedule in the order provided.
-func (s *Schedule[T]) Add(entries ...Entry[T]) {
-	s.systems = append(s.systems, entries...)
+// Add appends an entry to the schedule.
+func (s *Schedule) Add(entry Entry) error {
+	if err := s.register(entry); err != nil {
+		return err
+	}
+	s.systems = append(s.systems, entry)
+	return nil
 }
 
-// Run executes each system in registration order. It stops at the first error
-// and returns it with the schedule phase and entry name.
-func (s *Schedule[T]) Run(ctx *core.Context) error {
-	for _, e := range s.systems {
-		if e.Group != "" && s.disabled[e.Group] {
-			continue
+// AddFirst appends an entry to the first boundary.
+func (s *Schedule) AddFirst(entry Entry) error {
+	if err := s.register(entry); err != nil {
+		return err
+	}
+	s.first = append(s.first, entry)
+	return nil
+}
+
+// AddLast appends an entry to the last boundary.
+func (s *Schedule) AddLast(entry Entry) error {
+	if err := s.register(entry); err != nil {
+		return err
+	}
+	s.last = append(s.last, entry)
+	return nil
+}
+
+// AddBefore inserts an entry immediately before the named regular system.
+func (s *Schedule) AddBefore(target string, entry Entry) error {
+	return s.addRelative(target, entry, false)
+}
+
+// AddAfter inserts an entry immediately after the named regular system.
+func (s *Schedule) AddAfter(target string, entry Entry) error {
+	return s.addRelative(target, entry, true)
+}
+
+func (s *Schedule) addRelative(target string, entry Entry, after bool) error {
+	index := -1
+	for i, existing := range s.systems {
+		if existing.Name == target {
+			index = i
+			break
 		}
-		if err := s.invoke(e.System, ctx); err != nil {
-			return fmt.Errorf("%s system %q: %w", s.phase, e.Name, err)
+	}
+	if index < 0 {
+		return fmt.Errorf("target system %q not found in regular systems for %s", target, s.phase)
+	}
+	if err := s.register(entry); err != nil {
+		return err
+	}
+	if after {
+		index++
+	}
+	// A running pass retains its original slice when a system inserts work.
+	updated := make([]Entry, len(s.systems)+1)
+	copy(updated, s.systems[:index])
+	updated[index] = entry
+	copy(updated[index+1:], s.systems[index:])
+	s.systems = updated
+	return nil
+}
+
+// Run executes each system in order. Systems added during a run take effect on
+// the next run. It stops at the first error and returns it with the phase and name.
+func (s *Schedule) Run(ctx *core.Context) error {
+	for _, entries := range [][]Entry{s.first, s.systems, s.last} {
+		for _, e := range entries {
+			if e.Group != "" && !s.groups[e.Group] {
+				continue
+			}
+			if err := e.System.Update(ctx); err != nil {
+				return fmt.Errorf("%s system %q: %w", s.phase, e.Name, err)
+			}
 		}
 	}
 	return nil
 }
 
-func (s *Schedule[T]) SetGroupEnabled(group string, enabled bool) {
-	if s.disabled == nil {
-		s.disabled = make(map[string]bool)
+func (s *Schedule) register(entry Entry) error {
+	if entry.Name == "" {
+		return fmt.Errorf("system name must not be empty")
 	}
-	s.disabled[group] = !enabled
-}
-
-func (s *Schedule[T]) Registered(group string) bool {
-	for _, e := range s.systems {
-		if e.Group == group {
-			return true
+	if s.usedNames[entry.Name] {
+		return fmt.Errorf("system with name %q already registered", entry.Name)
+	}
+	s.usedNames[entry.Name] = true
+	if entry.Group != "" {
+		if _, ok := s.groups[entry.Group]; !ok {
+			s.groups[entry.Group] = true
 		}
 	}
-	return false
+	return nil
 }
