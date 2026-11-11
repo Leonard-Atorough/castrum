@@ -92,6 +92,7 @@ func (w *World) provide[T any](ctor func(*World) (T, error), eager bool) error {
 // Resource returns the registered resource of type T, resolving it on first
 // access. It returns [ErrResourceNotRegistered] if T is not registered, and
 // the resolution error if the resource's constructor fails.
+// A successful nil interface result is returned as the zero value of T.
 func (w *World) Resource[T any]() (T, error) {
 	typ := reflect.TypeFor[T]()
 
@@ -100,6 +101,10 @@ func (w *World) Resource[T any]() (T, error) {
 		return zero, err
 	}
 	entry := w.entries[typ]
+	if entry.instance == nil {
+		var zero T
+		return zero, nil
+	}
 
 	return entry.instance.(T), nil
 }

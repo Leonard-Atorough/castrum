@@ -803,6 +803,57 @@ func TestCollectCullsShapes(t *testing.T) {
 	}
 }
 
+func TestCollectKeepsRotatedAndStrokedGeometry(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		sprite   Sprite
+		position geom.Vector2
+		rotation float64
+		scale    geom.Vector2
+		want     int
+	}{
+		{"rotated rect", Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 40}}}, geom.Vector2{X: 60}, math.Pi / 2, unitScale, 1},
+		{"rotated ellipse", Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 2, Y: 20}}}, geom.Vector2{X: 60}, math.Pi / 2, unitScale, 1},
+		{"rotated offset line", Sprite{Drawable: LineShape{To: geom.Vector2{Y: 20}}, StrokeWidth: 2}, geom.Vector2{X: 60}, math.Pi / 2, unitScale, 1},
+		{"outlined rect", Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}, Outline: true, StrokeWidth: 4}, geom.Vector2{X: 56}, 0, unitScale, 1},
+		{"thick line", Sprite{Drawable: LineShape{From: geom.Vector2{Y: -5}, To: geom.Vector2{Y: 5}}, StrokeWidth: 6}, geom.Vector2{X: 52}, 0, unitScale, 1},
+		{"reflected texture", Sprite{Drawable: TextureSource{Texture: "tex.png"}}, geom.Vector2{X: 60}, math.Pi / 2, geom.Vector2{X: -1, Y: 10}, 1},
+		{"rotated atlas", Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: "player"}}, geom.Vector2{X: 60}, math.Pi / 2, geom.Vector2{X: 1, Y: 20}, 1},
+		{"outside", Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 40}}}, geom.Vector2{X: 80}, math.Pi / 2, unitScale, 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			w := newCollectorWorld(t)
+			spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+			spawnSprite(t, w, test.position, test.position, test.sprite,
+				core.Transform{Rotation: test.rotation, Scale: test.scale})
+			if got := collect(t, NewCollector(w), drawContext(w, 1)); len(got.Items) != test.want {
+				t.Fatalf("collected %d items, want %d", len(got.Items), test.want)
+			}
+		})
+	}
+}
+
+func TestCollectCullsUsingInterpolatedDrawableRotation(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	position := geom.Vector2{X: 60}
+	entity := spawnSprite(t, w, position, position,
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 40}}},
+		core.Transform{Rotation: math.Pi, Scale: unitScale})
+	if err := entity.SetComponent(w, core.PrevTransform{Position: position, Scale: unitScale}); err != nil {
+		t.Fatal(err)
+	}
+	collector := NewCollector(w)
+	for _, test := range []struct {
+		alpha float64
+		want  int
+	}{{0, 0}, {0.5, 1}, {1, 0}} {
+		if got := collect(t, collector, drawContext(w, test.alpha)); len(got.Items) != test.want {
+			t.Fatalf("alpha %v: collected %d, want %d", test.alpha, len(got.Items), test.want)
+		}
+	}
+}
+
 func TestEngineCameraPreference(t *testing.T) {
 	w := newCollectorWorld(t)
 	ctx := drawContext(w, 0)

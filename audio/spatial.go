@@ -3,8 +3,6 @@ package audio
 import (
 	"fmt"
 	"math"
-	"reflect"
-	"sync"
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -86,25 +84,6 @@ func (p *spatialPass) resolve() error {
 	return nil
 }
 
-// endpointCurves remembers attenuation curves whose endpoint contract has been
-// verified in this process. Curves are not comparable, so they are keyed by
-// code pointer; values that share code share the cached verdict.
-var endpointCurves sync.Map // uintptr -> struct{}
-
-// checkAttenuation verifies curve's endpoint contract once per distinct
-// curve. Per-distance results are still checked on every use.
-func checkAttenuation(curve geom.Ease) error {
-	key := reflect.ValueOf(curve).Pointer()
-	if _, ok := endpointCurves.Load(key); ok {
-		return nil
-	}
-	if curve(0) != 0 || curve(1) != 1 {
-		return fmt.Errorf("attenuation curve must map 0 to 0 and 1 to 1")
-	}
-	endpointCurves.Store(key, struct{}{})
-	return nil
-}
-
 func (p *spatialPass) apply(id core.EntityID, s Source, want *Playback) error {
 	if !s.Spatial {
 		return nil
@@ -134,8 +113,8 @@ func (p *spatialPass) apply(id core.EntityID, s Source, want *Playback) error {
 	if curve == nil {
 		curve = geom.EaseLinear
 	}
-	if err := checkAttenuation(curve); err != nil {
-		return fmt.Errorf("audio: entity %d: %w", id, err)
+	if curve(0) != 0 || curve(1) != 1 {
+		return fmt.Errorf("audio: entity %d: attenuation curve must map 0 to 0 and 1 to 1", id)
 	}
 	attenuation := curve(t)
 	if !finite(attenuation) || attenuation < 0 || attenuation > 1 {

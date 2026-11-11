@@ -252,7 +252,7 @@ runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 
 ## Culling and render failures
 
-The collector culls drawable bounds against the active camera viewport before sorting. Off-screen sprites still cost entity matching and collection, but they are not sent to the backend for drawing. Culling uses the drawable's bounds and does not expand them for a rotated sprite's full swept area, so a rotating object can appear at the edge as its unrotated bounds enter the view. Camera rotation uses a conservative circumscribed viewport rectangle, so it can collect some items that are just outside the rotated screen.
+The collector culls conservative drawable bounds against the active camera viewport before sorting. Bounds include interpolated rotation and scale, rotated line offsets, and shape strokes, so visible geometry is not discarded at viewport edges. Off-screen sprites still cost entity matching and collection, but they are not sent to the backend for drawing. Both drawable bounds and the rotated camera viewport use enclosing rectangles, so collection can include some items just outside the screen.
 
 If no primary camera exists, the world draw list is empty and overlays still run. The engine camera normally prevents that case.
 
