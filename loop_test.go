@@ -196,6 +196,47 @@ func TestAdvanceAccumulatesFixedTicks(t *testing.T) {
 	}
 }
 
+func TestAdvanceRejectsUnrepresentableScaledTime(t *testing.T) {
+	for _, scale := range []float64{1e12, math.Ldexp(1, 63)} {
+		g := newTestGame(t)
+		if err := g.SetTimeScale(scale); err != nil {
+			t.Fatal(err)
+		}
+		elapsed := 100 * time.Millisecond
+		if scale == math.Ldexp(1, 63) {
+			elapsed = time.Nanosecond
+		}
+		if err := g.Advance(elapsed); err == nil {
+			t.Fatal("unrepresentable contribution was accepted")
+		}
+		if g.acc != 0 || g.Context().Tick != 0 {
+			t.Fatalf("failed advance changed accumulator/tick: %v/%d", g.acc, g.Context().Tick)
+		}
+		if err := g.SetTimeScale(1); err != nil {
+			t.Fatal(err)
+		}
+		advanceTestGame(t, g, g.Options().FixedDT())
+		if g.Context().Tick != 1 {
+			t.Fatal("failed contribution prevented recovery")
+		}
+	}
+}
+
+func TestAdvanceRejectsAccumulatorOverflow(t *testing.T) {
+	g := newTestGame(t)
+	advanceTestGame(t, g, 10*time.Millisecond)
+	before := g.acc
+	if err := g.SetTimeScale(math.Nextafter(math.Ldexp(1, 63), 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Advance(time.Nanosecond); err == nil || !strings.Contains(err.Error(), "accumulator") {
+		t.Fatalf("Advance() = %v, want accumulator overflow", err)
+	}
+	if g.acc != before {
+		t.Fatalf("overflow changed accumulator to %v, want %v", g.acc, before)
+	}
+}
+
 func TestMaxFrameTimeClampsElapsed(t *testing.T) {
 	// FixedTPS 1 => fixedDT = 1s; MaxFrameTime 50ms clamps a 10s stall.
 	g := newTestGame(t, WithFixedTPS(1), WithMaxFrameTime(50*time.Millisecond))

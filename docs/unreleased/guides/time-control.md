@@ -67,6 +67,8 @@ Game pause does not automatically pause audio. To pause audio too, use `PauseAll
 
 The scale must be positive and finite. `SetTimeScale` returns an error for zero, negative, NaN, or infinite values without changing the existing scale. Use `Pause` to stop simulation time. Changing the scale while paused remembers it for when the game resumes.
 
+An enormous finite scale can still produce an unrepresentable elapsed duration. `Advance` reports that contribution or an overflowing accumulator sum as an error without changing the accumulator. Frame systems have already run; their effects are not rolled back.
+
 `Advance` runs pre-frame and frame systems before checking pause and adding scaled elapsed time. Changes made between calls control the upcoming advance; changes made in a frame system affect fixed work later in the same call. If a frame system resumes the game, that call can accumulate its full supplied elapsed duration, subject to the clamp. Pause or scale changes made during a fixed tick do not interrupt the fixed work already being processed in that advance.
 
 ## Configure the fixed loop

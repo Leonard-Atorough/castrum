@@ -92,6 +92,8 @@ if err := groups.SetScale("ui", 0.5); err != nil {
 
 A paused group does not accumulate time. When resumed, each running timer continues from its saved `Elapsed` value. A scale multiplies the fixed tick time accumulated by timers in that group; for example, `0.5` accumulates half as much time per tick. Use `Pause` to stop a group: `SetScale` returns an error for an empty group name or a scale of zero or less.
 
+If a group's scaled tick duration cannot be represented, the timer system returns an error without changing the affected timer. Valid large contributions complete one-shots or wrap repeating timers without overflowing elapsed time.
+
 `Paused` and `Scale` can read a group that has not been configured: they report `false` and `1`, respectively, without creating group state. `Pause`, `Resume`, and a valid `SetScale` call create or update that state as needed.
 
 Group settings do not override an individual timer's `Running` field. A timer with `Running == false` stays stopped even when its group resumes. Conversely, pausing a group holds an unfinished running timer without clearing `Running`. The timer system still needs to run on a fixed tick for any timer to advance.

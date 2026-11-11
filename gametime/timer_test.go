@@ -501,15 +501,56 @@ func TestSystem_UnrepresentableGroupScaleFailsTick(t *testing.T) {
 	}
 }
 
+func TestTimerCompletionDoesNotOverflowElapsed(t *testing.T) {
+	for _, repeating := range []bool{false, true} {
+		world, sys := newTimerHarness(t)
+		entity, err := world.NewEntity(Timer{
+			Duration: time.Duration(math.MaxInt64), Elapsed: time.Duration(math.MaxInt64 - 10),
+			Running: true, Repeating: repeating,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		tick(t, world, sys, 1, 20*time.Nanosecond)
+		got := timerOf(t, world, entity)
+		want := time.Duration(math.MaxInt64)
+		if repeating {
+			want = 10 * time.Nanosecond
+		}
+		if got.Elapsed != want || got.CompletedOn != 1 || got.Running != repeating {
+			t.Fatalf("repeating=%v: got %+v, want elapsed %v and completion", repeating, got, want)
+		}
+	}
+}
+
+func TestTimerRejectsRoundedDurationBoundary(t *testing.T) {
+	world, sys := newTimerHarness(t)
+	groups := world.MustResource[*Groups]()
+	if err := groups.SetScale("boundary", math.Ldexp(1, 63)); err != nil {
+		t.Fatal(err)
+	}
+	timer := NewTimer(time.Second, false)
+	timer.Group = "boundary"
+	entity, err := world.NewEntity(timer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = sys.Update(&core.Context{World: world, Tick: 1, DeltaTime: time.Nanosecond})
+	if err == nil || !strings.Contains(err.Error(), "not representable") {
+		t.Fatalf("Update() = %v, want boundary rejection", err)
+	}
+	if got := timerOf(t, world, entity); got != timer {
+		t.Fatalf("failed contribution changed timer: %+v", got)
+	}
+}
+
 func TestSystemEmitsCompletedSignal(t *testing.T) {
 	world, sys := newTimerHarness(t)
 	hub := world.MustResource[*signal.Hub]()
-
 	entity, err := world.NewEntity(NewTimer(150*time.Millisecond, false))
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
-
 	reader := hub.NewReader[Completed]()
 	tick(t, world, sys, 1, 100*time.Millisecond)
 	tick(t, world, sys, 2, 100*time.Millisecond)
