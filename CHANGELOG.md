@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > prototyping phase. The first rendered release is v0.1.0, the first
 > public beta. See git history for v0.0.x details.
 
+## [Unreleased]
+
+### Fixed
+- Keep contained circle/box contact normals consistent with exterior contacts, retaining the nearest-face point and full escape depth. Games compensating for the old reversed normal should remove that workaround.
+- Attach collision contacts only to entities with both a collider and a transform, avoiding repeated component migrations for collider-only entities.
+
 ## [0.3.0] - 2026-10-30
 
 ### Added

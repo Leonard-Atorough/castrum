@@ -47,9 +47,9 @@ func canonicalPair(x, y core.EntityID) pairKey {
 // in the fixed phase, so it reads transforms from the preceding tick and
 // detects movement made during the current tick on the next one.
 //
-// The system attaches [Contacts] to entities with a [Collider], applies
-// position and rotation but not scale, and retains existing pairs long enough
-// to report when a contact ends.
+// The system attaches [Contacts] to entities with both a [Collider] and a
+// [core.Transform], applies position and rotation but not scale, and retains
+// existing pairs long enough to report when a contact ends.
 func NewSystem() core.System {
 	return &system{
 		contacts:  make(map[core.EntityID]*contactBuffers),
@@ -80,7 +80,7 @@ type system struct {
 // and write each entity's Contacts.
 func (s *system) Update(ctx *core.Context) error {
 	if s.ensure == nil {
-		s.ensure = core.NewQuery(ctx.World).With(Collider{}).Without(Contacts{})
+		s.ensure = core.NewQuery(ctx.World).With(Collider{}, core.Transform{}).Without(Contacts{})
 		s.orphans[0] = core.NewQuery(ctx.World).With(Contacts{}, Collider{}).Without(core.Transform{})
 		s.orphans[1] = core.NewQuery(ctx.World).With(Contacts{}).Without(Collider{})
 	}
@@ -121,7 +121,7 @@ func (s *system) resetTick() {
 }
 
 // reconcileContacts removes stale contact state so removing and later
-// re-adding a collider cannot preserve an old contact.
+// re-adding a collider or transform cannot preserve an old contact.
 func (s *system) reconcileContacts(world *core.World) error {
 	s.attachIDs = s.attachIDs[:0]
 	for e := range s.ensure.Execute() {

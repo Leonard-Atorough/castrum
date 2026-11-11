@@ -59,6 +59,45 @@ func TestSystem_EnteredSignals(t *testing.T) {
 	}
 }
 
+func TestSystem_ContainedCircleContactSignals(t *testing.T) {
+	world := newCollisionWorld(t)
+	sys := NewSystem()
+	circle, err := NewCollider(Circle{Radius: 0.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	box, err := NewCollider(Box{Min: geom.Vector2{X: -2, Y: -2}, Max: geom.Vector2{X: 2, Y: 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: 1}}, circle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := world.NewEntity(core.Transform{}, box)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := world.MustResource[*signal.Hub]().NewReader[Entered]()
+	tick(t, world, sys)
+	ca, cb := contactsOf(t, world, a), contactsOf(t, world, b)
+	if len(ca.Current) != 1 || len(cb.Current) != 1 {
+		t.Fatalf("want symmetric contacts, got %v / %v", ca, cb)
+	}
+	hit, mirrored := ca.Current[0], cb.Current[0]
+	if hit.Normal != (geom.Vector2{X: -1}) || mirrored.Normal != hit.Normal.Mul(-1) ||
+		hit.Point != mirrored.Point || hit.Penetration != mirrored.Penetration {
+		t.Fatalf("contained contacts not symmetric: %v / %v", hit, mirrored)
+	}
+	got := make(map[core.EntityID]Entered)
+	for event, ok := reader.Next(); ok; event, ok = reader.Next() {
+		got[event.Entity] = event
+	}
+	if len(got) != 2 || got[a.ID()] != enteredSignal(a.ID(), hit, 0) || got[b.ID()] != enteredSignal(b.ID(), mirrored, 0) {
+		t.Fatalf("entered signals do not match contact geometry: %v", got)
+	}
+}
+
 func TestSystem_ExitedSignals(t *testing.T) {
 	world := newCollisionWorld(t)
 	sys := NewSystem()

@@ -1,6 +1,7 @@
 package collision
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -318,8 +319,7 @@ func TestContactBetween_CircleRectNormalPointsFirstToSecond(t *testing.T) {
 }
 
 // A circle contained in a rect reports the full depth to separate -
-// boundary distance plus the radius - with the normal pointing at
-// the nearest face, and the exit through that face reads cleanly.
+// boundary distance plus the radius - with separation toward the nearest face.
 func TestContactBetween_ContainedCircleDepth(t *testing.T) {
 	rect := transformShape(Box{Min: geom.Vector2{X: -2, Y: -2}, Max: geom.Vector2{X: 2, Y: 2}}, geom.Vector2{}, core.Transform{})
 
@@ -333,8 +333,8 @@ func TestContactBetween_ContainedCircleDepth(t *testing.T) {
 	if math.Abs(hit.penetration-1.5) > 1e-9 {
 		t.Errorf("penetration = %v, want 1.5 (boundary distance 1 plus radius 0.5)", hit.penetration)
 	}
-	if hit.normal != (geom.Vector2{X: 1, Y: 0}) {
-		t.Errorf("normal = %v, want (1, 0) toward the nearest face", hit.normal)
+	if hit.normal != (geom.Vector2{X: -1, Y: 0}) {
+		t.Errorf("normal = %v, want (-1, 0) opposite the nearest escape direction", hit.normal)
 	}
 	if hit.point != (geom.Vector2{X: 2, Y: 0}) {
 		t.Errorf("point = %v, want (2, 0) on the nearest face", hit.point)
@@ -349,5 +349,53 @@ func TestContactBetween_ContainedCircleDepth(t *testing.T) {
 	}
 	if math.Abs(hit.penetration-0.5) > 1e-9 {
 		t.Errorf("on-boundary penetration = %v, want 0.5 (the radius)", hit.penetration)
+	}
+}
+
+func TestContactBetween_CircleBoxFaceInvariants(t *testing.T) {
+	for _, rotation := range []float64{0, math.Pi / 4} {
+		for _, face := range []geom.Vector2{{X: 1}, {X: -1}, {Y: 1}, {Y: -1}} {
+			for _, offset := range []float64{0.01, 0, -0.01} {
+				t.Run(fmt.Sprintf("rotation=%g/face=%v/offset=%g", rotation, face, offset), func(t *testing.T) {
+					rect := transformShape(
+						Box{Min: geom.Vector2{X: -2, Y: -2}, Max: geom.Vector2{X: 2, Y: 2}},
+						geom.Vector2{}, core.Transform{Rotation: rotation},
+					).shape.(orientedRect)
+					outward := face.Rotate(rotation)
+					circle := worldCircle{center: outward.Mul(2 + offset), radius: 0.5}
+					hit := contactBetween(circle, rect)
+					if !hit.collided {
+						t.Fatal("overlapping circle and box should collide")
+					}
+					if hit.normal.Distance(outward.Mul(-1)) > 1e-9 || math.Abs(hit.normal.Length()-1) > 1e-9 {
+						t.Errorf("normal = %v, want unit inward normal %v", hit.normal, outward.Mul(-1))
+					}
+					if hit.point.Distance(outward.Mul(2)) > 1e-9 || math.Abs(hit.penetration-(0.5-offset)) > 1e-9 {
+						t.Errorf("point/depth = %v/%g, want nearest face %v/full escape %g", hit.point, hit.penetration, outward.Mul(2), 0.5-offset)
+					}
+					reversed := contactBetween(rect, circle)
+					if !reversed.collided || reversed.normal.Distance(hit.normal.Mul(-1)) > 1e-9 ||
+						reversed.point.Distance(hit.point) > 1e-9 || math.Abs(reversed.penetration-hit.penetration) > 1e-9 {
+						t.Errorf("reversed contact = %+v, want mirrored %+v", reversed, hit)
+					}
+					movedCircle := circle
+					movedCircle.center = circle.center.Sub(hit.normal.Mul(hit.penetration))
+					if remaining := contactBetween(movedCircle, rect); remaining.collided && remaining.penetration > 1e-9 {
+						t.Errorf("negative normal * penetration did not separate circle: %+v", remaining)
+					}
+					movedRect := rect
+					movedRect.center = rect.center.Sub(reversed.normal.Mul(reversed.penetration))
+					if remaining := contactBetween(movedRect, circle); remaining.collided && remaining.penetration > 1e-9 {
+						t.Errorf("negative normal * penetration did not separate box: %+v", remaining)
+					}
+				})
+			}
+		}
+	}
+	// Equal face depths deterministically choose the positive local X face.
+	rect := orientedRect{halfExtents: geom.Vector2{X: 2, Y: 2}, axes: [2]geom.Vector2{{X: 1}, {Y: 1}}}
+	hit := contactBetween(worldCircle{radius: 0.5}, rect)
+	if hit.normal != (geom.Vector2{X: -1}) || hit.point != (geom.Vector2{X: 2}) || hit.penetration != 2.5 {
+		t.Fatalf("tied-face contact = %+v", hit)
 	}
 }

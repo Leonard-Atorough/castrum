@@ -65,6 +65,21 @@ func BenchmarkCollisionTickStatic(b *testing.B) {
 	}
 }
 
+// BenchmarkCollisionTickColliderOnly measures reconciliation without transforms.
+func BenchmarkCollisionTickColliderOnly(b *testing.B) {
+	for _, n := range []int{100, 1000} {
+		b.Run(intName(n), func(b *testing.B) {
+			world, entities := colliderWorld(b, n)
+			for _, e := range entities {
+				if err := e.RemoveComponent[core.Transform](world); err != nil {
+					b.Fatal(err)
+				}
+			}
+			collisionTicks(b, world, nil, false)
+		})
+	}
+}
+
 // BenchmarkCollisionTickSparse moves one percent of the collider population.
 func BenchmarkCollisionTickSparse(b *testing.B) {
 	for _, n := range benchSizes {

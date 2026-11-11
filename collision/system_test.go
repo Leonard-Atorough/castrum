@@ -1,6 +1,7 @@
 package collision
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"testing"
@@ -128,16 +129,22 @@ func TestSystem_ContactLifecycle(t *testing.T) {
 }
 
 func TestSystem_AttachesContactsToColliders(t *testing.T) {
-	world := newCollisionWorld(t)
-	sys := NewSystem()
-	player, _ := playerAndWall(t, world)
-
-	if _, ok := player.Component[Contacts](world); ok {
-		t.Fatal("test setup: entity should not have Contacts before the first tick")
-	}
-	tick(t, world, sys)
-	if _, ok := player.Component[Contacts](world); !ok {
-		t.Fatal("collision system should have attached Contacts")
+	for _, active := range []bool{true, false} {
+		t.Run(fmt.Sprint(active), func(t *testing.T) {
+			world := newCollisionWorld(t)
+			sys := NewSystem()
+			player, _ := playerAndWall(t, world)
+			if err := player.Update(world, func(c *Collider) { c.Active = active }); err != nil {
+				t.Fatal(err)
+			}
+			if player.HasComponent[Contacts](world) {
+				t.Fatal("test setup: entity should not have Contacts before the first tick")
+			}
+			tick(t, world, sys)
+			if !player.HasComponent[Contacts](world) {
+				t.Fatal("collision system should attach Contacts even to inactive colliders with transforms")
+			}
+		})
 	}
 }
 
@@ -382,8 +389,27 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 	for _, action := range []string{"inactive", "collider removed", "transform removed", "destroyed"} {
 		t.Run(action, func(t *testing.T) {
 			world := newCollisionWorld(t)
-			sys := NewSystem()
+			sys := NewSystem().(*system)
 			player, wall := playerAndWall(t, world)
+			if action == "transform removed" {
+				if err := wall.RemoveComponent[core.Transform](world); err != nil {
+					t.Fatal(err)
+				}
+				tick(t, world, sys)
+				if wall.HasComponent[Contacts](world) || len(sys.contacts) != 0 {
+					t.Fatal("collider without transform received contact state")
+				}
+				if err := wall.AddComponent(world, core.Transform{}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			tick(t, world, sys)
+			for _, entity := range []*core.Entity{player, wall} {
+				c := contactsOf(t, world, entity)
+				if len(c.Current) != 1 || len(c.Previous) != 0 {
+					t.Fatalf("want initial enter, got %v", c)
+				}
+			}
 			tick(t, world, sys)
 			collider, _ := wall.Component[Collider](world)
 			transform, _ := wall.Component[core.Transform](world)
@@ -404,6 +430,11 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			tick(t, world, sys)
+			if action == "collider removed" || action == "transform removed" {
+				if wall.HasComponent[Contacts](world) || sys.contacts[wall.ID()] != nil {
+					t.Fatal("orphan contacts or private history survived component removal")
+				}
+			}
 			c := contactsOf(t, world, player)
 			if len(c.Current) != 0 || len(c.Previous) != 1 {
 				t.Fatalf("want exit, got %v", c)
@@ -431,6 +462,13 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 				c = contactsOf(t, world, entity)
 				if len(c.Current) != 1 || len(c.Previous) != 0 {
 					t.Fatalf("want fresh enter, got %v", c)
+				}
+			}
+			tick(t, world, sys)
+			for _, entity := range []*core.Entity{player, wall} {
+				c = contactsOf(t, world, entity)
+				if len(c.Current) != 1 || !slices.Equal(c.Current, c.Previous) {
+					t.Fatalf("want stay after reactivation, got %v", c)
 				}
 			}
 		})
