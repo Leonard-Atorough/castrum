@@ -57,7 +57,7 @@ The entity owns both the playback settings and selected clip. Destroying it or r
 
 ## Play a playlist
 
-Use `Playlist` when an entity should advance between assets. `NewPlaylist` copies the supplied track list and selects the first track when one is present. Before adding it to an entity, provide at least one non-empty asset ID. Set `RepeatAll` to wrap automatically after the last track; the default `RepeatNone` stops at the last track:
+Use `Playlist` when an entity should advance between assets. `NewPlaylist` copies the supplied track list and selects the first track when one is present. Each track must be a non-empty asset ID; an empty playlist selects nothing. Set `RepeatAll` to wrap automatically after the last track; the default `RepeatNone` stops at the last track:
 
 ```go
 playlist := audio.NewPlaylist([]asset.ID{
@@ -87,7 +87,7 @@ if err := entity.Update(g.World(), func(p *audio.Playlist) {
 }
 ```
 
-Track edits use the same component-update pattern. `AddTrack`, `InsertTrack`, and `RemoveTrack` return errors for invalid input. A playlist must remain non-empty when stored on an entity; an empty playlist fails component validation. To stop selecting a playlist, remove the `Playlist` component or replace it with a `Clip`.
+Track edits use the same component-update pattern. `AddTrack`, `InsertTrack`, and `RemoveTrack` return errors for invalid input. `Clear` or removing the last track leaves a valid empty playlist: the next reconciliation releases the old playback without completing or replaying it. Adding a track later starts that selection from the beginning under the existing source and mixer pause rules. You can also remove the `Playlist` component or replace it with a `Clip`.
 
 ## Choose how audio loads
 
@@ -167,7 +167,7 @@ source.Group = audio.GroupSFX
 source.Volume = 0.75
 ```
 
-`Clip.Audio` must be a non-empty asset ID. A `Playlist` must contain at least one non-empty asset ID and use a supported repeat mode. The world validates each component when you spawn it and whenever you write it back with `SetComponent`, `Update`, or `AddComponent`. Invalid component state returns an error before it enters the world.
+`Clip.Audio` must be a non-empty asset ID. A `Playlist` may be empty, but each track ID must be non-empty and its repeat mode must be supported. The world validates each component when you spawn it and whenever you write it back with `SetComponent`, `Update`, or `AddComponent`. Invalid component state returns an error before it enters the world.
 
 ## Control playback
 
@@ -189,7 +189,7 @@ Changing `Balance` does not restart playback and applies independently of mixer 
 
 In the [balance example](../../../examples/audio/balance), hold Left/Right to adjust balance or press 1/2/3 for left/center/right. Space pauses the source; change balance while paused, then resume with Space or restart with R. The displayed left/right gains are independent of source and mixer volume. Use headphones or stereo speakers to hear the difference.
 
-The backend currently used by `ebitrun` supports only a resolved playback rate of `1`. The audio component accepts positive multipliers and the engine resolves zero to `1`, but creating or recreating a player with another multiplier returns an error.
+The backend currently used by `ebitrun` supports only a resolved playback rate of `1`. The audio component accepts positive multipliers and the engine resolves zero to `1`, but every runner sync rejects other rates, including updates to existing, paused, or finished sessions. Rejection does not rebuild or change the session.
 
 ## Place sounds in the world
 
@@ -223,7 +223,7 @@ if err != nil {
 }
 ```
 
-Distance is measured from the listener to the source. The system clamps `distance / Range` to `[0, 1]`, passes it to `Source.Attenuation`, and subtracts the result from 1 to obtain the volume gain. A nil curve is linear; `geom.EaseInQuad` and the other easing functions offer alternatives. A custom curve must be pure, map 0 to 0 and 1 to 1, and return finite values in `[0, 1]`. Invalid results are reported during reconciliation.
+Distance is measured from the listener to the source. The system clamps `distance / Range` to `[0, 1]`, passes it to `Source.Attenuation`, and subtracts the result from 1 to obtain the volume gain. A nil curve is linear; `geom.EaseInQuad` and the other easing functions offer alternatives. A custom curve must be pure, map 0 to 0 and 1 to 1, and return finite values in `[0, 1]`. Each enabled spatial application validates the curve's endpoints and sampled result; invalid results are reported during reconciliation.
 
 The horizontal displacement divided by range produces a balance adjustment clamped to `[-1, 1]`. Camera-follow mode uses camera-local horizontal direction, including camera rotation; fixed-position mode uses world X. The system adds this adjustment to the source's authored balance and clamps the result. This is stereo channel attenuation, not true positional panning: sound in the attenuated channel is lost.
 

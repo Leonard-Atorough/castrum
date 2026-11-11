@@ -139,6 +139,20 @@ func TestSegmentCircleHit(t *testing.T) {
 			segment: geom.Segment{Start: geom.Vector2{X: 2}, End: geom.Vector2{X: 2}},
 			circle:  worldCircle{radius: 1},
 		},
+		{
+			name:       "long ray hits leading surface",
+			segment:    geom.Segment{End: geom.Vector2{X: 2e9}},
+			circle:     worldCircle{center: geom.Vector2{X: 1e9}, radius: 1},
+			wantHit:    true,
+			wantT:      (1e9 - 1) / 2e9,
+			wantPoint:  geom.Vector2{X: 1e9 - 1},
+			wantNormal: geom.Vector2{X: -1},
+		},
+		{
+			name:    "long ray misses nearby circle",
+			segment: geom.Segment{Start: geom.Vector2{Y: 2}, End: geom.Vector2{X: 2e9, Y: 2}},
+			circle:  worldCircle{center: geom.Vector2{X: 1e9}, radius: 1},
+		},
 	}
 
 	for _, test := range tests {

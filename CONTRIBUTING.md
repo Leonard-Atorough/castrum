@@ -16,6 +16,17 @@ go test ./...
 
 On Linux, the Ebitengine dependencies need the usual windowing headers (`libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl1-mesa-dev`). CI runs `gofmt -l .` - a contribution is formatted when that command prints nothing.
 
+GNU Make is optional: `make build` runs `go build ./...`, `make lint` runs
+`go vet ./...`, and `make test` runs `go test -v -race ./...`. Race tests
+require CGO and a C compiler. `make bench` runs the separate benchmark module.
+The version and release helpers also require Bash and Git; `make bump BUMP=patch`
+only prints the next version, while `make release BUMP=patch` creates a local
+tag. The [release workflow](.github/workflows/release.yaml) is the canonical
+release path.
+
+Castrum is a library, not a root-level executable. To run a game, follow the
+[starter instructions](templates/starter/README.md).
+
 ## What a change needs
 
 Every change keeps the gates green, and the gates are the floor, not the ceiling:

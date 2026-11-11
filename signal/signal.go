@@ -32,11 +32,13 @@ type buffer[T any] struct {
 
 func (b *buffer[T]) flushTick() {
 	b.frame = append(b.frame, b.tick...)
+	clear(b.tick)
 	b.tick = b.tick[:0]
 	b.tickGen++
 }
 
 func (b *buffer[T]) clearFrame() {
+	clear(b.frame)
 	b.frame = b.frame[:0]
 	b.frameGen++
 }
