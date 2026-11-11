@@ -48,6 +48,85 @@ func TestScheduleOrderAndGroups(t *testing.T) {
 	}
 }
 
+func TestScheduleOuterBoundaries(t *testing.T) {
+	s := NewSchedule(core.PhasePostFrame, make(map[string]bool))
+	var got []string
+	entry := func(name string) Entry {
+		return Entry{Name: name, System: core.SystemFunc(func(*core.Context) error {
+			got = append(got, name)
+			return nil
+		})}
+	}
+	for _, step := range []struct {
+		add  func(Entry) error
+		name string
+	}{
+		{s.SetOpening, "open"}, {s.SetClosing, "close"},
+		{s.AddFirst, "first"}, {s.AddLast, "last"},
+		{s.Add, "user"}, {s.AddFirst, "first-late"}, {s.AddLast, "last-late"},
+	} {
+		if err := step.add(entry(step.name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetOpening(entry("duplicate-open")); err == nil {
+		t.Fatal("second opening accepted")
+	}
+	if err := s.SetClosing(entry("duplicate-close")); err == nil {
+		t.Fatal("second closing accepted")
+	}
+	for _, target := range []string{"open", "first", "last", "close"} {
+		if err := s.AddBefore(target, entry("before")); err == nil {
+			t.Fatalf("AddBefore accepted boundary %q", target)
+		}
+		if err := s.AddAfter(target, entry("after")); err == nil {
+			t.Fatalf("AddAfter accepted boundary %q", target)
+		}
+	}
+	if err := s.Run(&core.Context{}); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"open", "first", "first-late", "user", "last", "last-late", "close"}; !slices.Equal(got, want) {
+		t.Fatalf("ran %v, want %v", got, want)
+	}
+}
+
+func TestScheduleBoundaryAddedDuringRunWaits(t *testing.T) {
+	s := NewSchedule(core.PhaseFrame, make(map[string]bool))
+	var got []string
+	entry := func(name string) Entry {
+		return Entry{Name: name, System: core.SystemFunc(func(*core.Context) error {
+			got = append(got, name)
+			return nil
+		})}
+	}
+	if err := s.Add(Entry{Name: "user", System: core.SystemFunc(func(*core.Context) error {
+		got = append(got, "user")
+		if len(got) == 1 {
+			if err := s.SetOpening(entry("open")); err != nil {
+				return err
+			}
+			return s.SetClosing(entry("close"))
+		}
+		return nil
+	})}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Run(&core.Context{}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, []string{"user"}) {
+		t.Fatalf("first run = %v", got)
+	}
+	got = nil
+	if err := s.Run(&core.Context{}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, []string{"open", "user", "close"}) {
+		t.Fatalf("second run = %v", got)
+	}
+}
+
 func TestScheduleBoundaryAndRelativeOrder(t *testing.T) {
 	s := NewSchedule(core.PhaseFixed, make(map[string]bool))
 	var got []string
@@ -57,7 +136,6 @@ func TestScheduleBoundaryAndRelativeOrder(t *testing.T) {
 			return nil
 		})}
 	}
-
 	if err := s.AddFirst(add("first")); err != nil {
 		t.Fatal(err)
 	}
@@ -194,6 +272,12 @@ func TestScheduleStopsAtError(t *testing.T) {
 	s := NewSchedule(core.PhaseFixed, make(map[string]bool))
 	wantErr := errors.New("system error")
 	var got []string
+	if err := s.SetClosing(Entry{Name: "closing", System: core.SystemFunc(func(*core.Context) error {
+		got = append(got, "closing")
+		return nil
+	})}); err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range []string{"first", "failing", "last"} {
 		if err := s.Add(Entry{Name: name, System: core.SystemFunc(func(*core.Context) error {
 			got = append(got, name)

@@ -12,10 +12,9 @@ import (
 // Finished is the signal the audio system emits on the update that observes
 // a [LoopNone] play finishing, the same update that sets [Source.Completed].
 //
-// The audio system runs in the frame schedule, so Finished is readable only
-// by frame systems registered after it during the same frame phase; it does
-// not survive into the next frame. React to it from a frame system, or poll
-// [Source.Completed] from anywhere when the exact frame does not matter.
+// The game reconciles audio after frame systems when a controller is attached.
+// Read Finished in the post-frame phase before the frame window closes, or poll
+// [Source.Completed] when the exact frame does not matter.
 type Finished struct {
 	// Entity is the entity whose Source finished. A [OneShot]'s entity is
 	// destroyed on the same update, so its ID identifies the play only.
@@ -65,7 +64,7 @@ func resolveMultiplier(multiplier float64) float64 {
 }
 
 // Controller applies resolved [Playback] state to backend players. Runners
-// implement it and pass it to [NewAudioSystem].
+// implement it and attach it to the game's [Backend].
 type Controller interface {
 	// Sync applies want to the player for entityID and source. live reports
 	// whether the play has not finished, not whether it is currently playing:

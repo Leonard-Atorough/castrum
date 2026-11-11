@@ -158,10 +158,10 @@ func WithScenes() option {
 			}); err != nil {
 				return fmt.Errorf("castrum: provide scene director: %w", err)
 			}
-			if err := g.AddSystem(core.PhaseStartup, scene.StartupSystemName, scene.NewStartupSystem(director)); err != nil {
+			if err := g.addEngineFirst(core.PhaseStartup, scene.StartupSystemName, scene.NewStartupSystem(director)); err != nil {
 				return err
 			}
-			return g.AddSystem(core.PhaseFrame, scene.FrameSystemName, scene.NewFrameSystem(director))
+			return g.addEngineFirst(core.PhaseFrame, scene.FrameSystemName, scene.NewFrameSystem(director))
 		})
 	})
 }
@@ -199,10 +199,10 @@ func WithState[S comparable](machine *state.Machine[S]) option {
 				}
 				return nil
 			})
-			if err := g.AddSystem(core.PhasePreStartup, state.SystemName, states); err != nil {
+			if err := g.addEngineFirst(core.PhasePreStartup, state.SystemName, states); err != nil {
 				return err
 			}
-			return g.AddSystem(core.PhasePreFrame, state.SystemName, states)
+			return g.addEngineFirst(core.PhasePreFrame, state.SystemName, states)
 		})
 	})
 }

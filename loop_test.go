@@ -610,7 +610,7 @@ func TestEngineRegistersPrevTransformCapture(t *testing.T) {
 		t.Fatalf("spawn prev = %v, ok %v, want the spawn position (7, 7)", prev, ok)
 	}
 
-	addTestSystem(t, g, core.PhaseFixed, "move", core.SystemFunc(func(ctx *core.Context) error {
+	addTestSystem(t, g, core.PhasePreFixed, "move", core.SystemFunc(func(ctx *core.Context) error {
 		return entity.Update(ctx.World, func(transform *core.Transform) {
 			transform.Position = geom.Vector2{X: 9, Y: 9}
 		})

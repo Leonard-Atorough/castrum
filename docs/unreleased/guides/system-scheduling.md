@@ -28,7 +28,7 @@ Each fixed tick runs its phases in order:
 | `core.PhaseFixed` | Once per tick | Simulation, movement, and gameplay rules. |
 | `core.PhasePostFixed` | Once per tick, after fixed systems | Tick-level observation or cleanup. |
 
-A frame may have no fixed ticks or several catch-up ticks. Frame phases still run while the game is paused; fixed phases do not. `ctx.DeltaTime` is elapsed frame time in frame phases and the fixed tick interval in fixed phases. `PhasePreFixed` runs before fixed-phase engine systems such as transform capture and tick input, while `PhasePostFixed` runs after fixed systems. See [the scheduler reference](../reference/the-scheduler.md) for accumulator limits, interpolation, and signal windows.
+A frame may have no fixed ticks or several catch-up ticks. Frame phases still run while the game is paused; fixed phases do not. `ctx.DeltaTime` is elapsed frame time in frame phases and the fixed tick interval in fixed phases. Transform capture and tick input run before user `PhasePreFixed` systems; timers, animation, and collision run before user `PhaseFixed` systems. See [the scheduler reference](../reference/the-scheduler.md) for accumulator limits, interpolation, and signal windows.
 
 ## Register in dependency order
 
@@ -65,9 +65,9 @@ func registerPlayerSystems(g *castrum.Game, player *core.Entity) error {
 }
 ```
 
-The resulting order is `player.prepare`, `player.move`, then `player.clamp`. `castrum.Before` and `castrum.After` insert a new system relative to an existing regular system in the same phase. The target must already be registered; the internal first/last lifecycle hooks are not valid targets. These options insert new systems rather than moving existing ones or declaring a dependency graph, so cycles cannot be formed. Repeated `After` registrations for the same target place the newest system closest to that target.
+The resulting order is `player.prepare`, `player.move`, then `player.clamp`. `castrum.Before` and `castrum.After` insert a new system relative to an existing user system in the same phase. The target must already be registered; engine systems are not valid targets. These options insert new systems rather than moving existing ones or declaring a dependency graph, so cycles cannot be formed. Repeated `After` registrations for the same target place the newest system closest to that target.
 
-Names appear in schedule errors and must be non-empty and unique within each phase. `AddSystem` returns an error for an invalid phase, an empty or duplicate name, a missing target, or invalid or conflicting options. Specify at most one position option and one non-empty group. A system error stops the current phase and propagates through `Startup` or `Advance`, and through the runner's `Run`. Engine features register their own systems where needed. Systems added normally after `castrum.New` run after its systems in the same phase, but relative options can insert before ordinary engine systems. Preserve dependencies such as input publication before input consumers and transform capture before gameplay movement.
+Names appear in schedule errors and must be non-empty and unique within each phase, including engine registrations. `AddSystem` returns an error for an invalid phase, an empty or duplicate name, a missing or engine-owned target, or invalid or conflicting options. Specify at most one position option and one non-empty group. A system error stops the current phase and propagates through `Startup` or `Advance`, and through the runner's `Run`. Engine systems run in protected positions before or after user systems; see the [phase table](../reference/the-scheduler.md#schedule-order).
 
 ## Add systems while the game runs
 

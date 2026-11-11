@@ -681,10 +681,7 @@ func TestDefaultRunnerAudioPlaybackAndCleanup(t *testing.T) {
 	}
 	advance(3)
 
-	controller, err := world.Resource[audio.Controller]()
-	if err != nil {
-		t.Fatalf("audio controller: %v", err)
-	}
+	controller := world.MustResource[*audio.Backend]().Controller()
 	provider, ok := controller.(*audioProvider)
 	if !ok {
 		t.Fatalf("controller = %T, want the runner's audioProvider", controller)

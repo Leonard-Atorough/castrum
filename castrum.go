@@ -85,7 +85,7 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide asset loader: %w", err)
 	}
 
-	if err := g.AddSystem(core.PhaseFixed, core.PrevTransformSystemName, core.NewPrevTransformCapture()); err != nil {
+	if err := g.addEngineFirst(core.PhasePreFixed, core.PrevTransformSystemName, core.NewPrevTransformCapture()); err != nil {
 		return nil, err
 	}
 
@@ -104,10 +104,10 @@ func New(opts ...option) (*Game, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide timer groups: %w", err)
 	}
-	if err := g.AddSystem(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
+	if err := g.addEngineFirst(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
 		return nil, err
 	}
-	if err := g.AddSystem(core.PhaseFixed, animation.SystemName, animation.NewAnimationSystem(clips)); err != nil {
+	if err := g.addEngineFirst(core.PhaseFixed, animation.SystemName, animation.NewAnimationSystem(clips)); err != nil {
 		return nil, err
 	}
 	if err := g.world.ProvideEager(func(*core.World) (*collision.Queries, error) {
@@ -115,7 +115,7 @@ func New(opts ...option) (*Game, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide collision queries: %w", err)
 	}
-	if err := g.AddSystem(core.PhaseFixed, collision.SystemName, collision.NewSystem()); err != nil {
+	if err := g.addEngineFirst(core.PhaseFixed, collision.SystemName, collision.NewSystem()); err != nil {
 		return nil, err
 	}
 
@@ -126,7 +126,7 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide signal hub: %w", err)
 	}
 	g.hub = hub
-	if err := g.schedule(core.PhasePreFrame).AddFirst(runtime.Entry{
+	if err := g.schedule(core.PhasePreFrame).SetOpening(runtime.Entry{
 		Name: "engine.signal-begin-frame",
 		System: core.SystemFunc(func(*core.Context) error {
 			hub.BeginFrame()
@@ -135,7 +135,7 @@ func New(opts ...option) (*Game, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: register signal begin-frame system: %w", err)
 	}
-	if err := g.schedule(core.PhasePostFrame).AddLast(runtime.Entry{
+	if err := g.schedule(core.PhasePostFrame).SetClosing(runtime.Entry{
 		Name: "engine.signal-end-frame",
 		System: core.SystemFunc(func(*core.Context) error {
 			hub.EndFrame()
@@ -144,7 +144,7 @@ func New(opts ...option) (*Game, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: register signal end-frame system: %w", err)
 	}
-	if err := g.schedule(core.PhasePostFixed).AddLast(runtime.Entry{
+	if err := g.schedule(core.PhasePostFixed).SetClosing(runtime.Entry{
 		Name: "engine.signal-end-tick",
 		System: core.SystemFunc(func(*core.Context) error {
 			hub.EndTick()
@@ -161,6 +161,45 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide debug panel: %w", err)
 	}
 
+	mixer := audio.NewMixer()
+	if err := g.world.Provide(func(*core.World) (*audio.Mixer, error) {
+		return mixer, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide audio mixer: %w", err)
+	}
+	if err := g.world.Provide(func(*core.World) (*audio.Listener, error) {
+		return &audio.Listener{}, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide audio listener: %w", err)
+	}
+	backend := &audio.Backend{}
+	if err := g.world.Provide(func(*core.World) (*audio.Backend, error) {
+		return backend, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide audio backend: %w", err)
+	}
+	var reconciler core.System
+	// Capture before other frame systems so mid-phase attachments wait for the next pass.
+	if err := g.addEngineFirst(core.PhaseFrame, "engine.audio-prepare", core.SystemFunc(func(*core.Context) error {
+		if controller := backend.Controller(); reconciler == nil && controller != nil {
+			reconciler = audio.NewAudioSystem(controller, mixer)
+		}
+		return nil
+	})); err != nil {
+		return nil, err
+	}
+	if err := g.schedule(core.PhaseFrame).AddLast(runtime.Entry{
+		Name: audio.SystemName,
+		System: core.SystemFunc(func(ctx *core.Context) error {
+			if reconciler == nil {
+				return nil
+			}
+			return reconciler.Update(ctx)
+		}),
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: register audio system: %w", err)
+	}
+
 	if options.InputBindings != nil {
 		if err := g.wireInput(options.InputBindings); err != nil {
 			return nil, err
@@ -175,18 +214,6 @@ func New(opts ...option) (*Game, error) {
 		if err := f.enable(g, &options); err != nil {
 			return nil, fmt.Errorf("castrum: enable %s: %w", f.name, err)
 		}
-	}
-
-	mixer := audio.NewMixer()
-	if err := g.world.Provide(func(*core.World) (*audio.Mixer, error) {
-		return mixer, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide audio mixer: %w", err)
-	}
-	if err := g.world.Provide(func(*core.World) (*audio.Listener, error) {
-		return &audio.Listener{}, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide audio listener: %w", err)
 	}
 
 	// The engine's default camera yields to user-spawned primary cameras.
@@ -231,12 +258,12 @@ type SystemOption struct {
 	value string
 }
 
-// Before places a system immediately before target in the same phase.
+// Before places a system immediately before a registered user system in the same phase.
 func Before(target string) SystemOption {
 	return SystemOption{kind: systemOptionBefore, value: target}
 }
 
-// After places a system immediately after target in the same phase.
+// After places a system immediately after a registered user system in the same phase.
 func After(target string) SystemOption {
 	return SystemOption{kind: systemOptionAfter, value: target}
 }
@@ -248,11 +275,11 @@ func InGroup(group string) SystemOption {
 }
 
 // AddSystem registers a named system in phase. By default it runs after
-// previously registered systems. [Before], [After], and [InGroup] configure
+// previously registered user systems. [Before], [After], and [InGroup] configure
 // its position and group.
 //
 // Names must be nonempty and unique within the phase. Relative targets must
-// already be registered regular systems in the same phase. At most one
+// already be registered user systems in the same phase. At most one
 // position and one group may be specified. Invalid phases, options, names,
 // and targets return an error. Startup phases reject registration once
 // [Game.Startup] begins.
@@ -325,7 +352,15 @@ func (g *Game) schedule(phase core.Phase) *runtime.Schedule {
 		sched = runtime.NewSchedule(phase, g.groupStates)
 		g.schedules[phase] = sched
 	}
+
 	return sched
+}
+
+func (g *Game) addEngineFirst(phase core.Phase, name string, system core.System) error {
+	if err := g.schedule(phase).AddFirst(runtime.Entry{Name: name, System: system}); err != nil {
+		return fmt.Errorf("castrum: register engine system %q in phase %s: %w", name, phase, err)
+	}
+	return nil
 }
 
 // SetGroupEnabled enables or disables a registered group across all phases.

@@ -57,7 +57,7 @@ func (h Health) Validate() error {
 
 `NewEntity` validates components before allocating an entity ID. Component writes validate before mutation, so a rejected `SetComponent`, `Update`, or `AddComponent` leaves the previous stored value unchanged. A nil component is rejected. Decide deliberately whether a component's zero value is valid, useful as a default, or invalid; the [conventions guide](conventions.md) covers those choices.
 
-`Transform` has one engine-managed dependency: spawning or adding a `Transform` also adds a `PrevTransform` snapshot. The fixed-loop capture system updates that snapshot before gameplay systems normally appended later. Preserve this order when inserting systems relative to the capture. Game code reads `PrevTransform` for inspection but does not write or remove it; an entity without both components cannot be interpolated by the renderer.
+`Transform` has one engine-managed dependency: spawning or adding a `Transform` also adds a `PrevTransform` snapshot. The fixed-loop capture system updates that snapshot before user pre-fixed systems. Game code reads `PrevTransform` for inspection but does not write or remove it; an entity without both components cannot be interpolated by the renderer.
 
 ## Systems and context
 

@@ -14,7 +14,7 @@ const DefaultDeadzone = 0.15
 // the frame view by calling [ActionMap.Update].
 const FrameSystemName = "engine.input-update"
 
-// TickSystemName is the name castrum.New registers the fixed input
+// TickSystemName is the name castrum.New registers the pre-fixed input
 // system under: the system that delivers the press and release edges
 // accumulated since the previous tick by calling [ActionMap.Tick].
 const TickSystemName = "engine.input-tick"

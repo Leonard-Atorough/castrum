@@ -81,17 +81,16 @@ type Runner struct {
 
 var _ castrum.Runner = (*Runner)(nil)
 
-// AudioSystemName is the name the runner registers the audio
-// reconciler under in the frame schedule.
-const AudioSystemName = "engine.audio"
+// AudioSystemName is the name of the game's audio reconciler.
+const AudioSystemName = audio.SystemName
 
 // New creates a Runner for g, applying opts over the defaults. It returns an
-// error for invalid options or if the runner's resources or audio system
-// cannot be registered.
+// error for invalid options or if the runner's resources or audio controller
+// cannot be attached.
 //
 // g must come from [castrum.New], which provides the game's [asset.Loader].
-// New registers the [TextureProvider], [FontProvider], and audio provider as
-// eager resources, and adds the audio reconciler to the frame schedule.
+// New registers the [TextureProvider] and [FontProvider] as eager resources
+// and attaches its audio controller to the game.
 func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	options := defaultOptions()
 	for _, o := range opts {
@@ -101,6 +100,13 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, err
 	}
 
+	backend, err := g.World().Resource[*audio.Backend]()
+	if err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: resolve audio backend: %w", err)
+	}
+	if backend.Controller() != nil {
+		return nil, fmt.Errorf("castrum/ebiten: audio controller already attached")
+	}
 	loader := g.World().MustResource[*asset.Loader]()
 	provider := newTextureProvider(loader)
 	if err := g.World().ProvideEager(func(*core.World) (*TextureProvider, error) {
@@ -114,16 +120,6 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		audioCtx = ebitaudio.NewContext(options.SampleRate)
 	}
 	controller := newAudioProvider(audioCtx, loader)
-	if err := g.World().ProvideEager(func(*core.World) (audio.Controller, error) {
-		return controller, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: provide audio provider: %w", err)
-	}
-
-	if err := g.AddSystem(core.PhaseFrame, AudioSystemName, audio.NewAudioSystem(controller, g.World().MustResource[*audio.Mixer]())); err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: register %s: %w", AudioSystemName, err)
-	}
-
 	g.Context().LogicalWidth = options.Logical.Width
 	g.Context().LogicalHeight = options.Logical.Height
 
@@ -141,6 +137,9 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 	if options.DebugOverlay {
 		overlay := newDebugOverlay(g)
 		runner.AddDraw(overlay.draw)
+	}
+	if err := backend.Attach(controller); err != nil {
+		return nil, fmt.Errorf("castrum/ebiten: attach audio controller: %w", err)
 	}
 	return runner, nil
 }

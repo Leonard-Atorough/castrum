@@ -41,7 +41,18 @@ return g.Run(runner)
 
 Window size is the platform-facing size. Logical size is the internal render resolution used for projection and culling; the runner scales that canvas to the window. `WithResizable`, `WithoutVSync`, and `WithAudioSampleRate` are runner concerns for the same reason.
 
-Constructing `ebitrun` also binds runner-owned services to the game's resources. In particular, it registers the audio codecs and provides the texture and audio providers. Explicit audio preloads therefore belong after `ebitrun.New`; see [the asset pipeline](asset-pipeline.md) and the [audio guide](../guides/audio.md).
+Constructing `ebitrun` also binds runner-owned services to the game. It registers the audio codecs, provides texture and font resources, and attaches its audio controller to the game's `*audio.Backend`. Explicit audio preloads therefore belong after `ebitrun.New`; see [the asset pipeline](asset-pipeline.md) and the [audio guide](../guides/audio.md).
+
+Custom runners attach their own implementation of `audio.Controller` to the same backend:
+
+```go
+backend := g.World().MustResource[*audio.Backend]()
+if err := backend.Attach(controller); err != nil {
+	return err
+}
+```
+
+The game owns audio reconciliation and its schedule position. A backend accepts one non-nil controller; attaching another returns an error. Without a controller, audio reconciliation is inactive, so headless games need no audio implementation. Attachments during the frame phase take effect on the next frame pass. Backend access and attachment must not run concurrently with game updates.
 
 ## Drawing across the boundary
 
