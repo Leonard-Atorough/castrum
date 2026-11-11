@@ -45,7 +45,7 @@ The context is the view supplied to a system for its current phase:
 
 - `ctx.Frame` is set from `Real.Frame` at the start of each advance.
 - `ctx.Tick` is set from `Simulation.Tick` when a fixed tick starts. A direct change to `Simulation.Tick` does not immediately update the context.
-- `ctx.DeltaTime` is the clamped, unscaled elapsed duration in pre-frame and frame systems, and `Simulation.Delta` in fixed systems. A frame system should not apply the clamp or simulation scale again.
+- `ctx.DeltaTime` is the clamped, unscaled elapsed duration in frame systems, and `Simulation.Delta` in fixed systems. A frame system should not apply the clamp or simulation scale again.
 
 Fixed steps give gameplay a consistent interval, but they do not by themselves guarantee deterministic replay: inputs, update ordering, frame clamping, and dropped backlog can affect the result. Elapsed-time-based frame motion can maintain the same speed across display rates, but the timing and number of its updates depend on the runner.
 
@@ -69,7 +69,7 @@ The scale must be positive and finite. `SetTimeScale` returns an error for zero,
 
 An enormous finite scale can still produce an unrepresentable elapsed duration. `Advance` reports that contribution or an overflowing accumulator sum as an error without changing the accumulator. Frame systems have already run; their effects are not rolled back.
 
-`Advance` runs pre-frame and frame systems before checking pause and adding scaled elapsed time. Changes made between calls control the upcoming advance; changes made in a frame system affect fixed work later in the same call. If a frame system resumes the game, that call can accumulate its full supplied elapsed duration, subject to the clamp. Pause or scale changes made during a fixed tick do not interrupt the fixed work already being processed in that advance.
+`Advance` runs pre-frame, frame, and post-frame systems before checking pause and adding scaled elapsed time. Changes made between calls control the upcoming advance; changes made in a frame-phase system affect fixed work later in the same call. If a frame-phase system resumes the game, that call can accumulate its full supplied elapsed duration, subject to the clamp. Pause or scale changes made during a fixed tick do not interrupt the fixed work already being processed in that advance.
 
 ## Configure the fixed loop
 

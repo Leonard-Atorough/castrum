@@ -140,7 +140,7 @@ Exit hooks see the old mode; enter hooks see the new one. A hook can request ano
 
 At startup, the engine runs the initial state's enter hooks before queued scene operations and user startup systems. A request made during setup does not skip that initial entry; it waits until the first display frame.
 
-Each display frame runs in this order:
+With systems added normally, each display frame runs in this order:
 
 ```text
 update bound input actions
@@ -151,7 +151,7 @@ run user frame systems
 run any fixed ticks due
 ```
 
-This is why a scene request from a state hook can be applied before gameplay systems run that frame. State hooks also see the current frame's named actions. Requests from ordinary frame or fixed systems wait until the next display frame's state pass.
+This is why a scene request from a state hook can be applied before normally appended gameplay systems run that frame. State hooks also see the current frame's named actions. Relative registration can insert a user system before an ordinary input, state, or scene system and change what that user system observes. Requests from ordinary frame or fixed systems wait until the next display frame's state pass.
 
 State processing continues when the fixed simulation is paused and is not scaled by the game's time scale. To pause simulation rather than change game modes, see [Time control](time-control.md). For the full phase order, see [The scheduler](../reference/the-scheduler.md).
 
@@ -186,7 +186,7 @@ There are two state signals:
 
 Initial entry emits `Initialized`, not `Changed`: starting in the menu is not a transition from some other mode. Use a separate initialization consumer if you need that notification. Requests and no-ops emit neither signal. Signal types include the state type, so `Changed[GameMode]` and `Changed[string]` are separate streams.
 
-In normal engine startup, initialization is available to later startup systems and first-frame consumers. Transition signals are available to later pre-frame and frame systems. Both expire at the frame's end, before fixed ticks: read `Current` or `Is` in fixed systems rather than relying on a frame notification.
+In normal engine startup, initialization is available to later startup systems and first-frame consumers. Transition signals are available to later pre-frame, frame, and post-frame systems. Both expire at the frame's end, before fixed ticks: read `Current` or `Is` in fixed systems rather than relying on a frame notification.
 
 A change signal reports the assignment, not successful enter hooks or scene replacement. An error can stop the game update before later consumers run, even though the signal was emitted. For reader lifetimes and delivery windows, see [Signals](signals.md).
 

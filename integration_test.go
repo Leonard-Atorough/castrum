@@ -355,11 +355,11 @@ func TestWithScenesDoesNotControlGroups(t *testing.T) {
 	}
 
 	var updates int
-	if err := g.AddSystemToGroup(core.PhaseFixed, "mission", "mission", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "mission", core.SystemFunc(func(*core.Context) error {
 		updates++
 		return nil
-	})); err != nil {
-		t.Fatalf("AddSystemToGroup: %v", err)
+	}), InGroup("mission")); err != nil {
+		t.Fatalf("AddSystem: %v", err)
 	}
 	blueprint := func(name string) *scene.Blueprint {
 		return &scene.Blueprint{Name: name, EntityList: []scene.EntitySpec{{Name: "root"}}}

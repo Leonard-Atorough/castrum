@@ -57,11 +57,11 @@ func (h Health) Validate() error {
 
 `NewEntity` validates components before allocating an entity ID. Component writes validate before mutation, so a rejected `SetComponent`, `Update`, or `AddComponent` leaves the previous stored value unchanged. A nil component is rejected. Decide deliberately whether a component's zero value is valid, useful as a default, or invalid; the [conventions guide](conventions.md) covers those choices.
 
-`Transform` has one engine-managed dependency: spawning or adding a `Transform` also adds a `PrevTransform` snapshot. The fixed-loop capture system updates that snapshot before gameplay systems run. Game code reads `PrevTransform` for inspection but does not write or remove it; an entity without both components cannot be interpolated by the renderer.
+`Transform` has one engine-managed dependency: spawning or adding a `Transform` also adds a `PrevTransform` snapshot. The fixed-loop capture system updates that snapshot before gameplay systems normally appended later. Preserve this order when inserting systems relative to the capture. Game code reads `PrevTransform` for inspection but does not write or remove it; an entity without both components cannot be interpolated by the renderer.
 
 ## Systems and context
 
-The `core` package defines the system contract; the game schedules systems in startup, frame, and fixed phases. `SystemFunc` adapts a function to that contract:
+The `core` package defines the system contract; the game schedules systems across startup, frame, and fixed phases. `SystemFunc` adapts a function to that contract:
 
 ```go
 func moveSystem(player *core.Entity) core.System {
@@ -74,18 +74,18 @@ func moveSystem(player *core.Entity) core.System {
 }
 ```
 
-`Context` is read-only system input. It includes the world, frame and fixed-tick counters, the current `DeltaTime`, interpolation `Alpha`, logical render dimensions, and input snapshots. `DeltaTime` is the display-frame duration in `PhaseFrame` and the fixed tick interval in `PhaseFixed`. Register systems in dependency order within a phase: a reader must follow the system that writes the value it consumes. See the [scheduler reference](../reference/the-scheduler.md) for phase order and runner details.
+`Context` is read-only system input. It includes the world, frame and fixed-tick counters, the current `DeltaTime`, interpolation `Alpha`, logical render dimensions, and input snapshots. `DeltaTime` is the display-frame duration in frame phases and the fixed tick interval in fixed phases. Arrange systems in dependency order within a phase: a reader must run after the system that writes the value it consumes. See [Scheduling systems](system-scheduling.md) for phase selection and ordering, and the [scheduler reference](../reference/the-scheduler.md) for runner details.
 
 Capture configuration, entity IDs, and reusable queries in the system closure. A query can be initialized on the first call, after setup has finished, and reused on subsequent calls.
 
-Named groups registered with `Game.AddSystemToGroup` start enabled. Use
+Named groups registered with `Game.AddSystem` and `castrum.InGroup` start enabled. Use
 `Game.SetGroupEnabled` to change a group's state across phases; systems added
 to that group later inherit the same state. Scene transitions do not change
 group states. A system can instead run normally and query for the components
 it needs; an empty query does no entity work.
 
 ```go
-if err := g.AddSystemToGroup(core.PhaseFixed, "gameplay", "move", moveSystem(player)); err != nil {
+if err := g.AddSystem(core.PhaseFixed, "move", moveSystem(player), castrum.InGroup("gameplay")); err != nil {
 	return err
 }
 // Pause these systems without unloading their scene.

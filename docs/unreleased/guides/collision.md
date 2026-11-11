@@ -2,7 +2,7 @@
 
 Castrum collision is overlap detection, not a physics solver. Give an entity a `collision.Collider` and a `core.Transform`; the engine detects overlaps and writes them to `collision.Contacts`. Your systems decide whether a contact blocks movement, deals damage, collects a pickup, or does nothing.
 
-The engine registers collision detection in the fixed phase before gameplay systems for every game: colliders are declared by component presence, so a `Collider` on an entity is the registration. It tests the transforms at the start of that tick, so movement your systems make is detected on the following fixed tick. The option also provides a `collision.Queries` resource backed by the collision system's broadphase.
+The engine registers collision detection in the fixed phase for every game: colliders are declared by component presence, so a `Collider` on an entity is the registration. Collision normally runs before gameplay systems appended later, so their movement is detected on the following fixed tick. Movement in pre-fixed or in a system inserted before collision can instead affect the current tick's detection. The engine also provides a `collision.Queries` resource backed by the collision system's broadphase.
 
 For a complete runnable example, including walls, rotating hazards, trigger pickups, and contact lifecycle handling, run:
 
@@ -133,7 +133,7 @@ func entered(contacts collision.Contacts) []collision.Contact {
 }
 ```
 
-Use the `Trigger` flag to distinguish interactions such as pickups from solid contacts. Because contacts are computed before gameplay systems run, those systems can read the current results, but changes they make to transforms will affect detection on the next fixed tick.
+Use the `Trigger` flag to distinguish interactions such as pickups from solid contacts. Systems that run after collision detection can read the current results, but their changes to transforms will affect detection on the next fixed tick.
 
 ## React to enters and exits with signals
 

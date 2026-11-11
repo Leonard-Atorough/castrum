@@ -20,8 +20,8 @@ func BenchmarkAdvanceEmptySystems(b *testing.B) {
 				b.Fatal(err)
 			}
 			empty := core.SystemFunc(func(*core.Context) error { return nil })
-			for range n {
-				if err := g.AddSystem(core.PhaseFixed, "bench.empty", empty); err != nil {
+			for i := range n {
+				if err := g.AddSystem(core.PhaseFixed, "bench.empty."+intName(i), empty); err != nil {
 					b.Fatal(err)
 				}
 			}

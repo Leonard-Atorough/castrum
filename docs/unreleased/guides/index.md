@@ -1,10 +1,11 @@
 # Guides
 
-The guides are Castrum's manual: each chapter explains one engine feature in depth, with code you can adapt and links to the source examples. Read the getting-started chapters first if the world, systems, and fixed phases are new to you.
+The guides are Castrum's manual: each chapter explains one engine feature in depth, with code you can adapt and links to the source examples. Read the getting-started chapters first if the world, systems, and fixed phases are new to you, then see [Scheduling systems](system-scheduling.md) for phase selection and ordering.
 
 ## Foundation
 
 - [The ECS in depth](ecs.md) - entities, components, systems, queries, resources, and validation.
+- [Scheduling systems](system-scheduling.md) - phase choice, registration order, runtime additions, and groups.
 - [Assets](assets.md) - filesystem roots, loading, atlases, and setup-time failures.
 - [Conventions and best practices](conventions.md) - setup, zero values, validation, errors, and state-driven APIs.
 - [Settings](settings.md) - typed preferences, validation, copying, and applying values.

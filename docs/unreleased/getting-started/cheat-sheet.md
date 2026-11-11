@@ -45,13 +45,19 @@ err = e.AddComponent(ctx.World, extraComponent)
 
 ## Systems and phases
 
+See [Scheduling systems](../guides/system-scheduling.md) for phase selection, registration order, runtime additions, and groups.
+
 | Phase                   | Runs                                          | Use for                                      |
 | ----------------------- | --------------------------------------------- | ------------------------------------------- |
 | `core.PhasePreStartup`  | once, before startup systems                 | initial state hooks                         |
 | `core.PhaseStartup`     | once, before the first frame                 | loading, world setup                        |
-| `core.PhasePreFrame`    | once per display frame, after input updates  | state transitions before scene operations   |
+| `core.PhasePostStartup` | once, after startup systems                  | post-setup work                             |
+| `core.PhasePreFrame`    | once per display frame, before frame systems | state transitions before scene operations   |
 | `core.PhaseFrame`       | once per display frame                       | scene operations, UI, presentation          |
+| `core.PhasePostFrame`   | once per display frame, after frame systems  | frame cleanup and observation               |
+| `core.PhasePreFixed`    | once per tick, before fixed systems          | per-tick setup                              |
 | `core.PhaseFixed`       | once per tick (default 60/s)                 | simulation, movement                        |
+| `core.PhasePostFixed`   | once per tick, after fixed systems           | per-tick cleanup and observation            |
 
 ```go
 g.AddSystem(core.PhaseFixed, "name", core.SystemFunc(func(ctx *core.Context) error {

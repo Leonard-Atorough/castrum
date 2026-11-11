@@ -103,9 +103,9 @@ Use the phase that matches the work:
 - Put display-frame work, presentation updates, and raw frame input in `PhaseFrame` when they do not need fixed-step determinism.
 - Put one-time setup and required asset loading in startup or setup code.
 
-Every system in a phase runs in registration order. A system that matches a large world therefore pays its cost every time that phase runs. If one system writes state that another reads in the same tick, register the reader after the writer; do not add redundant work to recover from unclear ordering.
+Systems added normally run in registration order within a phase; `Before` and `After` can change the position of a new system. A system that matches a large world pays its cost every time it runs. If one system writes state that another reads in the same tick, arrange for the reader to run after the writer; do not add redundant work to recover from unclear ordering.
 
-The engine's own systems run before user systems. That ordering supports transform interpolation, input publication, animation advancement, and audio reconciliation. Treat it as a contract rather than trying to duplicate those systems in game code.
+Engine systems registered during `New` run before systems normally added afterward in the same phase. Relative insertion can put a user system before an ordinary engine system, and runner-owned systems may be registered later. Preserve dependencies such as transform capture before movement and input publication before consumers. See [Scheduling systems](system-scheduling.md) for ordering options.
 
 When one fixed tick cannot finish a large job, make the job incremental: keep its progress in a resource or component and process a bounded amount per tick. A large one-shot loop still blocks the fixed phase even if the overall entity count is reasonable.
 

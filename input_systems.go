@@ -28,7 +28,7 @@ func (g *Game) wireInput(bindings input.Bindings) error {
 }
 
 // Capturing the provided map avoids per-frame resource resolution.
-// New registers this before user pre-frame systems so hooks see fresh actions.
+// New registers this before systems added normally to the pre-frame phase.
 func newInputUpdateSystem(am *input.ActionMap) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		am.Update(ctx.Input, ctx.DeltaTime.Seconds())
@@ -36,8 +36,7 @@ func newInputUpdateSystem(am *input.ActionMap) core.System {
 	})
 }
 
-// New registers this before user fixed systems so they all see the same
-// press and release events delivered for the current tick.
+// New registers this before systems added normally to the fixed phase.
 func newInputTickSystem(am *input.ActionMap) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		am.Tick()

@@ -26,7 +26,7 @@ type Game struct {
 	opts        Options
 	world       *core.World
 	ctx         core.Context
-	schedules   map[core.Phase]*runtime.Schedule[core.System]
+	schedules   map[core.Phase]*runtime.Schedule
 	groupStates map[string]bool
 
 	mainCamera *core.Entity
@@ -57,7 +57,7 @@ func New(opts ...option) (*Game, error) {
 	g := &Game{
 		opts:        options,
 		world:       core.NewWorld(),
-		schedules:   map[core.Phase]*runtime.Schedule[core.System]{},
+		schedules:   map[core.Phase]*runtime.Schedule{},
 		groupStates: make(map[string]bool),
 	}
 	g.ctx.World = g.world
@@ -126,6 +126,33 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide signal hub: %w", err)
 	}
 	g.hub = hub
+	if err := g.schedule(core.PhasePreFrame).AddFirst(runtime.Entry{
+		Name: "engine.signal-begin-frame",
+		System: core.SystemFunc(func(*core.Context) error {
+			hub.BeginFrame()
+			return nil
+		}),
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: register signal begin-frame system: %w", err)
+	}
+	if err := g.schedule(core.PhasePostFrame).AddLast(runtime.Entry{
+		Name: "engine.signal-end-frame",
+		System: core.SystemFunc(func(*core.Context) error {
+			hub.EndFrame()
+			return nil
+		}),
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: register signal end-frame system: %w", err)
+	}
+	if err := g.schedule(core.PhasePostFixed).AddLast(runtime.Entry{
+		Name: "engine.signal-end-tick",
+		System: core.SystemFunc(func(*core.Context) error {
+			hub.EndTick()
+			return nil
+		}),
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: register signal end-tick system: %w", err)
+	}
 
 	panel := debug.NewPanel()
 	if err := g.world.Provide(func(*core.World) (*debug.Panel, error) {
@@ -189,36 +216,116 @@ func (g *Game) MainCamera() *core.Entity {
 	return g.mainCamera
 }
 
-// AddSystem registers an ungrouped system under name in phase's schedule.
-// Systems run in registration order. It returns an error if name is empty.
-func (g *Game) AddSystem(phase core.Phase, name string, system core.System) error {
-	return g.AddSystemToGroup(phase, "", name, system)
+type systemOptionKind uint8
+
+const (
+	systemOptionBefore systemOptionKind = iota + 1
+	systemOptionAfter
+	systemOptionGroup
+)
+
+// SystemOption configures a system registration passed to [Game.AddSystem].
+// Its zero value is invalid.
+type SystemOption struct {
+	kind  systemOptionKind
+	value string
 }
 
-// AddSystemToGroup registers a system under name in phase's schedule,
-// optionally assigning it to group. Systems run in registration order.
+// Before places a system immediately before target in the same phase.
+func Before(target string) SystemOption {
+	return SystemOption{kind: systemOptionBefore, value: target}
+}
+
+// After places a system immediately after target in the same phase.
+func After(target string) SystemOption {
+	return SystemOption{kind: systemOptionAfter, value: target}
+}
+
+// InGroup assigns a system to a named group controlled by [Game.SetGroupEnabled].
+// A new group starts enabled.
+func InGroup(group string) SystemOption {
+	return SystemOption{kind: systemOptionGroup, value: group}
+}
+
+// AddSystem registers a named system in phase. By default it runs after
+// previously registered systems. [Before], [After], and [InGroup] configure
+// its position and group.
 //
-// An empty group leaves the system ungrouped. The name appears in error
-// messages; an empty name returns an error. Named groups start enabled and
-// retain their state when systems are registered later.
-func (g *Game) AddSystemToGroup(phase core.Phase, group, name string, system core.System) error {
+// Names must be nonempty and unique within the phase. Relative targets must
+// already be registered regular systems in the same phase. At most one
+// position and one group may be specified. Invalid phases, options, names,
+// and targets return an error. Startup phases reject registration once
+// [Game.Startup] begins.
+//
+// Systems added during a phase run are eligible on the next run of that
+// phase. Group changes affect systems that have not yet run. Registration
+// and group changes must not run concurrently with each other or with
+// schedule execution.
+func (g *Game) AddSystem(phase core.Phase, name string, system core.System, options ...SystemOption) error {
+	if phase < core.PhasePreStartup || phase > core.PhasePostFixed {
+		return fmt.Errorf("castrum: AddSystem: invalid phase %s", phase)
+	}
+	if phase <= core.PhasePostStartup && g.startup.Load() {
+		return fmt.Errorf("castrum: AddSystem: startup has already begun (phase %s)", phase)
+	}
 	if name == "" {
-		return fmt.Errorf("castrum: AddSystemToGroup: system name must not be empty (phase %s)", phase)
+		return fmt.Errorf("castrum: AddSystem: system name must not be empty (phase %s)", phase)
 	}
-	sched, ok := g.schedules[phase]
-	if !ok {
-		sched = runtime.NewSchedule(phase, func(sys core.System, ctx *core.Context) error {
-			return sys.Update(ctx)
-		})
-		g.schedules[phase] = sched
-	}
-	sched.Add(runtime.Entry[core.System]{Name: name, System: system, Group: group})
-	if group != "" {
-		if enabled, ok := g.groupStates[group]; ok {
-			sched.SetGroupEnabled(group, enabled)
+	var position systemOptionKind
+	var target, group string
+	groupSet := false
+	for _, option := range options {
+		switch option.kind {
+		case systemOptionBefore, systemOptionAfter:
+			if position != 0 {
+				return fmt.Errorf("castrum: AddSystem: multiple position options")
+			}
+			if option.value == "" {
+				return fmt.Errorf("castrum: AddSystem: target must not be empty")
+			}
+			position, target = option.kind, option.value
+		case systemOptionGroup:
+			if groupSet {
+				return fmt.Errorf("castrum: AddSystem: multiple group options")
+			}
+			if option.value == "" {
+				return fmt.Errorf("castrum: AddSystem: group must not be empty")
+			}
+			group, groupSet = option.value, true
+		default:
+			return fmt.Errorf("castrum: AddSystem: invalid system option")
 		}
 	}
+	entry := runtime.Entry{Name: name, System: system, Group: group}
+	sched, exists := g.schedules[phase]
+	if !exists {
+		if position != 0 {
+			return fmt.Errorf("castrum: AddSystem: target system %q not found in phase %s", target, phase)
+		}
+		sched = g.schedule(phase)
+	}
+	var err error
+	switch position {
+	case systemOptionBefore:
+		err = sched.AddBefore(target, entry)
+	case systemOptionAfter:
+		err = sched.AddAfter(target, entry)
+	default:
+		err = sched.Add(entry)
+	}
+	if err != nil {
+		return fmt.Errorf("castrum: AddSystem: %w (phase %s)", err, phase)
+	}
 	return nil
+}
+
+func (g *Game) schedule(phase core.Phase) *runtime.Schedule {
+	sched, ok := g.schedules[phase]
+	if !ok {
+		sched = runtime.NewSchedule(phase, g.groupStates)
+		g.schedules[phase] = sched
+	}
+	return sched
 }
 
 // SetGroupEnabled enables or disables a registered group across all phases.
@@ -229,26 +336,16 @@ func (g *Game) SetGroupEnabled(group string, enabled bool) error {
 	if group == "" {
 		return fmt.Errorf("castrum: SetGroupEnabled: group must not be empty")
 	}
-	registered := false
-	for _, sched := range g.schedules {
-		if sched.Registered(group) {
-			registered = true
-			break
-		}
-	}
-	if !registered {
+	if _, registered := g.groupStates[group]; !registered {
 		return fmt.Errorf("castrum: SetGroupEnabled: group %q is not registered", group)
 	}
 	g.groupStates[group] = enabled
-	for _, sched := range g.schedules {
-		sched.SetGroupEnabled(group, enabled)
-	}
 	return nil
 }
 
-// Startup runs [core.PhasePreStartup] and then [core.PhaseStartup] once, after
-// resolving eager resources. Runners call it before entering the platform
-// loop; a second call returns an error.
+// Startup runs [core.PhasePreStartup], [core.PhaseStartup], and
+// [core.PhasePostStartup] once, after resolving eager resources. Runners call
+// it before entering the platform loop; a second call returns an error.
 func (g *Game) Startup() error {
 	if !g.startup.CompareAndSwap(false, true) {
 		return errors.New("castrum: Startup already ran")
@@ -259,12 +356,17 @@ func (g *Game) Startup() error {
 	if err := g.run(core.PhasePreStartup); err != nil {
 		return err
 	}
-	return g.run(core.PhaseStartup)
+	if err := g.run(core.PhaseStartup); err != nil {
+		return err
+	}
+	return g.run(core.PhasePostStartup)
 }
 
-// Advance runs one display frame: [core.PhasePreFrame], [core.PhaseFrame],
-// then every fixed tick due for elapsed, clamped to MaxFrameTime. Runners call
-// it once per platform frame with the time since the previous call.
+// Advance runs [core.PhasePreFrame], [core.PhaseFrame], [core.PhasePostFrame],
+// then every fixed tick due for elapsed, clamped to MaxFrameTime. Each tick
+// runs [core.PhasePreFixed], [core.PhaseFixed], and [core.PhasePostFixed].
+// Runners call Advance once per platform frame with the time since the
+// previous call.
 //
 // While the game is paused (see [Game.Pause]), the frame phase still runs
 // and DeltaTime still reports unscaled wall-clock elapsed time, but no
@@ -283,14 +385,15 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	g.real.Frame++
 	g.ctx.Frame = g.real.Frame
 	g.ctx.DeltaTime = elapsed
-	g.hub.BeginFrame()
 	if err := g.run(core.PhasePreFrame); err != nil {
 		return err
 	}
 	if err := g.run(core.PhaseFrame); err != nil {
 		return err
 	}
-	g.hub.EndFrame()
+	if err := g.run(core.PhasePostFrame); err != nil {
+		return err
+	}
 	if g.sim.Paused {
 		return nil
 	}
@@ -313,10 +416,15 @@ func (g *Game) Advance(elapsed time.Duration) error {
 		g.sim.Tick++
 		g.ctx.Tick = g.sim.Tick
 		g.ctx.DeltaTime = g.sim.Delta
+		if err := g.run(core.PhasePreFixed); err != nil {
+			return err
+		}
 		if err := g.run(core.PhaseFixed); err != nil {
 			return err
 		}
-		g.hub.EndTick()
+		if err := g.run(core.PhasePostFixed); err != nil {
+			return err
+		}
 		g.acc -= g.sim.Delta
 		ticked++
 		if ticked >= g.opts.MaxTicksPerFrame {
