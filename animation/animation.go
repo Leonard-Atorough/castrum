@@ -178,7 +178,8 @@ const SystemName = "engine.animation"
 // components on fixed updates using clips from store. Each animated entity
 // must also have a [render.Sprite]. The system returns an error if an
 // animation references a clip that is not registered, its current frame is
-// outside the clip, or its frame advance cannot be represented as an int.
+// outside the clip, its frame advance cannot be represented as an int, or
+// advancing its current frame would overflow an int.
 //
 // The system resolves the world's [*signal.Hub] and emits a [Completed]
 // signal when an animation finishes its clip.
