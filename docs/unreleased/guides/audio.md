@@ -258,6 +258,57 @@ if err := mixer.SetGroupVolume(
 
 Mixer setters clamp their values to `[0, 1]`, including infinities at the corresponding endpoints. NaN returns an error without changing the current value. An unmodified group starts at unity volume. Muting a bus does not pause its plays; silent playback can still finish.
 
+### Audio preferences
+
+Use audio preferences when you want to keep the player's desired levels separately from the mixer's runtime state. `audio.NewPreferences` creates a group with master, music, and sound-effects levels at unity. It does not change the mixer: your game decides when and how to apply the values. If you only need runtime volume control, you can use the mixer directly without creating a preferences group.
+
+At startup, create the group, optionally set values loaded by your game, and apply its current value to the mixer:
+
+```go
+prefs, err := audio.NewPreferences()
+if err != nil {
+	return err
+}
+value, err := prefs.Value()
+if err != nil {
+	return err
+}
+mixer := g.World().MustResource[*audio.Mixer]()
+if err := mixer.SetMaster(value.Master); err != nil {
+	return err
+}
+if err := mixer.SetGroupVolume(audio.GroupMusic, value.Music); err != nil {
+	return err
+}
+if err := mixer.SetGroupVolume(audio.GroupSFX, value.SFX); err != nil {
+	return err
+}
+```
+
+Keep `prefs` wherever your settings menu needs it, or register it as a [world resource](ecs.md#resources) for other systems to resolve. The mixer is provided by `castrum.New`; the preferences group is not registered automatically.
+
+When a music slider changes, update the desired value and explicitly apply that level:
+
+```go
+if err := prefs.Update(func(p audio.Preferences) audio.Preferences {
+	p.Music = sliderValue
+	return p
+}); err != nil {
+	return err
+}
+value, err := prefs.Value()
+if err != nil {
+	return err
+}
+if err := mixer.SetGroupVolume(audio.GroupMusic, value.Music); err != nil {
+	return err
+}
+```
+
+Preference levels must be finite and in `[0, 1]`; an invalid update leaves the group and mixer unchanged. A successful update changes only the preferences; if a later mixer call fails, the preferences remain changed. The mixer change reaches playback on the next audio reconciliation and may be buffered. Applying only the changed level avoids overwriting unrelated runtime mixer changes, but the game must still coordinate temporary effects that write that same level. Preferences are not saved automatically; see the [settings guide](settings.md) for validation, copying, and applying custom preferences.
+
+### Pause all playback
+
 Use `PauseAll`, `ResumeAll`, or `TogglePause` for a global pause menu. Each source decides how that pause affects it:
 
 - `PauseHolds` freezes the play at its current position.

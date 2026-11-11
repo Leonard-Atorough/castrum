@@ -87,6 +87,34 @@ if err := g.AddSystem(core.PhaseFrame, "apply text size", core.SystemFunc(func(*
 
 `applyTextSize` is your game's function; it is not part of the settings package. This system calls it every frame, including frames where the preferences are unchanged. If applying a setting is expensive or has side effects, the system can remember the last successfully applied value and skip identical values. Return application errors so the game or runner can handle them.
 
+## Configure the initial window
+
+The default runner accepts display preferences when it is constructed. `ebitrun.NewDisplayPreferences` creates a group with the runner's default window size, resizing, and vertical sync settings. With a game `g` already created, change the group and pass its value to the runner:
+
+```go
+display, err := ebitrun.NewDisplayPreferences()
+if err != nil {
+	return err
+}
+if err := display.Set(ebitrun.DisplayPreferences{
+	Window: ebitrun.Size{Width: 1600, Height: 900},
+	Resizable: true,
+	VSync: true,
+}); err != nil {
+	return err
+}
+window, err := display.Value()
+if err != nil {
+	return err
+}
+runner, err := ebitrun.New(g, ebitrun.WithDisplayPreferences(window))
+if err != nil {
+	return err
+}
+```
+
+The window dimensions must be positive. These are startup settings: changing the group later does not change an existing runner. Options passed after `WithDisplayPreferences` override its values.
+
 ## Ownership and persistence
 
 Groups are not safe for concurrent use. Read and copy the needed value on the game-loop goroutine before handing it to a worker; return results to the game loop before changing the group.

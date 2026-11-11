@@ -7,6 +7,7 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 - [The ECS in depth](ecs.md) - entities, components, systems, queries, resources, and validation.
 - [Assets](assets.md) - filesystem roots, loading, atlases, and setup-time failures.
 - [Conventions and best practices](conventions.md) - setup, zero values, validation, errors, and state-driven APIs.
+- [Settings](settings.md) - typed preferences, validation, copying, and applying values.
 
 ## Presentation
 
@@ -17,8 +18,8 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 
 ## Interaction and audio
 
-- [Input](input.md) - action bindings, raw snapshots, and frame versus tick reads.
-- [Audio](audio.md) - one-shots, music, streaming, mixer buses, and playback state.
+- [Input](input.md) - action bindings, rebinding, input preferences, and frame versus tick reads.
+- [Audio](audio.md) - one-shots, music, streaming, mixer buses, and audio preferences.
 
 ## Gameplay
 

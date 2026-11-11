@@ -80,7 +80,9 @@ func New(bindings Bindings, deadzone float64) (*ActionMap, error) {
 
 // SetBindings replaces the bindings with a copy of the argument.
 // The new bindings take effect at the next Update; chords start inactive
-// and may produce a new press. Invalid bindings leave the map unchanged.
+// and may produce a new press. Removing a held action releases it on the next
+// Update. Pending fixed-tick edges are preserved, including that release.
+// Invalid bindings leave the map unchanged.
 func (am *ActionMap) SetBindings(bindings Bindings) error {
 	if err := validateBindings(bindings); err != nil {
 		return fmt.Errorf("cannot update bindings: %w", err)
@@ -158,20 +160,37 @@ func (am *ActionMap) Update(s *Snapshot, dt float64) {
 		st.previousAxis = axis
 
 	}
+	for action, st := range am.states {
+		if _, bound := am.bindings[action]; bound {
+			continue
+		}
+		held := st.thisFrame.Held
+		st.thisFrame = State{Released: held}
+		st.axis = 0
+		st.previousAxis = 0
+		st.duration = 0
+		st.chordHeld = nil
+		if held {
+			st.sinceLastTick.Released = true
+		} else if !st.sinceLastTick.Pressed && !st.sinceLastTick.Released &&
+			!st.thisTick.Pressed && !st.thisTick.Released {
+			delete(am.states, action)
+		}
+	}
 }
 
 // Tick delivers the press and release events accumulated since the
 // last tick. Call it once per fixed tick, before fixed systems read
 // Pressed or Released.
 func (am *ActionMap) Tick() {
-	for action := range am.bindings {
-		st := am.states[action]
-		if st == nil {
-			continue
-		}
-
+	for action, st := range am.states {
 		st.thisTick = st.sinceLastTick
 		st.sinceLastTick = State{}
+		if _, bound := am.bindings[action]; !bound &&
+			!st.thisFrame.Held && !st.thisFrame.Pressed && !st.thisFrame.Released &&
+			!st.thisTick.Pressed && !st.thisTick.Released {
+			delete(am.states, action)
+		}
 	}
 }
 
