@@ -62,6 +62,47 @@ func TestResourceNotRegistered(t *testing.T) {
 	}
 }
 
+func TestInterfaceResourceResolution(t *testing.T) {
+	providerErr := errors.New("provider failed")
+	for _, tc := range []struct {
+		name  string
+		value fmt.Stringer
+		err   error
+	}{
+		{"nil interface", nil, nil},
+		{"typed nil", (*strings.Builder)(nil), nil},
+		{"non-nil interface", &strings.Builder{}, nil},
+		{"provider error", nil, providerErr},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := NewWorld()
+			calls := 0
+			if err := w.Provide(func(*World) (fmt.Stringer, error) {
+				calls++
+				return tc.value, tc.err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				value, err := w.Resource[fmt.Stringer]()
+				if value != tc.value || !errors.Is(err, tc.err) {
+					t.Fatalf("Resource = %#v, %v; want %#v, %v", value, err, tc.value, tc.err)
+				}
+			}
+			if tc.err == nil {
+				if value := w.MustResource[fmt.Stringer](); value != tc.value {
+					t.Errorf("MustResource = %#v, want %#v", value, tc.value)
+				}
+				if calls != 1 {
+					t.Errorf("provider calls = %d, want 1", calls)
+				}
+			} else if calls != 2 {
+				t.Errorf("failed provider calls = %d, want 2", calls)
+			}
+		})
+	}
+}
+
 func TestMustResourceProvided(t *testing.T) {
 	w := NewWorld()
 	if err := w.Provide(func(w *World) (*atlas, error) {

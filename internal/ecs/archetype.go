@@ -182,6 +182,7 @@ func (a *Archetype) removeEntity(index int) (movedID EntityID, moved bool) {
 		if index != lastIndex {
 			col[index] = col[lastIndex]
 		}
+		col[lastIndex] = nil
 		a.columns[typ] = col[:lastIndex]
 	}
 
