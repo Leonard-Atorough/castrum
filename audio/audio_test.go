@@ -573,6 +573,20 @@ func TestPlaylistSystemRepeatsAll(t *testing.T) {
 	}
 }
 
+func TestEmptyPlaylistValidation(t *testing.T) {
+	w := newWorldWithHub(t)
+	entity, err := w.NewEntity(Source{Volume: 1}, NewPlaylist(nil))
+	if err != nil {
+		t.Fatalf("spawn empty playlist: %v", err)
+	}
+	if err := entity.Update(w, func(p *Playlist) { p.Repeat = RepeatMode(9) }); err == nil {
+		t.Fatal("empty playlist accepted unsupported repeat mode")
+	}
+	if _, err := w.NewEntity(Source{Volume: 1}, NewPlaylist([]asset.ID{""})); err == nil {
+		t.Fatal("playlist accepted an empty track ID")
+	}
+}
+
 func TestAudioSystemRejectsBothSelectors(t *testing.T) {
 	w := newWorldWithHub(t)
 	if _, err := w.NewEntity(Source{Volume: 1}, Clip{Audio: "music/clip.ogg"}, NewPlaylist([]asset.ID{"music/list.ogg"})); err != nil {

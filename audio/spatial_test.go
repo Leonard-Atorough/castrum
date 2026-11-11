@@ -206,11 +206,11 @@ func TestSpatialErrorKeepsHealthyPlaysSynced(t *testing.T) {
 	}
 }
 
-func TestAttenuationEndpointsValidatedOnce(t *testing.T) {
-	endpoints := 0
+func TestAttenuationEndpointsRevalidated(t *testing.T) {
+	endpoint := 1.0
 	curve := func(t float64) float64 {
-		if t == 0 || t == 1 {
-			endpoints++
+		if t == 1 {
+			return endpoint
 		}
 		return t
 	}
@@ -219,11 +219,59 @@ func TestAttenuationEndpointsValidatedOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	provideListener(t, ctx.World, &Listener{Enabled: true, Mode: FixedPosition, Range: 100})
-	sys := NewAudioSystem(&fakeController{live: true}, NewMixer())
+	fake := &fakeController{live: true}
+	sys := NewAudioSystem(fake, NewMixer())
 	runAudio(t, sys, ctx)
-	runAudio(t, sys, ctx)
-	if endpoints != 2 {
-		t.Fatalf("endpoint calls = %d, want 2 (one validation) across two updates", endpoints)
+	endpoint = 0
+	if err := sys.Update(ctx); err == nil || !strings.Contains(err.Error(), "attenuation curve") {
+		t.Fatalf("Update() = %v, want invalid endpoint error", err)
+	}
+	if len(fake.syncs) != 1 || fake.sweeps != 2 {
+		t.Fatalf("syncs=%d sweeps=%d, want invalid play skipped and sweep completed", len(fake.syncs), fake.sweeps)
+	}
+}
+
+func TestAttenuationClosuresValidateCapturedEndpoints(t *testing.T) {
+	factory := func(start, end float64) geom.Ease {
+		return func(t float64) float64 {
+			switch t {
+			case 0:
+				return start
+			case 1:
+				return end
+			default:
+				return t
+			}
+		}
+	}
+	for _, tc := range []struct {
+		name       string
+		start, end float64
+		valid      bool
+	}{
+		{name: "valid", end: 1, valid: true},
+		{name: "wrong start", start: 0.25, end: 1},
+		{name: "wrong end", end: 0.75},
+		{name: "nan endpoint", end: math.NaN()},
+		{name: "infinite endpoint", end: math.Inf(1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			curve := factory(tc.start, tc.end)
+			entity, ctx := newAudioWorld(t, Source{Volume: 1, Spatial: true, Attenuation: curve}, "sound.wav")
+			if err := entity.AddComponent(ctx.World, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
+				t.Fatal(err)
+			}
+			provideListener(t, ctx.World, &Listener{Enabled: true, Mode: FixedPosition, Range: 100})
+			fake := &fakeController{live: true}
+			err := NewAudioSystem(fake, NewMixer()).Update(ctx)
+			if tc.valid {
+				if err != nil || len(fake.syncs) != 1 || fake.syncs[0].want.Volume != 0.5 {
+					t.Fatalf("valid curve: syncs=%+v err=%v", fake.syncs, err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "attenuation curve") || len(fake.syncs) != 0 {
+				t.Fatalf("invalid curve: syncs=%+v err=%v", fake.syncs, err)
+			}
+		})
 	}
 }
 
