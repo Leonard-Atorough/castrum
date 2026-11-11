@@ -59,6 +59,9 @@ func validateNodes(owner string, nodes []EntitySpec) error {
 			if reflect.TypeOf(c).Kind() == reflect.Pointer {
 				return fmt.Errorf("scene: blueprint %q node %q: component at index %d (%T) is a pointer", owner, n.Name, i, c)
 			}
+			if _, ok := c.(OwnershipRecord); ok {
+				return fmt.Errorf("scene: blueprint %q node %q: OwnershipRecord is managed by the director", owner, n.Name)
+			}
 			if v, ok := c.(core.Validatable); ok {
 				if err := v.Validate(); err != nil {
 					return fmt.Errorf("scene: blueprint %q node %q: %w", owner, n.Name, err)
@@ -102,6 +105,7 @@ type EntitySpec struct {
 	// Name identifies the entity among its siblings.
 	Name string
 	// Components contains the non-nil, non-pointer values attached to the entity.
+	// OwnershipRecord is managed by the director and must not be supplied.
 	Components []any
 	// Children contains child entities owned by the same scene instance.
 	Children []EntitySpec

@@ -257,6 +257,41 @@ func TestRejectedRequestsReserveNothing(t *testing.T) {
 	}
 }
 
+func TestBlueprintRejectsOwnershipBeforeQueueing(t *testing.T) {
+	for _, placement := range []string{"root", "child", "subscene"} {
+		t.Run(placement, func(t *testing.T) {
+			components := []any{OwnershipRecord{Instance: 999}}
+			bp := testBlueprint("level")
+			switch placement {
+			case "root":
+				bp.EntityList[0].Components = components
+			case "child":
+				bp.EntityList[0].Children = []EntitySpec{{Name: "child", Components: components}}
+			case "subscene":
+				sub := subBlueprint("nested")
+				sub.EntityList[0].Components = components
+				bp.EntityList[0].SubScenes = []Blueprint{sub}
+			}
+			d := NewDirector()
+			id := liveTestInstance(t, d, "existing")
+			before, next := len(d.pending), d.next
+			for name, call := range map[string]func() error{
+				"Validate": bp.Validate,
+				"Load":     func() error { _, err := d.Load(bp); return err },
+				"Switch":   func() error { _, err := d.Switch(bp); return err },
+				"Update":   func() error { return d.Update(id, bp) },
+			} {
+				if err := call(); err == nil || !strings.Contains(err.Error(), "OwnershipRecord") {
+					t.Errorf("%s error = %v, want ownership error", name, err)
+				}
+			}
+			if len(d.pending) != before || d.next != next {
+				t.Fatal("rejected ownership mutated Director state")
+			}
+		})
+	}
+}
+
 func TestSwitchAndLoadReserveAndQueue(t *testing.T) {
 	cases := []struct {
 		name string
