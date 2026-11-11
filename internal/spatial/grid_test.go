@@ -126,6 +126,156 @@ func TestGridRemoveClearsEveryMembership(t *testing.T) {
 	}
 }
 
+func TestGridLargeBoundsKeepStorageAndQueriesBounded(t *testing.T) {
+	idx, _ := NewGrid(1)
+	if err := idx.Update(1, geom.Rect{Max: geom.Vector2{X: 100, Y: 100}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(idx.cells) > 4096 {
+		t.Fatalf("large entry expanded into %d cells", len(idx.cells))
+	}
+
+	large := geom.Rect{Min: geom.Vector2{X: -1e6, Y: -1e6}, Max: geom.Vector2{X: 1e6, Y: 1e6}}
+	if err := idx.Update(1, large); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.Update(2, geom.Rect{Min: geom.Vector2{X: 1, Y: 1}, Max: geom.Vector2{X: 2, Y: 2}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name         string
+		bounds       geom.Rect
+		want         []ecs.EntityID
+		wantOverlaps []ecs.EntityID
+	}{
+		{"small", geom.Rect{Min: geom.Vector2{X: 1, Y: 1}, Max: geom.Vector2{X: 1, Y: 1}}, []ecs.EntityID{1, 2}, []ecs.EntityID{1, 2}},
+		{"large", large, []ecs.EntityID{1, 2}, []ecs.EntityID{1, 2}},
+		{"touching", geom.Rect{Min: geom.Vector2{X: 1e6}, Max: geom.Vector2{X: 1e6}}, []ecs.EntityID{1}, []ecs.EntityID{1}},
+		{"same cell", geom.Rect{Min: geom.Vector2{X: 1e6 + 0.5}, Max: geom.Vector2{X: 1e6 + 0.5}}, []ecs.EntityID{1}, nil},
+		{"distant", geom.Rect{Min: geom.Vector2{X: 2e6, Y: 2e6}, Max: geom.Vector2{X: 3e6, Y: 3e6}}, nil, nil},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := idx.QueryInto(test.bounds, []ecs.EntityID{99})
+			slices.Sort(got)
+			if !slices.Equal(got, test.want) {
+				t.Fatalf("QueryInto() = %v, want %v", got, test.want)
+			}
+			got = idx.QueryOverlapsInto(test.bounds, got)
+			slices.Sort(got)
+			if !slices.Equal(got, test.wantOverlaps) {
+				t.Fatalf("QueryOverlapsInto() = %v, want %v", got, test.wantOverlaps)
+			}
+		})
+	}
+	if len(idx.cells) > 4096 {
+		t.Fatalf("large entry expanded into %d cells", len(idx.cells))
+	}
+	idx.Remove(1)
+	idx.Remove(2)
+	if got := idx.Query(large); len(got) != 0 {
+		t.Fatalf("empty large query = %v", got)
+	}
+}
+
+func TestGridLargeEntryTransitions(t *testing.T) {
+	idx, _ := NewGrid(1)
+	small := geom.Rect{Max: geom.Vector2{X: 2, Y: 2}}
+	large := geom.Rect{Max: geom.Vector2{X: 100, Y: 100}}
+	distant := geom.Rect{Min: geom.Vector2{X: 200, Y: 200}, Max: geom.Vector2{X: 300, Y: 300}}
+	for _, bounds := range []geom.Rect{small, large, distant, distant, small} {
+		if err := idx.Update(1, bounds); err != nil {
+			t.Fatal(err)
+		}
+		for _, query := range []geom.Rect{small, large, distant} {
+			want := []ecs.EntityID(nil)
+			if bounds.OverlapsOrTouches(query) {
+				want = []ecs.EntityID{1}
+			}
+			if got := idx.QueryOverlapsInto(query, nil); !slices.Equal(got, want) {
+				t.Fatalf("bounds %v, query %v: got %v, want %v", bounds, query, got, want)
+			}
+		}
+	}
+	idx.Remove(1)
+	if len(idx.cells) != 0 || len(idx.entities) != 0 {
+		t.Fatal("memberships remain after removing small entry")
+	}
+	if err := idx.ApplyBatch([]Change{{EntityID: 1, Bounds: large}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.ApplyBatch([]Change{
+		{EntityID: 1, Bounds: small},
+		{EntityID: 2, Bounds: geom.Rect{Min: geom.Vector2{X: math.NaN()}}},
+	}); err == nil {
+		t.Fatal("invalid batch succeeded")
+	}
+	farCorner := geom.Rect{Min: large.Max, Max: large.Max}
+	if got := idx.Query(farCorner); !slices.Equal(got, []ecs.EntityID{1}) {
+		t.Fatalf("failed batch changed large entry: %v", got)
+	}
+	if err := idx.ApplyBatch([]Change{{EntityID: 1, Remove: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := idx.Query(large); len(got) != 0 {
+		t.Fatalf("large entry survived removal: %v", got)
+	}
+}
+
+func TestGridCellBudgetBoundary(t *testing.T) {
+	idx, _ := NewGrid(1)
+	for _, width := range []int{4096, 4097, 4096} {
+		bounds := geom.Rect{Max: geom.Vector2{X: float64(width - 1)}}
+		if err := idx.Update(1, bounds); err != nil {
+			t.Fatal(err)
+		}
+		wantCells := width
+		if width > 4096 {
+			wantCells = 0
+		}
+		if len(idx.cells) != wantCells {
+			t.Fatalf("width %d: stored %d cells, want %d", width, len(idx.cells), wantCells)
+		}
+		if got := idx.Query(bounds); !slices.Equal(got, []ecs.EntityID{1}) {
+			t.Fatalf("width %d: Query() = %v, want [1]", width, got)
+		}
+	}
+}
+
+func TestGridExtremeCellRanges(t *testing.T) {
+	idx, _ := NewGrid(1)
+	limit := math.Nextafter(float64(int(^uint(0)>>1)), 0)
+	bounds := geom.Rect{
+		Min: geom.Vector2{X: -limit, Y: -limit},
+		Max: geom.Vector2{X: limit, Y: limit},
+	}
+	if err := idx.Update(1, bounds); err != nil {
+		t.Fatal(err)
+	}
+	if len(idx.cells) != 0 {
+		t.Fatalf("extreme bounds expanded into %d cells", len(idx.cells))
+	}
+	buffer := make([]ecs.EntityID, 0, 1)
+	if allocs := testing.AllocsPerRun(20, func() {
+		if err := idx.Update(1, bounds); err != nil {
+			t.Fatal(err)
+		}
+		buffer = idx.QueryInto(bounds, buffer)
+		if !slices.Equal(buffer, []ecs.EntityID{1}) {
+			t.Fatalf("large query = %v, want [1]", buffer)
+		}
+		buffer = idx.QueryOverlapsInto(geom.Rect{}, buffer)
+		if !slices.Equal(buffer, []ecs.EntityID{1}) {
+			t.Fatalf("point query = %v, want [1]", buffer)
+		}
+	}); allocs != 0 {
+		t.Fatalf("unchanged extreme entry and queries allocated %v times", allocs)
+	}
+	idx.Remove(1)
+	if got := idx.Query(bounds); len(got) != 0 {
+		t.Fatalf("extreme entry survived removal: %v", got)
+	}
+}
+
 func TestGridWorldToGridHandlesNegativeCoordinates(t *testing.T) {
 	idx, _ := NewGrid(10)
 	for _, test := range []struct {

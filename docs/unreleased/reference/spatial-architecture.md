@@ -6,9 +6,9 @@ This reference describes the grid, its integration with the ECS, and the invaria
 
 ## Ownership and scope
 
-| Layer                                                   | Responsibility                                                                                   |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `collision.Collider` and `core.Transform`               | Game-authored shape, filter, activation, and transform inputs.                                   |
+| Layer                                                      | Responsibility                                                                                   |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `collision.Collider` and `core.Transform`                  | Game-authored shape, filter, activation, and transform inputs.                                   |
 | [Collision system](../../../collision/system.go)           | World-space proxies, dirty detection, candidate pairs, and contact publication.                  |
 | [Internal spatial grid](../../../internal/spatial/grid.go) | Entity bounds and conservative region queries; no knowledge of exact shapes or gameplay filters. |
 | [collision.Contacts](../../../collision/contacts.go)       | Engine-written current and previous overlap records for game code to read.                       |
@@ -46,7 +46,7 @@ cell.Y = floor(position.Y / cellSize)
 
 Floor division keeps negative coordinates consistent. At a cell size of 50, an X position of `-1` belongs to cell `-1`, not cell `0`.
 
-Each entity is indexed in every cell covered by its axis-aligned bounds. Minimum and maximum cells are inclusive: a bound ending exactly on a cell boundary includes that boundary's cell, preserving touching contacts.
+Each ordinary entry is indexed in every cell covered by its axis-aligned bounds. Minimum and maximum cells are inclusive: a bound ending exactly on a cell boundary includes that boundary's cell, preserving touching contacts.
 
 For example, bounds from `(40, -10)` to `(60, 10)` occupy the cell range `(0, -1)` to `(1, 0)`, covering four cells:
 
@@ -56,14 +56,15 @@ Y = 0   entity   entity
 Y = -1  entity   entity
 ```
 
-Cell size changes occupancy and query cost, not which shapes collide. There is no requirement that a collider fit inside one cell or a fixed number of cells. Large bounds simply occupy more cells and cost more to maintain.
+Cell size changes occupancy and query cost, not which shapes collide. There is no requirement that a collider fit inside one cell or a fixed number of cells. Ranges covering more than 4,096 cells use a separate oversized-entry set instead of allocating cell memberships. The budget is an internal implementation limit, not a limit on accepted collider sizes.
 
 ### Entries and memberships
 
-The index has two views of the same entry:
+The index has three views of the same entry:
 
 - Entity ID -> one entry containing its ID, exact bounds, and occupied cell range.
 - Cell coordinate -> a slice of pointers to the entries occupying that cell.
+- Oversized entity ID -> an entry stored without cell memberships.
 
 The cell map is sparse: empty regions consume no cells. Each map key identifies a cell by its full coordinates.
 
@@ -82,6 +83,8 @@ The saved range describes the old memberships until both passes finish. The new 
 
 Membership reuse applies only to existing entries. A new entry has no memberships, regardless of its initial field values.
 
+Oversized entries update their saved bounds without traversing cells. Crossing the coverage budget removes the old representation and installs the new one; only ordinary ranges create or remove cell memberships.
+
 Cell buckets are unordered slices. Removing an entry scans the slice, moves the last pointer into the vacated slot, clears the last slot, and shortens the slice. The cell is deleted when it becomes empty. Deletion cost depends on cell occupancy, and result order is intentionally unspecified.
 
 ### Queries and deduplication
@@ -90,7 +93,9 @@ Cell buckets are unordered slices. Removing an entry scans the slice, moves the 
 
 The `Into` methods reuse the caller's result slice when capacity permits. Invalid query bounds return an empty result.
 
-An entry can occur in several visited cells. The grid emits it only at the first cell shared by the entry's range and the query's range:
+Queries covering at most 4,096 cells visit those cells and check oversized entries separately. Larger queries scan the indexed entries instead of traversing empty covered space. Both paths apply the same cell-range and optional bounds-overlap tests, so candidate membership is unchanged.
+
+An ordinary entry can occur in several visited cells. The grid emits it only at the first cell shared by the entry's range and the query's range:
 
 ```text
 firstShared.X = max(query.minCell.X, entry.minCell.X)
@@ -183,8 +188,8 @@ The main costs are separate:
 
 - **Input discovery:** a linear collider-query scan, even in an unchanged world. Ordered proxy reuse reduces lookups, not the number of entities inspected.
 - **Geometry:** shape construction for new or geometry-changed proxies.
-- **Index maintenance:** old/new cell-range traversal and departed-cell bucket scans when a range changes; unchanged ranges only update bounds.
-- **Candidate discovery:** cells and entries visited by dirty queries, plus existing contact pairs. Dense cells and very large bounds increase work.
+- **Index maintenance:** bounded old/new cell-range traversal and departed-cell bucket scans when an ordinary range changes; oversized entries have no cell memberships, and unchanged ranges only update bounds.
+- **Candidate discovery:** cells and oversized entries visited by ordinary queries, or a full entry scan for oversized query ranges, plus existing contact pairs. Dense cells and many oversized entries increase work.
 - **Contacts:** exact tests, sorting per-entity results, comparisons, and publication when values change.
 
 The grid does not guarantee subquadratic collision detection. Many overlapping bounds can produce a quadratic number of candidate pairs, and a scene can genuinely contain a quadratic number of contacts. Persistent overlaps also have a cost in a static world because old pairs are retested.
@@ -195,6 +200,6 @@ The [collision benchmarks](../../../benchmark/collision_bench_test.go) exercise 
 
 ## Verification
 
-[Grid tests](../../../internal/spatial/grid_test.go) cover membership preservation, origin and negative cells, invalid updates, deduplication, allocation reuse, and randomized comparisons with expected cell-range and bounds-overlap results.
+[Grid tests](../../../internal/spatial/grid_test.go) cover membership preservation, origin and negative cells, invalid updates, deduplication, allocation reuse, oversized-entry transitions, extreme cell ranges, and randomized comparisons with expected cell-range and bounds-overlap results.
 
 [Collision-system tests](../../../collision/system_test.go) cover input changes, filters and activation, removal and reactivation, touching bounds, contact history, allocation scaling, error recovery, and comparison with full-pair detection across movement and archetype migrations.
