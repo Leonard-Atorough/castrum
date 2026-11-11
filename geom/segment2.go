@@ -1,7 +1,5 @@
 package geom
 
-import "math"
-
 // Segment is a finite line segment between Start and End.
 type Segment struct {
 	// Start is one endpoint of the segment.
@@ -12,9 +10,7 @@ type Segment struct {
 
 // Length returns the distance between the segment's endpoints.
 func (s Segment) Length() float64 {
-	dx := s.End.X - s.Start.X
-	dy := s.End.Y - s.Start.Y
-	return math.Sqrt(dx*dx + dy*dy)
+	return s.End.Sub(s.Start).Length()
 }
 
 // Midpoint returns the point halfway between the segment's endpoints.

@@ -62,7 +62,7 @@ func (v Vector2) Neg() Vector2 {
 
 // Length returns the Euclidean magnitude of v.
 func (v Vector2) Length() float64 {
-	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+	return math.Hypot(v.X, v.Y)
 }
 
 // LengthSquared returns the squared Euclidean magnitude of v.
@@ -73,13 +73,15 @@ func (v Vector2) LengthSquared() float64 {
 // Normalize returns a unit vector in v's direction.
 // A zero vector returns a zero vector; non-finite input propagates non-finite results.
 func (v Vector2) Normalize() Vector2 {
-	length := v.Length()
-	if length == 0 {
+	scale := math.Max(math.Abs(v.X), math.Abs(v.Y))
+	if scale == 0 {
 		return Vector2{X: 0, Y: 0}
 	}
+	scaled := v.Div(scale)
+	length := scaled.Length()
 	return Vector2{
-		X: v.X / length,
-		Y: v.Y / length,
+		X: scaled.X / length,
+		Y: scaled.Y / length,
 	}
 }
 
