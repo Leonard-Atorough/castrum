@@ -244,27 +244,37 @@ func (s *timerSystem) Update(ctx *core.Context) error {
 				}
 
 				scale := s.groups.Scale(t.Group)
-				contribution := float64(dt) * scale
-				if math.IsNaN(contribution) || math.IsInf(contribution, 0) ||
-					contribution > float64(math.MaxInt64) || contribution < float64(math.MinInt64) {
-					groupErr = fmt.Errorf("timer group %q scale %v: tick contribution %v is not representable",
-						t.Group, scale, contribution)
-					return
+				if scale != 1 {
+					contribution := float64(dt) * scale
+					if math.IsNaN(contribution) || math.IsInf(contribution, 0) ||
+						contribution >= -float64(math.MinInt64) || contribution < float64(math.MinInt64) {
+						groupErr = fmt.Errorf("timer group %q scale %v: tick contribution %v is not representable",
+							t.Group, scale, contribution)
+						return
+					}
+					dt = time.Duration(contribution)
 				}
-				dt = time.Duration(contribution)
 			}
 
-			t.Elapsed += dt
-			for t.Elapsed >= t.Duration {
+			if dt >= t.Duration-t.Elapsed {
 				t.CompletedOn = ctx.Tick
-
 				if t.Repeating {
-					t.Elapsed %= t.Duration
+					// Reduce before adding so valid completions cannot overflow.
+					elapsed, step := t.Elapsed%t.Duration, dt%t.Duration
+					if step >= t.Duration-elapsed {
+						t.Elapsed = step - (t.Duration - elapsed)
+					} else {
+						t.Elapsed = elapsed + step
+						if t.Elapsed < 0 {
+							t.Elapsed += t.Duration
+						}
+					}
 				} else {
 					t.Elapsed = t.Duration
 					t.Running = false
-					break
 				}
+			} else {
+				t.Elapsed += dt
 			}
 			if t.CompletedOn == ctx.Tick {
 				s.hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick})
