@@ -44,7 +44,6 @@ func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - animate"),
 		castrum.WithFilesystem(files),
-		castrum.WithAnimation(),
 	)
 	if err != nil {
 		return err

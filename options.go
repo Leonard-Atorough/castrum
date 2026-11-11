@@ -5,10 +5,7 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/Leonard-Atorough/castrum/animation"
-	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
-	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/state"
@@ -149,58 +146,6 @@ func WithBindings(bindings input.Bindings) option {
 	return optionFunc(func(o *Options) { o.InputBindings = bindings })
 }
 
-// WithCollision enables collision processing during fixed updates and
-// provides the collision query resource for on-demand spatial queries.
-// Without it, colliders do not produce contacts and no collision query
-// resource is registered. Passing it more than once, or together with
-// [WithDefaultSystems], has no additional effect.
-func WithCollision() option {
-	return optionFunc(func(o *Options) {
-		o.enableFeature("collision", func(g *Game, _ *Options) error {
-			if err := g.world.ProvideEager(func(*core.World) (*collision.Queries, error) {
-				return collision.NewQueries()
-			}); err != nil {
-				return fmt.Errorf("castrum: provide collision queries: %w", err)
-			}
-			return g.AddSystem(core.PhaseFixed, collision.SystemName, collision.NewSystem())
-		})
-	})
-}
-
-// WithTimer enables timer updates during fixed updates. Without it, timer
-// components do not advance. Passing it more than once, or together with
-// [WithDefaultSystems], has no additional effect.
-func WithTimer() option {
-	return optionFunc(func(o *Options) {
-		o.enableFeature("timer", func(g *Game, _ *Options) error {
-			if err := g.AddSystem(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
-				return err
-			}
-			if err := g.world.Provide(func(*core.World) (*gametime.Groups, error) {
-				return gametime.NewGroups(), nil
-			}); err != nil {
-				return fmt.Errorf("castrum: provide timer groups: %w", err)
-			}
-			return nil
-		})
-	})
-}
-
-// WithAnimation enables animation updates during fixed updates. Without it,
-// animated sprites do not advance. Passing it more than once, or together
-// with [WithDefaultSystems], has no additional effect.
-func WithAnimation() option {
-	return optionFunc(func(o *Options) {
-		o.enableFeature("animation", func(g *Game, _ *Options) error {
-			clips, err := g.world.Resource[*animation.ClipStore]()
-			if err != nil {
-				return fmt.Errorf("castrum: resolve clip store: %w", err)
-			}
-			return g.AddSystem(core.PhaseFixed, animation.SystemName, animation.NewAnimationSystem(clips))
-		})
-	})
-}
-
 // WithScenes enables the scene system and provides a scene Director resource.
 // Passing it more than once, or together with [WithDefaultSystems], has no
 // additional effect.
@@ -259,18 +204,5 @@ func WithState[S comparable](machine *state.Machine[S]) option {
 			}
 			return g.AddSystem(core.PhasePreFrame, state.SystemName, states)
 		})
-	})
-}
-
-// WithDefaultSystems enables animation, collision, timer, and scene
-// processing. It is equivalent to passing [WithAnimation], [WithCollision],
-// [WithTimer], and [WithScenes]; combining it with those options has no
-// additional effect.
-func WithDefaultSystems() option {
-	return optionFunc(func(o *Options) {
-		WithAnimation().apply(o)
-		WithCollision().apply(o)
-		WithTimer().apply(o)
-		WithScenes().apply(o)
 	})
 }

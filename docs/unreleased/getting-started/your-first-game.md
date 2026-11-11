@@ -113,7 +113,7 @@ func run() error {
 
 `castrum.New` creates the game and its world. The bindings give names to the keys the game will read later. `ebitrun.New` supplies the window and input, and `g.Run(runner)` starts the game.
 
-Timer, collision, and animation systems are opt-in; add their `With...` options when needed. `castrum.WithDefaultSystems()` enables all three.
+Timer, collision, and animation systems are always registered: declaring the component - a `Timer`, `Collider`, or `Animation` on an entity - is the registration. No option is needed, and with no matching entities each system costs an empty query per tick.
 
 Run it from the project root:
 
@@ -421,13 +421,12 @@ Drive away from the start. Try a few changes:
 
 The tank drives and aims, and a left-click plays a shot. Now make the left mouse button fire too: each click spawns a bullet at the barrel tip, and the bullet flies until it leaves view.
 
-Add `collision` to the import block. Colliders only produce contacts when the engine's collision system is registered, and it is opt-in: add `castrum.WithCollision()` to the `castrum.New` call:
+Add `collision` to the import block. Contact detection is always registered: declaring a `Collider` component enables it.
 
 ```go
 	g, err := castrum.New(
 		castrum.WithTitle("your first game"),
 		castrum.WithBindings(bindings),
-		castrum.WithCollision(),
 	)
 ```
 
@@ -567,14 +566,12 @@ Add `timer` and `time` to the import block, then declare the cooldown alongside 
 	FireCooldown = 750 * time.Millisecond
 ```
 
-Timers advance only when the engine's timer system runs, and it is opt-in: add `castrum.WithTimer()` to the `castrum.New` call. Keep `castrum.WithCollision()`, which the bullet colliders already need. Without the timer option, `Timer` components sit frozen - the gun would never finish cooling down:
+Timers advance in the engine's always-registered timer system: declaring the `Timer` component is the registration. No option is needed:
 
 ```go
 	g, err := castrum.New(
 		castrum.WithTitle("your first game"),
 		castrum.WithBindings(bindings),
-		castrum.WithCollision(),
-		castrum.WithTimer(),
 	)
 ```
 

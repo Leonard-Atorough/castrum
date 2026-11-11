@@ -140,8 +140,6 @@ func run() error {
 		castrum.WithTitle("your first game"),
 		castrum.WithBindings(bindings),
 		castrum.WithFilesystem(files),
-		castrum.WithTimer(),
-		castrum.WithCollision(),
 	)
 	if err != nil {
 		return err

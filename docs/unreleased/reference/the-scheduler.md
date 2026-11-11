@@ -27,16 +27,16 @@ The engine's normal registrations are:
 | System                  | Phase | Registered by            | Role                                                    |
 | ----------------------- | ----- | ------------------------ | ------------------------------------------------------- |
 | `engine.prev-transform` | fixed | always                   | Captures transform position before gameplay changes it. |
-| `engine.animation`      | fixed | `WithAnimation`          | Advances animation state and updates sprites.           |
-| `engine.collision`      | fixed | `WithCollision`         | Detects contacts and records their lifecycle.           |
-| `engine.timer`          | fixed | `WithTimer`              | Advances timers and stamps completions.                 |
+| `engine.animation`      | fixed | always on                | Advances animation state and updates sprites.           |
+| `engine.collision`      | fixed | always on                | Detects contacts and records their lifecycle.           |
+| `engine.timer`          | fixed | always on                | Advances timers and stamps completions.                 |
 | `engine.input-tick`     | fixed | with bindings            | Publishes tick-scoped input edges.                      |
 | `engine.input-update`   | pre-frame | with bindings            | Publishes the frame-scoped action view before state hooks. |
 | `engine.audio`          | frame | the runner               | Reconciles audio source state with runner players.      |
 | `scene-startup`         | startup | `WithScenes`           | Applies requests queued before startup.                 |
 | `scene`                 | frame | `WithScenes`             | Applies queued scene requests before user frame systems. |
 
-The optional subsystems are opt-in: `castrum.WithAnimation`, `castrum.WithCollision`, and `castrum.WithTimer` each register their system, and `castrum.WithDefaultSystems` registers all three. Every system's registration name is exported as a constant from the package that owns the system - `core.PrevTransformSystemName`, `input.FrameSystemName`, `input.TickSystemName`, `animation.SystemName`, `collision.SystemName`, `gametime.TimerSystemName`, `ebitrun.AudioSystemName` - so no call site hand-types the strings; the names identify registrations in error messages and will serve as the handles for future ordering constraints.
+The timer, collision, and animation systems are always registered: their work is declared by component presence, so the component is the registration and an unmatched system costs an empty query per tick. Scenes and state machines are instance-driven and stay opt-in via `WithScenes` and `WithState`. Every system's registration name is exported as a constant from the package that owns the system - `core.PrevTransformSystemName`, `input.FrameSystemName`, `input.TickSystemName`, `animation.SystemName`, `collision.SystemName`, `gametime.TimerSystemName`, `ebitrun.AudioSystemName` - so no call site hand-types the strings; the names identify registrations in error messages and will serve as the handles for future ordering constraints.
 
 ## System groups
 

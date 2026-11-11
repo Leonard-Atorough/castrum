@@ -10,6 +10,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/builtin"
+	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/gametime"
@@ -87,11 +88,34 @@ func New(opts ...option) (*Game, error) {
 		return nil, err
 	}
 
+	// Declaration-driven systems: their work is declared by component
+	// presence, so the component is the registration. With no matching
+	// entities they cost an empty query per tick. Their resources are
+	// provided here so the systems resolve them on first update.
 	clips := animation.NewClipStore()
 	if err := g.world.Provide(func(*core.World) (*animation.ClipStore, error) {
 		return clips, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide clip store: %w", err)
+	}
+	if err := g.world.Provide(func(*core.World) (*gametime.Groups, error) {
+		return gametime.NewGroups(), nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide timer groups: %w", err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
+		return nil, err
+	}
+	if err := g.AddSystem(core.PhaseFixed, animation.SystemName, animation.NewAnimationSystem(clips)); err != nil {
+		return nil, err
+	}
+	if err := g.world.ProvideEager(func(*core.World) (*collision.Queries, error) {
+		return collision.NewQueries()
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide collision queries: %w", err)
+	}
+	if err := g.AddSystem(core.PhaseFixed, collision.SystemName, collision.NewSystem()); err != nil {
+		return nil, err
 	}
 
 	hub := signal.NewHub()

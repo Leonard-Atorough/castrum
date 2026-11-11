@@ -38,7 +38,6 @@ func main() {
 func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - raycast"),
-		castrum.WithCollision(),
 	)
 	if err != nil {
 		return err

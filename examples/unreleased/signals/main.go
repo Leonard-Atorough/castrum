@@ -103,7 +103,6 @@ func main() {
 func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - signals"),
-		castrum.WithTimer(),
 	)
 	if err != nil {
 		return err

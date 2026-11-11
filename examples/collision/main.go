@@ -123,7 +123,6 @@ func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - collision"),
 		castrum.WithBindings(bindings),
-		castrum.WithCollision(),
 	)
 	if err != nil {
 		return err

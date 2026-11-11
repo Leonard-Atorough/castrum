@@ -17,7 +17,7 @@ Castrum is a 2D game engine for Go. You compose entities from data, update that 
 - **Collision** detects box and circle overlaps using layers and masks, then records contacts as component state. It detects overlaps only; it does not resolve physics. See the [collision guide](../guides/collision.md).
 - **Animation** advances atlas-frame clips with looping, pause, and playback-rate controls. See the [animation guide](../guides/animation.md).
 
-Timers, collision, and animation are optional systems; enable them individually or use `castrum.WithDefaultSystems()`. The [cheat sheet](cheat-sheet.md) lists the available setup options.
+Timers, collision, and animation are always registered: declaring the component is the registration, and with no matching entities each system costs an empty query per tick. The [cheat sheet](cheat-sheet.md) lists the available setup options.
 
 ## Render the game
 

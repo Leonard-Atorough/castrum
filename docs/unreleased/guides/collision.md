@@ -2,7 +2,7 @@
 
 Castrum collision is overlap detection, not a physics solver. Give an entity a `collision.Collider` and a `core.Transform`; the engine detects overlaps and writes them to `collision.Contacts`. Your systems decide whether a contact blocks movement, deals damage, collects a pickup, or does nothing.
 
-The engine registers collision detection in the fixed phase before gameplay systems, when the game is created with `castrum.WithCollision()`. It tests the transforms at the start of that tick, so movement your systems make is detected on the following fixed tick. The option also provides a `collision.Queries` resource backed by the collision system's broadphase.
+The engine registers collision detection in the fixed phase before gameplay systems for every game: colliders are declared by component presence, so a `Collider` on an entity is the registration. It tests the transforms at the start of that tick, so movement your systems make is detected on the following fixed tick. The option also provides a `collision.Queries` resource backed by the collision system's broadphase.
 
 For a complete runnable example, including walls, rotating hazards, trigger pickups, and contact lifecycle handling, run:
 
@@ -14,7 +14,7 @@ For entity, component, and system basics, see [The ECS in depth](ecs.md).
 
 ## Create a collider
 
-Enable the collision system when creating the game: `castrum.WithCollision()` registers it in the fixed schedule under `collision.SystemName`. Without the option, colliders never produce contacts. `castrum.WithDefaultSystems()` enables it together with the timer and animation systems.
+The collision system is always registered in the fixed schedule under `collision.SystemName`; declaring a `Collider` component enables contact detection, and with no colliders the system costs an empty query per tick.
 
 The supported local-space shapes are `collision.Box` and `collision.Circle`. Create a collider with `collision.NewCollider`, then spawn it with a transform:
 
@@ -84,7 +84,7 @@ if ok {
 
 `RaycastFilter.Mask` selects target colliders by their `Collider.Layers`; a zero mask selects none. A ray query is not a collider pair, so it does not test the target's `Collider.Mask`. This differs from overlap detection, where both colliders' masks must allow the pair. This target-selection model is also used by [Unity's raycast layer mask](https://docs.unity.com/en-us/engine/6000.6/script-reference/unityengine/physics/raycast) and [Godot's ray-query collision mask](https://docs.godotengine.org/en/stable/classes/class_physicsrayqueryparameters2d.html#class-physicsrayqueryparameters2d-property-collision-mask). Inactive colliders are not indexed, and `Exclude` ignores the listed entity IDs.
 
-The query resource is created by `castrum.WithCollision()`. Before the collision system's first successful fixed update, the index is empty and a raycast returns no hit. `Queries.Tick()` reports the fixed tick represented by the last successful sync. Within a fixed tick, gameplay systems run after collision and raycasts see the same transformed collider state used to produce `Contacts`. Frame-phase queries see the last completed fixed tick, so transform changes made since then are reflected after the next collision update.
+The query resource is provided by the engine for every game. Before the collision system's first successful fixed update, the index is empty and a raycast returns no hit. `Queries.Tick()` reports the fixed tick represented by the last successful sync. Within a fixed tick, gameplay systems run after collision and raycasts see the same transformed collider state used to produce `Contacts`. Frame-phase queries see the last completed fixed tick, so transform changes made since then are reflected after the next collision update.
 
 When registering `collision.NewSystem()` manually, also provide `*collision.Queries` using `collision.NewQueries()` and provide the signal hub required by the system.
 

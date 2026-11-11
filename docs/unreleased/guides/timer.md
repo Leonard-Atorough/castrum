@@ -23,7 +23,7 @@ if err != nil {
 
 Each entity can hold one `Timer`. To run several timers for the same actor, put each timer on its own entity and keep the entity handles.
 
-Castrum registers the timer system when the game is created with `castrum.WithTimer()` (or `castrum.WithDefaultSystems()`, which also enables the animation and collision systems). A timer is validated when it enters storage, including when an update writes it back: its duration must be positive and elapsed time cannot be negative. Invalid timers are rejected with an error; `NewTimer` itself does not return an error.
+Castrum registers the timer system for every game: timers are declared by component presence, so a `Timer` on an entity is the registration and the system costs an empty query when none exist. A timer is validated when it enters storage, including when an update writes it back: its duration must be positive and elapsed time cannot be negative. Invalid timers are rejected with an error; `NewTimer` itself does not return an error.
 
 ## Pause and resume
 
@@ -51,7 +51,7 @@ if err != nil {
 
 ## Timer groups
 
-Use a timer's `Group` field to put it in one named group. The `gametime.Groups` resource controls whether timers in each group accumulate time and at what rate. `castrum.WithTimer()` provides the resource along with the timer system; `castrum.WithDefaultSystems()` includes it too.
+Use a timer's `Group` field to put it in one named group. The `gametime.Groups` resource controls whether timers in each group accumulate time and at what rate. The engine provides the resource for every game.
 
 Retrieve the resource after creating the game:
 
@@ -59,7 +59,7 @@ Retrieve the resource after creating the game:
 groups := game.World().MustResource[*gametime.Groups]()
 ```
 
-`MustResource` is appropriate when the game was created with `WithTimer` or `WithDefaultSystems`, which provide the resource. If you register `gametime.NewTimerSystem()` yourself, provide a `*gametime.Groups` resource (for example, one returned by `gametime.NewGroups()`) as well; the timer system returns an error on its first update if it is missing.
+`MustResource` is appropriate for every game: the engine provides the resource when the game is constructed.
 
 Use the groups resource from the game's single-threaded loop; it is not safe for concurrent access.
 
@@ -132,7 +132,7 @@ If a repeating timer is shorter than one tick, it may complete multiple interval
 
 ## Signals
 
-When the timer system is enabled with `castrum.WithTimer()` or `castrum.WithDefaultSystems()`, it emits a `gametime.Completed` signal when a timer completes. The signal carries the timer entity ID and fixed tick. A repeating timer emits at most one completion signal per fixed tick, even if it completes several intervals in that tick.
+The timer system emits a `gametime.Completed` signal when a timer completes. The signal carries the timer entity ID and fixed tick. A repeating timer emits at most one completion signal per fixed tick, even if it completes several intervals in that tick.
 
 Use a consumer system when you want to react to a particular timer without checking its component every tick:
 
