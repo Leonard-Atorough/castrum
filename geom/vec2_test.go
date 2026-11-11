@@ -39,6 +39,30 @@ func TestVector2_Arithmetic(t *testing.T) {
 	}
 }
 
+func TestLargeAndSmallVectorMagnitudes(t *testing.T) {
+	for _, scale := range []float64{1e200, 1e-200} {
+		v := Vector2{X: 3 * scale, Y: 4 * scale}
+		if got := v.Length() / (5 * scale); math.Abs(got-1) > 1e-14 {
+			t.Errorf("scale %v: relative length = %v, want 1", scale, got)
+		}
+		if got := (Segment{End: v}).Length() / (5 * scale); math.Abs(got-1) > 1e-14 {
+			t.Errorf("scale %v: relative segment length = %v, want 1", scale, got)
+		}
+		if got := v.Normalize(); !vecAlmostEqual(got, Vector2{X: 0.6, Y: 0.8}) {
+			t.Errorf("scale %v: Normalize() = %v", scale, got)
+		}
+	}
+	for _, v := range []Vector2{
+		{X: math.MaxFloat64, Y: math.MaxFloat64},
+		{X: math.SmallestNonzeroFloat64, Y: math.SmallestNonzeroFloat64},
+	} {
+		got := v.Normalize()
+		if math.Abs(got.Length()-1) > 1e-14 || math.Abs(got.X-got.Y) > 1e-14 {
+			t.Errorf("Normalize(%v) = %v, want diagonal unit vector", v, got)
+		}
+	}
+}
+
 func TestVector2_Length(t *testing.T) {
 	v := Vector2{X: 3, Y: 4}
 	if got := v.Length(); !almostEqual(got, 5) {

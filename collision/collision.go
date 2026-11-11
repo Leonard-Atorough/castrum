@@ -266,45 +266,34 @@ func radialNormal(offset geom.Vector2) geom.Vector2 {
 func segmentCircleHit(segment geom.Segment, circle worldCircle) segmentHit {
 	direction := segment.End.Sub(segment.Start)
 	offset := segment.Start.Sub(circle.center)
-	a := direction.Dot(direction)
-	c := offset.Dot(offset) - circle.radius*circle.radius
-
-	if c == 0 {
-		return segmentHit{
-			hit:    true,
-			point:  segment.Start,
-			normal: offset.Normalize(),
-		}
-	}
-
-	if a == 0 {
-		if c < 0 {
-			return segmentHit{hit: true, point: segment.Start, normal: radialNormal(offset)}
-		}
-		return segmentHit{}
-	}
-
-	if c < 0 {
+	if offset.Length() <= circle.radius {
 		return segmentHit{hit: true, point: segment.Start, normal: radialNormal(offset)}
 	}
-
-	b := 2 * offset.Dot(direction)
-	discriminant := b*b - 4*a*c
-	if discriminant < 0 {
+	length := direction.Length()
+	if length == 0 {
 		return segmentHit{}
 	}
-
-	t := (-b - math.Sqrt(discriminant)) / (2 * a)
-	if t < 0 || t > 1 {
+	unit := direction.Normalize()
+	along := -offset.Dot(unit)
+	perpendicular := offset.Cross(unit)
+	if along < 0 || math.Abs(perpendicular) > circle.radius {
 		return segmentHit{}
 	}
-
-	point := segment.Start.Add(direction.Mul(t))
+	// Closest approach avoids subtracting nearly equal quadratic terms.
+	ratio := math.Abs(perpendicular) / circle.radius
+	halfChord := circle.radius * math.Sqrt((1-ratio)*(1+ratio))
+	distance := along - halfChord
+	if distance < 0 || distance > length {
+		return segmentHit{}
+	}
+	point := segment.Start.Add(unit.Mul(distance))
+	normal := geom.Vector2{X: unit.Y * perpendicular, Y: -unit.X * perpendicular}.
+		Sub(unit.Mul(halfChord)).Normalize()
 	return segmentHit{
 		hit:    true,
-		t:      t,
+		t:      distance / length,
 		point:  point,
-		normal: point.Sub(circle.center).Normalize(),
+		normal: normal,
 	}
 }
 
