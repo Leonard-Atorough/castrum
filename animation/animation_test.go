@@ -1,6 +1,7 @@
 package animation
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -165,6 +166,42 @@ func TestMissingClipFailsFast(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "entity") {
 		t.Fatalf("error %q does not name the entity", err)
+	}
+}
+
+func TestSystemRejectsFrameOutsideClip(t *testing.T) {
+	for _, paused := range []bool{false, true} {
+		t.Run(fmt.Sprintf("paused=%v", paused), func(t *testing.T) {
+			entity, sys, ctx := newAnimWorld(t,
+				Animation{Clip: "walk", Current: 2, Paused: paused},
+				Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 1},
+			)
+			before := readAnim(t, entity, ctx)
+			err := sys.Update(ctx)
+			if err == nil || !strings.Contains(err.Error(), "walk") || !strings.Contains(err.Error(), "entity") {
+				t.Fatalf("Update() = %v, want entity and clip context", err)
+			}
+			if got := readAnim(t, entity, ctx); got != before {
+				t.Fatalf("invalid frame changed animation: got %+v, want %+v", got, before)
+			}
+			if _, ok := region(readSprite(t, entity, ctx)); ok {
+				t.Fatal("invalid frame changed sprite")
+			}
+		})
+	}
+}
+
+func TestSystemRejectsUnrepresentableFrameAdvance(t *testing.T) {
+	entity, sys, ctx := newAnimWorld(t,
+		Animation{Clip: "walk", Loop: LoopForever, PlaybackMultiplier: math.MaxFloat64},
+		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+	)
+	before := readAnim(t, entity, ctx)
+	if err := sys.Update(ctx); err == nil || !strings.Contains(err.Error(), "frame advance") {
+		t.Fatalf("Update() = %v, want frame advance error", err)
+	}
+	if got := readAnim(t, entity, ctx); got != before {
+		t.Fatalf("failed advance changed animation: got %+v, want %+v", got, before)
 	}
 }
 
