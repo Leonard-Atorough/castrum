@@ -17,7 +17,7 @@ const (
 	PhaseStartup
 	// PhasePostStartup runs once after startup systems.
 	PhasePostStartup
-	// PhasePreFrame runs once per display frame after input updates and before frame systems.
+	// PhasePreFrame runs once per display frame before frame systems.
 	PhasePreFrame
 	// PhaseFrame runs once per display frame, before fixed ticks.
 	// Input consumption belongs here.

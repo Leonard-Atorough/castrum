@@ -52,7 +52,7 @@ See [Scheduling systems](../guides/system-scheduling.md) for phase selection, re
 | `core.PhasePreStartup`  | once, before startup systems                 | initial state hooks                         |
 | `core.PhaseStartup`     | once, before the first frame                 | loading, world setup                        |
 | `core.PhasePostStartup` | once, after startup systems                  | post-setup work                             |
-| `core.PhasePreFrame`    | once per display frame, after input updates  | state transitions before scene operations   |
+| `core.PhasePreFrame`    | once per display frame, before frame systems | state transitions before scene operations   |
 | `core.PhaseFrame`       | once per display frame                       | scene operations, UI, presentation          |
 | `core.PhasePostFrame`   | once per display frame, after frame systems  | frame cleanup and observation               |
 | `core.PhasePreFixed`    | once per tick, before fixed systems          | per-tick setup                              |

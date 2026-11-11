@@ -17,7 +17,7 @@ The grid is private implementation machinery, not a game-facing spatial-query AP
 
 Collision is detection-only: no response solver, event queue, or continuous collision detection. It tests boxes and circles at the sampled transform, so a fast-moving shape can cross another between ticks without producing a contact. Position and rotation affect geometry; transform scale and transform offset do not. A collider's own local offset does.
 
-Collision detection is always registered; it runs in the fixed phase before gameplay systems. Movement made by those systems is detected on the following fixed tick. See [the scheduler](the-scheduler.md) for the ordering contract.
+Collision detection is always registered in the fixed phase before gameplay systems normally appended later. Movement by those systems is detected on the following fixed tick. A system inserted before collision detection, or run in the pre-fixed phase, can affect detection in the current tick. See [the scheduler](the-scheduler.md) for ordering.
 
 ## Detection pipeline
 

@@ -676,3 +676,102 @@ func TestSignalLifecycleInGameLoop(t *testing.T) {
 		t.Fatalf("frame deliveries = %v, want exactly [4] (the frame after the tick)", frameAt)
 	}
 }
+
+func TestPostFrameSignalsExpireBeforeFixedAndNextFrame(t *testing.T) {
+	g := newTestGame(t, WithFixedTPS(4))
+	hub := g.World().MustResource[*signal.Hub]()
+	type frameSignal struct{}
+	postReader := hub.NewReader[frameSignal]()
+	fixedReader := hub.NewReader[frameSignal]()
+	preReader := hub.NewReader[frameSignal]()
+	var postFrames, fixedTicks, preFrames []uint64
+
+	addTestSystem(t, g, core.PhasePreFrame, "pre-frame consumer", core.SystemFunc(func(ctx *core.Context) error {
+		for _, ok := preReader.Next(); ok; _, ok = preReader.Next() {
+			preFrames = append(preFrames, ctx.Frame)
+		}
+		return nil
+	}))
+	addTestSystem(t, g, core.PhasePostFrame, "post-frame emitter", core.SystemFunc(func(ctx *core.Context) error {
+		if ctx.Frame == 1 {
+			hub.Emit(frameSignal{})
+		}
+		return nil
+	}))
+	addTestSystem(t, g, core.PhasePostFrame, "post-frame consumer", core.SystemFunc(func(ctx *core.Context) error {
+		for _, ok := postReader.Next(); ok; _, ok = postReader.Next() {
+			postFrames = append(postFrames, ctx.Frame)
+		}
+		return nil
+	}))
+	addTestSystem(t, g, core.PhasePreFixed, "fixed consumer", core.SystemFunc(func(ctx *core.Context) error {
+		for _, ok := fixedReader.Next(); ok; _, ok = fixedReader.Next() {
+			fixedTicks = append(fixedTicks, ctx.Tick)
+		}
+		return nil
+	}))
+
+	advanceTestGame(t, g, g.Options().FixedDT())
+	advanceTestGame(t, g, g.Options().FixedDT())
+	if want := []uint64{1}; !slices.Equal(postFrames, want) {
+		t.Errorf("post-frame deliveries = %v, want %v", postFrames, want)
+	}
+	if len(fixedTicks) != 0 || len(preFrames) != 0 {
+		t.Errorf("frame signal leaked into fixed ticks %v or later pre-frames %v", fixedTicks, preFrames)
+	}
+}
+
+func TestPostFixedSignalsReachNextFrameAndExpireBeforeNextTick(t *testing.T) {
+	g := newTestGame(t, WithFixedTPS(4))
+	hub := g.World().MustResource[*signal.Hub]()
+	type tickSignal struct{}
+	tickReader := hub.NewReader[tickSignal]()
+	preFrameReader := hub.NewReader[tickSignal]()
+	postFrameReader := hub.NewReader[tickSignal]()
+	nextTickReader := hub.NewReader[tickSignal]()
+	var postTicks, preFrames, postFrames, nextTicks []uint64
+
+	addTestSystem(t, g, core.PhasePostFixed, "post-fixed emitter", core.SystemFunc(func(ctx *core.Context) error {
+		if ctx.Tick == 1 {
+			hub.Emit(tickSignal{})
+		}
+		return nil
+	}))
+	addTestSystem(t, g, core.PhasePostFixed, "post-fixed consumer", core.SystemFunc(func(ctx *core.Context) error {
+		for _, ok := tickReader.Next(); ok; _, ok = tickReader.Next() {
+			postTicks = append(postTicks, ctx.Tick)
+		}
+		return nil
+	}))
+	addTestSystem(t, g, core.PhasePreFrame, "pre-frame consumer", core.SystemFunc(func(ctx *core.Context) error {
+		for _, ok := preFrameReader.Next(); ok; _, ok = preFrameReader.Next() {
+			preFrames = append(preFrames, ctx.Frame)
+		}
+		return nil
+	}))
+	addTestSystem(t, g, core.PhasePostFrame, "post-frame consumer", core.SystemFunc(func(ctx *core.Context) error {
+		for _, ok := postFrameReader.Next(); ok; _, ok = postFrameReader.Next() {
+			postFrames = append(postFrames, ctx.Frame)
+		}
+		return nil
+	}))
+	addTestSystem(t, g, core.PhasePreFixed, "pre-fixed consumer", core.SystemFunc(func(ctx *core.Context) error {
+		for _, ok := nextTickReader.Next(); ok; _, ok = nextTickReader.Next() {
+			nextTicks = append(nextTicks, ctx.Tick)
+		}
+		return nil
+	}))
+
+	advanceTestGame(t, g, g.Options().FixedDT())
+	advanceTestGame(t, g, 0)
+	advanceTestGame(t, g, g.Options().FixedDT())
+	if want := []uint64{1}; !slices.Equal(postTicks, want) {
+		t.Errorf("post-fixed deliveries = %v, want %v", postTicks, want)
+	}
+	if want := []uint64{2}; !slices.Equal(preFrames, want) || !slices.Equal(postFrames, want) {
+		t.Errorf("next-frame deliveries: pre = %v, post = %v, want %v each", preFrames, postFrames, want)
+	}
+	if len(nextTicks) != 0 {
+		t.Errorf("post-fixed signal leaked into subsequent ticks %v", nextTicks)
+	}
+}

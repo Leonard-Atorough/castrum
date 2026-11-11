@@ -47,7 +47,7 @@ if err := g.AddSystem(core.PhaseFixed, "move", moveSystem(square)); err != nil {
 }
 ```
 
-The name appears in error messages, which is reason enough to pick a good one. Systems run in registration order within their phase, and the engine defines order between phases. Frame input updates before pre-frame systems; scene operations run before user frame systems.
+The name appears in error messages, which is reason enough to pick a good one. Systems normally run in registration order within their phase, and the engine defines order between phases. Input and scene systems registered by the engine normally run before systems added later in the same phase; relative ordering can change that.
 
 There are nine phases:
 
@@ -56,7 +56,7 @@ There are nine phases:
 | `core.PhasePreStartup`  | once, before startup systems                | initial state hooks                        |
 | `core.PhaseStartup`     | once, before the first frame                | loading, world setup                       |
 | `core.PhasePostStartup` | once, after startup systems                 | post-setup work                            |
-| `core.PhasePreFrame`    | once per frame, after input updates         | state transitions before scene operations  |
+| `core.PhasePreFrame`    | once per frame, before frame systems        | state transitions before scene operations  |
 | `core.PhaseFrame`       | once per display frame                      | scene operations, reading input, UI         |
 | `core.PhasePostFrame`   | once per display frame, after frame systems | frame cleanup and observation              |
 | `core.PhasePreFixed`    | once per simulation tick, before fixed work | per-tick setup                             |

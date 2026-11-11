@@ -32,9 +32,9 @@ Runner options are separate because they describe the platform: `ebitrun.New` ow
 
 ## Systems all the way down
 
-The engine's behavior uses the same system mechanism available to games. Transform snapshotting, input publication, animation advancement, and audio reconciliation are registered into schedules at construction time. User systems are then registered after the engine systems and run in phase order.
+The engine's behavior uses the same system mechanism available to games. Transform snapshotting, input publication, and animation advancement are registered during game construction; the runner registers audio reconciliation when it is created. Systems normally run in registration order within each phase, but relative insertion can place a new system before an existing engine system.
 
-There is no separate privileged update path for ordinary engine behavior. The [scheduler](the-scheduler.md) explains the resulting ordering and timing guarantees.
+Ordinary engine behavior uses regular systems; private signal boundary hooks remain protected. The [scheduler](the-scheduler.md) explains the resulting ordering and timing guarantees.
 
 ## Shared state
 

@@ -112,7 +112,7 @@ Every game starts with an engine camera. A user-spawned `Camera{Primary: true}` 
 
 Startup runs `PhasePreStartup`, `PhaseStartup`, then `PhasePostStartup` once before the loop. Each display frame runs `PhasePreFrame`, `PhaseFrame`, and `PhasePostFrame`; zero or more fixed ticks follow, each running `PhasePreFixed`, `PhaseFixed`, and `PhasePostFixed`. Check that the system is registered in the phase matching its responsibility and that it uses that phase's `ctx.DeltaTime`.
 
-Within a phase, systems run in registration order. Register a reader after the system that writes the value it consumes. Systems registered during `New` run before systems you add later in the same phase; this matters for transform snapshots and configured input systems. See [Scheduling systems](system-scheduling.md) for phase timing and runtime registration behavior.
+Within a phase, systems normally run in registration order, but `Before` and `After` can insert a system at a different position. Arrange for a reader to run after the system that writes the value it consumes. Systems registered during `New` normally run before systems appended later in the same phase; inserting before them can change transform snapshots or input visibility. See [Scheduling systems](system-scheduling.md) for phase timing and runtime registration behavior.
 
 For visual stutter, do not immediately increase `FixedTPS`. Fixed motion is rendered between the previous and current transform states. Inspect frame cost, interpolation inputs, and the camera before changing the simulation rate.
 

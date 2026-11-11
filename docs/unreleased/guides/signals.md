@@ -99,7 +99,7 @@ The hub starts in frame mode. In normal game updates, the engine switches to tic
 
 ## Ordering
 
-Systems in a phase run in registration order. For same-tick delivery, register the emitter before the consumer: the consumer then reads after the signal has been emitted and can react in that tick.
+Systems normally run in registration order within a phase; relative registration can insert a system before or after an existing one. For same-tick delivery, arrange for the emitter to run before the consumer so the consumer can react after the signal is emitted.
 
 If the consumer runs first, its read finds no signal. That is safe, but the system is not run again just because another system emits later. The signal still moves to the frame window at the end of the tick, where a frame reader can handle it in the next display frame; the earlier fixed-phase consumer will not see it on its next tick.
 

@@ -1,6 +1,6 @@
 # Scheduling systems
 
-The scheduler runs named systems in phases. Choose a phase for when the work belongs, then register systems in dependency order within that phase. A reader must be registered after the system that writes the value it reads.
+The scheduler runs named systems in phases. Choose a phase for when the work belongs, then arrange systems in dependency order within that phase. A reader must run after the system that writes the value it reads.
 
 ## Choose a phase
 
@@ -16,7 +16,7 @@ Each display frame runs frame phases in order, followed by zero or more fixed ti
 
 | Phase | When it runs | Typical use |
 | --- | --- | --- |
-| `core.PhasePreFrame` | Once per display frame, after frame input updates | State transitions before frame scene work. |
+| `core.PhasePreFrame` | Once per display frame, before frame systems | State transitions before frame scene work. |
 | `core.PhaseFrame` | Once per display frame, before fixed ticks | UI, presentation, and frame-level input. |
 | `core.PhasePostFrame` | Once per display frame, after frame systems and before fixed ticks | Frame-level observation or cleanup. |
 
@@ -32,7 +32,7 @@ A frame may have no fixed ticks or several catch-up ticks. Frame phases still ru
 
 ## Register in dependency order
 
-`Game.AddSystem` appends a system to the selected phase. Systems in the same phase run in registration order, so register a producer before its consumers:
+By default, `Game.AddSystem` appends a system to the selected phase, so registering a producer before its consumers puts it first. To change the order, insert a new system before or after an already registered system:
 
 ```go
 func registerPlayerSystems(g *castrum.Game, player *core.Entity) error {
@@ -67,7 +67,7 @@ func registerPlayerSystems(g *castrum.Game, player *core.Entity) error {
 
 The resulting order is `player.prepare`, `player.move`, then `player.clamp`. `castrum.Before` and `castrum.After` insert a new system relative to an existing regular system in the same phase. The target must already be registered; the internal first/last lifecycle hooks are not valid targets. These options insert new systems rather than moving existing ones or declaring a dependency graph, so cycles cannot be formed. Repeated `After` registrations for the same target place the newest system closest to that target.
 
-Names appear in schedule errors and must be non-empty and unique within each phase. `AddSystem` returns an error for an invalid phase, an empty or duplicate name, a missing target, or invalid or conflicting options. Specify at most one position option and one non-empty group. A system error stops the current phase and propagates through `Startup` or `Advance`, and through the runner's `Run`. Engine features register their own systems where needed. For example, systems registered during `castrum.New` run before systems you add later in the same phase.
+Names appear in schedule errors and must be non-empty and unique within each phase. `AddSystem` returns an error for an invalid phase, an empty or duplicate name, a missing target, or invalid or conflicting options. Specify at most one position option and one non-empty group. A system error stops the current phase and propagates through `Startup` or `Advance`, and through the runner's `Run`. Engine features register their own systems where needed. Systems added normally after `castrum.New` run after its systems in the same phase, but relative options can insert before ordinary engine systems. Preserve dependencies such as input publication before input consumers and transform capture before gameplay movement.
 
 ## Add systems while the game runs
 
