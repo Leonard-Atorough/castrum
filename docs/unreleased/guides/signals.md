@@ -93,7 +93,7 @@ if state.charge >= maxCharge {
 
 The game loop runs pre-frame, frame, and post-frame schedules followed by zero or more fixed ticks. The frame window opens before pre-frame systems and remains open through post-frame systems; frame signals can be read by later systems in any of those schedules and expire after the post-frame schedule ends.
 
-Signals emitted during a fixed tick go into the tick window. At the end of that tick, the hub moves them into the frame window and clears the tick window. This means a tick signal can be read by a fixed system during that tick and by a pre-frame or frame system in the next display frame, using independent readers. If several fixed ticks run before the next frame, their signals collect in the frame window together.
+Signals emitted during a fixed tick go into the tick window. At the end of that tick, the hub moves them into the frame window and clears the tick window. This means a tick signal can be read by a fixed system during that tick and by a pre-frame, frame, or post-frame system in the next display frame, using independent readers. If several fixed ticks run before the next frame, their signals collect in the frame window together.
 
 The hub starts in frame mode. In normal game updates, the engine switches to tick mode after post-frame systems, then flushes each tick into the frame window after post-fixed systems run.
 
