@@ -11,6 +11,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/internal/ecs"
 )
 
+const maxCellsPerRange = 4096
+
 // GridCell identifies a cell in grid coordinates.
 type GridCell struct {
 	// X is the cell's horizontal grid coordinate.
@@ -21,7 +23,8 @@ type GridCell struct {
 
 // Grid indexes entity IDs by conservative axis-aligned bounds. It
 // returns broad-phase candidates only; callers must perform any
-// exact intersection tests themselves.
+// exact intersection tests themselves. Large bounds and query ranges use
+// entry scans rather than expanding every covered cell.
 type Grid struct {
 	// cellSize is the width and height of each cell in world units.
 	cellSize float64
@@ -29,15 +32,18 @@ type Grid struct {
 	cells map[GridCell][]*gridEntry
 	// entities owns the indexed entries, keyed by entity ID.
 	entities map[ecs.EntityID]*gridEntry
+	// oversized holds entries whose ranges exceed the cell coverage budget.
+	oversized map[ecs.EntityID]*gridEntry
 	// batchEntries and batchIDs are reused by ApplyBatch.
 	batchEntries []gridEntry
 	batchIDs     map[ecs.EntityID]struct{}
 }
 
 type gridEntry struct {
-	id       ecs.EntityID
-	min, max GridCell
-	bounds   geom.Rect
+	id        ecs.EntityID
+	min, max  GridCell
+	bounds    geom.Rect
+	oversized bool
 }
 
 // Change updates or removes one entity's indexed bounds.
@@ -61,6 +67,7 @@ func NewGrid(cellSize float64) (*Grid, error) {
 		cellSize:     cellSize,
 		cells:        make(map[GridCell][]*gridEntry),
 		entities:     make(map[ecs.EntityID]*gridEntry),
+		oversized:    make(map[ecs.EntityID]*gridEntry),
 		batchEntries: make([]gridEntry, 0, 16),
 		batchIDs:     make(map[ecs.EntityID]struct{}),
 	}, nil
@@ -128,7 +135,18 @@ func (idx *Grid) prepareEntry(entityID ecs.EntityID, bounds geom.Rect) (gridEntr
 	if err != nil {
 		return gridEntry{}, fmt.Errorf("invalid bounds for entity %d: %w", entityID, err)
 	}
-	return gridEntry{id: entityID, min: minCell, max: maxCell, bounds: bounds}, nil
+	return gridEntry{
+		id: entityID, min: minCell, max: maxCell, bounds: bounds,
+		oversized: exceedsCellBudget(minCell, maxCell),
+	}, nil
+}
+
+func exceedsCellBudget(minCell, maxCell GridCell) bool {
+	// Unsigned differences also handle ranges spanning the signed integer limits.
+	width := uint(maxCell.X) - uint(minCell.X)
+	height := uint(maxCell.Y) - uint(minCell.Y)
+	return width >= maxCellsPerRange || height >= maxCellsPerRange ||
+		(width+1)*(height+1) > maxCellsPerRange
 }
 
 func (idx *Grid) updateEntry(next gridEntry) {
@@ -140,11 +158,15 @@ func (idx *Grid) updateEntry(next gridEntry) {
 			entry.bounds = next.bounds
 			return
 		}
-		for x := entry.min.X; x <= entry.max.X; x++ {
-			for y := entry.min.Y; y <= entry.max.Y; y++ {
-				cell := GridCell{X: x, Y: y}
-				if !next.contains(cell) {
-					idx.removeFromCell(cell, entityID)
+		if entry.oversized {
+			delete(idx.oversized, entityID)
+		} else {
+			for x := entry.min.X; x <= entry.max.X; x++ {
+				for y := entry.min.Y; y <= entry.max.Y; y++ {
+					cell := GridCell{X: x, Y: y}
+					if next.oversized || !next.contains(cell) {
+						idx.removeFromCell(cell, entityID)
+					}
 				}
 			}
 		}
@@ -152,13 +174,17 @@ func (idx *Grid) updateEntry(next gridEntry) {
 		entry = &gridEntry{id: entityID}
 		idx.entities[entityID] = entry
 	}
-	for x := minCell.X; x <= maxCell.X; x++ {
-		for y := minCell.Y; y <= maxCell.Y; y++ {
-			cell := GridCell{X: x, Y: y}
-			if exists && entry.contains(cell) {
-				continue
+	if next.oversized {
+		idx.oversized[entityID] = entry
+	} else {
+		for x := minCell.X; x <= maxCell.X; x++ {
+			for y := minCell.Y; y <= maxCell.Y; y++ {
+				cell := GridCell{X: x, Y: y}
+				if exists && !entry.oversized && entry.contains(cell) {
+					continue
+				}
+				idx.cells[cell] = append(idx.cells[cell], entry)
 			}
-			idx.cells[cell] = append(idx.cells[cell], entry)
 		}
 	}
 	*entry = next
@@ -201,21 +227,34 @@ func (idx *Grid) queryInto(bounds geom.Rect, ids []ecs.EntityID, overlapsOnly bo
 	}
 	ids = ids[:0]
 
-	for x := minCell.X; x <= maxCell.X; x++ {
-		for y := minCell.Y; y <= maxCell.Y; y++ {
-			cell := GridCell{X: x, Y: y}
-			for _, entry := range idx.cells[cell] {
-				// Emit at the first shared cell, without a per-query seen map.
-				if x == max(minCell.X, entry.min.X) && y == max(minCell.Y, entry.min.Y) {
-					// Both bounds are validated before reaching this loop.
-					if overlapsOnly && (bounds.Max.X < entry.bounds.Min.X || entry.bounds.Max.X < bounds.Min.X ||
-						bounds.Max.Y < entry.bounds.Min.Y || entry.bounds.Max.Y < bounds.Min.Y) {
-						continue
+	entries := idx.oversized
+	if exceedsCellBudget(minCell, maxCell) {
+		entries = idx.entities
+	} else {
+		for x := minCell.X; x <= maxCell.X; x++ {
+			for y := minCell.Y; y <= maxCell.Y; y++ {
+				cell := GridCell{X: x, Y: y}
+				for _, entry := range idx.cells[cell] {
+					// Emit at the first shared cell, without a per-query seen map.
+					if x == max(minCell.X, entry.min.X) && y == max(minCell.Y, entry.min.Y) {
+						if overlapsOnly && !bounds.OverlapsOrTouches(entry.bounds) {
+							continue
+						}
+						ids = append(ids, entry.id)
 					}
-					ids = append(ids, entry.id)
 				}
 			}
 		}
+	}
+	for _, entry := range entries {
+		if entry.max.X < minCell.X || entry.min.X > maxCell.X ||
+			entry.max.Y < minCell.Y || entry.min.Y > maxCell.Y {
+			continue
+		}
+		if overlapsOnly && !bounds.OverlapsOrTouches(entry.bounds) {
+			continue
+		}
+		ids = append(ids, entry.id)
 	}
 
 	return ids
@@ -240,6 +279,10 @@ func (idx *Grid) Remove(entityID ecs.EntityID) {
 		return
 	}
 	delete(idx.entities, entityID)
+	if entry.oversized {
+		delete(idx.oversized, entityID)
+		return
+	}
 	for x := entry.min.X; x <= entry.max.X; x++ {
 		for y := entry.min.Y; y <= entry.max.Y; y++ {
 			idx.removeFromCell(GridCell{X: x, Y: y}, entityID)

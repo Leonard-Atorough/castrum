@@ -90,3 +90,33 @@ func TestBroadphaseSyncIsTransactional(t *testing.T) {
 func pointSegment(point geom.Vector2) geom.Segment {
 	return geom.Segment{Start: point, End: point}
 }
+
+func TestBroadphaseIndexesLargeCollider(t *testing.T) {
+	world := newCollisionWorld(t)
+	collider, err := NewCollider(Box{
+		Min: geom.Vector2{X: -5e5, Y: -5e5},
+		Max: geom.Vector2{X: 5e5, Y: 5e5},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entity, err := world.NewEntity(core.Transform{}, collider)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := NewSystem().Update(&core.Context{World: world, Tick: 1}); err != nil {
+		t.Fatal(err)
+	}
+	queries, err := world.Resource[*Queries]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, segment := range []geom.Segment{
+		pointSegment(geom.Vector2{}),
+		{Start: geom.Vector2{X: -1e6}, End: geom.Vector2{X: 1e6}},
+	} {
+		if hit, ok := queries.Raycast(segment, RaycastFilter{Mask: math.MaxUint32}); !ok || hit.Entity != entity.ID() {
+			t.Fatalf("Raycast(%v) = %+v, %t; want entity %d", segment, hit, ok, entity.ID())
+		}
+	}
+}
