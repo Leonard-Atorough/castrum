@@ -93,34 +93,34 @@ func NewLoader(filesystem fs.FS) *Loader {
 //
 // The format defaults to the lowercased file extension; [WithFormat] and
 // [WithID] override the format and cache identity, respectively.
-func (s *Loader) Load[T any](fpath string, opts ...loadOption) (T, error) {
+func (l *Loader) Load[T any](fpath string, opts ...loadOption) (T, error) {
 	var zero T
 	fpath = normalizeAssetPath(fpath)
 	typ := reflect.TypeFor[T]()
 	lo := resolveLoad(fpath, opts...)
 	key := newLoadKey(lo.id, typ, lo.format)
 
-	if value, ok := s.cache.get(key); ok {
+	if value, ok := l.cache.get(key); ok {
 		if value == nil {
 			return zero, nil // only a pointer decoder can cache nil
 		}
 		return value.(T), nil
 	}
 
-	value, err, _ := s.loadGroup.Do(key.String(), func() (any, error) {
-		if value, ok := s.cache.get(key); ok {
+	value, err, _ := l.loadGroup.Do(key.String(), func() (any, error) {
+		if value, ok := l.cache.get(key); ok {
 			return value, nil // a peer load may have finished while we waited
 		}
 
-		file, err := s.fs.Open(fpath)
+		file, err := l.fs.Open(fpath)
 		if err != nil {
 			return nil, &AssetError{Op: "Load", ID: ID(fpath), Err: err}
 		}
 		defer file.Close()
 
-		s.mu.RLock()
-		decoder, ok := s.decoders[codecKey{typ: typ, format: lo.format}]
-		s.mu.RUnlock()
+		l.mu.RLock()
+		decoder, ok := l.decoders[codecKey{typ: typ, format: lo.format}]
+		l.mu.RUnlock()
 		if !ok {
 			return nil, &AssetError{Op: "Load", ID: ID(fpath),
 				Err: fmt.Errorf("no decoder registered for type %v and format %q; decoders register at engine or runner construction - loading audio before the runner exists is the common cause", typ, lo.format)}
@@ -130,7 +130,7 @@ func (s *Loader) Load[T any](fpath string, opts ...loadOption) (T, error) {
 		if err != nil {
 			return nil, &AssetError{Op: "Decode", ID: ID(fpath), Err: err}
 		}
-		s.cache.put(key, value)
+		l.cache.put(key, value)
 		return value, nil
 	})
 	if err != nil {
@@ -148,14 +148,14 @@ func (s *Loader) Load[T any](fpath string, opts ...loadOption) (T, error) {
 //
 // Consumers that need seeking for looping or position resets must verify that
 // the returned file supports it.
-func (s *Loader) Open(fpath string) (fs.File, Format, error) {
+func (l *Loader) Open(fpath string) (fs.File, Format, error) {
 	if fpath == "" {
 		return nil, "", &AssetError{Op: "Open", ID: ID(fpath),
 			Err: fmt.Errorf("asset path must not be empty")}
 	}
 	fpath = normalizeAssetPath(fpath)
 	format := resolveFormat(fpath)
-	file, err := s.fs.Open(fpath)
+	file, err := l.fs.Open(fpath)
 	if err != nil {
 		return nil, "", &AssetError{Op: "Open", ID: ID(fpath), Err: err}
 	}
@@ -167,13 +167,13 @@ func (s *Loader) Open(fpath string) (fs.File, Format, error) {
 //
 // Unlike [Loader.Load], LoadReader does not cache and does not
 // deduplicate concurrent decodes. It does not close reader; the caller owns it.
-func (s *Loader) LoadReader[T any](reader io.Reader, format Format) (T, error) {
+func (l *Loader) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 	var zero T
 	typ := reflect.TypeFor[T]()
 
-	s.mu.RLock()
-	decoder, ok := s.decoders[codecKey{typ: typ, format: format}]
-	s.mu.RUnlock()
+	l.mu.RLock()
+	decoder, ok := l.decoders[codecKey{typ: typ, format: format}]
+	l.mu.RUnlock()
 	if !ok {
 		return zero, fmt.Errorf("no decoder registered for type %v and format %q; decoders register at engine or runner construction - loading audio before the runner exists is the common cause", typ, format)
 	}
@@ -191,7 +191,7 @@ func (s *Loader) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 // RegisterDecoder registers d for values of type T in format. It returns an
 // error if d is nil or format is empty. If a decoder already exists for that
 // type and format, override must be true to replace it.
-func (s *Loader) RegisterDecoder[T any](format Format, d Decoder[T], override bool) error {
+func (l *Loader) RegisterDecoder[T any](format Format, d Decoder[T], override bool) error {
 	if d == nil {
 		return fmt.Errorf("decoder cannot be nil")
 	}
@@ -201,12 +201,12 @@ func (s *Loader) RegisterDecoder[T any](format Format, d Decoder[T], override bo
 	typ := reflect.TypeFor[T]()
 	key := codecKey{typ: typ, format: format}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, exists := s.decoders[key]; exists && !override {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if _, exists := l.decoders[key]; exists && !override {
 		return fmt.Errorf("decoder for type %v and format %q already exists", typ, format)
 	}
-	s.decoders[key] = func(reader io.Reader) (any, error) {
+	l.decoders[key] = func(reader io.Reader) (any, error) {
 		value, err := d(reader)
 		if err != nil {
 			return nil, err

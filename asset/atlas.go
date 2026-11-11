@@ -163,26 +163,26 @@ func (r *atlasRegistry) atlas(id AtlasID) (*Atlas, error) {
 
 // Atlas returns the atlas registered under id. It returns an error if id is
 // not registered. Lookups are safe for concurrent use.
-func (s *Loader) Atlas(id AtlasID) (*Atlas, error) {
-	return s.atlases.atlas(id)
+func (l *Loader) Atlas(id AtlasID) (*Atlas, error) {
+	return l.atlases.atlas(id)
 }
 
 // RegisterAtlas adds a programmatically-built atlas - one constructed with
 // [NewAtlas] rather than the Register* constructors. It returns an error if
 // atlas is nil or its ID is already registered.
-func (s *Loader) RegisterAtlas(atlas *Atlas) error {
-	return s.atlases.register(atlas)
+func (l *Loader) RegisterAtlas(atlas *Atlas) error {
+	return l.atlases.register(atlas)
 }
 
 // RegisterAtlasFromSidecar loads the texture and JSON sidecar, validates the
 // regions against the texture dimensions, and registers the atlas. If any
 // step fails, the atlas is not registered.
-func (s *Loader) RegisterAtlasFromSidecar(id AtlasID, texturePath, metaPath string) error {
-	texture, err := s.Load[TextureData](texturePath)
+func (l *Loader) RegisterAtlasFromSidecar(id AtlasID, texturePath, metaPath string) error {
+	texture, err := l.Load[TextureData](texturePath)
 	if err != nil {
 		return err
 	}
-	meta, err := s.Load[AtlasMeta](metaPath)
+	meta, err := l.Load[AtlasMeta](metaPath)
 	if err != nil {
 		return err
 	}
@@ -199,21 +199,21 @@ func (s *Loader) RegisterAtlasFromSidecar(id AtlasID, texturePath, metaPath stri
 	if err != nil {
 		return err
 	}
-	return s.atlases.register(atlas)
+	return l.atlases.register(atlas)
 }
 
 // RegisterGridAtlas divides the texture into equally sized tiles named
 // prefix_0, prefix_1, and so on in row-major order, then registers the atlas.
 // Tile dimensions must be positive, prefix must be non-empty, and the texture
 // dimensions must be evenly divisible by the tile dimensions.
-func (s *Loader) RegisterGridAtlas(id AtlasID, texturePath string, tileW, tileH int, prefix string) error {
+func (l *Loader) RegisterGridAtlas(id AtlasID, texturePath string, tileW, tileH int, prefix string) error {
 	if tileW <= 0 || tileH <= 0 {
 		return fmt.Errorf("tile dimensions %dx%d for atlas %q are not positive", tileW, tileH, id)
 	}
 	if prefix == "" {
 		return fmt.Errorf("tile prefix for atlas %q must not be empty", id)
 	}
-	texture, err := s.Load[TextureData](texturePath)
+	texture, err := l.Load[TextureData](texturePath)
 	if err != nil {
 		return err
 	}
@@ -239,5 +239,5 @@ func (s *Loader) RegisterGridAtlas(id AtlasID, texturePath string, tileW, tileH 
 	if err != nil {
 		return err
 	}
-	return s.atlases.register(atlas)
+	return l.atlases.register(atlas)
 }

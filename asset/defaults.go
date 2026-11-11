@@ -5,13 +5,13 @@ import "fmt"
 // registerDefaults treats duplicate built-in registrations as an engine
 // authoring error and panics. User codecs go through
 // [Loader.RegisterDecoder] and return errors instead.
-func (s *Loader) registerDefaults() {
+func (l *Loader) registerDefaults() {
 	for _, format := range []Format{FormatPNG, FormatJPG, FormatJPEG} {
-		mustRegister(s.RegisterDecoder(format, decodeTexture, false))
+		mustRegister(l.RegisterDecoder(format, decodeTexture, false))
 	}
-	mustRegister(s.RegisterDecoder(FormatJSON, decodeAtlasMeta, false))
+	mustRegister(l.RegisterDecoder(FormatJSON, decodeAtlasMeta, false))
 	for _, format := range []Format{FormatTTF, FormatOTF} {
-		mustRegister(s.RegisterDecoder(format, decodeFont, false))
+		mustRegister(l.RegisterDecoder(format, decodeFont, false))
 	}
 }
 
