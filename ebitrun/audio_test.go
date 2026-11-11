@@ -125,11 +125,6 @@ func TestCreatePlayerStream(t *testing.T) {
 
 func TestCreatePlayerErrors(t *testing.T) {
 	p, _ := newStreamTestProvider(t)
-	if _, err := p.createPlayer("tone.wav", audio.Playback{
-		Playing: true, Volume: 1, Rate: 2,
-	}); err == nil {
-		t.Error("rate 2: want error")
-	}
 	if _, err := p.createPlayer("unknown.bin", audio.Playback{
 		Playing: true, Volume: 1, Rate: 1, Load: audio.LoadStream,
 	}); err == nil {
@@ -401,6 +396,140 @@ func TestSyncLifecycle(t *testing.T) {
 	}
 	if s := p.players[id]; !s.held || s.finished {
 		t.Fatalf("rebuilt session = %+v, want held and fresh", s)
+	}
+}
+
+func TestSyncRejectsUnsupportedRates(t *testing.T) {
+	for _, state := range []string{"absent idle", "absent playing", "playing", "paused", "finished", "restart", "loop change", "load change"} {
+		t.Run(state, func(t *testing.T) {
+			for _, rate := range []float64{2, math.NaN(), math.Inf(1)} {
+				t.Run(fmt.Sprint(rate), func(t *testing.T) {
+					p, source := newStreamTestProvider(t)
+					t.Cleanup(func() {
+						clear(p.touched)
+						if err := p.Sweep(); err != nil {
+							t.Error(err)
+						}
+					})
+					id := core.EntityID(44)
+					want := audio.Playback{Playing: state != "paused", Volume: 1, Rate: 1, Load: audio.LoadStream, Loop: audio.LoopForever}
+					if state != "absent idle" && state != "absent playing" {
+						want.Restart = true
+						if _, err := p.Sync(id, asset.ID(source), want); err != nil {
+							t.Fatal(err)
+						}
+						want.Restart = false
+						if state == "finished" {
+							if err := p.players[id].release(); err != nil {
+								t.Fatal(err)
+							}
+						}
+					}
+					switch state {
+					case "absent idle":
+						want.Playing = false
+					case "restart":
+						want.Restart = true
+					case "loop change":
+						want.Loop = audio.LoopNone
+					case "load change":
+						want.Load = audio.LoadEager
+					}
+					old := p.players[id]
+					var snapshot audioSession
+					if old != nil {
+						snapshot = *old
+					}
+					want.Rate = rate
+					if _, err := p.Sync(id, asset.ID(source), want); err == nil ||
+						!strings.Contains(err.Error(), "playback rate") || !strings.Contains(err.Error(), source) {
+						t.Errorf("Sync rate %v: error = %v, want source-specific rate error", rate, err)
+					}
+					if p.players[id] != old || (old != nil && *old != snapshot) {
+						t.Fatal("invalid rate changed the existing session")
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestPlaylistEditsReleasePlayback(t *testing.T) {
+	for _, edit := range []string{"clear", "remove last"} {
+		for _, paused := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/paused=%v", edit, paused), func(t *testing.T) {
+				p, source := newStreamTestProvider(t)
+				t.Cleanup(func() {
+					clear(p.touched)
+					if err := p.Sweep(); err != nil {
+						t.Error(err)
+					}
+				})
+				g := mustGame(t)
+				w := g.World()
+				s := audio.NewSource()
+				s.Load, s.Loop, s.Paused = audio.LoadStream, audio.LoopForever, paused
+				entity, err := w.NewEntity(s, audio.NewPlaylist([]asset.ID{asset.ID(source)}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				healthy, err := w.NewEntity(s, audio.Clip{Audio: asset.ID(source)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				sys := audio.NewAudioSystem(p, audio.NewMixer())
+				ctx := &core.Context{World: w}
+				run := func() {
+					t.Helper()
+					if err := sys.Update(ctx); err != nil {
+						t.Fatal(err)
+					}
+				}
+				run()
+				old := p.players[entity.ID()]
+				oldPlayer, oldSource := old.player, old.source
+				healthySession := p.players[healthy.ID()]
+				var editErr error
+				if err := entity.Update(w, func(pl *audio.Playlist) {
+					if edit == "clear" {
+						pl.Clear()
+					} else {
+						editErr = pl.RemoveTrack(0)
+					}
+				}); err != nil || editErr != nil {
+					t.Fatalf("empty playlist update: validation=%v edit=%v", err, editErr)
+				}
+				pl, ok := entity.Component[audio.Playlist](w)
+				if !ok || pl.Len() != 0 || pl.Current() != "" {
+					t.Fatalf("stored playlist = %+v, want empty", pl)
+				}
+				run()
+				run()
+				if p.players[entity.ID()] != nil || old.player != nil || oldPlayer.IsPlaying() {
+					t.Fatal("empty playlist retained or replayed old playback")
+				}
+				if err := oldSource.Close(); err == nil {
+					t.Fatal("empty playlist did not close the old stream")
+				}
+				if p.players[healthy.ID()] != healthySession {
+					t.Fatal("empty playlist disrupted healthy playback")
+				}
+				stored, _ := entity.Component[audio.Source](w)
+				if stored.Completed {
+					t.Fatal("empty playlist marked completed")
+				}
+				if err := entity.Update(w, func(pl *audio.Playlist) {
+					editErr = pl.AddTrack(asset.ID(source))
+				}); err != nil || editErr != nil {
+					t.Fatalf("refill playlist: validation=%v edit=%v", err, editErr)
+				}
+				run()
+				fresh := p.players[entity.ID()]
+				if fresh == nil || fresh == old || fresh.finished || fresh.held != paused || fresh.player.IsPlaying() == paused {
+					t.Fatalf("refilled playlist session = %+v, want fresh playback preserving pause=%v", fresh, paused)
+				}
+			})
+		}
 	}
 }
 

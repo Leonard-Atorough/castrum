@@ -134,6 +134,9 @@ func drain(s audioStream, sampleRate int) (asset.AudioData, error) {
 // Note: variable-speed playback is not supported; a rate other
 // than 1 is an error. Errors name the audio source.
 func (a *audioProvider) Sync(entityID core.EntityID, source asset.ID, want audio.Playback) (live bool, err error) {
+	if want.Rate != 1 {
+		return false, fmt.Errorf("castrum/ebiten: audio: source %q: playback rate %v is not supported by this runner", source, want.Rate)
+	}
 	s, exists := a.players[entityID]
 
 	if !exists && !want.Playing && !want.Restart {
@@ -217,10 +220,6 @@ func (a *audioProvider) Sweep() error {
 }
 
 func (a *audioProvider) createPlayer(source asset.ID, want audio.Playback) (_ *audioSession, err error) {
-	if want.Rate != 1 {
-		return nil, fmt.Errorf("castrum/ebiten: audio: playback rate %v is not supported by this runner", want.Rate)
-	}
-
 	session := &audioSession{
 		loop: want.Loop,
 		load: want.Load,

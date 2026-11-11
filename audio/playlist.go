@@ -14,6 +14,8 @@ const (
 	RepeatAll
 )
 
+// Playlist selects a sequence of audio assets for a [Source].
+// An empty playlist selects nothing and releases playback on reconciliation.
 type Playlist struct {
 	tracks           []asset.ID
 	current          int
@@ -21,10 +23,8 @@ type Playlist struct {
 	Repeat           RepeatMode
 }
 
+// Validate reports empty track IDs or an unsupported repeat mode.
 func (p Playlist) Validate() error {
-	if len(p.tracks) == 0 {
-		return fmt.Errorf("audio: playlist must have at least one track")
-	}
 	for i, track := range p.tracks {
 		if track == "" {
 			return fmt.Errorf("audio: playlist track %d must not be empty", i)
