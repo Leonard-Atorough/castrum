@@ -12,7 +12,7 @@ type Phase int8
 
 const (
 	// PhasePreStartup runs once after eager resources resolve and before startup systems.
-	PhasePreStartup = iota
+	PhasePreStartup Phase = iota
 	// PhaseStartup runs once after pre-startup systems.
 	PhaseStartup
 	// PhasePostStartup runs once after startup systems.
