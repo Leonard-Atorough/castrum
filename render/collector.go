@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 	"slices"
 
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -103,7 +104,8 @@ func NewCollector(world *core.World) *Collector {
 
 // Collect resolves the draw list for the current frame. It interpolates
 // transforms using [core.Context.Alpha], clamps the camera to its bounds,
-// culls to the view, and sorts items by layer, sort order, then world Y.
+// culls conservative rotated and stroked bounds to the view, and sorts items
+// by layer, sort order, then world Y.
 // Text bounds use [asset.FontData.Measure].
 //
 // When a primary camera is available, Collect publishes the resolved view as
@@ -310,7 +312,22 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 
 func (c *Collector) stage(viewport geom.Rect, alpha float64, layer uint8, sortOrder int8, prev, curr, offset, size geom.Vector2, item DrawItem) {
 	position := prev.Lerp(curr, alpha)
-	bounds := geom.RectFromCenterSize(position.Add(offset), size)
+	half := geom.Vector2{X: math.Abs(size.X) / 2, Y: math.Abs(size.Y) / 2}
+	_, line := item.Shape.(LineShape)
+	if item.Outline || line {
+		half.X += item.StrokeWidth / 2
+		half.Y += item.StrokeWidth / 2
+	}
+	sin, cos := math.Sincos(item.Rotation)
+	extent := geom.Vector2{
+		X: math.Abs(cos)*half.X + math.Abs(sin)*half.Y,
+		Y: math.Abs(sin)*half.X + math.Abs(cos)*half.Y,
+	}
+	center := position.Add(geom.Vector2{
+		X: offset.X*cos - offset.Y*sin,
+		Y: offset.X*sin + offset.Y*cos,
+	})
+	bounds := geom.RectFromCenterSize(center, extent.Mul(2))
 	if !viewport.OverlapsOrTouches(bounds) {
 		return
 	}
