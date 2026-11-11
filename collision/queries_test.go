@@ -61,28 +61,33 @@ func TestQueriesRaycastUsesBroadphaseAndTargetLayers(t *testing.T) {
 }
 
 func TestQueriesRaycastLongSegment(t *testing.T) {
-	world := newCollisionWorld(t)
-	collider, err := NewCollider(Circle{Radius: 10})
-	if err != nil {
-		t.Fatal(err)
-	}
-	entity, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: 500000}}, collider)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := NewSystem().Update(&core.Context{World: world, Tick: 1}); err != nil {
-		t.Fatal(err)
-	}
-	queries, err := world.Resource[*Queries]()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	hit, ok := queries.Raycast(
-		geom.Segment{Start: geom.Vector2{}, End: geom.Vector2{X: 1000000}},
-		RaycastFilter{Mask: math.MaxUint32},
-	)
-	if !ok || hit.Entity != entity.ID() {
-		t.Fatalf("long-segment hit = %+v, %t; want entity %d", hit, ok, entity.ID())
+	for _, test := range []struct {
+		center, radius float64
+	}{{500000, 10}, {1e9, 1}} {
+		world := newCollisionWorld(t)
+		collider, err := NewCollider(Circle{Radius: test.radius})
+		if err != nil {
+			t.Fatal(err)
+		}
+		entity, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: test.center}}, collider)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := NewSystem().Update(&core.Context{World: world, Tick: 1}); err != nil {
+			t.Fatal(err)
+		}
+		queries, err := world.Resource[*Queries]()
+		if err != nil {
+			t.Fatal(err)
+		}
+		hit, ok := queries.Raycast(
+			geom.Segment{End: geom.Vector2{X: 2 * test.center}},
+			RaycastFilter{Mask: math.MaxUint32},
+		)
+		want := test.center - test.radius
+		if !ok || hit.Entity != entity.ID() || math.Abs(hit.Distance-want) > 1e-6 ||
+			math.Abs(hit.Point.X-want) > 1e-6 || hit.Normal != (geom.Vector2{X: -1}) {
+			t.Fatalf("long-segment hit = %+v, %t; want entity %d at %v", hit, ok, entity.ID(), want)
+		}
 	}
 }

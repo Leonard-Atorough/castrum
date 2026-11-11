@@ -3,6 +3,7 @@ package castrum
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -271,6 +272,8 @@ func (g *Game) Startup() error {
 // [Game.SetTimeScale]) multiplies only the elapsed time contributed to the
 // fixed-loop accumulator; DeltaTime and the frame phase are unaffected.
 // Both controls take effect on the next call.
+// An unrepresentable scaled contribution or accumulator sum returns an error
+// without changing the accumulator; frame systems have already run.
 func (g *Game) Advance(elapsed time.Duration) error {
 	g.real.Delta = elapsed
 	g.real.Elapsed += elapsed
@@ -291,7 +294,20 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	if g.sim.Paused {
 		return nil
 	}
-	g.acc += time.Duration(float64(elapsed) * g.sim.Scale)
+	contribution := elapsed
+	if g.sim.Scale != 1 {
+		scaled := float64(elapsed) * g.sim.Scale
+		if math.IsNaN(scaled) || math.IsInf(scaled, 0) ||
+			scaled >= -float64(math.MinInt64) || scaled < float64(math.MinInt64) {
+			return fmt.Errorf("castrum: scaled elapsed time %v is not representable", scaled)
+		}
+		contribution = time.Duration(scaled)
+	}
+	if contribution > 0 && g.acc > math.MaxInt64-contribution ||
+		contribution < 0 && g.acc < math.MinInt64-contribution {
+		return fmt.Errorf("castrum: simulation accumulator overflow adding %v", contribution)
+	}
+	g.acc += contribution
 	ticked := 0
 	for g.acc >= g.sim.Delta {
 		g.sim.Tick++
