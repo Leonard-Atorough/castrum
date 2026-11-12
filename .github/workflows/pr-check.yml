@@ -147,6 +147,9 @@ jobs:
       - name: Build Castrum packages
         run: go build ./...
 
+      - name: Test directory persistence
+        run: go test ./asset -run '^TestDirectory' -count=1 -timeout=60s
+
       - name: Test starter module
         working-directory: templates/starter
         run: go test ./...
