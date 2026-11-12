@@ -78,7 +78,12 @@ func New(opts ...option) (*Game, error) {
 	}
 	g.real = real
 
-	loader := asset.NewLoader(builtin.WithFilesystem(options.Filesystem))
+	loader, err := asset.NewLoader(builtin.WithFilesystem(options.Filesystem), asset.LoaderOptions{
+		Codecs: options.AssetCodecs,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("castrum: create asset loader: %w", err)
+	}
 	if err := g.world.Provide(func(*core.World) (*asset.Loader, error) {
 		return loader, nil
 	}); err != nil {

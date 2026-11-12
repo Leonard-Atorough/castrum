@@ -13,7 +13,7 @@ func fontFS() fstest.MapFS {
 }
 
 func TestFontDecode(t *testing.T) {
-	loader := NewLoader(fontFS())
+	loader := newTestLoader(t, fontFS(), LoaderOptions{})
 
 	font, err := loader.Load[FontData]("fonts/goregular.ttf")
 	if err != nil {
@@ -34,14 +34,14 @@ func TestFontDecode(t *testing.T) {
 }
 
 func TestFontDecodeRejectsCorruptBytes(t *testing.T) {
-	loader := NewLoader(fstest.MapFS{"fonts/broken.ttf": &fstest.MapFile{Data: []byte("this is not a font")}})
+	loader := newTestLoader(t, fstest.MapFS{"fonts/broken.ttf": &fstest.MapFile{Data: []byte("this is not a font")}}, LoaderOptions{})
 	if _, err := loader.Load[FontData]("fonts/broken.ttf"); err == nil {
 		t.Error("corrupt font bytes should fail to decode")
 	}
 }
 
 func TestFontMeasure(t *testing.T) {
-	loader := NewLoader(fontFS())
+	loader := newTestLoader(t, fontFS(), LoaderOptions{})
 	font, err := loader.Load[FontData]("fonts/goregular.ttf")
 	if err != nil {
 		t.Fatal(err)

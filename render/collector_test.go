@@ -37,7 +37,7 @@ func newCollectorWorld(t *testing.T) *core.World {
 	}
 	w := core.NewWorld()
 	if err := w.Provide(func(*core.World) (*asset.Loader, error) {
-		return asset.NewLoader(files), nil
+		return asset.NewLoader(files, asset.LoaderOptions{})
 	}); err != nil {
 		t.Fatalf("provide asset loader: %v", err)
 	}
@@ -58,7 +58,7 @@ func newFontWorld(t *testing.T) *core.World {
 	}
 	w := core.NewWorld()
 	if err := w.Provide(func(*core.World) (*asset.Loader, error) {
-		return asset.NewLoader(files), nil
+		return asset.NewLoader(files, asset.LoaderOptions{})
 	}); err != nil {
 		t.Fatalf("provide asset loader: %v", err)
 	}

@@ -12,12 +12,17 @@ import (
 	"golang.org/x/image/font/gofont/goregular"
 )
 
-func newFontLoader() *asset.Loader {
-	return asset.NewLoader(fstest.MapFS{"fonts/go.ttf": &fstest.MapFile{Data: goregular.TTF}})
+func newFontLoader(t *testing.T) *asset.Loader {
+	t.Helper()
+	loader, err := asset.NewLoader(fstest.MapFS{"fonts/go.ttf": &fstest.MapFile{Data: goregular.TTF}}, asset.LoaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return loader
 }
 
 func TestFontProviderFaceCaches(t *testing.T) {
-	provider := newFontProvider(newFontLoader())
+	provider := newFontProvider(newFontLoader(t))
 
 	face, err := provider.Face("fonts/go.ttf", 16)
 	if err != nil {
@@ -41,7 +46,7 @@ func TestFontProviderFaceCaches(t *testing.T) {
 }
 
 func TestFontProviderMissingFontNamesIt(t *testing.T) {
-	provider := newFontProvider(newFontLoader())
+	provider := newFontProvider(newFontLoader(t))
 	if _, err := provider.Face("fonts/ghost.ttf", 16); err == nil ||
 		!strings.Contains(err.Error(), "fonts/ghost.ttf") {
 		t.Errorf("missing font = %v, want an error naming the font", err)
@@ -49,7 +54,7 @@ func TestFontProviderMissingFontNamesIt(t *testing.T) {
 }
 
 func TestMeasureAgreesWithDrawingMetrics(t *testing.T) {
-	loader := newFontLoader()
+	loader := newFontLoader(t)
 	provider := newFontProvider(loader)
 	font, err := loader.Load[asset.FontData]("fonts/go.ttf")
 	if err != nil {

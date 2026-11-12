@@ -148,6 +148,30 @@ if err != nil {
 
 Use streaming for long tracks that should not occupy memory as one decoded PCM buffer. Streaming is still lazy: missing files, unsupported formats, and decoder errors appear when the provider creates the play.
 
+## Shared decoder configuration
+
+Use `asset.Codecs` to configure conversion once and reuse it across loaders. `asset.NewCodecs` retains the default image, font, and atlas decoders. Configure game-defined decoders before construction:
+
+```go
+codecs := asset.NewCodecs()
+if err := codecs.SetDecoder(asset.FormatJSON, asset.Decoder[Dialogue](decodeDialogue)); err != nil {
+	return err
+}
+g, err := castrum.New(
+	castrum.WithFilesystem(files),
+	castrum.WithAssetCodecs(codecs),
+)
+if err != nil {
+	return err
+}
+```
+
+For data needed before game construction, use `asset.NewLoader(files, asset.LoaderOptions{Codecs: codecs})`, which returns a loader and an error. `LoaderOptions{}` selects defaults; a nil filesystem uses the working directory. Standalone loaders that need engine-shipped files use `builtin.WithFilesystem(files)`.
+
+Each loader snapshots registrations at construction. Changing `codecs` later affects only new loaders. Sharing configuration does not share caches or storage. Snapshots copy functions, not captured closure state, so custom decoders must support concurrent calls if used concurrently.
+
+The runner registers audio decoders only on its game's loader at the effective audio-context sample rate. It does not modify the source configuration or standalone loaders; conflicting registrations return errors.
+
 ## Custom asset formats
 
 Register a typed decoder when your game needs a value that Castrum does not decode by default. A decoder receives an `io.Reader` and should parse and validate its value, returning an error for invalid input:
@@ -167,7 +191,6 @@ loader := g.World().MustResource[*asset.Loader]()
 if err := loader.RegisterDecoder(
 	asset.FormatJSON,
 	asset.Decoder[Dialogue](decodeDialogue),
-	false,
 ); err != nil {
 	return err
 }
@@ -178,7 +201,7 @@ if err != nil {
 }
 ```
 
-The `override` argument defaults to `false`, so duplicate registrations fail. Set it to `true` only when deliberately replacing the decoder for the same target type and format.
+Local duplicate registrations fail. To install or replace a decoder in configuration, use `Codecs.SetDecoder` before constructing the loader. There is no live replacement behind cached values. Decoders must not close or retain their reader.
 
 For a custom extension, define a format and override inference when loading:
 
@@ -191,7 +214,6 @@ levelFormat := asset.Format("level")
 if err := loader.RegisterDecoder(
 	levelFormat,
 	asset.Decoder[LevelData](decodeLevel),
-	false,
 ); err != nil {
 	return err
 }

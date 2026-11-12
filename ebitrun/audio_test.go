@@ -35,10 +35,73 @@ func TestNewRegistersAudioCodecs(t *testing.T) {
 		return asset.AudioData{}, nil
 	}
 	for _, format := range []asset.Format{asset.FormatMP3, asset.FormatWAV, asset.FormatOGG} {
-		err := loader.RegisterDecoder(format, noop, false)
+		err := loader.RegisterDecoder(format, noop)
 		if err == nil || !strings.Contains(err.Error(), "already exists") {
 			t.Errorf("format %s: RegisterDecoder = %v, want already-exists error (codec not registered)", format, err)
 		}
+	}
+}
+
+func TestRunnerAudioCodecsAreLoaderLocal(t *testing.T) {
+	codecs := asset.NewCodecs()
+	standalone, err := asset.NewLoader(nil, asset.LoaderOptions{Codecs: codecs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	game, err := castrum.New(castrum.WithAssetCodecs(codecs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := New(game)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := runner.g.World().MustResource[*asset.Loader]()
+	data, err := loader.LoadReader[asset.AudioData](bytes.NewReader(testWAV()), asset.FormatWAV)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data.SampleRate != ebitaudio.CurrentContext().SampleRate() {
+		t.Fatalf("decoded rate = %d, want effective audio-context rate", data.SampleRate)
+	}
+	fresh, err := asset.NewLoader(nil, asset.LoaderOptions{Codecs: codecs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, format := range []asset.Format{asset.FormatMP3, asset.FormatWAV, asset.FormatOGG} {
+		if _, err := standalone.LoadReader[asset.AudioData](bytes.NewReader(testWAV()), format); err == nil {
+			t.Fatalf("runner codec %q escaped into standalone loader", format)
+		}
+		if _, err := fresh.LoadReader[asset.AudioData](bytes.NewReader(testWAV()), format); err == nil {
+			t.Fatalf("runner codec %q escaped into configuration", format)
+		}
+	}
+}
+
+func TestNewReportsAudioCodecConflict(t *testing.T) {
+	codecs := asset.NewCodecs()
+	if err := codecs.SetDecoder(asset.FormatWAV, func(io.Reader) (asset.AudioData, error) {
+		return asset.AudioData{SampleRate: 123}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	game, err := castrum.New(castrum.WithAssetCodecs(codecs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(game); err == nil || !strings.Contains(err.Error(), "wav") {
+		t.Fatalf("audio codec conflict = %v, want explicit WAV error", err)
+	}
+	loader := game.World().MustResource[*asset.Loader]()
+	value, err := loader.LoadReader[asset.AudioData](bytes.NewReader(nil), asset.FormatWAV)
+	if err != nil || value.SampleRate != 123 {
+		t.Fatalf("runner replaced custom codec: %+v, %v", value, err)
+	}
+	if game.World().MustResource[*audio.Backend]().Controller() != nil {
+		t.Fatal("failed runner attached an audio controller")
+	}
+	if _, err := game.World().Resource[*TextureProvider](); !errors.Is(err, core.ErrResourceNotRegistered) {
+		t.Fatalf("failed codec registration published texture provider: %v", err)
 	}
 }
 
@@ -77,7 +140,15 @@ func newStreamTestProvider(t *testing.T) (*audioProvider, string) {
 	if audioCtx == nil {
 		audioCtx = ebitaudio.NewContext(44100)
 	}
-	return newAudioProvider(audioCtx, asset.NewLoader(os.DirFS(dir))), "tone.wav"
+	loader, err := asset.NewLoader(os.DirFS(dir), asset.LoaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider, err := newAudioProvider(audioCtx, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return provider, "tone.wav"
 }
 
 func TestCreatePlayerEager(t *testing.T) {
@@ -326,8 +397,14 @@ func TestInvalidBalanceClosesStream(t *testing.T) {
 	}
 	var opens, closes int
 	p, _ := newStreamTestProvider(t)
-	p.loader = asset.NewLoader(closeTrackingFS{fsys: os.DirFS(dir), opens: &opens, closes: &closes})
-	registerAudioCodecs(p.loader, p.audioCtx.SampleRate())
+	loader, err := asset.NewLoader(closeTrackingFS{fsys: os.DirFS(dir), opens: &opens, closes: &closes}, asset.LoaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.loader = loader
+	if err := registerAudioCodecs(p.loader, p.audioCtx.SampleRate()); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := p.createPlayer("tone.wav", audio.Playback{
 		Volume: 1, Rate: 1, Load: audio.LoadStream, Balance: math.NaN(),
 	}); err == nil {

@@ -10,10 +10,10 @@ func TestNewRegistersDefaultDecoders(t *testing.T) {
 	// Defaults wired end to end through the public surface: real png
 	// decode, real json decode, cache and format inference included.
 	pngBytes := encodeTestPNG(t, 4, 3)
-	a := NewLoader(newTestFS(map[string]string{
+	a := newTestLoader(t, newTestFS(map[string]string{
 		"tex.png":    string(pngBytes),
 		"atlas.json": `{"regions":[{"name":"player","x":0,"y":0,"w":4,"h":3}]}`,
-	}))
+	}), LoaderOptions{})
 
 	tex, err := a.Load[TextureData]("tex.png")
 	if err != nil {
@@ -33,20 +33,18 @@ func TestNewRegistersDefaultDecoders(t *testing.T) {
 }
 
 func TestDefaultDecodersAnswerToUserRegistration(t *testing.T) {
-	a := NewLoader(nil)
+	codecs := NewCodecs()
+	if err := codecs.SetDecoder(FormatPNG, Decoder[TextureData](func(io.Reader) (TextureData, error) {
+		return TextureData{Width: 999, Height: 999}, nil
+	})); err != nil {
+		t.Fatalf("replace configured decoder: %v", err)
+	}
+	a := newTestLoader(t, nil, LoaderOptions{Codecs: codecs})
 
-	// A user duplicating a default gets an error - the Must-panic is
-	// reserved for the engine's own static table.
-	if err := a.RegisterDecoder(FormatPNG, decodeTexture, false); err == nil {
+	if err := a.RegisterDecoder(FormatPNG, decodeTexture); err == nil {
 		t.Error("duplicate registration of a default should error")
 	}
 
-	// Override replaces the default, observable through decoding.
-	if err := a.RegisterDecoder(FormatPNG, Decoder[TextureData](func(io.Reader) (TextureData, error) {
-		return TextureData{Width: 999, Height: 999}, nil
-	}), true); err != nil {
-		t.Fatalf("override registration: %v", err)
-	}
 	tex, err := a.LoadReader[TextureData](strings.NewReader(""), FormatPNG)
 	if err != nil {
 		t.Fatalf("LoadReader after override: %v", err)

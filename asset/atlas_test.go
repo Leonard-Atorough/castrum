@@ -116,7 +116,7 @@ func TestAtlasAccessorsAndLookup(t *testing.T) {
 }
 
 func TestLoaderRegisterAndResolveAtlas(t *testing.T) {
-	a := NewLoader(nil)
+	a := newTestLoader(t, nil, LoaderOptions{})
 	atlas, err := NewAtlas("atlas", "tex.png", 4, 3, map[string]AtlasRegion{
 		"player": {X: 0, Y: 0, W: 4, H: 3},
 	})
@@ -147,16 +147,16 @@ func TestLoaderRegisterAndResolveAtlas(t *testing.T) {
 
 	// Each loader owns its registry: a registration in one never
 	// resolves in another.
-	if b := NewLoader(nil); func() bool { _, err := b.Atlas("atlas"); return err == nil }() {
+	if b := newTestLoader(t, nil, LoaderOptions{}); func() bool { _, err := b.Atlas("atlas"); return err == nil }() {
 		t.Error("two loaders must not share an atlas registry")
 	}
 }
 
 func TestRegisterAtlasFromSidecar(t *testing.T) {
-	a := NewLoader(newTestFS(map[string]string{
+	a := newTestLoader(t, newTestFS(map[string]string{
 		"tex.png":    string(encodeTestPNG(t, 4, 3)),
 		"atlas.json": `{"regions":[{"name":"player","x":0,"y":0,"w":4,"h":3}]}`,
-	}))
+	}), LoaderOptions{})
 
 	if err := a.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
 		t.Fatalf("RegisterAtlasFromSidecar: %v", err)
@@ -171,10 +171,10 @@ func TestRegisterAtlasFromSidecar(t *testing.T) {
 
 	// Failure leaves the store untouched: nothing registers under a
 	// name whose sidecar is broken.
-	bad := NewLoader(newTestFS(map[string]string{
+	bad := newTestLoader(t, newTestFS(map[string]string{
 		"tex.png":    string(encodeTestPNG(t, 4, 3)),
 		"atlas.json": `{"regions":[{"name":"player","x":0,"y":0,"w":99,"h":3}]}`,
-	}))
+	}), LoaderOptions{})
 	if err := bad.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err == nil {
 		t.Fatal("out-of-bounds sidecar region should error")
 	}
@@ -184,10 +184,10 @@ func TestRegisterAtlasFromSidecar(t *testing.T) {
 }
 
 func TestRegisterAtlasFromSidecarEmptyRegions(t *testing.T) {
-	a := NewLoader(newTestFS(map[string]string{
+	a := newTestLoader(t, newTestFS(map[string]string{
 		"tex.png":    string(encodeTestPNG(t, 4, 3)),
 		"atlas.json": `{"regions":[]}`,
-	}))
+	}), LoaderOptions{})
 	if err := a.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err == nil {
 		t.Fatal("a sidecar with no regions should error")
 	}
@@ -197,21 +197,21 @@ func TestRegisterAtlasFromSidecarEmptyRegions(t *testing.T) {
 }
 
 func TestRegisterAtlasFromSidecarDuplicateRegion(t *testing.T) {
-	a := NewLoader(newTestFS(map[string]string{
+	a := newTestLoader(t, newTestFS(map[string]string{
 		"tex.png": string(encodeTestPNG(t, 4, 3)),
 		"atlas.json": `{"regions":[` +
 			`{"name":"player","x":0,"y":0,"w":2,"h":3},` +
 			`{"name":"player","x":2,"y":0,"w":2,"h":3}]}`,
-	}))
+	}), LoaderOptions{})
 	if err := a.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err == nil {
 		t.Fatal("duplicate region names in a sidecar should error")
 	}
 }
 
 func TestRegisterAtlasFromSidecarMissingFile(t *testing.T) {
-	a := NewLoader(newTestFS(map[string]string{
+	a := newTestLoader(t, newTestFS(map[string]string{
 		"atlas.json": `{"regions":[]}`,
-	}))
+	}), LoaderOptions{})
 	err := a.RegisterAtlasFromSidecar("sprites", "missing.png", "atlas.json")
 	if err == nil {
 		t.Fatal("missing texture should error")
@@ -222,9 +222,9 @@ func TestRegisterAtlasFromSidecarMissingFile(t *testing.T) {
 }
 
 func TestRegisterGridAtlas(t *testing.T) {
-	a := NewLoader(newTestFS(map[string]string{
+	a := newTestLoader(t, newTestFS(map[string]string{
 		"tiles.png": string(encodeTestPNG(t, 4, 4)),
-	}))
+	}), LoaderOptions{})
 
 	if err := a.RegisterGridAtlas("tiles", "tiles.png", 2, 2, "tile"); err != nil {
 		t.Fatalf("RegisterGridAtlas: %v", err)
@@ -253,7 +253,7 @@ func TestRegisterGridAtlas(t *testing.T) {
 
 	// Uneven division, bad tile dims, and an empty prefix all error and
 	// leave the store untouched.
-	bad := NewLoader(newTestFS(map[string]string{"tiles.png": string(encodeTestPNG(t, 5, 4))}))
+	bad := newTestLoader(t, newTestFS(map[string]string{"tiles.png": string(encodeTestPNG(t, 5, 4))}), LoaderOptions{})
 	if err := bad.RegisterGridAtlas("tiles", "tiles.png", 2, 2, "tile"); err == nil {
 		t.Error("uneven division should error")
 	}

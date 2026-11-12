@@ -1,6 +1,7 @@
 package castrum
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -85,6 +86,45 @@ func TestNewComposesBuiltinsWithProvidedFilesystem(t *testing.T) {
 	}
 	if string(data) != "player" {
 		t.Fatalf("game asset = %q, want %q", data, "player")
+	}
+}
+
+func TestNewSnapshotsAssetCodecs(t *testing.T) {
+	type levelFile struct{ Name string }
+	codecs := asset.NewCodecs()
+	if err := codecs.SetDecoder(asset.FormatJSON, func(reader io.Reader) (levelFile, error) {
+		var value levelFile
+		err := json.NewDecoder(reader).Decode(&value)
+		return value, err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	files := fstest.MapFS{"level.json": {Data: []byte(`{"name":"forest"}`)}}
+	first, err := New(WithFilesystem(files), WithAssetCodecs(codecs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := codecs.SetDecoder(asset.FormatJSON, func(io.Reader) (levelFile, error) {
+		return levelFile{Name: "new configuration"}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	second, err := New(WithFilesystem(files), WithAssetCodecs(codecs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		game *Game
+		want string
+	}{{first, "forest"}, {second, "new configuration"}} {
+		loader := tc.game.World().MustResource[*asset.Loader]()
+		value, err := loader.Load[levelFile]("level.json")
+		if err != nil || value.Name != tc.want {
+			t.Fatalf("game codec snapshot = %+v, %v; want %q", value, err, tc.want)
+		}
+		if _, err := loader.Load[asset.FontData](builtin.Font); err != nil {
+			t.Fatalf("custom codecs lost builtin font: %v", err)
+		}
 	}
 }
 
