@@ -12,7 +12,11 @@ import (
 // benchLoader builds a loader over the benchmark assets.
 func benchLoader(b *testing.B) *asset.Loader {
 	b.Helper()
-	return asset.NewLoader(benchFS(b))
+	loader, err := asset.NewLoader(benchFS(b), asset.LoaderOptions{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	return loader
 }
 
 // BenchmarkLoadWarmTexture reports the cache-hit load the collector
@@ -76,7 +80,7 @@ func BenchmarkLoadColdWAV(b *testing.B) {
 			return asset.AudioData{}, err
 		}
 		return asset.AudioData{PCM: pcm, SampleRate: 44100, Length: stream.Length()}, nil
-	}, true)
+	})
 	if err != nil {
 		b.Fatal(err)
 	}

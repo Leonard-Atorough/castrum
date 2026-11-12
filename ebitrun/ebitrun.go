@@ -108,18 +108,20 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, fmt.Errorf("castrum/ebiten: audio controller already attached")
 	}
 	loader := g.World().MustResource[*asset.Loader]()
+	audioCtx := ebitaudio.CurrentContext()
+	if audioCtx == nil {
+		audioCtx = ebitaudio.NewContext(options.SampleRate)
+	}
+	controller, err := newAudioProvider(audioCtx, loader)
+	if err != nil {
+		return nil, err
+	}
 	provider := newTextureProvider(loader)
 	if err := g.World().ProvideEager(func(*core.World) (*TextureProvider, error) {
 		return provider, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum/ebiten: provide texture provider: %w", err)
 	}
-
-	audioCtx := ebitaudio.CurrentContext()
-	if audioCtx == nil {
-		audioCtx = ebitaudio.NewContext(options.SampleRate)
-	}
-	controller := newAudioProvider(audioCtx, loader)
 	g.Context().LogicalWidth = options.Logical.Width
 	g.Context().LogicalHeight = options.Logical.Height
 

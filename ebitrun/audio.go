@@ -62,14 +62,16 @@ func (s *audioSession) release() error {
 	return source.Close()
 }
 
-func newAudioProvider(audioCtx *ebitaudio.Context, loader *asset.Loader) *audioProvider {
-	registerAudioCodecs(loader, audioCtx.SampleRate())
+func newAudioProvider(audioCtx *ebitaudio.Context, loader *asset.Loader) (*audioProvider, error) {
+	if err := registerAudioCodecs(loader, audioCtx.SampleRate()); err != nil {
+		return nil, err
+	}
 	return &audioProvider{
 		audioCtx: audioCtx,
 		loader:   loader,
 		players:  make(map[core.EntityID]*audioSession),
 		touched:  make(map[core.EntityID]struct{}),
-	}
+	}, nil
 }
 
 // streamDecoders is the format-to-decoder table: one table, two
@@ -87,17 +89,7 @@ var streamDecoders = map[asset.Format]func(int, io.Reader) (audioStream, error){
 	},
 }
 
-// registerAudioCodecs registers [asset.AudioData] decoders for the
-// built-in audio formats, each bound to the audio context's rate:
-// decode always resamples to that rate at decode time, and a source
-// already at it never resamples. DecodeWithoutResampling is never
-// used - a source at a different rate would play pitched.
-//
-// A failure here is an engine authoring bug (a duplicate in this
-// static table), so it panics: no caller is positioned to recover.
-// The override flag makes a re-registration idempotent; a second
-// Runner for one game is rejected by the resource provide, not here.
-func registerAudioCodecs(loader *asset.Loader, sampleRate int) {
+func registerAudioCodecs(loader *asset.Loader, sampleRate int) error {
 	for format, decode := range streamDecoders {
 		err := loader.RegisterDecoder(format, func(r io.Reader) (asset.AudioData, error) {
 			stream, err := decode(sampleRate, r)
@@ -105,11 +97,12 @@ func registerAudioCodecs(loader *asset.Loader, sampleRate int) {
 				return asset.AudioData{}, err
 			}
 			return drain(stream, sampleRate)
-		}, true)
+		})
 		if err != nil {
-			panic(fmt.Sprintf("castrum/ebiten: audio: register codec %s: %v", format, err))
+			return fmt.Errorf("castrum/ebiten: audio: register codec %s: %w", format, err)
 		}
 	}
+	return nil
 }
 
 // drain reads a decoded stream into the cached AudioData value. The

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"time"
 
+	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/scene"
@@ -32,6 +33,10 @@ type Options struct {
 	// "builtin/" are available alongside it. If nil, game assets resolve from
 	// the current working directory.
 	Filesystem fs.FS
+
+	// AssetCodecs configures the game's loader. New snapshots its registrations.
+	// Nil selects the asset package's defaults.
+	AssetCodecs *asset.Codecs
 
 	// FixedTPS is the number of fixed simulation ticks per second.
 	FixedTPS int
@@ -120,6 +125,13 @@ func WithTitle(title string) option {
 // assets under "builtin/" remain available.
 func WithFilesystem(filesystem fs.FS) option {
 	return optionFunc(func(o *Options) { o.Filesystem = filesystem })
+}
+
+// WithAssetCodecs supplies codec configuration for the game's content loader.
+// New snapshots the registrations; later changes do not affect that game.
+// Nil selects the asset package's defaults.
+func WithAssetCodecs(codecs *asset.Codecs) option {
+	return optionFunc(func(o *Options) { o.AssetCodecs = codecs })
 }
 
 // WithFixedTPS sets the fixed simulation rate in ticks per second.

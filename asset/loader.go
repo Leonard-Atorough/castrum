@@ -1,7 +1,3 @@
-// Package asset loads, decodes, and caches typed assets from an [fs.FS].
-// Paths are slash-separated and relative to the filesystem root. The package
-// stays backend-free: images decode to [image.Image], leaving backend-specific
-// conversion to runners.
 package asset
 
 import (
@@ -13,8 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -25,12 +19,12 @@ import (
 // first cached value.
 type ID string
 
-// Format identifies an asset's encoding and selects the decoder for it.
+// Format identifies an asset's encoding and selects its decoder.
 // It defaults to the lowercased file extension.
 type Format string
 
-// Format constants identify common asset encodings. Register a decoder for a
-// format with [Loader.RegisterDecoder].
+// Format constants identify common asset encodings, not installed codecs.
+// Configure typed decoders with [Codecs].
 const (
 	// FormatJSON is the JSON format.
 	FormatJSON Format = "json"
@@ -56,36 +50,40 @@ const (
 	FormatOTF Format = "otf"
 )
 
-// Decoder decodes a value of type T from a reader.
-type Decoder[T any] func(reader io.Reader) (T, error)
-
 // Loader loads assets from a filesystem, decodes them with registered
 // decoders, and caches the results. It also owns the atlas registry.
 type Loader struct {
 	fs        fs.FS
-	mu        sync.RWMutex // guards decoders
-	decoders  map[codecKey]decoderFunc
+	codecs    *Codecs
 	cache     *cache
 	loadGroup *singleflight.Group
 	atlases   *atlasRegistry
 }
 
+// LoaderOptions configures a loader at construction.
+type LoaderOptions struct {
+	// Codecs supplies registrations to snapshot. Nil selects the defaults.
+	Codecs *Codecs
+}
+
 // NewLoader creates a Loader backed by filesystem. If filesystem is nil, assets are
 // read from the current working directory. Loading is lazy and begins on the
-// first call to [Loader.Load].
-func NewLoader(filesystem fs.FS) *Loader {
+// first call to [Loader.Load]. A filesystem containing a nil pointer returns
+// an error. Codec registrations are private to the returned loader.
+func NewLoader(filesystem fs.FS, opts LoaderOptions) (*Loader, error) {
 	if filesystem == nil {
 		filesystem = os.DirFS(".")
+	} else if isNilPointer(filesystem) {
+		return nil, fmt.Errorf("asset: NewLoader: filesystem cannot be typed nil")
 	}
 	a := &Loader{
 		fs:        filesystem,
-		decoders:  make(map[codecKey]decoderFunc),
+		codecs:    opts.Codecs.snapshot(),
 		cache:     newCache(),
 		loadGroup: &singleflight.Group{},
 		atlases:   newAtlasRegistry(),
 	}
-	a.registerDefaults()
-	return a
+	return a, nil
 }
 
 // Load opens name, decodes it as T, and caches the result. Concurrent loads
@@ -101,15 +99,17 @@ func (l *Loader) Load[T any](fpath string, opts ...loadOption) (T, error) {
 	key := newLoadKey(lo.id, typ, lo.format)
 
 	if value, ok := l.cache.get(key); ok {
-		if value == nil {
-			return zero, nil // only a pointer decoder can cache nil
-		}
-		return value.(T), nil
+		return value.(codecValue[T]).value, nil
 	}
 
 	value, err, _ := l.loadGroup.Do(key.String(), func() (any, error) {
 		if value, ok := l.cache.get(key); ok {
 			return value, nil // a peer load may have finished while we waited
+		}
+
+		decoder, err := l.codecs.decoder[T](lo.format)
+		if err != nil {
+			return nil, &AssetError{Op: "Load", ID: ID(fpath), Err: err}
 		}
 
 		file, err := l.fs.Open(fpath)
@@ -118,28 +118,18 @@ func (l *Loader) Load[T any](fpath string, opts ...loadOption) (T, error) {
 		}
 		defer file.Close()
 
-		l.mu.RLock()
-		decoder, ok := l.decoders[codecKey{typ: typ, format: lo.format}]
-		l.mu.RUnlock()
-		if !ok {
-			return nil, &AssetError{Op: "Load", ID: ID(fpath),
-				Err: fmt.Errorf("no decoder registered for type %v and format %q; decoders register at engine or runner construction - loading audio before the runner exists is the common cause", typ, lo.format)}
-		}
-
 		value, err := decoder(file)
 		if err != nil {
 			return nil, &AssetError{Op: "Decode", ID: ID(fpath), Err: err}
 		}
-		l.cache.put(key, value)
-		return value, nil
+		box := codecValue[T]{value}
+		l.cache.put(key, box)
+		return box, nil
 	})
 	if err != nil {
 		return zero, err
 	}
-	if value == nil {
-		return zero, nil
-	}
-	return value.(T), nil // safe: same construction as the cache-hit assertion
+	return value.(codecValue[T]).value, nil
 }
 
 // Open opens the asset at name as a raw file and returns its inferred format.
@@ -169,51 +159,34 @@ func (l *Loader) Open(fpath string) (fs.File, Format, error) {
 // deduplicate concurrent decodes. It does not close reader; the caller owns it.
 func (l *Loader) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 	var zero T
-	typ := reflect.TypeFor[T]()
-
-	l.mu.RLock()
-	decoder, ok := l.decoders[codecKey{typ: typ, format: format}]
-	l.mu.RUnlock()
-	if !ok {
-		return zero, fmt.Errorf("no decoder registered for type %v and format %q; decoders register at engine or runner construction - loading audio before the runner exists is the common cause", typ, format)
+	if isNilPointer(reader) {
+		return zero, &AssetError{Op: "Decode", Err: fmt.Errorf("reader cannot be nil")}
+	}
+	decoder, err := l.codecs.decoder[T](format)
+	if err != nil {
+		return zero, &AssetError{Op: "Decode", Err: err}
 	}
 
 	value, err := decoder(reader)
 	if err != nil {
-		return zero, err
+		return zero, &AssetError{Op: "Decode", Err: err}
 	}
-	if value == nil {
-		return zero, nil // only a pointer or interface decoder can produce nil
-	}
-	return value.(T), nil
+	return value, nil
 }
 
 // RegisterDecoder registers d for values of type T in format. It returns an
-// error if d is nil or format is empty. If a decoder already exists for that
-// type and format, override must be true to replace it.
-func (l *Loader) RegisterDecoder[T any](format Format, d Decoder[T], override bool) error {
-	if d == nil {
-		return fmt.Errorf("decoder cannot be nil")
+// error if d is nil, format is empty, or that pair is already registered.
+// Registrations affect only this loader. Configure replacements with
+// [Codecs.SetDecoder] before constructing it.
+func (l *Loader) RegisterDecoder[T any](format Format, d Decoder[T]) error {
+	c := l.codecs
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := codecKey{reflect.TypeFor[T](), format}
+	if _, exists := c.decoders[key]; exists {
+		return fmt.Errorf("decoder for type %v and format %q already exists", key.typ, format)
 	}
-	if format == "" {
-		return fmt.Errorf("format cannot be empty")
-	}
-	typ := reflect.TypeFor[T]()
-	key := codecKey{typ: typ, format: format}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if _, exists := l.decoders[key]; exists && !override {
-		return fmt.Errorf("decoder for type %v and format %q already exists", typ, format)
-	}
-	l.decoders[key] = func(reader io.Reader) (any, error) {
-		value, err := d(reader)
-		if err != nil {
-			return nil, err
-		}
-		return value, nil
-	}
-	return nil
+	return c.setDecoder(key, d)
 }
 
 // WithID overrides the asset's default cache identity, its cleaned path.
@@ -223,15 +196,14 @@ func WithID(id ID) loadOption {
 	})
 }
 
-// WithFormat overrides the format inferred from the lowercased file extension.
-func WithFormat(format Format) loadOption {
-	return loadOptionFunc(func(opts *loadOptions) {
-		opts.format = format
-	})
-}
+// WithFormat overrides the format inferred from the extension for a path load.
+func WithFormat(format Format) formatOption { return formatOption{format} }
 
-// AssetError identifies the operation and asset path associated with a load
-// or decode failure.
+type formatOption struct{ format Format }
+
+func (o formatOption) applyLoad(opts *loadOptions) { opts.format = o.format }
+
+// AssetError identifies a failed asset operation and its path, if known.
 type AssetError struct {
 	// Op is the failing operation: "Load", "Open", or "Decode".
 	Op string
@@ -243,6 +215,9 @@ type AssetError struct {
 
 // Error returns the operation, asset path, and underlying error.
 func (e AssetError) Error() string {
+	if e.ID == "" {
+		return fmt.Sprintf("%s: %v", e.Op, e.Err)
+	}
 	return fmt.Sprintf("%s %s: %v", e.Op, e.ID, e.Err)
 }
 
@@ -283,54 +258,37 @@ func (k loadKey) String() string {
 	)
 }
 
-type cacheEntry struct {
-	value    any
-	hits     atomic.Uint64 // incremented lock-free in get; input for a future eviction policy
-	loadedAt time.Time
+// The box preserves static T, including a nil interface, in the cache and flights.
+type codecValue[T any] struct {
+	value T
 }
 
-// cache stores decoded values, keyed by asset identity. Thread safety is
-// the invariant that earns this type its existence: get is shared-lock
-// with a lock-free hit counter; put is exclusive.
 type cache struct {
 	mu      sync.RWMutex
-	entries map[loadKey]*cacheEntry
+	entries map[loadKey]any
 }
 
 func newCache() *cache {
 	return &cache{
-		entries: make(map[loadKey]*cacheEntry),
+		entries: make(map[loadKey]any),
 	}
 }
 
 func (c *cache) get(key loadKey) (any, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	entry, ok := c.entries[key]
-	if !ok {
-		return nil, false
-	}
-	entry.hits.Add(1)
-	return entry.value, true
+	value, ok := c.entries[key]
+	return value, ok
 }
 
 func (c *cache) put(key loadKey, value any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[key] = &cacheEntry{value: value, loadedAt: time.Now()}
+	c.entries[key] = value
 }
-
-type codecKey struct {
-	typ    reflect.Type
-	format Format
-}
-
-// decoderFunc is the type-erased form a registered Decoder[T] is stored
-// as. Only [Loader.RegisterDecoder] builds one, boxing the value as T.
-type decoderFunc func(reader io.Reader) (any, error)
 
 type loadOption interface {
-	apply(*loadOptions)
+	applyLoad(*loadOptions)
 }
 
 type loadOptions struct {
@@ -340,14 +298,14 @@ type loadOptions struct {
 
 type loadOptionFunc func(*loadOptions)
 
-func (f loadOptionFunc) apply(opts *loadOptions) {
+func (f loadOptionFunc) applyLoad(opts *loadOptions) {
 	f(opts)
 }
 
 func resolveLoad(name string, opts ...loadOption) *loadOptions {
 	lo := &loadOptions{}
 	for _, opt := range opts {
-		opt.apply(lo)
+		opt.applyLoad(lo)
 	}
 	if lo.id == "" {
 		lo.id = ID(name)

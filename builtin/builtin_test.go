@@ -13,7 +13,10 @@ func TestRegisterLoadsBuiltinFontAndPreservesBaseAssets(t *testing.T) {
 		"sprites/player.txt": &fstest.MapFile{Data: []byte("player")},
 	}
 	filesystem := WithFilesystem(base)
-	loader := asset.NewLoader(filesystem)
+	loader, err := asset.NewLoader(filesystem, asset.LoaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := Register(loader); err != nil {
 		t.Fatalf("register built-in font: %v", err)
@@ -43,7 +46,11 @@ func TestRegisterRejectsNilLoader(t *testing.T) {
 }
 
 func TestRegisterReturnsFontLoadError(t *testing.T) {
-	if err := Register(asset.NewLoader(fstest.MapFS{})); err == nil {
+	loader, err := asset.NewLoader(fstest.MapFS{}, asset.LoaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Register(loader); err == nil {
 		t.Fatal("Register succeeded without the built-in filesystem")
 	}
 }
