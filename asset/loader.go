@@ -19,12 +19,12 @@ import (
 // first cached value.
 type ID string
 
-// Format identifies an asset's encoding and selects its decoder.
+// Format identifies an asset's encoding and selects its decoder or encoder.
 // It defaults to the lowercased file extension.
 type Format string
 
 // Format constants identify common asset encodings, not installed codecs.
-// Configure typed decoders with [Codecs].
+// Register typed encoders and decoders with [Codecs].
 const (
 	// FormatJSON is the JSON format.
 	FormatJSON Format = "json"
@@ -196,16 +196,18 @@ func WithID(id ID) loadOption {
 	})
 }
 
-// WithFormat overrides the format inferred from the extension for a path load.
+// WithFormat overrides the format inferred from the extension for a path load
+// or save.
 func WithFormat(format Format) formatOption { return formatOption{format} }
 
 type formatOption struct{ format Format }
 
 func (o formatOption) applyLoad(opts *loadOptions) { opts.format = o.format }
+func (o formatOption) applySave(opts *saveOptions) { opts.format = o.format }
 
 // AssetError identifies a failed asset operation and its path, if known.
 type AssetError struct {
-	// Op is the failing operation: "Load", "Open", or "Decode".
+	// Op is the failing operation: "Load", "Open", "Decode", "Save", or "Encode".
 	Op string
 	// ID is the normalized path of the asset, if known.
 	ID ID
