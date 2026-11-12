@@ -36,7 +36,7 @@ func (s *memoryStore) Write(name string, encode func(io.Writer) error) error {
 
 func TestSaveRoundTripAndFormatDispatch(t *testing.T) {
 	codecs := NewCodecs()
-	if err := setTestJSON[spriteMeta](codecs); err != nil {
+	if err := codecs.SetJSON[spriteMeta](); err != nil {
 		t.Fatal(err)
 	}
 	store := &memoryStore{}
@@ -135,7 +135,7 @@ func (s *trackedStream) Write(p []byte) (int, error) {
 
 func TestStreamOwnershipAndWriterErrors(t *testing.T) {
 	codecs := NewCodecs()
-	if err := setTestJSON[spriteMeta](codecs); err != nil {
+	if err := codecs.SetJSON[spriteMeta](); err != nil {
 		t.Fatal(err)
 	}
 	saver, err := NewSaver(nil, SaverOptions{Codecs: codecs})
@@ -190,7 +190,7 @@ func TestCodecsPreserveNilValues(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := setTestJSON[*spriteMeta](codecs); err != nil {
+	if err := codecs.SetJSON[*spriteMeta](); err != nil {
 		t.Fatal(err)
 	}
 	loader := newTestLoader(t, newTestFS(map[string]string{"value.nil": "", "pointer.json": "null"}), LoaderOptions{Codecs: codecs})

@@ -28,7 +28,7 @@ type Codecs struct {
 }
 
 // NewCodecs returns codecs with backend-free texture and font decoders and
-// JSON decoding for [AtlasMeta]. Audio decoders are runner-owned.
+// JSON encoding and decoding for [AtlasMeta]. Audio decoders are runner-owned.
 func NewCodecs() *Codecs {
 	c := &Codecs{}
 	c.registerDefaults()

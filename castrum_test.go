@@ -1,7 +1,6 @@
 package castrum
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -92,11 +91,7 @@ func TestNewComposesBuiltinsWithProvidedFilesystem(t *testing.T) {
 func TestNewSnapshotsAssetCodecs(t *testing.T) {
 	type levelFile struct{ Name string }
 	codecs := asset.NewCodecs()
-	if err := codecs.SetDecoder(asset.FormatJSON, func(reader io.Reader) (levelFile, error) {
-		var value levelFile
-		err := json.NewDecoder(reader).Decode(&value)
-		return value, err
-	}); err != nil {
+	if err := codecs.SetJSON[levelFile](); err != nil {
 		t.Fatal(err)
 	}
 	files := fstest.MapFS{"level.json": {Data: []byte(`{"name":"forest"}`)}}
