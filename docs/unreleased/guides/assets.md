@@ -1,12 +1,37 @@
 # Assets
 
-Assets are files or other data that your game identifies by a path and loads through an `asset.Loader`. An `asset.Saver` encodes typed values through a store or writer. This guide covers path resolution, codec configuration, caching, streaming, and explicit saving.
+The `asset` package converts files and streams into typed Go values and back again. A loader reads from an `fs.FS` and caches decoded assets; a saver encodes values to a write-capable store or a caller-owned writer. Codecs define the conversion for each Go type and format. Loading and saving are separate: sharing codecs does not connect their storage or caches.
 
-## Where assets live
+## Load your first asset
 
-By default, asset paths resolve against the process working directory. If your game starts in a directory containing `assets/sprites/hull.png`, load it with the path `assets/sprites/hull.png`.
+`castrum.New` provides an `*asset.Loader` on the world. By default, it reads game assets from the process working directory. If that directory contains `assets/sprites/hull.png`, preload the image during setup:
 
-Give the game an explicit `fs.FS` when you want to control the asset root. An embedded filesystem is useful for a single-binary release:
+```go
+import (
+	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/asset"
+)
+
+g, err := castrum.New()
+if err != nil {
+	return err
+}
+
+loader := g.World().MustResource[*asset.Loader]()
+if _, err := loader.Load[asset.TextureData]("assets/sprites/hull.png"); err != nil {
+	return err
+}
+```
+
+`Load[T]` chooses a decoder for the requested Go type and the file's lowercased extension. It opens the file, decodes it, and caches the result. Preloading moves missing-file and decode errors into setup instead of the first frame that needs the asset.
+
+`asset.TextureData` contains a backend-free Go image, not a GPU texture. The runner creates the renderable texture when needed. See [Rendering](rendering.md) for using images in sprites.
+
+## Choose the asset root
+
+Asset names are slash-separated paths relative to the configured filesystem, including on Windows. The loader cleans paths before using them. Keep these names stable rather than constructing absolute paths in game logic.
+
+Pass `castrum.WithFilesystem` to control the root. An embedded filesystem is useful for a single-binary release:
 
 ```go
 import "embed"
@@ -15,7 +40,6 @@ import "embed"
 var files embed.FS
 
 g, err := castrum.New(
-	castrum.WithTitle("My game"),
 	castrum.WithFilesystem(files),
 )
 if err != nil {
@@ -23,117 +47,205 @@ if err != nil {
 }
 ```
 
-The asset paths do not change when you switch from a directory to `embed.FS`; only the filesystem that resolves them changes. Keep every referenced file under the embedded directory. See [Publishing your game](publishing-your-game.md) for the complete release pattern.
+Here, the same `assets/sprites/hull.png` name works with either the working-directory filesystem or `embed.FS`; only the filesystem resolving it changes. Keep referenced game files under the embedded directory. See [Publishing your game](publishing-your-game.md) for the complete release pattern.
 
-## Built-in assets
+### Built-in assets
 
-The [`builtin`](../../../builtin) package ships the Go Regular font at `builtin.Font`. `castrum.New` makes built-in assets available automatically, alongside the default working-directory filesystem or any filesystem you provide:
+The [`builtin`](../../../builtin) package ships the Go Regular font at `builtin.Font`. `castrum.New` overlays built-in files onto the default or supplied filesystem automatically. Paths under `builtin/` are reserved for engine-shipped assets.
+
+The font is embedded but loaded lazily. To preload it and report errors during setup, import `github.com/Leonard-Atorough/castrum/builtin` and call:
 
 ```go
-import (
-	"github.com/Leonard-Atorough/castrum"
-	"github.com/Leonard-Atorough/castrum/asset"
-	"github.com/Leonard-Atorough/castrum/builtin"
+if err := builtin.Register(loader); err != nil {
+	return err
+}
+```
+
+Standalone loaders do not receive this overlay automatically; give them `builtin.WithFilesystem(files)` when they need engine-shipped files.
+
+## Choose a decoded type and format
+
+The default codecs support these combinations:
+
+| Go type | Formats | Availability |
+| --- | --- | --- |
+| `asset.TextureData` | PNG, JPG, JPEG | Default loader |
+| `asset.FontData` | TTF, OTF | Default loader |
+| `asset.AtlasMeta` | JSON | Default loader and saver |
+| `asset.AudioData` | WAV, MP3, OGG | Game loader after `ebitrun.New` |
+| Game-defined types | JSON or custom formats | Explicit codec registration |
+
+Textures and fonts have default decoders, not default encoders. `AtlasMeta` has both JSON directions. A constant such as `asset.FormatYAML` names a format; it does not install a codec. Registrations match the exact Go type: a codec for `Profile` is not a codec for `*Profile` or every JSON document.
+
+### Cache identity
+
+Repeated `Load[T]` calls reuse the decoded value. Concurrent calls with the same cleaned path, type, and format share one in-flight read and decode. Keep the loader rather than constructing one per load.
+
+Use `asset.WithFormat` to override extension inference. Use `asset.WithID` only when you deliberately want a logical cache identity:
+
+```go
+texture, err := loader.Load[asset.TextureData](
+	"assets/sprites/hull.data",
+	asset.WithFormat(asset.FormatPNG),
+	asset.WithID("ship:hull"),
 )
-
-g, err := castrum.New(
-	castrum.WithFilesystem(files),
-)
-if err != nil {
-	return err
-}
-
-if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
-	return err
-}
-```
-
-The font is embedded in binaries that use Castrum and is otherwise loaded lazily. `builtin.Register` preloads and caches it, returning errors during setup instead of on the first rendered frame. Paths under `builtin/` are reserved for engine-shipped assets.
-
-## Loading assets
-
-### Supported asset formats
-
-The loader chooses a decoder from the lowercased file extension. The built-in loader decodes PNG, JPG, and JPEG files into `asset.TextureData`. It also decodes the JSON sidecars used by atlases into `asset.AtlasMeta` if available.
-
-The default runner, `ebitrun`, registers WAV, MP3, and OGG decoders for `asset.AudioData` when you create it. Construct the runner before explicitly preloading audio. A format constant such as `asset.FormatYAML` is only vocabulary; it does not mean that a decoder is available.
-
-The built-in format constants are `FormatJSON`, `FormatYAML`, `FormatYML`, `FormatPNG`, `FormatJPG`, `FormatJPEG`, `FormatWAV`, `FormatMP3`, and `FormatOGG`.
-
-### Cached and non-cached loading
-
-Use `Load[T]` for an asset that should be identified by a path and reused. The loader infers the format from the extension, decodes the value as `T`, and caches it. Repeated loads return the cached value, and concurrent loads of the same path, type, and format share one in-flight decode.
-
-Preload assets during setup when a missing file or decode failure should stop the game from starting. You also avoid paying the file and decode cost on the first frame:
-
-```go
-if _, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData]("assets/sprites/hull.png"); err != nil {
-	return err
-}
-```
-
-Use `LoadReader` when the data comes from somewhere other than the loader's filesystem. A reader has no extension, so pass the format explicitly. This path does not cache or deduplicate the decode, and it does not close the reader:
-
-```go
-dialogue, err := loader.LoadReader[Dialogue](reader, asset.FormatJSON)
-if err != nil {
-	return err
-}
-```
-
-Use `WithID` when you deliberately want a stable logical cache identity, such as for generated data:
-
-```go
-data, err := loader.Load[Dialogue](
-	"generated/dialogue.json",
-	asset.WithID("dialogue:intro"),
-)
-```
-
-An overridden ID is part of correctness, not just an optimization. Two different files with the same ID, target type, and format share the first cached value.
-
-#### Loading audio
-
-Load decoded audio as `asset.AudioData` after `ebitrun.New` has registered the audio codecs:
-
-```go
-if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData]("assets/audio/confirm.ogg"); err != nil {
-	return err
-}
-```
-
-For normal playback, prefer the audio component's `Load: audio.LoadEager` for short effects that play often. The decoded PCM is cached and can be shared by multiple players. Use `audio.LoadStream` for long music; the [audio guide](audio.md) covers that choice and the playback component.
-
-#### Loading images
-
-Load images as `asset.TextureData`. The asset package decodes them into backend-free Go image values; the runner converts them to a renderable texture when it needs to draw them:
-
-```go
-texture, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData]("assets/sprites/hull.png")
 if err != nil {
 	return err
 }
 _ = texture.Image
 ```
 
-### Streaming assets
+The cache key combines ID, target type, and format. Two different files with the same explicit ID, type, and format share the first cached value. An overridden ID is therefore part of correctness, not just an optimization.
 
-Use `Open` when a consumer needs the raw file instead of a cached decoded value. `Open` returns the file and the format inferred from its extension. You own the returned file and must close it:
+## Configure game-defined data
+
+Use `asset.Codecs` to configure conversion once and reuse it across loaders and savers. Start with `asset.NewCodecs` to retain the default image, font, and atlas codecs, then register your own types before constructing the game:
 
 ```go
-file, format, err := loader.Open("assets/audio/music.ogg")
+type Profile struct {
+	Name string `json:"name"`
+}
+
+codecs := asset.NewCodecs()
+if err := codecs.SetJSON[Profile](); err != nil {
+	return err
+}
+
+g, err := castrum.New(
+	castrum.WithFilesystem(files),
+	castrum.WithAssetCodecs(codecs),
+)
+if err != nil {
+	return err
+}
+
+loader := g.World().MustResource[*asset.Loader]()
+profile, err := loader.Load[Profile]("profiles/player.json")
+if err != nil {
+	return err
+}
+```
+
+This example expects `profiles/player.json` in `files`; include that directory separately if using the earlier `//go:embed assets` declaration.
+
+`SetJSON[T]` installs or replaces JSON encoding and decoding together. It uses standard `encoding/json` behavior, including custom marshal/unmarshal methods. Decoding requires one complete JSON value with only whitespace after it. Missing fields remain zero-valued and unknown fields follow standard JSON behavior. Your game owns validation, defaults, document versions, migration, and applying the loaded values.
+
+### Configuration lifetime
+
+Each loader and saver snapshots registrations at construction. Changing `codecs` later affects only subsequently constructed loaders and savers. Sharing configuration does not share decoded caches or select a storage source.
+
+On `Codecs`, `SetDecoder` and `SetEncoder` install or replace their direction independently. On a constructed loader or saver, `RegisterDecoder` and `RegisterEncoder` only add entries; duplicate registrations fail. Configure replacements before construction rather than trying to replace a codec behind cached values.
+
+Snapshots copy functions, not captured closure state. Custom codecs must support concurrent calls if used concurrently.
+
+### Load before creating a game
+
+A standalone loader is useful when configuration is needed before game or runner construction:
+
+```go
+loader, err := asset.NewLoader(files, asset.LoaderOptions{Codecs: codecs})
+if err != nil {
+	return err
+}
+profile, err := loader.Load[Profile]("profiles/player.json")
+if err != nil {
+	return err
+}
+```
+
+`LoaderOptions{}` selects the default codecs; a nil filesystem uses the working directory. This loader remains independent of the world's loader. In particular, constructing a runner does not register audio decoders on standalone loaders.
+
+## Register sprite atlases
+
+Register atlases during setup, before spawning entities that refer to them. Registration loads the image through the normal typed cache, validates the regions, and stores the atlas for sprites to resolve later.
+
+For a regular grid, provide tile dimensions and a non-empty prefix. The image dimensions must be evenly divisible by the tile dimensions. Regions are named in row-major order as `prefix_0`, `prefix_1`, and so on:
+
+```go
+if err := loader.RegisterGridAtlas(
+	"characters", "assets/sprites/characters.png", 16, 16, "char",
+); err != nil {
+	return err
+}
+
+sprite := render.Sprite{
+	Drawable: render.AtlasSource{Atlas: "characters", Region: "char_0"},
+}
+```
+
+For irregular regions, put pixel rectangles in a JSON sidecar:
+
+```json
+{
+  "regions": [
+    { "name": "hero_idle_0", "x": 0, "y": 0, "w": 32, "h": 32 },
+    { "name": "hero_idle_1", "x": 32, "y": 0, "w": 32, "h": 32 }
+  ]
+}
+```
+
+Register the image and sidecar together:
+
+```go
+if err := loader.RegisterAtlasFromSidecar(
+	"characters",
+	"assets/sprites/characters.png",
+	"assets/sprites/characters.atlas.json",
+); err != nil {
+	return err
+}
+```
+
+Region names must be unique and non-empty, dimensions positive, and rectangles within the image bounds. Duplicate atlas IDs are rejected. A malformed image or sidecar fails during registration; an unknown atlas or region referenced by a sprite fails when the renderer resolves it. See [Rendering](rendering.md) for atlas drawables.
+
+## Read streams without caching
+
+Use `LoadReader[T]` for bytes from somewhere other than the loader's filesystem, or when you need a fresh decode rather than a cached value. Supply the format explicitly because a reader has no extension:
+
+```go
+profile, err := loader.LoadReader[Profile](reader, asset.FormatJSON)
+if err != nil {
+	return err
+}
+```
+
+This requires the `Profile` codec configured above. `LoadReader` does not cache, deduplicate concurrent decodes, or close the reader. You own the reader's lifetime.
+
+Use `Open` when a consumer needs the raw file. It returns the file and inferred format without decoding or caching:
+
+```go
+file, format, err := loader.Open("profiles/player.json")
 if err != nil {
 	return err
 }
 defer file.Close()
-_ = format
+
+profile, err := loader.LoadReader[Profile](file, format)
+if err != nil {
+	return err
+}
 ```
 
-Streaming avoids decoding and caching the entire asset, but the consumer must perform the format-specific decoding. A streaming source also needs to support seeking when playback loops or resets its position. Normal directory files and `embed.FS` files meet that requirement; verify custom filesystem implementations before using them for streaming.
+You must close every file returned by `Open`. The consumer owns format-specific decoding and must verify seeking support if it needs to loop or reset its position.
 
-#### Streaming audio
+## Choose eager or streaming audio
 
-The `ebitrun` audio provider performs the streaming path for you when an `audio.Source` uses `audio.LoadStream`. It opens the file, selects the WAV, MP3, or OGG decoder, and keeps the source open for the lifetime of that play. When the play ends or is removed, the provider closes the source.
+The default runner registers WAV, MP3, and OGG decoders on the game's loader during construction. Create the runner before explicitly preloading `asset.AudioData`:
+
+```go
+runner, err := ebitrun.New(g)
+if err != nil {
+	return err
+}
+
+if _, err := loader.Load[asset.AudioData]("assets/audio/confirm.ogg"); err != nil {
+	return err
+}
+```
+
+These decoders use the runner's audio-context sample rate. They do not modify the source `Codecs` configuration or other loaders, and conflicting registrations fail rather than being replaced.
+
+For short repeated effects, use `audio.LoadEager`, the default on `audio.Source`. It caches complete decoded PCM that multiple players can share. For long music, use `audio.LoadStream`:
 
 ```go
 source := audio.NewSource()
@@ -146,122 +258,68 @@ if err != nil {
 }
 ```
 
-Use streaming for long tracks that should not occupy memory as one decoded PCM buffer. Streaming is still lazy: missing files, unsupported formats, and decoder errors appear when the provider creates the play.
+The `ebitrun` provider opens and decodes a source for each streamed play instead of caching one complete PCM buffer. It keeps the file open until the play is released, then closes it. Its streaming path requires a seekable file, even for non-looping playback. Normal directory files and `embed.FS` files satisfy that requirement; verify custom filesystems.
 
-## Shared codec configuration
+Streaming remains lazy: missing files, unsupported formats, decoder failures, and non-seekable sources appear when the provider creates the play. See [Audio](audio.md) for playback ownership and controls.
 
-Use `asset.Codecs` to configure conversion once and reuse it across loaders and savers. `asset.NewCodecs` retains the default image, font, and atlas decoders. Configure game-defined decoders before construction:
+## Add a custom codec
+
+Register a typed decoder for formats the defaults do not cover. A decoder receives an `io.Reader`, must not close or retain it, and should return errors for invalid input. An encoder receives a writer and a typed value and must not close the writer.
+
+For example, a plain-text dialogue decoder can use the `.txt` extension directly:
 
 ```go
-codecs := asset.NewCodecs()
-if err := codecs.SetDecoder(asset.FormatJSON, asset.Decoder[Dialogue](decodeDialogue)); err != nil {
+import "io"
+
+type Dialogue string
+
+textFormat := asset.Format("txt")
+if err := loader.RegisterDecoder(
+	textFormat,
+	asset.Decoder[Dialogue](func(reader io.Reader) (Dialogue, error) {
+		data, err := io.ReadAll(reader)
+		return Dialogue(data), err
+	}),
+); err != nil {
 	return err
 }
-g, err := castrum.New(
-	castrum.WithFilesystem(files),
-	castrum.WithAssetCodecs(codecs),
-)
+
+dialogue, err := loader.Load[Dialogue]("assets/dialogue/intro.txt")
 if err != nil {
 	return err
 }
 ```
 
-For data needed before game construction, use `asset.NewLoader(files, asset.LoaderOptions{Codecs: codecs})`, which returns a loader and an error. `LoaderOptions{}` selects defaults; a nil filesystem uses the working directory. Standalone loaders that need engine-shipped files use `builtin.WithFilesystem(files)`.
-
-Each loader snapshots registrations at construction. Changing `codecs` later affects only new loaders. Sharing configuration does not share caches or storage. Snapshots copy functions, not captured closure state, so custom decoders must support concurrent calls if used concurrently.
-
-The runner registers audio decoders only on its game's loader at the effective audio-context sample rate. It does not modify the source configuration or standalone loaders; conflicting registrations return errors.
-
-## Custom asset formats
-
-Register a typed decoder when your game needs a value that Castrum does not decode by default. A decoder receives an `io.Reader` and should parse and validate its value, returning an error for invalid input:
-
-```go
-type Dialogue struct {
-	Lines []string `json:"lines"`
-}
-
-func decodeDialogue(reader io.Reader) (Dialogue, error) {
-	var dialogue Dialogue
-	err := json.NewDecoder(reader).Decode(&dialogue)
-	return dialogue, err
-}
-
-loader := g.World().MustResource[*asset.Loader]()
-if err := loader.RegisterDecoder(
-	asset.FormatJSON,
-	asset.Decoder[Dialogue](decodeDialogue),
-); err != nil {
-	return err
-}
-
-dialogue, err := loader.Load[Dialogue]("assets/dialogue/intro.json")
-if err != nil {
-	return err
-}
-```
-
-Local duplicate registrations fail. To install or replace a decoder in configuration, use `Codecs.SetDecoder` before constructing the loader. There is no live replacement behind cached values. Decoders must not close or retain their reader.
-
-For a custom extension, define a format and override inference when loading:
-
-```go
-type LevelData struct {
-	Name string
-}
-
-levelFormat := asset.Format("level")
-if err := loader.RegisterDecoder(
-	levelFormat,
-	asset.Decoder[LevelData](decodeLevel),
-); err != nil {
-	return err
-}
-
-level, err := loader.Load[LevelData](
-	"assets/world.bin",
-	asset.WithFormat(levelFormat),
-)
-```
+Use `codecs.SetDecoder` instead when multiple loaders need the registration, or when replacing a default before construction. Use `codecs.SetEncoder` for the reverse direction, or `saver.RegisterEncoder` to add it to one existing saver. For extensionless or differently named files, pass `asset.WithFormat(textFormat)` to `Load` or `Save`.
 
 ## Save game-defined data
 
-Use a long-lived saver for preference values or game-defined documents, not `settings.Group`, runtime providers, or a live world. Applying loaded values and reconstructing gameplay state remain explicit game code.
+Use a long-lived saver when your game needs to persist ordinary values. A `SaveStore` provides write capability; an `fs.FS` alone does not. Castrum does not yet provide a directory-backed save store, and the game does not automatically construct a saver.
 
-An encoder decides how a typed value becomes bytes. A `SaveStore` decides where those bytes go and when they become visible. An `fs.FS` alone does not provide write capability. Castrum does not yet provide a directory-backed store or automatically construct a saver.
+Save preference values or game-defined documents, not `settings.Group`, runtime providers, or a live world. Applying loaded values and reconstructing gameplay state remain explicit game code.
 
-### Configure an encoder
+### How encoders and stores cooperate
 
-Install an encoder before constructing the saver:
+The encoder decides **how a value becomes bytes**. The store decides **where those bytes go and when they become visible**. The saver connects them:
+
+1. Configure an `Encoder[Profile]` with `Codecs.SetEncoder`, or use `SetJSON[Profile]` to install both JSON directions.
+2. Construct a saver with that configuration and a store.
+3. Call `saver.Save("profiles/player.json", profile)`. The saver validates the name and selects the encoder by the static Go type `Profile` and format `json`.
+4. The saver calls `store.Write(name, encode)`. It supplies the callback, bound to the selected encoder and value; the store does not construct it or look up a codec.
+5. The store prepares a private writer and calls `encode(writer)` synchronously. If encoding fails, it discards the staged output and returns the error.
+6. Otherwise, the store finishes writing and closing as needed, then publishes the completed document.
+
+The store only handles a name and a byte-producing callback. With suitable encoders, the same store can save JSON, images, or custom formats without knowing their Go types. Conversely, an encoder can write through different stores or directly to a caller-owned writer.
+
+### A minimal in-memory store
+
+This store stages bytes in a buffer and replaces the named document only after encoding succeeds:
 
 ```go
 import (
-	"encoding/json"
+	"bytes"
 	"io"
 )
-
-type Profile struct {
-	Name string `json:"name"`
-}
-
-codecs := asset.NewCodecs()
-if err := codecs.SetEncoder(asset.FormatJSON, func(writer io.Writer, value Profile) error {
-	return json.NewEncoder(writer).Encode(value)
-}); err != nil {
-	return err
-}
-```
-
-`SetEncoder` installs or replaces that direction on the configuration. An existing saver's `RegisterEncoder` only adds entries; duplicate registrations fail. Encoders must not close their writer.
-
-### Supply a store
-
-The saver selects the encoder by exact static Go type and inferred lowercased extension. It calls `store.Write(name, encode)` with a callback capturing the encoder and value. The store supplies a staging writer to `encode`, handles errors, and publishes completed output. It does not look up a codec or receive a `Profile`.
-
-This minimal store stages bytes in memory:
-
-```go
-import "bytes"
 
 type memoryStore map[string][]byte
 
@@ -275,7 +333,7 @@ func (store memoryStore) Write(name string, encode func(io.Writer) error) error 
 }
 ```
 
-Use it with the configured encoder:
+With the earlier `Profile` codecs:
 
 ```go
 store := make(memoryStore)
@@ -288,15 +346,15 @@ if err := saver.Save("profiles/player.json", Profile{Name: "Player"}); err != ni
 }
 ```
 
-The map contains JSON bytes, not a `Profile`. This store is in-memory only and not safe for concurrent access. A file-backed store must preserve existing output on encoding failure rather than truncate the destination first.
+The map now contains JSON bytes at `store["profiles/player.json"]`, not a `Profile` value. This example is in-memory only and is not safe for concurrent access. A file-backed store would instead encode to a staging file, check write and close errors, and publish it according to its platform's replacement guarantees. Opening and truncating the destination before encoding would not preserve the old document on failure.
 
-`Write` calls `encode` synchronously at most once and must call it before returning success. It must not retain the callback or publish incomplete output on an encoding failure. The store owns its writer and reports write, close, and publication failures. Replacement, directory creation, and durability guarantees belong to storage.
+`Save` selects an encoder by the value's static type and lowercased extension. `asset.WithFormat` overrides the format for extensionless or custom-named files. Names are cleaned slash-separated paths relative to the store; empty names, absolute paths, backslashes, and paths that still escape the root after cleaning are rejected. Missing encoders and invalid names fail before storage is invoked.
 
-`Save` cleans slash-separated names relative to the store. Empty names, absolute paths, backslashes, and paths still escaping the root after cleaning are rejected. Missing encoders and invalid names fail before storage is invoked. `WithFormat` overrides extension inference.
+The store's `Write(name, encode)` method must call `encode` synchronously at most once, must call it before returning success, and must not retain it. The store owns its writer and must not publish incomplete output on an encoding failure. It reports write, close, and publication failures. Replacement, directory creation, and durability guarantees belong to the store.
 
 ### Write to an existing stream
 
-Use a nil store for stream-only saving:
+For a caller-owned writer, construct a stream-only saver with a nil store and call `SaveWriter`:
 
 ```go
 saver, err := asset.NewSaver(nil, asset.SaverOptions{Codecs: codecs})
@@ -309,74 +367,29 @@ if err := saver.SaveWriter(&output, Profile{Name: "Player"}, asset.FormatJSON); 
 }
 ```
 
-`SaverOptions{}` selects defaults, which do not include general-purpose encoders. `SaveWriter` never closes the writer and cannot roll back bytes already written. `Save` on a stream-only saver returns an error. Both constructors snapshot configuration without sharing caches or selecting storage.
+`SaverOptions{}` selects the default codecs. `SaveWriter` never closes the writer and does not use storage. It cannot provide staged publication or roll back bytes already written if encoding fails. `Save` on a stream-only saver returns an error.
 
-Saving does not invalidate loader caches. To reread changed bytes, use `Open` followed by `LoadReader` on a filesystem that can read the saved destination. Sharing codecs alone does not make saved bytes available to a loader. Coordinate same-destination saves, use concurrency-safe encoders and storage for concurrent calls, and copy mutable values before handing them to a worker.
+### Reload and coordinate mutable data
 
-## Atlases
+Saving does not invalidate a loader's decoded cache. To reread changed bytes, use `Open` followed by `LoadReader` as shown above, with a filesystem that can read the saved destination. Sharing codecs alone does not make saved bytes available to a loader.
 
-Treat an atlas as setup for image loading: registration loads the image through the normal typed cache, builds the named regions, validates their bounds, and stores the result for sprites to resolve later.
+Coordinate concurrent saves to the same destination so an older snapshot cannot finish after a newer one. Encoders and storage must be concurrency-safe when used concurrently. Copy mutable data before handing it to a worker; [settings groups](settings.md) already provide a policy-based copying boundary.
 
-For a regular grid, register the image with tile dimensions and a prefix. Regions are named in row-major order as `prefix_0`, `prefix_1`, and so on:
+## Handle failures at the right time
 
-```go
-if err := g.World().MustResource[*asset.Loader]().RegisterGridAtlas(
-	"characters", "assets/sprites/characters.png", 16, 16, "char",
-); err != nil {
-	return err
-}
+Path and stream load/save operations return `*asset.AssetError`; underlying causes remain available through `errors.Is` and `errors.As`. `Load` reports `Load` or `Decode`; `Open` reports `Open`; path saves report `Save`, with encoding failures retaining their `Encode` cause. `LoadReader` and `SaveWriter` report `Decode` and `Encode` without inventing a file path. Constructors and registration methods can return ordinary errors instead.
 
-sprite := render.Sprite{
-	Drawable: render.AtlasSource{Atlas: "characters", Region: "char_0"},
-}
-```
+Choose when predictable failures should surface:
 
-For irregular regions, put the pixel rectangles in a JSON sidecar and register the image and sidecar together:
-
-```json
-{
-  "regions": [
-    { "name": "hero_idle_0", "x": 0, "y": 0, "w": 32, "h": 32 },
-    { "name": "hero_idle_1", "x": 32, "y": 0, "w": 32, "h": 32 }
-  ]
-}
-```
-
-```go
-if err := loader.RegisterAtlasFromSidecar(
-	"characters",
-	"assets/sprites/characters.png",
-	"assets/sprites/characters.atlas.json",
-); err != nil {
-	return err
-}
-```
-
-Register atlases during setup, before spawning entities that refer to them. A malformed sheet or sidecar then fails near its declaration; an unknown atlas or region still fails when the renderer resolves the sprite.
-
-## Errors and loading strategy
-
-`Load` returns an `asset.AssetError` for filesystem and decoding failures. Its `Op` is `Load` or `Decode`, and the underlying error remains available through `errors.Is` and `errors.As`. `Open` reports `Op: "Open"`.
-
-Choose eager or lazy loading according to when failure should surface:
-
-- Preload required images, effects, configuration, and atlases during setup.
-- Load optional or infrequently used assets when they are needed, accepting the first-use cost.
-- Use eager audio for short repeated effects and streaming audio for long tracks.
-- Keep error context when wrapping an asset error so the path and operation remain visible.
-
-## Best practices
-
-- Keep asset paths stable and relative to the configured `fs.FS`; do not build paths from the process's current directory in game logic.
-- Use typed loads so the intended decoded value is visible at the call site.
-- Register custom decoders and atlases before startup or before the first system that depends on them.
-- Choose explicit cache IDs only when you can maintain their uniqueness and meaning.
-- Close every file returned by `Open`; `LoadReader` does not close its input.
-- Use `embed.FS` for releases that should not depend on a user's working directory.
+- Preload required images, fonts, configuration, and atlases during setup.
+- Construct the runner before preloading required audio effects.
+- Load optional assets on demand when the first-use cost and failure timing are acceptable.
+- Stream long audio when retaining complete decoded PCM would be wasteful, while accepting lazy playback errors.
+- Keep error context when wrapping failures so the path and operation remain visible.
 
 ## Where to go next
 
-- [Rendering](rendering.md) - the drawables that consume textures and atlas regions.
+- [Rendering](rendering.md) - drawables that consume textures and atlas regions.
 - [Audio](audio.md) - eager and streaming playback, buses, and the mixer.
 - [Publishing your game](publishing-your-game.md) - embedding assets in a single binary.
 - [The asset pipeline](../reference/asset-pipeline.md) - the implementation-level loading and caching model.

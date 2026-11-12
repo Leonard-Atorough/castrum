@@ -14,7 +14,7 @@ Repeated loads return the cached value. Concurrent loads of the same identity sh
 
 `asset.Codecs` configures decoders and encoders independently per exact target Go type and format. Formats normally come from lowercased file extensions. `SetDecoder` and `SetEncoder` install or replace their respective direction on the configuration. Format constants name vocabulary; they do not guarantee that a codec is configured.
 
-`NewCodecs` supplies backend-free image/font decoders and a JSON decoder for `AtlasMeta`. Other types and encoders need explicit configuration. Validation and schema evolution remain outside the codec registry.
+`NewCodecs` supplies backend-free image/font decoders and a JSON pair for `AtlasMeta`. `SetJSON[T]` installs or replaces both directions atomically and uses standard JSON behavior, including custom marshal/unmarshal methods. A decode must contain exactly one JSON value followed by whitespace or EOF. Missing fields are zero-valued, not filled from game defaults. Validation and schema evolution remain outside the codec registry.
 
 `NewLoader` and `NewSaver` take concrete `LoaderOptions` and `SaverOptions` values. Their `Codecs` field selects configuration to snapshot; nil selects the defaults. Subsequent configuration changes do not affect them. Their private scopes permit new local decoder/encoder registrations but not replacements; `RegisterDecoder` and `RegisterEncoder` reject duplicates. Snapshotting copies functions, not captured closure state. Constructors reject dependencies containing nil pointers, not valid nil-map or nil-slice implementations.
 
