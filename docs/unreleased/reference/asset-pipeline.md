@@ -4,11 +4,17 @@ An asset ID is a slash-separated path resolved against the `fs.FS` owned by the 
 
 ## Typed loading and cache identity
 
-`loader.Load[T]` selects a typed decoder, opens the path, decodes a value of type `T`, and caches it. The cache identity combines the asset ID, target type, and format. The same file can therefore have multiple typed representations, while two different files loaded with the same explicit ID, type, and format collide by design.
+`loader.Load[T]` selects a typed decoder, opens the path, decodes a value of type `T`, and closes the file. With the default `CacheReuse` policy, it caches the value only after decoding and closing succeed. The identity combines the cleaned source path, exact target type, and format within one loader. The same file can have multiple typed representations. Arbitrary cache aliases through `WithID` are no longer supported.
 
-Repeated loads return the cached value. Concurrent loads of the same identity share one in-flight decode. `LoadReader` uses an explicitly supplied format but does not cache or deduplicate the result; it also does not close the caller's reader.
+Repeated reuse loads return the cached value. Concurrent reuse loads of the same identity share one in-flight read, decode, and close. Cache entries and in-flight work use the same typed key, not a stringified Go type.
 
-`Open` is the uncached path. It returns the raw file and inferred format, and the caller owns the file and must close it. A streaming consumer must also verify that the file supports seeking when looping or resetting a position; directory files and `embed.FS` do.
+`LoaderOptions.CachePolicy` selects the loader's default; `WithCachePolicy` overrides it for one call. `CacheBypass` skips both the cache and in-flight sharing. It neither consumes nor populates reused entries, and can complete independently of an older cached read. That older read may still populate the reused cache. Invalid policies and nil load options fail before I/O.
+
+Both policies return a zero value on failure, preserve owned-file close errors, and retain both causes if decoding and closing fail. Failed reads are not cached and subsequent calls retry. Bypass does not imply deep cloning or backend hot reload.
+
+`LoadReader` uses an explicitly supplied format but does not cache or deduplicate the result; it also does not close the caller's reader.
+
+`Open` returns the raw file and inferred format without decoding or caching. The caller owns the file and must close it. A streaming consumer must also verify that the file supports seeking when looping or resetting a position; directory files and `embed.FS` do.
 
 ## Codec configuration and scopes
 
@@ -32,7 +38,7 @@ A missing file, missing codec, or codec failure returns an `AssetError` describi
 
 The registry stores typed codec functions, recovering the exact `Decoder[T]` or `Encoder[T]` at lookup. Stream conversion keeps values typed throughout; only cached and in-flight load results need a typed value box. This preserves the static requested type even for nil interfaces and typed nil pointers. A decoder or encoder for one type cannot be selected solely because another type uses the same format.
 
-Saves do not update or invalidate loader, GPU, or font caches. Re-reading mutable data currently uses `Open` and `LoadReader`. Games own snapshot copying, same-destination write ordering, versions, migration, validation, and application of loaded data.
+Saves do not update or invalidate loader, GPU, or font caches. Re-read mutable data with `Load` and `CacheBypass` against a filesystem that can read the saved destination. Games own snapshot copying, same-destination write ordering, versions, migration, validation, and application of loaded data.
 
 ## Atlases
 
