@@ -12,11 +12,11 @@ Repeated loads return the cached value. Concurrent loads of the same identity sh
 
 ## Codec configuration and scopes
 
-`asset.Codecs` configures decoders per exact target Go type and format. Formats normally come from lowercased file extensions. `SetDecoder` installs or replaces a decoder on the configuration. Format constants name vocabulary; they do not guarantee that a codec is configured.
+`asset.Codecs` configures decoders and encoders independently per exact target Go type and format. Formats normally come from lowercased file extensions. `SetDecoder` and `SetEncoder` install or replace their respective direction on the configuration. Format constants name vocabulary; they do not guarantee that a codec is configured.
 
-`NewCodecs` supplies backend-free image/font decoders and a JSON decoder for `AtlasMeta`. Other types need an explicit decoder. Validation and schema evolution remain outside the codec registry.
+`NewCodecs` supplies backend-free image/font decoders and a JSON decoder for `AtlasMeta`. Other types and encoders need explicit configuration. Validation and schema evolution remain outside the codec registry.
 
-`NewLoader` takes a concrete `LoaderOptions` value. Its `Codecs` field selects configuration to snapshot; nil selects the defaults. Subsequent configuration changes do not affect the loader. Its private scope permits new local decoder registrations but not replacements; `RegisterDecoder` rejects duplicates. Snapshotting copies functions, not captured closure state. Construction rejects dependencies containing nil pointers, not valid nil-map or nil-slice implementations.
+`NewLoader` and `NewSaver` take concrete `LoaderOptions` and `SaverOptions` values. Their `Codecs` field selects configuration to snapshot; nil selects the defaults. Subsequent configuration changes do not affect them. Their private scopes permit new local decoder/encoder registrations but not replacements; `RegisterDecoder` and `RegisterEncoder` reject duplicates. Snapshotting copies functions, not captured closure state. Constructors reject dependencies containing nil pointers, not valid nil-map or nil-slice implementations.
 
 `castrum.WithAssetCodecs` configures the game's content loader while preserving the built-in filesystem overlay. Standalone facades can exist before game construction without replacing the world's content loader.
 
@@ -24,7 +24,15 @@ The default `ebitrun` runner registers WAV, MP3, and OGG audio decoders only on 
 
 A missing file, missing codec, or codec failure returns an `AssetError` describing the operation and path when known. Stream failures have no invented file identity. Underlying causes remain available through `errors.Is` and `errors.As`. Lazy loads surface errors at first use; preload required assets during setup when failure should prevent launch.
 
-The registry stores typed decoder functions, recovering the exact `Decoder[T]` at lookup. Stream conversion keeps values typed throughout; only cached and in-flight load results need a typed value box. This preserves the static requested type even for nil interfaces and typed nil pointers.
+## Saving
+
+`saver.Save` resolves an encoder before calling the configured `SaveStore`. It passes a synchronous encoding callback to storage, which owns its writer and publication semantics. A filesystem's read capability does not imply write capability; there is no built-in directory backend yet.
+
+`SaveWriter` performs encoding only. Like `LoadReader`, it neither closes its caller-owned stream nor accesses storage. A saver with no store supports `SaveWriter` but returns an error for path saves.
+
+The registry stores typed codec functions, recovering the exact `Decoder[T]` or `Encoder[T]` at lookup. Stream conversion keeps values typed throughout; only cached and in-flight load results need a typed value box. This preserves the static requested type even for nil interfaces and typed nil pointers. A decoder or encoder for one type cannot be selected solely because another type uses the same format.
+
+Saves do not update or invalidate loader, GPU, or font caches. Re-reading mutable data currently uses `Open` and `LoadReader`. Games own snapshot copying, same-destination write ordering, versions, migration, validation, and application of loaded data.
 
 ## Atlases
 

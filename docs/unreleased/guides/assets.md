@@ -1,6 +1,6 @@
 # Assets
 
-Assets are files or other data that your game identifies by a path and loads through an `asset.Loader`. This guide covers where those paths resolve, how typed loading and caching work, and when to stream instead of decoding an entire asset into memory.
+Assets are files or other data that your game identifies by a path and loads through an `asset.Loader`. An `asset.Saver` encodes typed values through a store or writer. This guide covers path resolution, codec configuration, caching, streaming, and explicit saving.
 
 ## Where assets live
 
@@ -148,9 +148,9 @@ if err != nil {
 
 Use streaming for long tracks that should not occupy memory as one decoded PCM buffer. Streaming is still lazy: missing files, unsupported formats, and decoder errors appear when the provider creates the play.
 
-## Shared decoder configuration
+## Shared codec configuration
 
-Use `asset.Codecs` to configure conversion once and reuse it across loaders. `asset.NewCodecs` retains the default image, font, and atlas decoders. Configure game-defined decoders before construction:
+Use `asset.Codecs` to configure conversion once and reuse it across loaders and savers. `asset.NewCodecs` retains the default image, font, and atlas decoders. Configure game-defined decoders before construction:
 
 ```go
 codecs := asset.NewCodecs()
@@ -223,6 +223,95 @@ level, err := loader.Load[LevelData](
 	asset.WithFormat(levelFormat),
 )
 ```
+
+## Save game-defined data
+
+Use a long-lived saver for preference values or game-defined documents, not `settings.Group`, runtime providers, or a live world. Applying loaded values and reconstructing gameplay state remain explicit game code.
+
+An encoder decides how a typed value becomes bytes. A `SaveStore` decides where those bytes go and when they become visible. An `fs.FS` alone does not provide write capability. Castrum does not yet provide a directory-backed store or automatically construct a saver.
+
+### Configure an encoder
+
+Install an encoder before constructing the saver:
+
+```go
+import (
+	"encoding/json"
+	"io"
+)
+
+type Profile struct {
+	Name string `json:"name"`
+}
+
+codecs := asset.NewCodecs()
+if err := codecs.SetEncoder(asset.FormatJSON, func(writer io.Writer, value Profile) error {
+	return json.NewEncoder(writer).Encode(value)
+}); err != nil {
+	return err
+}
+```
+
+`SetEncoder` installs or replaces that direction on the configuration. An existing saver's `RegisterEncoder` only adds entries; duplicate registrations fail. Encoders must not close their writer.
+
+### Supply a store
+
+The saver selects the encoder by exact static Go type and inferred lowercased extension. It calls `store.Write(name, encode)` with a callback capturing the encoder and value. The store supplies a staging writer to `encode`, handles errors, and publishes completed output. It does not look up a codec or receive a `Profile`.
+
+This minimal store stages bytes in memory:
+
+```go
+import "bytes"
+
+type memoryStore map[string][]byte
+
+func (store memoryStore) Write(name string, encode func(io.Writer) error) error {
+	var staged bytes.Buffer
+	if err := encode(&staged); err != nil {
+		return err
+	}
+	store[name] = bytes.Clone(staged.Bytes())
+	return nil
+}
+```
+
+Use it with the configured encoder:
+
+```go
+store := make(memoryStore)
+saver, err := asset.NewSaver(store, asset.SaverOptions{Codecs: codecs})
+if err != nil {
+	return err
+}
+if err := saver.Save("profiles/player.json", Profile{Name: "Player"}); err != nil {
+	return err
+}
+```
+
+The map contains JSON bytes, not a `Profile`. This store is in-memory only and not safe for concurrent access. A file-backed store must preserve existing output on encoding failure rather than truncate the destination first.
+
+`Write` calls `encode` synchronously at most once and must call it before returning success. It must not retain the callback or publish incomplete output on an encoding failure. The store owns its writer and reports write, close, and publication failures. Replacement, directory creation, and durability guarantees belong to storage.
+
+`Save` cleans slash-separated names relative to the store. Empty names, absolute paths, backslashes, and paths still escaping the root after cleaning are rejected. Missing encoders and invalid names fail before storage is invoked. `WithFormat` overrides extension inference.
+
+### Write to an existing stream
+
+Use a nil store for stream-only saving:
+
+```go
+saver, err := asset.NewSaver(nil, asset.SaverOptions{Codecs: codecs})
+if err != nil {
+	return err
+}
+var output bytes.Buffer
+if err := saver.SaveWriter(&output, Profile{Name: "Player"}, asset.FormatJSON); err != nil {
+	return err
+}
+```
+
+`SaverOptions{}` selects defaults, which do not include general-purpose encoders. `SaveWriter` never closes the writer and cannot roll back bytes already written. `Save` on a stream-only saver returns an error. Both constructors snapshot configuration without sharing caches or selecting storage.
+
+Saving does not invalidate loader caches. To reread changed bytes, use `Open` followed by `LoadReader` on a filesystem that can read the saved destination. Sharing codecs alone does not make saved bytes available to a loader. Coordinate same-destination saves, use concurrency-safe encoders and storage for concurrent calls, and copy mutable values before handing them to a worker.
 
 ## Atlases
 
