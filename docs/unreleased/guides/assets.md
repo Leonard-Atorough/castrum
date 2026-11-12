@@ -23,7 +23,7 @@ if _, err := loader.Load[asset.TextureData]("assets/sprites/hull.png"); err != n
 }
 ```
 
-`Load[T]` chooses a decoder for the requested Go type and the file's lowercased extension. It opens the file, decodes it, and caches the result. Preloading moves missing-file and decode errors into setup instead of the first frame that needs the asset.
+`Load[T]` chooses a decoder for the requested Go type and the file's lowercased extension. By default, it opens the file, decodes it, closes it, and caches the result. Preloading moves missing-file, decode, and close errors into setup instead of the first frame that needs the asset.
 
 `asset.TextureData` contains a backend-free Go image, not a GPU texture. The runner creates the renderable texture when needed. See [Rendering](rendering.md) for using images in sprites.
 
@@ -79,15 +79,14 @@ Textures and fonts have default decoders, not default encoders. `AtlasMeta` has 
 
 ### Cache identity
 
-Repeated `Load[T]` calls reuse the decoded value. Concurrent calls with the same cleaned path, type, and format share one in-flight read and decode. Keep the loader rather than constructing one per load.
+With the default `CacheReuse` policy, repeated `Load[T]` calls reuse the decoded value. Concurrent calls with the same cleaned path, type, and format share one in-flight read, decode, and close. Keep the loader rather than constructing one per load.
 
-Use `asset.WithFormat` to override extension inference. Use `asset.WithID` only when you deliberately want a logical cache identity:
+Use `asset.WithFormat` to override extension inference:
 
 ```go
 texture, err := loader.Load[asset.TextureData](
 	"assets/sprites/hull.data",
 	asset.WithFormat(asset.FormatPNG),
-	asset.WithID("ship:hull"),
 )
 if err != nil {
 	return err
@@ -95,7 +94,7 @@ if err != nil {
 _ = texture.Image
 ```
 
-The cache key combines ID, target type, and format. Two different files with the same explicit ID, type, and format share the first cached value. An overridden ID is therefore part of correctness, not just an optimization.
+The cache key combines the cleaned source path, exact Go type, and format within one loader. Equivalent paths such as `./assets/sprites/hull.png` and `assets/sprites/hull.png` share a cached value; different paths or loaders do not. `WithID` cache aliases are no longer supported.
 
 ## Configure game-defined data
 
@@ -154,6 +153,43 @@ if err != nil {
 ```
 
 `LoaderOptions{}` selects the default codecs; a nil filesystem uses the working directory. This loader remains independent of the world's loader. In particular, constructing a runner does not register audio decoders on standalone loaders.
+
+## Read changed files without disturbing cached content
+
+Use `CacheBypass` to read mutable documents through a long-lived loader:
+
+```go
+profile, err := loader.Load[Profile](
+	"profiles/player.json",
+	asset.WithCachePolicy(asset.CacheBypass),
+)
+if err != nil {
+	return err
+}
+```
+
+Bypass opens and decodes the source independently on every call. It does not consume, populate, replace, or invalidate cached values, and does not wait for an in-flight cached read. Concurrent bypass calls do not share their decode through the loader. A custom decoder can still return shared objects; bypass does not deep-copy them.
+
+Choose a default when constructing a loader used primarily for mutable data:
+
+```go
+loader, err := asset.NewLoader(files, asset.LoaderOptions{
+	Codecs:      codecs,
+	CachePolicy: asset.CacheBypass,
+})
+if err != nil {
+	return err
+}
+```
+
+| Policy | Read/populate decoded cache | Share in-flight reads |
+| --- | --- | --- |
+| `CacheReuse` (zero/default) | Yes | Yes |
+| `CacheBypass` | No | No |
+
+`WithCachePolicy` overrides either default for one load. Invalid policies and nil options return errors before opening a file. Both policies close files they open; failed decoding or closing returns no value and is never cached. If decoding and closing both fail, the returned error preserves both causes.
+
+Bypass is not cache refresh or hot reload. A previously started cached read can still finish and populate the reused cache with its own result. GPU textures and parsed runner fonts are not invalidated.
 
 ## Register sprite atlases
 
@@ -371,13 +407,13 @@ if err := saver.SaveWriter(&output, Profile{Name: "Player"}, asset.FormatJSON); 
 
 ### Reload and coordinate mutable data
 
-Saving does not invalidate a loader's decoded cache. To reread changed bytes, use `Open` followed by `LoadReader` as shown above, with a filesystem that can read the saved destination. Sharing codecs alone does not make saved bytes available to a loader.
+Saving does not invalidate a loader's decoded cache. To reread changed bytes, use `Load` with `CacheBypass` and a filesystem that can read the saved destination. Sharing codecs alone does not make saved bytes available to a loader.
 
 Coordinate concurrent saves to the same destination so an older snapshot cannot finish after a newer one. Encoders and storage must be concurrency-safe when used concurrently. Copy mutable data before handing it to a worker; [settings groups](settings.md) already provide a policy-based copying boundary.
 
 ## Handle failures at the right time
 
-Path and stream load/save operations return `*asset.AssetError`; underlying causes remain available through `errors.Is` and `errors.As`. `Load` reports `Load` or `Decode`; `Open` reports `Open`; path saves report `Save`, with encoding failures retaining their `Encode` cause. `LoadReader` and `SaveWriter` report `Decode` and `Encode` without inventing a file path. Constructors and registration methods can return ordinary errors instead.
+Path and stream load/save operations return errors containing `*asset.AssetError`; underlying causes remain available through `errors.Is` and `errors.As`. `Load` reports `Load`, `Decode`, or `Close`; `Open` reports `Open`; path saves report `Save`, with encoding failures retaining their `Encode` cause. `LoadReader` and `SaveWriter` report `Decode` and `Encode` without inventing a file path. Constructors and registration methods can return ordinary errors instead.
 
 Choose when predictable failures should surface:
 

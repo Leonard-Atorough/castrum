@@ -50,16 +50,13 @@ func BenchmarkLoadWarmFont(b *testing.B) {
 	}
 }
 
-// BenchmarkLoadColdPNG reports a texture decode. A unique cache
-// identity per iteration defeats the cache, so each load decodes
-// the 256x256 PNG from bytes; the stdlib codec dominates this cost.
+// BenchmarkLoadColdPNG reports an uncached 256x256 PNG decode.
 func BenchmarkLoadColdPNG(b *testing.B) {
 	loader := benchLoader(b)
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := range b.N {
-		id := asset.ID(fmt.Sprintf("tex-%d", i))
-		if _, err := loader.Load[asset.TextureData]("tex.png", asset.WithID(id)); err != nil {
+	for b.Loop() {
+		if _, err := loader.Load[asset.TextureData]("tex.png", asset.WithCachePolicy(asset.CacheBypass)); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -86,9 +83,8 @@ func BenchmarkLoadColdWAV(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := range b.N {
-		id := asset.ID(fmt.Sprintf("tone-%d", i))
-		if _, err := loader.Load[asset.AudioData]("tone.wav", asset.WithID(id)); err != nil {
+	for b.Loop() {
+		if _, err := loader.Load[asset.AudioData]("tone.wav", asset.WithCachePolicy(asset.CacheBypass)); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -100,9 +96,8 @@ func BenchmarkFontParse(b *testing.B) {
 	loader := benchLoader(b)
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := range b.N {
-		id := asset.ID(fmt.Sprintf("font-%d", i))
-		if _, err := loader.Load[asset.FontData]("font.ttf", asset.WithID(id)); err != nil {
+	for b.Loop() {
+		if _, err := loader.Load[asset.FontData]("font.ttf", asset.WithCachePolicy(asset.CacheBypass)); err != nil {
 			b.Fatal(err)
 		}
 	}
