@@ -26,9 +26,10 @@ If you'd like to understand the pieces as you go, the existing [key concepts](..
 - [Diagnose an asset or rendering failure](guides/assets/troubleshooting.md) when a file or drawable doesn't work as expected.
 - Consult the existing [assets guide](../unreleased/guides/assets.md) for codecs, saving, and cache policies.
 
-### Control the player and interact with the world
+### Input and collision
 
-- [Give the player controls](guides/interaction/controls.md), then [detect and respond to collisions](guides/interaction/collisions.md).
+- [Bind and read player actions](guides/input/actions.md), [use the mouse](guides/input/pointer.md), or [rebind an action](guides/input/rebinding.md).
+- [Detect and respond to overlaps](guides/collision/contacts.md), or [find a target along a line](guides/collision/raycasts.md).
 
 ### Create game behavior
 
