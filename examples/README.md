@@ -1,15 +1,15 @@
 # Examples
 
-Choose an example by what you want to learn, not by its directory's release label. Start with the starter and tutorial, use focused examples for individual features, then explore the integrated game.
+Choose an example by what you want to learn. Start with the starter and tutorial, use focused examples for individual features, then explore the integrated game.
 
-Source on `main` follows the engine's development API. Release tags preserve source matching that release; standalone example modules are pinned to it when the release is tagged. The existing `unreleased/` directory is a historical location, not a separate dependency policy.
+Source on `main` follows the engine's development API. Release tags preserve source matching that release; standalone example modules are pinned to it when the release is tagged.
 
 ## Start here
 
 | Project | What it teaches | What to try or observe | Before reading | Guide |
 | --- | --- | --- | --- | --- |
 | [Starter](../templates/starter) | Minimal project structure, input bindings, fixed-tick movement, and the runner | Move the blue square with WASD; use this as your project scaffold | Basic Go | [Starter instructions](../templates/starter/README.md) |
-| [Your first game](unreleased/your-first-game) | A complete tutorial game combining movement, aiming, combat, audio, timers, and collision | Drive and aim the tank, survive enemy waves, and watch the score and reload display | Starter structure and basic entities/systems | [Your first game](../docs/unreleased/getting-started/your-first-game.md) |
+| [Your first game](your-first-game) | A complete tutorial game combining movement, aiming, combat, audio, timers, and collision | Drive and aim the tank, survive enemy waves, and watch the score and reload display | Starter structure and basic entities/systems | [Your first game](../docs/unreleased/getting-started/your-first-game.md) |
 
 The tutorial is a complete game, not the shortest introduction to each API it uses. Use the focused examples below when you only need one feature.
 
@@ -22,7 +22,7 @@ Each example has one primary teaching purpose. Supporting controls, shapes, text
 | Project | What it teaches | What to try or observe | Before reading | Guide |
 | --- | --- | --- | --- | --- |
 | [Wander](wander) | Fixed-tick movement rendered with transform interpolation, using an embedded sheet region | Watch the sprite move smoothly between randomly chosen targets | Transforms and fixed ticks | [Rendering](../docs/unreleased/guides/rendering.md) |
-| [Animate](animate) | Grid slicing, in-memory sheet references, and an ordered looping clip | Watch the torch flicker through its frames | Sprites and asset loading | [Spritesheets](../docs/unreleased/guides/spritesheets.md) |
+| [Animate](animate) | File-backed sheets, setup validation, explicit grid authoring, and animation completion | SPACE pauses, R restarts, 1 plays once, and 2 loops; `-author` saves metadata without opening a window | Sprites and asset loading | [Spritesheets](../docs/unreleased/guides/spritesheets.md#run-the-complete-example) |
 | [Primitive](primitive) | Rectangle, ellipse, and line drawables with different styles | Compare the rows and columns for outlines, rotation, scale, and alpha | Sprites and transforms | [Rendering](../docs/unreleased/guides/rendering.md) |
 | [Text](text) | Text as a drawable, including changing content, tint, and scale | Compare the static labels and changing text | Sprites and asset loading | [Rendering](../docs/unreleased/guides/rendering.md) |
 | [Camera](camera) | Camera movement, rotation, zoom, and bounds | Use arrows to move, A/D to rotate, and W/S to zoom; observe the bounded view | Transforms and input bindings | [Camera](../docs/unreleased/guides/camera.md) |
@@ -34,14 +34,14 @@ Each example has one primary teaching purpose. Supporting controls, shapes, text
 | --- | --- | --- | --- | --- |
 | [Input](input) | Named keyboard/gamepad bindings alongside raw cursor and wheel input | Drive the tank, aim with the mouse, and zoom with Q/E or the wheel | Entities, transforms, and cameras | [Input](../docs/unreleased/guides/input.md) |
 | [Collision](collision) | Circle/box detection, layer masks, triggers, and contact-entry reactions | Move through hazards and pickups; observe health and score changes | Queries and fixed systems | [Collision](../docs/unreleased/guides/collision.md) |
-| [Raycast](unreleased/raycast) | Segment queries against synchronized collider state, with layer filtering | Aim with the cursor; inspect the displayed hit or miss | Colliders and camera coordinates | [Collision queries](../docs/unreleased/guides/collision.md) |
+| [Raycast](raycast) | Segment queries against synchronized collider state, with layer filtering | Aim with the cursor; inspect the displayed hit or miss | Colliders and camera coordinates | [Collision queries](../docs/unreleased/guides/collision.md) |
 | [Scenes](scenes) | Blueprint switching, additive scenes, lifecycle hooks, and entity ownership | SPACE changes location; S toggles the scanner in the field | Entities, queries, and resources | [Scenes](../docs/unreleased/guides/scenes.md) |
 | [Time control](time-control) | Simulation pause and scale while frame-phase controls keep running | Pause or change speed; compare the orbiting bodies with the live status display | Fixed and frame phases | [Time in Castrum](../docs/unreleased/guides/time-control.md) |
-| [Timer](unreleased/timer) | One-shot/repeating timers, completion state, and timer groups | R restarts the one-shot, SPACE starts the held timer, and P pauses one group | Components and fixed ticks | [Timers](../docs/unreleased/guides/timer.md) |
-| [Signals](unreleased/signals) | Consuming engine signals, emitting game signals, and independent readers across phases | Watch the repeating charge/countdown/launch sequence and its debug messages | Timers and phase ordering | [Signals](../docs/unreleased/guides/signals.md) |
-| [Settings](unreleased/settings) | Typed preference validation, cloning, reads, and updates | Run the command-line example and compare the printed values before and after an update | Basic Go; no running game required | [Settings](../docs/unreleased/guides/settings.md) |
+| [Timer](timer) | One-shot/repeating timers, completion state, and timer groups | R restarts the one-shot, SPACE starts the held timer, and P pauses one group | Components and fixed ticks | [Timers](../docs/unreleased/guides/timer.md) |
+| [Signals](signals) | Consuming engine signals, emitting game signals, and independent readers across phases | Watch the repeating charge/countdown/launch sequence and its debug messages | Timers and phase ordering | [Signals](../docs/unreleased/guides/signals.md) |
+| [Settings](settings) | Restore, validate, apply, and save typed preferences | Compare printed values across runs; writes to the OS user config directory by default, or a supplied `-directory` | Basic Go; no running game required | [Settings](../docs/unreleased/guides/settings.md#run-the-persistence-example) |
 
-Collision demonstrates detection and game-owned reactions, not physical separation or collision resolution. Settings demonstrates the in-memory API, not persistence or a preferences screen.
+Collision demonstrates detection and game-owned reactions, not physical separation or collision resolution. Settings is a command-line persistence example, not a preferences screen.
 
 ### Audio
 
@@ -58,7 +58,7 @@ These examples embed shared recordings. Audio output is required to hear the beh
 
 | Project | What it teaches | What to try or observe | Before reading | Guides |
 | --- | --- | --- | --- | --- |
-| [Signal salvage](unreleased/signal-salvage) | Scenes, signals, collision, timers, and system groups coordinating a complete round | SPACE starts; collect five cores before timeout, avoid the pulse, and use ENTER to return to briefing | Focused scenes, signals, timers, and collision examples | [Scenes](../docs/unreleased/guides/scenes.md), [Signals](../docs/unreleased/guides/signals.md) |
+| [Signal salvage](signal-salvage) | Scenes, signals, collision, timers, and system groups coordinating a complete round | SPACE starts; collect five cores before timeout, avoid the pulse, and use ENTER to return to briefing | Focused scenes, signals, timers, and collision examples | [Scenes](../docs/unreleased/guides/scenes.md), [Signals](../docs/unreleased/guides/signals.md) |
 
 Use this game to see features cooperate, not as the first explanation of each API. The first-game tutorial above remains the guided route through building a game.
 

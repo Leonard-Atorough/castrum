@@ -374,10 +374,30 @@ If a sheet or animation does not behave as expected, check the layer that owns t
 - **A saved sheet cannot be found:** check that the loader reads the saver's destination, and that the texture path is relative to the game's root.
 - **An edited sheet still shows old content:** saving does not invalidate decoded or GPU caches; retained memory references also keep their original sheet.
 
+## Run the complete example
+
+The [animation example](../../../examples/animate) loads an embedded JSON sheet and image, validates every region against the texture and each clip name during setup, and starts a looping torch animation. Use the [development workspace](../../../CONTRIBUTING.md#develop-examples-against-the-checkout), then run from `examples/animate`:
+
+```sh
+go run .
+```
+
+SPACE pauses or resumes the playhead, R restarts it, 1 restarts in play-once mode, and 2 restarts in looping mode. The debug overlay shows the current frame, pause and completion state, and messages for completion or loop wraps. A completed one-shot holds its last frame; use R rather than unpausing it to replay.
+
+Normal startup and playback write no files. To regenerate the shipped metadata explicitly, without opening a window:
+
+```sh
+go run . -author torch_light.sheet.json
+```
+
+The authoring command loads the embedded image, slices its actual bounds with `spritesheet.Grid`, and writes the resulting sheet through `Sheet.Save` and a directory-backed saver. Its output argument is a native file path, and the parent directory is created when needed.
+
+Authoring saves metadata only. The texture path remains `torch_light.png`, relative to the loader's root, not to the output directory. Writing an alternate output file does not select it for the game. The example embeds `torch_light.sheet.json`, so rebuild or rerun after regenerating that file; an already running binary does not reload it.
+
 ## Where to go next
 
 - [Assets](assets.md) - filesystem roots, codecs, writable storage, and cache policies.
 - [Rendering](rendering.md) - sprite style, cameras, ordering, and culling.
 - [ECS](ecs.md) - queries and component updates for gameplay control.
 - [Signals](signals.md) - independent readers and completion delivery.
-- [examples/animate](../../../examples/animate) - runnable grid slicing and frame playback; use the repository's development workspace.
+- [examples/animate](../../../examples/animate) - JSON sheet loading, explicit grid authoring, and playback controls.

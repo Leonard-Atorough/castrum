@@ -181,7 +181,7 @@ jobs:
         run: |
           mkdir -p dist
           archive="dist/castrum-tutorial-assets-${VERSION}.zip"
-          (cd examples/unreleased/your-first-game && zip -qr "../../../${archive}" audio sprites)
+          (cd examples/your-first-game && zip -qr "../../${archive}" audio sprites)
           unzip -t "${archive}"
           unzip -Z1 "${archive}" | grep -q '^audio/'
           unzip -Z1 "${archive}" | grep -q '^sprites/'

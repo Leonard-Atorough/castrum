@@ -1,4 +1,4 @@
-module github.com/Leonard-Atorough/castrum-examples/unreleased/raycast
+module github.com/Leonard-Atorough/castrum-examples/raycast
 
 go 1.27.2
 
