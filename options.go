@@ -35,7 +35,7 @@ type Options struct {
 	Filesystem fs.FS
 
 	// AssetCodecs configures the game's loader. New snapshots its registrations.
-	// Nil selects the asset package's defaults.
+	// Nil selects [NewAssetCodecs].
 	AssetCodecs *asset.Codecs
 
 	// FixedTPS is the number of fixed simulation ticks per second.
@@ -129,7 +129,7 @@ func WithFilesystem(filesystem fs.FS) option {
 
 // WithAssetCodecs supplies codec configuration for the game's content loader.
 // New snapshots the registrations; later changes do not affect that game.
-// Nil selects the asset package's defaults.
+// Nil selects [NewAssetCodecs].
 func WithAssetCodecs(codecs *asset.Codecs) option {
 	return optionFunc(func(o *Options) { o.AssetCodecs = codecs })
 }

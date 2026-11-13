@@ -7,14 +7,16 @@ import (
 	"github.com/Leonard-Atorough/castrum/settings"
 )
 
-// Preferences holds desired mixer levels. It does not apply them to a [Mixer].
+// Preferences holds JSON-serializable desired mixer levels.
+//
+// It does not apply them to a [Mixer].
 type Preferences struct {
 	// Master is the master volume in [0, 1].
-	Master float64
+	Master float64 `json:"master"`
 	// Music is the music bus volume in [0, 1].
-	Music float64
+	Music float64 `json:"music"`
 	// SFX is the sound-effects bus volume in [0, 1].
-	SFX float64
+	SFX float64 `json:"sfx"`
 }
 
 // NewPreferences returns a validated group with unity mixer levels.

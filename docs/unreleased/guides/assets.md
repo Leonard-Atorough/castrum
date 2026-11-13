@@ -112,14 +112,14 @@ See [Spritesheets](spritesheets.md) for the complete authoring, saving, loading,
 
 ## Configure game-defined data
 
-Use `asset.Codecs` to configure conversion once and reuse it across loaders and savers. Start with `asset.NewCodecs` to retain image/font decoders and the sheet JSON pair, then register your own types before constructing the game:
+Use `asset.Codecs` to configure conversion once and reuse it across loaders and savers. Start with `castrum.NewAssetCodecs` to retain image/font decoders, the sheet JSON pair, and core preference codecs, then register your own types before constructing the game. `asset.NewCodecs` remains the engine-independent alternative.
 
 ```go
 type Profile struct {
 	Name string `json:"name"`
 }
 
-codecs := asset.NewCodecs()
+codecs := castrum.NewAssetCodecs()
 if err := codecs.SetJSON[Profile](); err != nil {
 	return err
 }
