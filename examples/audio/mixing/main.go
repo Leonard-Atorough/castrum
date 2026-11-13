@@ -42,12 +42,12 @@ func run() error {
 	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](audioassets.Magic); err != nil {
 		return err
 	}
-	music := audio.NewSource(audioassets.Music)
+	music := audio.NewSource()
 	music.Group = audio.GroupMusic
 	music.Load = audio.LoadStream
 	music.Loop = audio.LoopForever
 	music.Pause = audio.PauseHolds
-	if _, err := g.World().NewEntity(music); err != nil {
+	if _, err := g.World().NewEntity(music, audio.Clip{Audio: audioassets.Music}); err != nil {
 		return err
 	}
 	mixer := g.World().MustResource[*audio.Mixer]()
@@ -91,9 +91,9 @@ func mixingSystem(mixer *audio.Mixer, panel *debug.Panel) core.System {
 			panel.Message("global pause toggled - music holds, effects play through")
 		}
 		if ctx.Input.KeyPressed(input.KeySpace) {
-			shot := audio.NewSource(audioassets.Magic)
+			shot := audio.NewSource()
 			shot.Pause = audio.PauseContinues
-			_, err := audio.OneShot(ctx.World, shot)
+			_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: audioassets.Magic})
 			return err
 		}
 		return nil

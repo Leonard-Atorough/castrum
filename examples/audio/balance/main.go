@@ -36,10 +36,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	music := audio.NewSource(audioassets.Music)
+	music := audio.NewSource()
 	music.Load = audio.LoadStream
 	music.Loop = audio.LoopForever
-	entity, err := g.World().NewEntity(music)
+	entity, err := g.World().NewEntity(music, audio.Clip{Audio: audioassets.Music})
 	if err != nil {
 		return err
 	}

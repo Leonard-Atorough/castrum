@@ -43,10 +43,10 @@ func run() error {
 	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](audioassets.Magic); err != nil {
 		return err
 	}
-	music := audio.NewSource(audioassets.Music)
+	music := audio.NewSource()
 	music.Load = audio.LoadStream
 	music.Loop = audio.LoopForever
-	entity, err := g.World().NewEntity(music)
+	entity, err := g.World().NewEntity(music, audio.Clip{Audio: audioassets.Music})
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func run() error {
 func playbackSystem(music *core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if ctx.Input.KeyPressed(input.KeySpace) {
-			if _, err := audio.OneShot(ctx.World, audio.NewSource(audioassets.Magic)); err != nil {
+			if _, err := audio.OneShot(ctx.World, audio.NewSource(), audio.Clip{Audio: audioassets.Magic}); err != nil {
 				return err
 			}
 			panel.Message("OneShot playing")

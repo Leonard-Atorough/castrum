@@ -27,6 +27,22 @@ release path.
 Castrum is a library, not a root-level executable. To run a game, follow the
 [starter instructions](templates/starter/README.md).
 
+### Develop examples against the checkout
+
+Examples and the starter are standalone modules. Their source on `main` follows the development API; their Castrum requirements are pinned when a release is tagged. Create an ignored local workspace from the repository root:
+
+```sh
+go work init .
+go work use -r ./examples
+go work use ./templates/starter
+```
+
+If `go.work` already exists, skip `init` and run the two `use` commands to include new modules. The workspace resolves Castrum to this checkout without module-level `replace` directives. Do not commit `go.work` or `go.work.sum`.
+
+Run builds and tests from each example's directory. Root `go test ./...` does not traverse nested modules. PR and release CI build, vet, and race-test every example and the starter against the checkout; a feature-changing PR must update its affected examples and unreleased guide together. On Linux with Xvfb and the dependencies above, `bash ./.github/scripts/check-examples.sh` runs that gate.
+
+To use a released example independently, check out its release tag and set `GOWORK=off` before running it. Development examples may use APIs absent from the version currently recorded in their module files.
+
 ## What a change needs
 
 Every change keeps the gates green, and the gates are the floor, not the ceiling:
@@ -34,7 +50,7 @@ Every change keeps the gates green, and the gates are the floor, not the ceiling
 - `gofmt -l .` is empty, `go vet ./...` and `go test ./...` pass, and merged coverage stays at or above the threshold in the PR checks (85% at the time of writing, with per-package coverage published on every run).
 - Public API has Go documentation that states the contract - what a caller can rely on and what fails how - rather than the implementation's internals. A reader who cannot act on a sentence does not need it.
 - A behavior change comes with a test that fails without it. A performance claim comes with a number from the `benchmark/` module, before and after, compared with benchstat.
-- Put in-progress documentation under `docs/unreleased`. At release, snapshot it into `docs/vX.Y.Z` and keep that released copy aligned with the tagged API. Runnable examples are independent modules pinned to the release they demonstrate; CI tests them separately from the root module.
+- Put in-progress documentation under `docs/unreleased`. At release, snapshot it into `docs/vX.Y.Z` and keep that released copy aligned with the tagged API. Runnable examples on `main` follow the checkout; release tags preserve standalone modules pinned to that release.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org); CI validates the PR title against the same types the release tooling derives versions from.
 
 ## Pull requests
@@ -55,6 +71,12 @@ If you used AI on a contribution, say so in the PR description the way the proje
 ## Releases
 
 Releases are cut by the Release workflow on `main`, which derives the next version from conventional commits, generates the changelog with git-cliff, tags, and publishes the tutorial asset bundle alongside. Pre-1.0 releases are marked as prereleases; the API is unstable until the version says otherwise, and every release should be readable as potentially breaking.
+
+Before tagging, the workflow pins every example and the starter to the computed version and removes Castrum replacements. Those module files are committed with the changelog. Dry runs preview the pins without committing or publishing.
+
+After publication, a separate job checks out the exact tag, disables workspaces, waits a bounded time for the module to become downloadable, and builds, vets, and race-tests each standalone module. It rejects replacements and version mismatches rather than falling back to local source. Dependency sums may be populated in this disposable checkout because the new module's checksum does not exist before publication; the job does not change the tag. A failed verification reports a distribution failure after publication, not a rollback of the release.
+
+If examples or documentation are deployed to a website, build released content from the exact tag and development previews from `main`. A website is a deployment of repository source, not a second independently maintained example tree.
 
 ## Conduct
 
