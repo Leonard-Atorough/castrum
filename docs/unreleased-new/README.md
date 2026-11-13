@@ -4,7 +4,7 @@ Castrum is a 2D game engine for Go. This manual is for the work of making a game
 
 These pages describe the development checkout, not necessarily the latest released module. If you're using a release, choose its matching [documentation and examples](../README.md) instead.
 
-This manual is being rebuilt. Until a topic has a new guide, the links below take you to the **existing unreleased documentation**. Those pages haven't yet been reorganized or edited to match the new manual.
+This manual is being rebuilt. Some links below take you to the **existing unreleased documentation** for topics not yet rebuilt or for deeper detail. Those pages haven't yet been reorganized or edited to match the new manual.
 
 ## Start here
 
@@ -26,10 +26,14 @@ If you'd like to understand the pieces as you go, the existing [key concepts](..
 - [Diagnose an asset or rendering failure](guides/assets/troubleshooting.md) when a file or drawable doesn't work as expected.
 - Consult the existing [assets guide](../unreleased/guides/assets.md) for codecs, saving, and cache policies.
 
+### Control the player and interact with the world
+
+- [Give the player controls](guides/interaction/controls.md), then [detect and respond to collisions](guides/interaction/collisions.md).
+
 ### Create game behavior
 
 - Use the existing [ECS guide](../unreleased/guides/ecs.md) to work with entities, components, queries, and resources; see [scheduling systems](../unreleased/guides/system-scheduling.md) to decide when your systems run.
-- [Give the player controls](guides/interaction/controls.md), then [detect and respond to collisions](guides/interaction/collisions.md).
+- Handle controls with [input](../unreleased/guides/input.md), and detect overlaps with [collision](../unreleased/guides/collision.md).
 - Organize game modes and reusable world content with [state](../unreleased/guides/state.md) and [scenes](../unreleased/guides/scenes.md).
 - Use [signals](../unreleased/guides/signals.md) to communicate between systems, [timers](../unreleased/guides/timer.md) for countdowns, and [time control](../unreleased/guides/time-control.md) to pause or scale time.
 - Add transitions with [tweening](../unreleased/guides/tweening.md), sound and music with [audio](../unreleased/guides/audio.md), and player preferences with [settings](../unreleased/guides/settings.md).
