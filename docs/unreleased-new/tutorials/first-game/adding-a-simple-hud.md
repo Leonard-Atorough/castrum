@@ -51,7 +51,7 @@ func addHUD(g *castrum.Game, player *tank, progress *round) error {
 				Size: 20,
 			}
 		})
-	})); err != nil {
+	}), castrum.After("shot.move")); err != nil {
 		return fmt.Errorf("register score display: %w", err)
 	}
 	return nil
@@ -68,6 +68,6 @@ In `main.go`, call it after the `shot.move` registration and before creating the
 
 Run `go run .` and shoot an enemy. The score below the tank should change from `0 / 3` to `1 / 3`.
 
-`builtin.Register` makes Castrum's built-in font available to the loader. The label is an ordinary world-space sprite: its system puts it below the hull every tick, so it travels with the player and camera. This is a simple way to show feedback, not a screen-fixed UI. See the existing [rendering guide](../../../unreleased/guides/rendering.md) for more about text and overlays.
+`castrum.After("shot.move")` updates the display after hits have changed the score. `builtin.Register` makes Castrum's built-in font available to the loader. The label is an ordinary world-space sprite: its system puts it below the hull every tick, so it travels with the player and camera. This is a simple way to show feedback, not a screen-fixed UI. See the existing [rendering guide](../../../unreleased/guides/rendering.md) for more about text and overlays.
 
 The score gives the player a goal, but reaching it doesn't end the game yet. Next: [show victory or defeat](victory-or-defeat.md).

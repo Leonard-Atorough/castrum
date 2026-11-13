@@ -101,15 +101,18 @@ func aimTurret(player *tank) core.System {
 }
 ```
 
-In `main.go`, register it immediately after `tank.move`:
+The turret needs the hull's new position each tick, so movement must run before aiming. In `main.go`, replace the `tank.move` registration with these two registrations:
 
 ```go
 	if err := g.AddSystem(core.PhaseFixed, "tank.aim", aimTurret(player)); err != nil {
 		return fmt.Errorf("register aiming: %w", err)
 	}
+	if err := g.AddSystem(core.PhaseFixed, "tank.move", movePlayer(player), castrum.Before("tank.aim")); err != nil {
+		return fmt.Errorf("register movement: %w", err)
+	}
 ```
 
-Run the game again. The turret should stay on the hull and follow your mouse while you drive. Movement runs first, so aiming reads the position just written by the movement system.
+We register aiming first so it exists as a target, then `castrum.Before("tank.aim")` places movement immediately before it. The target must already be registered in the same phase. Run the game again: the turret should stay on the hull and follow your mouse while you drive.
 
 Before the first frame is drawn, there may not be a camera view yet. The system waits for one rather than treating that normal startup condition as an error. For a closer look at screen and world coordinates, see [2D space and the camera](../../concepts/2d-space.md).
 
@@ -131,15 +134,17 @@ func followPlayer(camera *core.Entity, player *tank) core.System {
 }
 ```
 
-Register it in `main.go` after `tank.aim`:
+Register it in `main.go` after the other two systems:
 
 ```go
-	if err := g.AddSystem(core.PhaseFixed, "camera.follow", followPlayer(g.MainCamera(), player)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "camera.follow", followPlayer(g.MainCamera(), player), castrum.After("tank.aim")); err != nil {
 		return fmt.Errorf("register camera follow: %w", err)
 	}
 ```
 
-Run it and drive away from the tile. The tank stays centered while the tile moves out of view. The camera changes what you see, not the position of the tile. The [camera guide](../../guides/rendering/cameras.md) shows other framing choices.
+`castrum.After` works the same way as `Before`, placing the new system immediately after an already registered target in the same phase. Here the camera follows after movement and aiming. Run the game and drive away from the tile: the tank stays centered while the tile moves out of view. The camera changes what you see, not the position of the tile. The [camera guide](../../guides/rendering/cameras.md) shows other framing choices.
+
+These options insert systems at registration time; they don't establish permanent dependencies. If you add more systems later, check how their insertions affect the order. The existing [scheduling guide](../../../unreleased/guides/system-scheduling.md) goes into more detail.
 
 ## Fire a shot
 
@@ -191,7 +196,7 @@ func spawnShot(world *core.World, turret core.Transform) error {
 Register the firing system in `main.go` after `camera.follow`:
 
 ```go
-	if err := g.AddSystem(core.PhaseFixed, "shot.fire", fireShot(player)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "shot.fire", fireShot(player), castrum.After("camera.follow")); err != nil {
 		return fmt.Errorf("register firing: %w", err)
 	}
 ```
@@ -237,13 +242,13 @@ func moveShots(world *core.World, player *tank) core.System {
 Register it in `main.go` after `shot.fire`:
 
 ```go
-	if err := g.AddSystem(core.PhaseFixed, "shot.move", moveShots(g.World(), player)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "shot.move", moveShots(g.World(), player), castrum.After("shot.fire")); err != nil {
 		return fmt.Errorf("register shot movement: %w", err)
 	}
 ```
 
 Run the game and click the left mouse button. A shot should fly out of the turret. Aim elsewhere and fire again: each shot keeps its original direction.
 
-The `shot` component marks the entities that `moveShots` should find. Its query selects shots with transforms, leaving the tank and tile alone. We remove distant shots after the query finishes; destroying entities during iteration would invalidate the query.
+Firing runs after the turret has aimed, and shot movement runs after firing, so a newly created shot can move on the same tick. The `shot` component marks the entities that `moveShots` should find. Its query selects shots with transforms, leaving the tank and tile alone. We remove distant shots after the query finishes; destroying entities during iteration would invalidate the query.
 
 The shots don't hit anything yet. Next, in [time for enemies](time-for-enemies.md), we'll give them something to hit.

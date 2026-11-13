@@ -109,17 +109,17 @@ func moveEnemies(world *core.World, player *tank) core.System {
 }
 ```
 
-In `main.go`, register it immediately after the `addEnemies` call:
+In `main.go`, register it after the `shot.move` registration:
 
 ```go
-	if err := g.AddSystem(core.PhaseFixed, "enemy.move", moveEnemies(g.World(), player)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "enemy.move", moveEnemies(g.World(), player), castrum.Before("shot.fire")); err != nil {
 		return fmt.Errorf("register enemy movement: %w", err)
 	}
 ```
 
 Run the game again. The enemies should turn toward the hull and move closer. Try driving away: they're slower than the player. They don't end the round when they reach you yet.
 
-The query finds entities with both a transform and the `enemy` marker. Each tick, the system moves those entities toward the current hull position. The player and shots are not selected.
+The query finds entities with both a transform and the `enemy` marker. Each tick, the system moves those entities toward the current hull position. The player and shots are not selected. Inserting it before `shot.fire` puts it after player movement and before firing.
 
 ## Give shots a collider
 
@@ -208,7 +208,7 @@ In `main.go`, replace the `shot.move` registration with:
 
 ```go
 	progress := &round{}
-	if err := g.AddSystem(core.PhaseFixed, "shot.move", moveShots(g.World(), player, progress)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "shot.move", moveShots(g.World(), player, progress), castrum.After("shot.fire")); err != nil {
 		return fmt.Errorf("register shot movement: %w", err)
 	}
 ```

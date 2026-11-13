@@ -53,12 +53,12 @@ Changing state alone doesn't stop systems. We'll put the gameplay systems in a g
 In `main.go`, add `castrum.InGroup("gameplay")` as the last argument to each of these six `g.AddSystem` calls: `tank.move`, `tank.aim`, `camera.follow`, `enemy.move`, `shot.fire`, and `shot.move`. For example, the movement registration becomes:
 
 ```go
-	if err := g.AddSystem(core.PhaseFixed, "tank.move", movePlayer(player), castrum.InGroup("gameplay")); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "tank.move", movePlayer(player), castrum.Before("tank.aim"), castrum.InGroup("gameplay")); err != nil {
 		return fmt.Errorf("register movement: %w", err)
 	}
 ```
 
-Keep the other registrations' names, systems, and error checks unchanged. Don't group `hud.score`: it was registered in `hud.go`, and we want the last score to remain visible.
+Keep the other registrations' names, systems, ordering options, and error checks unchanged. Don't group `hud.score`: it was registered in `hud.go`, and we want the last score to remain visible.
 
 ## Request an outcome
 
@@ -95,14 +95,14 @@ func addEndings(g *castrum.Game, modes *state.Machine[gameMode], player *tank, p
 			return fmt.Errorf("stop gameplay: %w", err)
 		}
 		return nil
-	})); err != nil {
+	}), castrum.After("hud.score")); err != nil {
 		return fmt.Errorf("register round result: %w", err)
 	}
 	return nil
 }
 ```
 
-The system checks the score first, then checks the hull's contacts. If both conditions occur on the same tick, victory takes precedence. Once it requests an outcome, it stops the gameplay group immediately; that also prevents more shots or movement while the transition is pending.
+The result system runs after the score display, which runs after hits are processed. It checks the score first, then checks the hull's contacts. If both conditions occur on the same tick, victory takes precedence. Once it requests an outcome, it stops the gameplay group immediately; that also prevents more shots or movement while the transition is pending.
 
 A request is not an immediate state change. The state machine processes it on a later frame, then runs the matching enter hook. The pending check prevents the result system from requesting a conflicting outcome in the meantime.
 
