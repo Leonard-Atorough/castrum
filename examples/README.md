@@ -33,6 +33,7 @@ Each example has one primary teaching purpose. Supporting controls, shapes, text
 | Project | What it teaches | What to try or observe | Before reading | Guide |
 | --- | --- | --- | --- | --- |
 | [Input](input) | Named keyboard/gamepad bindings alongside raw cursor and wheel input | Drive the tank, aim with the mouse, and zoom with Q/E or the wheel | Entities, transforms, and cameras | [Input](../docs/unreleased/guides/input.md) |
+| [Rebinding](rebinding) | Restore controls, edit an owned draft, confirm/cancel, apply, and save | F2 edits ping; choose a key, ENTER confirms, ESC cancels; restart to restore | Input actions and typed preferences | [Persistent rebinding](../docs/unreleased/guides/input.md#run-the-persistent-rebinding-example) |
 | [Collision](collision) | Circle/box detection, layer masks, triggers, and contact-entry reactions | Move through hazards and pickups; observe health and score changes | Queries and fixed systems | [Collision](../docs/unreleased/guides/collision.md) |
 | [Raycast](raycast) | Segment queries against synchronized collider state, with layer filtering | Aim with the cursor; inspect the displayed hit or miss | Colliders and camera coordinates | [Collision queries](../docs/unreleased/guides/collision.md) |
 | [Scenes](scenes) | Blueprint switching, additive scenes, lifecycle hooks, and entity ownership | SPACE changes location; S toggles the scanner in the field | Entities, queries, and resources | [Scenes](../docs/unreleased/guides/scenes.md) |
