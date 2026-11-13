@@ -4,7 +4,7 @@ Castrum is a 2D game engine for Go. This manual is for the work of making a game
 
 These pages describe the development checkout, not necessarily the latest released module. If you're using a release, choose its matching [documentation and examples](../README.md) instead.
 
-This manual is being rebuilt. Until a topic has a new guide, the links below take you to the **existing unreleased documentation**. Those pages haven't yet been reorganized or edited to match the new manual.
+This manual is being rebuilt. Some links below take you to the **existing unreleased documentation** for topics not yet rebuilt or for deeper detail. Those pages haven't yet been reorganized or edited to match the new manual.
 
 ## Start here
 
@@ -25,6 +25,11 @@ If you'd like to understand the pieces as you go, the existing [key concepts](..
 - [Load game assets](guides/assets/loading.md) and choose where your game reads files from.
 - [Diagnose an asset or rendering failure](guides/assets/troubleshooting.md) when a file or drawable doesn't work as expected.
 - Consult the existing [assets guide](../unreleased/guides/assets.md) for codecs, saving, and cache policies.
+
+### Input and collision
+
+- [Use input](guides/input/input.md) for actions, devices, aiming, and player-configured controls.
+- [Use collision](guides/collision/collision.md) to detect overlaps, respond to contacts, and cast rays.
 
 ### Create game behavior
 
