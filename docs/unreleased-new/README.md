@@ -8,7 +8,7 @@ This manual is being rebuilt. Until a topic has a new guide, the links below tak
 
 ## Start here
 
-New to Castrum? Follow [Your first game](tutorials/first-game/README.md) to build a playable tank game. The existing [introduction](../unreleased/getting-started/intro.md) gives an overview of the engine, and the [starter project](../../templates/starter/README.md) offers a project layout to build on.
+New to Castrum? Follow [Your first game](start/first-game/README.md) to build a playable tank game. The existing [introduction](../unreleased/getting-started/intro.md) gives an overview of the engine, and the [starter project](../../templates/starter/README.md) offers a project layout to build on.
 
 If you'd like to understand the pieces as you go, the existing [key concepts](../unreleased/getting-started/concepts.md) introduce the world, entities, components, and systems.
 
