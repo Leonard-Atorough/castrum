@@ -101,6 +101,29 @@ Each contact identifies the other entity and supplies a point, normal, penetrati
 
 `Contacts.Current` holds the latest overlaps; `Contacts.Previous` holds the preceding tick's. Compare their `Other` entity IDs to distinguish an **enter** (new this tick), a **stay** (in both), and an **exit** (only in the previous set). The pickup example destroys the item, so it does not need a separate enter check. A hazard that remains in the world may need one to avoid applying damage every tick.
 
+For example, this helper finds new contacts for the entity whose `Contacts` you read:
+
+```go
+func entered(contacts collision.Contacts) []collision.Contact {
+	var result []collision.Contact
+	for _, current := range contacts.Current {
+		found := false
+		for _, previous := range contacts.Previous {
+			if previous.Other == current.Other {
+				found = true
+				break
+			}
+		}
+		if !found {
+			result = append(result, current)
+		}
+	}
+	return result
+}
+```
+
+In a fixed system, read the entity's contacts as in the pickup example, then process `entered(contacts)` rather than every current overlap. To find exits, compare the previous set against the current set instead.
+
 The engine also emits `collision.Entered` and `collision.Exited` signals, once for each side of a pair. Use these when you want reactions to lifecycle changes; read contacts when you need the full current set or stay behavior. The [signals guide](../../../unreleased/guides/signals.md) explains how to consume signals.
 
 The engine owns `Contacts`; game code should read rather than modify it. Its slices are borrowed, read-only views valid until the next collision update. Copy the slices if you need to retain them longer.

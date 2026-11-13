@@ -142,4 +142,51 @@ Keep controls for confirming or cancelling rebinding available independently of 
 
 Changing the live action map does not save it. For durable settings, maintain an input preference snapshot, validate and apply it, then save it using your project's storage. Restore the snapshot before creating the game or apply it to the action map later.
 
-`input.NewPreferences` creates a validated, copied preference group from bindings; its `Value` supplies a snapshot for `castrum.WithInputPreferences` at startup. When the player confirms a change, update the group and apply its value with `ctx.Actions.SetPreferences`. Applying preferences and saving them are separate operations, so handle errors from both. The [rebinding example](../../../../examples/rebinding) shows the whole workflow; the [settings guide](../../../unreleased/guides/settings.md#save-and-restore-engine-preferences) covers storage and restoration.
+`input.NewPreferences` creates a validated, copied preference group from bindings. For example, use the bindings from the beginning of this guide to create both the game and a group your settings menu can keep:
+
+```go
+func newGameWithPreferences(bindings input.Bindings) (*castrum.Game, *settings.Group[input.Preferences], error) {
+	prefs, err := input.NewPreferences(bindings)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create input preferences: %w", err)
+	}
+	value, err := prefs.Value()
+	if err != nil {
+		return nil, nil, fmt.Errorf("read input preferences: %w", err)
+	}
+	g, err := castrum.New(castrum.WithInputPreferences(value))
+	if err != nil {
+		return nil, nil, fmt.Errorf("create game: %w", err)
+	}
+	return g, prefs, nil
+}
+```
+
+This helper also uses `fmt`, `castrum`, and `settings`. Keep the returned group for your settings menu; the game does not retain or register it. If you have a saved snapshot, validate and restore it into the group with `prefs.Set` before obtaining the value used to create the game.
+
+When the player confirms a change, update the desired preferences and explicitly apply their value to the live action map. This example replaces the fire bindings and changes the map-wide deadzone:
+
+```go
+func applyFirePreference(prefs *settings.Group[input.Preferences], actions *input.ActionMap, key input.Key) error {
+	if key <= input.KeyNone || key >= input.NumKeys {
+		return fmt.Errorf("cannot bind fire to key %v", key)
+	}
+	if err := prefs.Update(func(p input.Preferences) input.Preferences {
+		p.Bindings["fire"] = []input.Input{input.KeyInput{Key: key}.Binding()}
+		p.Deadzone = 0.25
+		return p
+	}); err != nil {
+		return fmt.Errorf("update input preferences: %w", err)
+	}
+	value, err := prefs.Value()
+	if err != nil {
+		return fmt.Errorf("read input preferences: %w", err)
+	}
+	if err := actions.SetPreferences(value); err != nil {
+		return fmt.Errorf("apply input preferences: %w", err)
+	}
+	return nil
+}
+```
+
+The group and action map are separate: changing one does not automatically change the other. If applying the value fails, the desired preferences have still changed. Saving is also a separate operation. The [rebinding example](../../../../examples/rebinding) shows the whole workflow; the [settings guide](../../../unreleased/guides/settings.md#save-and-restore-engine-preferences) covers storage and restoration.
