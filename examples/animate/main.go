@@ -65,10 +65,10 @@ func newGame() (*castrum.Game, error) {
 		castrum.WithTitle("castrum - animate"),
 		castrum.WithFilesystem(files),
 		castrum.WithBindings(input.Bindings{
-			"pause":   {input.KeyInput{Key: input.KeySpace}},
-			"restart": {input.KeyInput{Key: input.KeyR}},
-			"once":    {input.KeyInput{Key: input.Key1}},
-			"loop":    {input.KeyInput{Key: input.Key2}},
+			"pause":   {input.KeyInput{Key: input.KeySpace}.Binding()},
+			"restart": {input.KeyInput{Key: input.KeyR}.Binding()},
+			"once":    {input.KeyInput{Key: input.Key1}.Binding()},
+			"loop":    {input.KeyInput{Key: input.Key2}.Binding()},
 		}),
 	)
 	if err != nil {

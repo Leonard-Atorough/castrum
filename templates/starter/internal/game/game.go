@@ -19,10 +19,10 @@ const playerSpeed = 240
 func New() (*castrum.Game, error) {
 	bindings := input.Bindings{
 		"move_x": []input.Input{
-			input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD},
+			input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD}.Binding(),
 		},
 		"move_y": []input.Input{
-			input.KeyPairInput{Negative: input.KeyW, Positive: input.KeyS},
+			input.KeyPairInput{Negative: input.KeyW, Positive: input.KeyS}.Binding(),
 		},
 	}
 

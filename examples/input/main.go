@@ -49,27 +49,27 @@ func main() {
 func tankBindings() input.Bindings {
 	return input.Bindings{
 		"move_forward": []input.Input{
-			input.KeyInput{Key: input.KeyW},
-			input.KeyInput{Key: input.KeyArrowUp},
-			input.PadAxisInput{Axis: input.PadLeftStickY, Direction: -1},
+			input.KeyInput{Key: input.KeyW}.Binding(),
+			input.KeyInput{Key: input.KeyArrowUp}.Binding(),
+			input.PadAxisInput{Axis: input.PadLeftStickY, Direction: -1}.Binding(),
 		},
 		"move_backward": []input.Input{
-			input.KeyInput{Key: input.KeyS},
-			input.KeyInput{Key: input.KeyArrowDown},
-			input.PadAxisInput{Axis: input.PadLeftStickY, Direction: 1},
+			input.KeyInput{Key: input.KeyS}.Binding(),
+			input.KeyInput{Key: input.KeyArrowDown}.Binding(),
+			input.PadAxisInput{Axis: input.PadLeftStickY, Direction: 1}.Binding(),
 		},
 		"turn_left": []input.Input{
-			input.KeyInput{Key: input.KeyA},
-			input.KeyInput{Key: input.KeyArrowLeft},
-			input.PadAxisInput{Axis: input.PadRightStickX, Direction: -1},
+			input.KeyInput{Key: input.KeyA}.Binding(),
+			input.KeyInput{Key: input.KeyArrowLeft}.Binding(),
+			input.PadAxisInput{Axis: input.PadRightStickX, Direction: -1}.Binding(),
 		},
 		"turn_right": []input.Input{
-			input.KeyInput{Key: input.KeyD},
-			input.KeyInput{Key: input.KeyArrowRight},
-			input.PadAxisInput{Axis: input.PadRightStickX, Direction: 1},
+			input.KeyInput{Key: input.KeyD}.Binding(),
+			input.KeyInput{Key: input.KeyArrowRight}.Binding(),
+			input.PadAxisInput{Axis: input.PadRightStickX, Direction: 1}.Binding(),
 		},
 		"zoom": []input.Input{
-			input.KeyPairInput{Positive: input.KeyQ, Negative: input.KeyE},
+			input.KeyPairInput{Positive: input.KeyQ, Negative: input.KeyE}.Binding(),
 		},
 	}
 }

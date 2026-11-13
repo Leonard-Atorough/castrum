@@ -11,12 +11,12 @@ Pass `WithBindings` when creating the game. Each action maps to one or more phys
 ```go
 bindings := input.Bindings{
 	"move_x": []input.Input{
-		input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD},
-		input.PadAxisInput{Axis: input.PadLeftStickX},
+		input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD}.Binding(),
+		input.PadAxisInput{Axis: input.PadLeftStickX}.Binding(),
 	},
 	"jump": []input.Input{
-		input.KeyInput{Key: input.KeySpace},
-		input.PadButtonInput{Button: input.PadSouth},
+		input.KeyInput{Key: input.KeySpace}.Binding(),
+		input.PadButtonInput{Button: input.PadSouth}.Binding(),
 	},
 }
 
@@ -40,6 +40,27 @@ The binding types are:
 - `ChordInput` requires every member binding to be active together; construct it with `Chord` (experimental).
 
 See the [cheat sheet](../getting-started/cheat-sheet.md) for the complete key, mouse, button, and axis vocabulary.
+
+Each value in `Bindings` is a concrete `input.Input`, not an interface. Construct it with a binding type's `Binding` method, or select exactly one pointer field in an `Input` literal. `Chord` already returns an `Input`. This is a breaking change: replace old `input.KeyInput{...}` binding values with `input.KeyInput{...}.Binding()`, and inspect a chord with `binding.Chord` instead of a type assertion.
+
+### JSON representation
+
+Bindings use ordinary JSON with one selector per input: `key`, `mouse_button`, `pad_button`, `pad_axis`, `key_pair`, or `chord`. For example, this preference document binds jump to the standard gamepad's south button:
+
+```json
+{
+  "deadzone": 0.15,
+  "bindings": {
+    "jump": [
+      {"pad_button": {"button": 0}}
+    ]
+  }
+}
+```
+
+Keys, buttons, and axes use their numeric Go constants in JSON. Generate documents from Go bindings when authoring them to avoid manually assigning these numbers. Chords store an `inputs` array of the same binding records. Zero or multiple selectors, malformed chords, and invalid deadzones are rejected by input validation. JSON decoding itself does not run that validation.
+
+The engine codec presets include `input.Preferences`; no custom marshaler or input-specific decoder is needed. If you save a bare `input.Bindings` map instead of the preference snapshot, register that type with `SetJSON`. See [Save and restore engine preferences](settings.md#save-and-restore-engine-preferences) for the presets, storage, and validation before application.
 
 ## Read actions
 
@@ -72,7 +93,7 @@ func updatePlayer(ctx *core.Context) error {
 
 The engine latches edges between fixed ticks. A tap that begins and ends between two ticks still delivers both `Pressed` and `Released` in the next tick. User tick-phase systems see the same delivered state until the next tick consumes the latch. A scene transition flushes pending edges before tick delivery. Use frame edges for presentation or frame-rate input, and fixed edges for simulation decisions.
 
-Without `WithBindings`, `ctx.Actions` is nil, but its query methods are nil-safe and return zero values. No action map resource is created in that case.
+Without `WithBindings` or `WithInputPreferences`, `ctx.Actions` is nil, but its query methods are nil-safe and return zero values. No action map resource is created in that case.
 
 ## Keyboard and modifiers
 
@@ -83,7 +104,7 @@ Plain keys use the zero-value modifier array. A chord fires only while every lis
 	input.KeyInput{
 		Key:       input.KeyS,
 		Modifiers: [3]input.Key{input.KeyControlLeft},
-	},
+	}.Binding(),
 },
 ```
 
@@ -97,10 +118,10 @@ Use `input.Chord` for a combination that should press when its last requirement 
 bindings := input.Bindings{
 	"dash": {
 		input.Chord(
-			input.KeyInput{Key: input.KeyA},
-			input.KeyInput{Key: input.KeyB},
+			input.KeyInput{Key: input.KeyA}.Binding(),
+			input.KeyInput{Key: input.KeyB}.Binding(),
 		),
-		input.PadButtonInput{Button: input.PadEast},
+		input.PadButtonInput{Button: input.PadEast}.Binding(),
 	},
 }
 ```
@@ -109,7 +130,7 @@ Either key may be held first. In this example, A and B together or the gamepad's
 
 Chords may mix keyboard, mouse, gamepad button, and axis bindings. An axis member counts as active after its deadzone and direction filtering; a key pair counts as active when its keys do not cancel. The chord itself is digital and contributes no `Axis` value. Members using `Pad: 0` must all match the same connected controller. Explicit pad addresses may intentionally select different controllers.
 
-Chords require at least two members and cannot contain other chords or refer to named actions. Use value-form bindings, not pointers. `input.New` and `SetBindings` reject malformed chords and invalid deadzones; a failed replacement leaves the existing bindings and state unchanged.
+Chords require at least two members and cannot contain other chords or refer to named actions. Each member must select exactly one physical binding. `input.New` and `SetBindings` reject malformed chords and invalid deadzones; a failed replacement leaves the existing bindings and state unchanged.
 
 ## Axes and gamepads
 
@@ -117,13 +138,13 @@ Gamepad buttons use the standard position names `PadSouth`, `PadEast`, `PadWest`
 
 Axis bindings use the normalized backend value. Stick axes range from `-1` to `1`; stick Y is positive downward. Triggers range from `0` to `1`. If an action has multiple axis bindings, the value with the greatest absolute magnitude wins rather than the values being added.
 
-The default axis deadzone is `0.15`. Values below the deadzone read as zero; crossing into or out of the active range produces the action's press or release edge. The game-level `WithBindings` option uses this default. Code that owns an `input.ActionMap` directly can pass a deadzone to `input.New`; zero selects the default and values outside `[0, 1]` are rejected.
+The default axis deadzone is `0.15`. Values below the deadzone read as zero; crossing into or out of the active range produces the action's press or release edge. `WithBindings` alone uses this default. Use `WithInputPreferences` to configure the map-wide deadzone at startup, and `ActionMap.SetPreferences` to apply changes at runtime. Code that owns an `input.ActionMap` directly can also pass a deadzone to `input.New`; zero selects the default and values outside `[0, 1]` are rejected.
 
 The experimental `PadAxisInput.Deadzone` field overrides the map's deadzone for that binding:
 
 ```go
 "throttle": []input.Input{
-	input.PadAxisInput{Axis: input.PadRightTrigger, Deadzone: 0.05},
+	input.PadAxisInput{Axis: input.PadRightTrigger, Deadzone: 0.05}.Binding(),
 },
 ```
 
@@ -138,7 +159,7 @@ The action map copies the bindings when it is created, so changing the original 
 ```go
 if err := ctx.Actions.SetBindings(input.Bindings{
 	"jump": []input.Input{
-		input.KeyInput{Key: input.KeyJ},
+		input.KeyInput{Key: input.KeyJ}.Binding(),
 	},
 }); err != nil {
 	return err
@@ -147,9 +168,9 @@ if err := ctx.Actions.SetBindings(input.Bindings{
 
 The replacement takes effect on the next input update. Chords restart inactive, so a newly satisfied chord can produce a fresh press. Removing a held action releases it on that update, clears its axis and duration, and delivers the release to the next fixed tick along with any previously accumulated edges. Removing an inactive action does not synthesize a release. `ctx.Actions.Bindings()` returns a copy suitable for displaying or editing in a settings screen; mutating that returned value, including chord member slices, does not mutate the action map.
 
-### Store desired bindings
+### Store desired input preferences
 
-Use input preferences when the desired bindings need to be read or changed independently of the action map. `input.NewPreferences` validates and copies the initial bindings, including chord members. At startup, create the group from the `bindings` above, optionally set values loaded by your game, and use its value instead of the earlier `castrum.New` call:
+Use input preferences when the desired bindings and map-wide deadzone need to be read or changed independently of the action map. `input.NewPreferences` validates and copies the initial bindings, including chord members, and starts with `input.DefaultDeadzone`. At startup, create the group from the `bindings` above, restore a loaded snapshot with `prefs.Set(restored)` if available, and use its value instead of the earlier `castrum.New` call:
 
 ```go
 prefs, err := input.NewPreferences(bindings)
@@ -160,19 +181,20 @@ value, err := prefs.Value()
 if err != nil {
 	return err
 }
-g, err := castrum.New(castrum.WithBindings(value.Bindings))
+g, err := castrum.New(castrum.WithInputPreferences(value))
 if err != nil {
 	return err
 }
 ```
 
-Keep `prefs` wherever your settings menu needs it, or register it as a [world resource](ecs.md#resources) for other systems to resolve. `WithBindings` creates the action map, but the preferences group is not registered or applied automatically.
+Keep `prefs` wherever your settings menu needs it, or register it as a [world resource](ecs.md#resources) for other systems to resolve. `WithInputPreferences` creates the action map from a validated copy, but does not register or retain the preferences group. Later `WithBindings` options replace only the bindings; nil disables the action map.
 
-In a settings-menu handler with access to `ctx`, update the desired bindings and apply them to the action map when a player confirms a rebind. This example changes one action without removing the others and uses `reflect.DeepEqual` from the standard library to avoid replacing identical bindings:
+In a settings-menu handler with access to `ctx`, update the desired bindings or deadzone and explicitly apply them when the player confirms:
 
 ```go
 if err := prefs.Update(func(p input.Preferences) input.Preferences {
-	p.Bindings["jump"] = []input.Input{input.KeyInput{Key: input.KeyJ}}
+	p.Bindings["jump"] = []input.Input{input.KeyInput{Key: input.KeyJ}.Binding()}
+	p.Deadzone = 0.25
 	return p
 }); err != nil {
 	return err
@@ -181,16 +203,14 @@ value, err := prefs.Value()
 if err != nil {
 	return err
 }
-if !reflect.DeepEqual(ctx.Actions.Bindings(), value.Bindings) {
-	if err := ctx.Actions.SetBindings(value.Bindings); err != nil {
-		return err
-	}
+if err := ctx.Actions.SetPreferences(value); err != nil {
+	return err
 }
 ```
 
-Here `ctx.Actions` is the action map created by `WithBindings`. `Update` works on a copy and validates the result; an invalid update leaves the group and action map unchanged. A successful update changes only the preferences, so if applying them later fails, the preferences remain changed. `SetBindings` takes effect on the next input update and resets chord state; skipping identical bindings avoids an unnecessary reset.
+`Update` works on a copy and validates the result; an invalid update leaves the group and action map unchanged. A successful update changes only the preferences, so if applying them later fails, the preferences remain changed. `SetPreferences` validates both fields before changing either. It preserves chord state for unchanged bindings, including deadzone-only changes; changed bindings restart chords as with `SetBindings`. Axis and chord activation are re-evaluated at the next input update, with edges preserved for fixed ticks.
 
-Preferences are not saved automatically. See the [settings guide](settings.md) for value ownership and the [audio guide](audio.md#audio-preferences) for mixer preferences.
+Preferences are not saved automatically. Use an engine codec preset, restore into the validated group before calling `WithInputPreferences` or `SetPreferences`, and save the snapshot returned by `Value`. `ActionMap.Preferences()` returns an owned snapshot with the effective deadzone. An omitted or zero JSON deadzone selects the default; per-binding nonzero overrides still take precedence. See the [settings guide](settings.md#save-and-restore-engine-preferences) for the persistence workflow and the [audio guide](audio.md#audio-preferences) for mixer preferences.
 
 ## Raw snapshots
 

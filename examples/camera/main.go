@@ -62,25 +62,25 @@ func main() {
 func run() error {
 	bindings := input.Bindings{
 		"pan_left": []input.Input{
-			input.KeyInput{Key: input.KeyArrowLeft},
+			input.KeyInput{Key: input.KeyArrowLeft}.Binding(),
 		},
 		"pan_right": []input.Input{
-			input.KeyInput{Key: input.KeyArrowRight},
+			input.KeyInput{Key: input.KeyArrowRight}.Binding(),
 		},
 		"pan_up": []input.Input{
-			input.KeyInput{Key: input.KeyArrowUp},
+			input.KeyInput{Key: input.KeyArrowUp}.Binding(),
 		},
 		"pan_down": []input.Input{
-			input.KeyInput{Key: input.KeyArrowDown},
+			input.KeyInput{Key: input.KeyArrowDown}.Binding(),
 		},
 		"rotate_left": []input.Input{
-			input.KeyInput{Key: input.KeyA},
+			input.KeyInput{Key: input.KeyA}.Binding(),
 		},
 		"rotate_right": []input.Input{
-			input.KeyInput{Key: input.KeyD},
+			input.KeyInput{Key: input.KeyD}.Binding(),
 		},
 		"zoom": []input.Input{
-			input.KeyPairInput{Positive: input.KeyW, Negative: input.KeyS},
+			input.KeyPairInput{Positive: input.KeyW, Negative: input.KeyS}.Binding(),
 		},
 	}
 

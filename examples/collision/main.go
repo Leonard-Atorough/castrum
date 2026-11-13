@@ -114,10 +114,10 @@ func main() {
 
 func run() error {
 	bindings := input.Bindings{
-		"up":    {input.KeyInput{Key: input.KeyW}, input.KeyInput{Key: input.KeyArrowUp}},
-		"down":  {input.KeyInput{Key: input.KeyS}, input.KeyInput{Key: input.KeyArrowDown}},
-		"left":  {input.KeyInput{Key: input.KeyA}, input.KeyInput{Key: input.KeyArrowLeft}},
-		"right": {input.KeyInput{Key: input.KeyD}, input.KeyInput{Key: input.KeyArrowRight}},
+		"up":    {input.KeyInput{Key: input.KeyW}.Binding(), input.KeyInput{Key: input.KeyArrowUp}.Binding()},
+		"down":  {input.KeyInput{Key: input.KeyS}.Binding(), input.KeyInput{Key: input.KeyArrowDown}.Binding()},
+		"left":  {input.KeyInput{Key: input.KeyA}.Binding(), input.KeyInput{Key: input.KeyArrowLeft}.Binding()},
+		"right": {input.KeyInput{Key: input.KeyD}.Binding(), input.KeyInput{Key: input.KeyArrowRight}.Binding()},
 	}
 
 	g, err := castrum.New(

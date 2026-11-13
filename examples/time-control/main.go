@@ -61,16 +61,16 @@ func main() {
 func timeBindings() input.Bindings {
 	return input.Bindings{
 		"pause": []input.Input{
-			input.KeyInput{Key: input.KeySpace},
-			input.KeyInput{Key: input.KeyP},
+			input.KeyInput{Key: input.KeySpace}.Binding(),
+			input.KeyInput{Key: input.KeyP}.Binding(),
 		},
 		"speed_up": []input.Input{
-			input.KeyInput{Key: input.KeyArrowUp},
-			input.KeyInput{Key: input.KeyW},
+			input.KeyInput{Key: input.KeyArrowUp}.Binding(),
+			input.KeyInput{Key: input.KeyW}.Binding(),
 		},
 		"slow_down": []input.Input{
-			input.KeyInput{Key: input.KeyArrowDown},
-			input.KeyInput{Key: input.KeyS},
+			input.KeyInput{Key: input.KeyArrowDown}.Binding(),
+			input.KeyInput{Key: input.KeyS}.Binding(),
 		},
 	}
 }

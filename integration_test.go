@@ -82,7 +82,7 @@ func TestRunnerAudioRunsAfterFrameAndSignalsPostFrame(t *testing.T) {
 
 func TestEngineSystemsRejectRelativeInsertion(t *testing.T) {
 	g := newTestGame(t, WithScenes(), WithState(state.New[string]().WithInitial("boot")), WithBindings(input.Bindings{
-		"jump": {input.KeyInput{Key: input.KeySpace}},
+		"jump": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}))
 	system := core.SystemFunc(func(*core.Context) error { return nil })
 	for _, entry := range []struct {
@@ -165,7 +165,7 @@ func TestAudioBackendHeadlessAndErrors(t *testing.T) {
 
 func TestPreFixedInputAcrossCatchUpTicks(t *testing.T) {
 	g := newTestGame(t, WithFixedTPS(4), WithMaxFrameTime(time.Second), WithBindings(input.Bindings{
-		"jump": {input.KeyInput{Key: input.KeySpace}},
+		"jump": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}))
 	snapshot := &input.Snapshot{}
 	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
@@ -267,13 +267,13 @@ func TestSpatialAudioFrameAndFixedOrder(t *testing.T) {
 
 func TestSettingsWorldAndFrameApplication(t *testing.T) {
 	type accessibility struct{ Subtitles bool }
-	bindings := input.Bindings{"move": {input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyC}}}
+	bindings := input.Bindings{"move": {input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyC}.Binding()}}
 	inputPrefs, err := input.NewPreferences(bindings)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := inputPrefs.Update(func(p input.Preferences) input.Preferences {
-		p.Bindings["move"] = []input.Input{input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD}}
+		p.Bindings["move"] = []input.Input{input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD}.Binding()}
 		return p
 	}); err != nil {
 		t.Fatal(err)
@@ -337,7 +337,7 @@ func TestSettingsWorldAndFrameApplication(t *testing.T) {
 	if err := audioPrefs.Set(audio.Preferences{Master: 0.4, Music: 1, SFX: 1}); err != nil {
 		t.Fatal(err)
 	}
-	if err := inputPrefs.Set(input.Preferences{Bindings: input.Bindings{"move": {input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyB}}}}); err != nil {
+	if err := inputPrefs.Set(input.Preferences{Bindings: input.Bindings{"move": {input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyB}.Binding()}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := game.Advance(time.Millisecond); err != nil {
@@ -382,7 +382,7 @@ func TestSettingsWorldAndFrameApplication(t *testing.T) {
 
 func TestWithBindingsWiresInput(t *testing.T) {
 	bindings := input.Bindings{
-		"jump": {input.KeyInput{Key: input.KeySpace}},
+		"jump": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}
 	g, err := New(WithBindings(bindings), WithFixedTPS(4))
 	if err != nil {
@@ -710,7 +710,7 @@ func TestWithStateRunsWhilePaused(t *testing.T) {
 func TestStateTransitionsRunBeforeSceneOperationsAndFrameSystems(t *testing.T) {
 	machine := state.New[string]().WithInitial("boot")
 	g := newTestGame(t, WithScenes(), WithState(machine), WithBindings(input.Bindings{
-		"start": {input.KeyInput{Key: input.KeySpace}},
+		"start": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}))
 	if got := g.World().MustResource[*state.Machine[string]](); got != machine {
 		t.Fatal("state resource is not the configured machine")

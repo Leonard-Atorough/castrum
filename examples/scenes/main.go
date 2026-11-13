@@ -45,8 +45,8 @@ func newGame() (*castrum.Game, error) {
 		castrum.WithTitle("Scenes"),
 		castrum.WithScenes(),
 		castrum.WithBindings(input.Bindings{
-			"travel":  []input.Input{input.KeyInput{Key: input.KeySpace}},
-			"scanner": []input.Input{input.KeyInput{Key: input.KeyS}},
+			"travel":  []input.Input{input.KeyInput{Key: input.KeySpace}.Binding()},
+			"scanner": []input.Input{input.KeyInput{Key: input.KeyS}.Binding()},
 		}),
 	)
 	if err != nil {
