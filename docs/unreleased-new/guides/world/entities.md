@@ -98,7 +98,7 @@ if err := enemy.RemoveComponent[Stunned](g.World()); err != nil {
 }
 ```
 
-These are separate moments in the game, not consecutive setup steps. Adding or removing a component changes which queries match the entity. The [movement system](systems.md) uses this marker to leave stunned enemies in place. If you are iterating a query when you decide to change a component set, finish the pass first.
+These are separate moments in the game, not consecutive setup steps. `AddComponent` leaves an existing component of the same type unchanged. Adding or removing a component changes which queries match the entity. The [movement system](systems.md) uses this marker to leave stunned enemies in place. If you are iterating a query when you decide to change a component set, finish the pass first.
 
 ## Remove an enemy
 

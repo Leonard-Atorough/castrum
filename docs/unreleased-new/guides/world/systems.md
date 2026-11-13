@@ -84,21 +84,21 @@ Don't destroy, spawn, or add or remove components while a query is being iterate
 
 ## Put the work in order
 
-If cleanup should happen before movement, register the two systems in that order. This replaces the earlier standalone movement registration:
+If cleanup should happen before movement, register cleanup first and place movement immediately after it. This replaces the earlier standalone movement registration:
 
 ```go
 if err := g.AddSystem(core.PhaseFixed, "enemy.cleanup", removeDefeated(g.World()), castrum.InGroup("gameplay")); err != nil {
 	return fmt.Errorf("register enemy cleanup: %w", err)
 }
-if err := g.AddSystem(core.PhaseFixed, "enemy.move", moveEnemies(g.World()), castrum.InGroup("gameplay")); err != nil {
+if err := g.AddSystem(core.PhaseFixed, "enemy.move", moveEnemies(g.World()), castrum.InGroup("gameplay"), castrum.After("enemy.cleanup")); err != nil {
 	return fmt.Errorf("register enemy movement: %w", err)
 }
 ```
 
-Import `github.com/Leonard-Atorough/castrum` as well. Within a phase, user systems normally run in registration order, so an enemy already at zero health is removed before movement finds it. A system that applies damage needs to run before cleanup if its damage should be considered by that cleanup pass.
+Import `github.com/Leonard-Atorough/castrum` as well. `After` places movement immediately after the already registered cleanup system, so an enemy already at zero health is removed before movement finds it. A system that applies damage needs to run before cleanup if its damage should be considered by that cleanup pass.
 
 Both systems belong to the `gameplay` group. To stop them together later, call `g.SetGroupEnabled("gameplay", false)` and handle its error. This doesn't destroy their entities or automatically change a scene. Groups start enabled; a change also affects later systems in the current phase.
 
-Use `castrum.Before` or `castrum.After` when a newly registered system must be placed relative to an existing user system in the same phase. The target must already be registered; these options don't reorder engine-owned systems. For a runnable ordering example, see [scheduling](../../../../examples/scheduling/main.go).
+`castrum.Before` and `castrum.After` place a newly registered system relative to an existing user system in the same phase; they do not declare permanent dependencies or reorder engine-owned systems. A later insertion after the same target goes closest to it. For a runnable ordering example, see [scheduling](../../../../examples/scheduling/main.go).
 
 Next: [share a score between systems](resources.md).
