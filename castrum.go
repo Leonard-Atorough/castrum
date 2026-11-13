@@ -78,8 +78,12 @@ func New(opts ...option) (*Game, error) {
 	}
 	g.real = real
 
+	codecs := options.AssetCodecs
+	if codecs == nil {
+		codecs = NewAssetCodecs()
+	}
 	loader, err := asset.NewLoader(builtin.WithFilesystem(options.Filesystem), asset.LoaderOptions{
-		Codecs: options.AssetCodecs,
+		Codecs: codecs,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("castrum: create asset loader: %w", err)

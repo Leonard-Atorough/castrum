@@ -305,7 +305,9 @@ if err := mixer.SetGroupVolume(audio.GroupMusic, value.Music); err != nil {
 }
 ```
 
-Preference levels must be finite and in `[0, 1]`; an invalid update leaves the group and mixer unchanged. A successful update changes only the preferences; if a later mixer call fails, the preferences remain changed. The mixer change reaches playback on the next audio reconciliation and may be buffered. Applying only the changed level avoids overwriting unrelated runtime mixer changes, but the game must still coordinate temporary effects that write that same level. Preferences are not saved automatically; see the [settings guide](settings.md) for validation, copying, and applying custom preferences.
+Preference levels must be finite and in `[0, 1]`; an invalid update leaves the group and mixer unchanged. A successful update changes only the preferences; if a later mixer call fails, the preferences remain changed. The mixer change reaches playback on the next audio reconciliation and may be buffered. Applying only the changed level avoids overwriting unrelated runtime mixer changes, but the game must still coordinate temporary effects that write that same level.
+
+`audio.Preferences` is a JSON-serializable snapshot with `master`, `music`, and `sfx` fields. Engine codec presets include this type. Restore through the group's `Set` method before applying it, and pass the snapshot returned by `Value` to a saver. Preferences are not saved automatically; see [Save and restore engine preferences](settings.md#save-and-restore-engine-preferences) for the presets and complete workflow.
 
 ### Pause all playback
 

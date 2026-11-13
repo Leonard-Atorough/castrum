@@ -115,7 +115,65 @@ if err != nil {
 
 The window dimensions must be positive. These are startup settings: changing the group later does not change an existing runner. Options passed after `WithDisplayPreferences` override its values.
 
-## Run the persistence example
+## Save and restore engine preferences
+
+`audio.Preferences` is ordinary JSON data with `master`, `music`, and `sfx` fields. Persist this snapshot, not its `settings.Group` wrapper. It can also be a field of an application-owned document registered with `SetJSON`. There is no separate settings registry, automatic file I/O, or implicit application.
+
+Choose an application-data location and open an `asset.Directory`; see [Save and reload a document](assets.md#save-and-reload-a-document) for directory ownership and write guarantees. `castrum.NewAssetCodecs` includes audio preferences, so no per-type JSON registration is needed. With that open directory named `directory`, construct the preference loader and saver:
+
+```go
+codecs := castrum.NewAssetCodecs()
+loader, err := asset.NewLoader(directory, asset.LoaderOptions{
+	Codecs: codecs,
+	CachePolicy: asset.CacheBypass,
+})
+if err != nil {
+	return err
+}
+saver, err := asset.NewSaver(directory, asset.SaverOptions{Codecs: codecs})
+if err != nil {
+	return err
+}
+```
+
+The loader reads mutable preference documents independently of its decoded cache. Each loader and saver snapshots registrations at construction, so configure game-owned document codecs or replacements first. Each preset call returns independent codecs. The directory remains caller-owned and must be closed after both facades finish using it.
+
+`castrum.New` selects this preset when `WithAssetCodecs` is absent or nil; an explicit codec configuration is used as supplied. The low-level `asset.NewCodecs` stays engine-independent. Pass the configured set through `castrum.WithAssetCodecs(codecs)` if the game's content loader should use it too. Audio sample decoders remain runner-installed at the effective sample rate.
+
+Restore defaults only when the file is missing. Decode failures and invalid values are errors, not a reason to overwrite the player's file:
+
+```go
+prefs, err := audio.NewPreferences()
+if err != nil {
+	return err
+}
+restored, err := loader.Load[audio.Preferences]("audio.json")
+if err == nil {
+	if err := prefs.Set(restored); err != nil {
+		return err
+	}
+} else if !errors.Is(err, fs.ErrNotExist) {
+	return err
+}
+```
+
+These codecs handle representation, not domain validation. Restore snapshots through the group's `Set` method before [applying mixer levels](audio.md#audio-preferences). Missing JSON fields keep their zero values; loading does not merge them with constructor defaults. Loading changes neither the mixer nor the player's files.
+
+Save an owned snapshot when the player confirms a change:
+
+```go
+snapshot, err := prefs.Value()
+if err != nil {
+	return err
+}
+if err := saver.Save("audio.json", snapshot); err != nil {
+	return err
+}
+```
+
+Saving and application are separate operations. If applying a change must succeed before it is persisted, arrange that ordering in the game. The settings example follows the same workflow for game-defined preferences.
+
+### Run the persistence example
 
 From `examples/settings`, use the development workspace and run:
 
