@@ -117,9 +117,9 @@ The window dimensions must be positive. These are startup settings: changing the
 
 ## Save and restore engine preferences
 
-`audio.Preferences` is ordinary JSON data with `master`, `music`, and `sfx` fields. Persist this snapshot, not its `settings.Group` wrapper. It can also be a field of an application-owned document registered with `SetJSON`. There is no separate settings registry, automatic file I/O, or implicit application.
+`audio.Preferences` stores `master`, `music`, and `sfx` levels. `input.Preferences` stores JSON-native `bindings` and the map-wide `deadzone`. Persist these snapshots, not their `settings.Group` wrappers. They can also be fields of an application-owned document registered with `SetJSON`. There is no separate settings registry, automatic file I/O, or implicit application.
 
-Choose an application-data location and open an `asset.Directory`; see [Save and reload a document](assets.md#save-and-reload-a-document) for directory ownership and write guarantees. `castrum.NewAssetCodecs` includes audio preferences, so no per-type JSON registration is needed. With that open directory named `directory`, construct the preference loader and saver:
+Choose an application-data location and open an `asset.Directory`; see [Save and reload a document](assets.md#save-and-reload-a-document) for directory ownership and write guarantees. `castrum.NewAssetCodecs` includes audio and input preferences, so no per-type JSON registration is needed. With that open directory named `directory`, construct the preference loader and saver:
 
 ```go
 codecs := castrum.NewAssetCodecs()
@@ -158,6 +158,8 @@ if err == nil {
 ```
 
 These codecs handle representation, not domain validation. Restore snapshots through the group's `Set` method before [applying mixer levels](audio.md#audio-preferences). Missing JSON fields keep their zero values; loading does not merge them with constructor defaults. Loading changes neither the mixer nor the player's files.
+
+For input, create a group with `input.NewPreferences(bindings)`, then pass the complete restored snapshot through `prefs.Set(restored)` so its deadzone is retained too. Apply the validated value with `castrum.WithInputPreferences(value)` at startup or `ctx.Actions.SetPreferences(value)` at runtime. Neither loading nor editing the group applies it automatically. See [Store desired input preferences](input.md#store-desired-input-preferences) for validation, copying, and live-update behavior.
 
 Save an owned snapshot when the player confirms a change:
 

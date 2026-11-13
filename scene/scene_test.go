@@ -1010,7 +1010,7 @@ func TestDrainFlushesEdgesWhenApplied(t *testing.T) {
 	d := NewDirector()
 	ctx := &core.Context{World: core.NewWorld()}
 	am, err := input.New(input.Bindings{
-		input.Action("jump"): []input.Input{input.KeyInput{Key: input.KeyA}},
+		input.Action("jump"): []input.Input{input.KeyInput{Key: input.KeyA}.Binding()},
 	}, 0)
 	if err != nil {
 		t.Fatalf("input.New: %v", err)

@@ -4,8 +4,8 @@ import "testing"
 
 func TestRemovedBindingReleasesAndPreservesPendingEdges(t *testing.T) {
 	am := mustMap(t, Bindings{
-		"move": {KeyPairInput{Negative: KeyA, Positive: KeyD}},
-		"jump": {KeyInput{Key: KeySpace}},
+		"move": {KeyPairInput{Negative: KeyA, Positive: KeyD}.Binding()},
+		"jump": {KeyInput{Key: KeySpace}.Binding()},
 	}, 0)
 	snapshot := &Snapshot{}
 	snapshot.Keys[KeyD] = State{Pressed: true, Held: true}
@@ -14,7 +14,7 @@ func TestRemovedBindingReleasesAndPreservesPendingEdges(t *testing.T) {
 	if !am.Held("move") || !am.JustPressed("move") || am.Axis("move") != 1 {
 		t.Fatal("move did not become active")
 	}
-	if err := am.SetBindings(Bindings{"jump": {KeyInput{Key: KeySpace}}}); err != nil {
+	if err := am.SetBindings(Bindings{"jump": {KeyInput{Key: KeySpace}.Binding()}}); err != nil {
 		t.Fatal(err)
 	}
 	if !am.Held("move") || am.Axis("move") != 1 {
@@ -49,7 +49,7 @@ func TestRemovedBindingReleasesAndPreservesPendingEdges(t *testing.T) {
 }
 
 func TestRemovedBindingDeliversEdgesAcrossDelayedTicksAndRebinding(t *testing.T) {
-	am := mustMap(t, Bindings{"jump": {KeyInput{Key: KeySpace}}}, 0)
+	am := mustMap(t, Bindings{"jump": {KeyInput{Key: KeySpace}.Binding()}}, 0)
 	snapshot := &Snapshot{}
 	snapshot.Keys[KeySpace] = State{Pressed: true, Held: true}
 	am.Update(snapshot, 0)
@@ -62,7 +62,7 @@ func TestRemovedBindingDeliversEdgesAcrossDelayedTicksAndRebinding(t *testing.T)
 	}
 	am.Update(nil, 0)
 	am.Update(nil, 0)
-	if err := am.SetBindings(Bindings{"jump": {KeyInput{Key: KeyA}}}); err != nil {
+	if err := am.SetBindings(Bindings{"jump": {KeyInput{Key: KeyA}.Binding()}}); err != nil {
 		t.Fatal(err)
 	}
 	am.Update(nil, 0)
@@ -77,7 +77,7 @@ func TestRemovedBindingDeliversEdgesAcrossDelayedTicksAndRebinding(t *testing.T)
 }
 
 func TestRemovingInactiveBindingDoesNotSynthesizeRelease(t *testing.T) {
-	am := mustMap(t, Bindings{"jump": {KeyInput{Key: KeySpace}}}, 0)
+	am := mustMap(t, Bindings{"jump": {KeyInput{Key: KeySpace}.Binding()}}, 0)
 	am.Update(nil, 0)
 	if err := am.SetBindings(Bindings{}); err != nil {
 		t.Fatal(err)
@@ -93,7 +93,7 @@ func TestRemovingInactiveBindingDoesNotSynthesizeRelease(t *testing.T) {
 }
 
 func TestRemovingBindingPreservesCompletedTap(t *testing.T) {
-	am := mustMap(t, Bindings{"jump": {KeyInput{Key: KeySpace}}}, 0)
+	am := mustMap(t, Bindings{"jump": {KeyInput{Key: KeySpace}.Binding()}}, 0)
 	press := &Snapshot{}
 	press.Keys[KeySpace] = State{Pressed: true, Held: true}
 	am.Update(press, 0)

@@ -23,7 +23,7 @@ modes := state.New[GameMode]().WithInitial(ModeMenu)
 g, err := castrum.New(
 	castrum.WithState(modes),
 	castrum.WithBindings(input.Bindings{
-		"start": {input.KeyInput{Key: input.KeySpace}},
+		"start": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}),
 )
 if err != nil {
@@ -223,7 +223,7 @@ g, err := castrum.New(
 	castrum.WithState(modes),
 	castrum.WithState(connection),
 	castrum.WithBindings(input.Bindings{
-		"start": {input.KeyInput{Key: input.KeySpace}},
+		"start": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}),
 )
 if err != nil {

@@ -7,8 +7,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/input"
 )
 
-func (g *Game) wireInput(bindings input.Bindings) error {
-	am, err := input.New(bindings, 0)
+func (g *Game) wireInput(bindings input.Bindings, deadzone float64) error {
+	am, err := input.New(bindings, deadzone)
 	if err != nil {
 		return fmt.Errorf("castrum: input bindings: %w", err)
 	}

@@ -52,6 +52,11 @@ type Options struct {
 	// action map is created, but the runner's raw input snapshot remains
 	// available.
 	InputBindings input.Bindings
+	// InputDeadzone is the map-wide gamepad axis threshold. Zero selects
+	// [input.DefaultDeadzone].
+	InputDeadzone float64
+
+	inputPreferences bool
 
 	fixedDT time.Duration
 
@@ -100,6 +105,11 @@ func defaultOptions() Options {
 }
 
 func (o *Options) finalize() error {
+	if o.inputPreferences {
+		if err := (input.Preferences{Bindings: o.InputBindings, Deadzone: o.InputDeadzone}).Validate(); err != nil {
+			return fmt.Errorf("castrum: input preferences: %w", err)
+		}
+	}
 	if o.FixedTPS <= 0 {
 		return fmt.Errorf("castrum: FixedTPS = %d, want > 0", o.FixedTPS)
 	}
@@ -153,9 +163,24 @@ func WithMaxTicksPerFrame(n int) option {
 	return optionFunc(func(o *Options) { o.MaxTicksPerFrame = n })
 }
 
-// WithBindings configures the game's input bindings.
+// WithBindings configures the game's input bindings without changing its
+// deadzone. Nil disables the action map.
 func WithBindings(bindings input.Bindings) option {
-	return optionFunc(func(o *Options) { o.InputBindings = bindings })
+	return optionFunc(func(o *Options) {
+		o.InputBindings = bindings
+		o.inputPreferences = false
+	})
+}
+
+// WithInputPreferences configures the game's initial bindings and deadzone.
+// [New] validates and copies the values; it does not retain a preference group.
+// Later [WithBindings] options override only the bindings.
+func WithInputPreferences(p input.Preferences) option {
+	return optionFunc(func(o *Options) {
+		o.InputBindings = p.Bindings
+		o.InputDeadzone = p.Deadzone
+		o.inputPreferences = true
+	})
 }
 
 // WithScenes enables the scene system and provides a scene Director resource.

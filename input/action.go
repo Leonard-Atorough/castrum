@@ -3,6 +3,7 @@ package input
 import (
 	"fmt"
 	"math"
+	"reflect"
 )
 
 // DefaultDeadzone is the default gamepad axis deadzone used by [New].
@@ -26,9 +27,9 @@ type Action string
 // Multiple inputs can be bound to one action.
 //
 //	Bindings{
-//	    "jump":   []Input{KeyInput{KeySpace}, PadButtonInput{Button: PadSouth}},
-//	    "move_x": []Input{KeyPairInput{Negative: KeyA, Positive: KeyD}, PadAxisInput{Axis: PadLeftStickX}},
-//	    "p2_jump": []Input{PadButtonInput{Pad: 2, Button: PadSouth}},
+//	    "jump":   {KeyInput{Key: KeySpace}.Binding(), PadButtonInput{Button: PadSouth}.Binding()},
+//	    "move_x": {KeyPairInput{Negative: KeyA, Positive: KeyD}.Binding(), PadAxisInput{Axis: PadLeftStickX}.Binding()},
+//	    "p2_jump": {PadButtonInput{Pad: 2, Button: PadSouth}.Binding()},
 //	}
 type Bindings map[Action][]Input
 
@@ -57,14 +58,14 @@ type ActionMap struct {
 // New creates an [ActionMap] with a copy of bindings. A deadzone of zero
 // selects [DefaultDeadzone]. It returns an error if bindings is nil or
 // deadzone is not finite or outside [0, 1], or a binding is invalid.
-// Bindings must use value-form input types; chords require at least two
-// members and cannot contain other chords.
+// Each input must select exactly one binding type; chords require at least
+// two members and cannot contain other chords.
 func New(bindings Bindings, deadzone float64) (*ActionMap, error) {
 	if err := validateBindings(bindings); err != nil {
 		return nil, err
 	}
-	if math.IsNaN(deadzone) || deadzone < 0 || deadzone > 1 {
-		return nil, fmt.Errorf("deadzone must be finite and between 0 and 1")
+	if err := validateDeadzone(deadzone); err != nil {
+		return nil, err
 	}
 
 	if deadzone == 0 {
@@ -87,16 +88,50 @@ func (am *ActionMap) SetBindings(bindings Bindings) error {
 	if err := validateBindings(bindings); err != nil {
 		return fmt.Errorf("cannot update bindings: %w", err)
 	}
+	am.setBindings(bindings)
+	return nil
+}
+
+func (am *ActionMap) setBindings(bindings Bindings) {
 	am.bindings = cloneBindings(bindings)
 	for _, st := range am.states {
 		st.chordHeld = nil
 	}
-	return nil
 }
 
 // Bindings returns a copy of the current bindings.
 func (am *ActionMap) Bindings() Bindings {
 	return cloneBindings(am.bindings)
+}
+
+// Preferences returns an owned snapshot with the effective map-wide deadzone.
+func (am *ActionMap) Preferences() Preferences {
+	return Preferences{Bindings: am.Bindings(), Deadzone: am.deadzone}
+}
+
+// SetPreferences validates and applies bindings and deadzone together for the
+// next Update. Invalid values leave the map unchanged. Changed bindings restart
+// chords as in [ActionMap.SetBindings]; unchanged bindings preserve chord state.
+// Pending fixed-tick edges are preserved.
+func (am *ActionMap) SetPreferences(p Preferences) error {
+	if err := p.Validate(); err != nil {
+		return fmt.Errorf("cannot update preferences: %w", err)
+	}
+	if !reflect.DeepEqual(am.bindings, p.Bindings) {
+		am.setBindings(p.Bindings)
+	}
+	am.deadzone = p.Deadzone
+	if am.deadzone == 0 {
+		am.deadzone = DefaultDeadzone
+	}
+	return nil
+}
+
+func validateDeadzone(deadzone float64) error {
+	if math.IsNaN(deadzone) || deadzone < 0 || deadzone > 1 {
+		return fmt.Errorf("deadzone must be finite and between 0 and 1")
+	}
+	return nil
 }
 
 // Update resolves one frame of input into per-action state. Press
@@ -116,11 +151,11 @@ func (am *ActionMap) Update(s *Snapshot, dt float64) {
 		for i, bound := range inputs {
 			var state State
 			var value float64
-			if chord, ok := bound.(ChordInput); ok {
+			if bound.Chord != nil {
 				if st.chordHeld == nil {
 					st.chordHeld = make([]bool, len(inputs))
 				}
-				held := am.chordActive(s, chord)
+				held := am.chordActive(s, *bound.Chord)
 				state = State{
 					Held:     held,
 					Pressed:  held && !st.chordHeld[i],
@@ -328,67 +363,101 @@ func validateBindings(bindings Bindings) error {
 }
 
 func validateInput(bound Input) error {
-	switch src := bound.(type) {
-	case KeyInput, MouseButtonInput, PadButtonInput, KeyPairInput:
-		return nil
-	case PadAxisInput:
-		if math.IsNaN(src.Deadzone) || src.Deadzone < 0 || src.Deadzone > 1 {
-			return fmt.Errorf("deadzone must be finite and between 0 and 1")
+	count := 0
+	for _, present := range [...]bool{
+		bound.Key != nil, bound.MouseButton != nil, bound.PadButton != nil,
+		bound.PadAxis != nil, bound.KeyPair != nil, bound.Chord != nil,
+	} {
+		if present {
+			count++
 		}
-	case ChordInput:
+	}
+	if count != 1 {
+		return fmt.Errorf("input must select exactly one binding type")
+	}
+	if src := bound.PadAxis; src != nil {
+		if err := validateDeadzone(src.Deadzone); err != nil {
+			return err
+		}
+	}
+	if src := bound.Chord; src != nil {
 		if len(src.Inputs) < 2 {
 			return fmt.Errorf("chord requires at least two inputs")
 		}
 		for i, member := range src.Inputs {
-			if _, nested := member.(ChordInput); nested {
+			if member.Chord != nil {
 				return fmt.Errorf("chord member %d: nested chords are not supported", i)
 			}
 			if err := validateInput(member); err != nil {
 				return fmt.Errorf("chord member %d: %w", i, err)
 			}
 		}
-	default:
-		return fmt.Errorf("unsupported input type %T; use value-form bindings", bound)
 	}
 	return nil
 }
 
-// Copy chord members too, so callers cannot mutate stored bindings through a
-// chord.
 func cloneBindings(bindings Bindings) Bindings {
 	owned := make(Bindings, len(bindings))
 	for action, inputs := range bindings {
 		owned[action] = append([]Input(nil), inputs...)
 		for i, bound := range owned[action] {
-			if chord, ok := bound.(ChordInput); ok {
+			bound = cloneInputFields(bound)
+			if chord := bound.Chord; chord != nil {
 				chord.Inputs = append([]Input(nil), chord.Inputs...)
-				owned[action][i] = chord
+				// Nested chords are invalid, so only one member level needs copying.
+				for j, member := range chord.Inputs {
+					chord.Inputs[j] = cloneInputFields(member)
+				}
 			}
+			owned[action][i] = bound
 		}
 	}
 	return owned
 }
 
+func cloneInputFields(bound Input) Input {
+	bound.Key = clonePointer(bound.Key)
+	bound.MouseButton = clonePointer(bound.MouseButton)
+	bound.PadButton = clonePointer(bound.PadButton)
+	bound.PadAxis = clonePointer(bound.PadAxis)
+	bound.KeyPair = clonePointer(bound.KeyPair)
+	bound.Chord = clonePointer(bound.Chord)
+	return bound
+}
+
+func clonePointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
+}
+
 func (am *ActionMap) resolveInput(s *Snapshot, bound Input, anyPad int) (State, float64) {
-	switch src := bound.(type) {
-	case KeyInput:
+	switch {
+	case bound.Key != nil:
+		src := bound.Key
 		if !modifiersHeld(s, src.Modifiers) {
 			return State{}, 0
 		}
 		return State{Pressed: s.KeyPressed(src.Key), Held: s.KeyHeld(src.Key), Released: s.KeyReleased(src.Key)}, 0
-	case MouseButtonInput:
+	case bound.MouseButton != nil:
+		src := bound.MouseButton
 		return State{Pressed: s.MousePressed(src.Button), Held: s.MouseHeld(src.Button), Released: s.MouseReleased(src.Button)}, 0
-	case PadButtonInput:
+	case bound.PadButton != nil:
+		src := *bound.PadButton
 		if src.Pad == 0 {
 			src.Pad = anyPad
 		}
 		return padState(s, src.Pad, src.Button), 0
-	case PadAxisInput:
+	case bound.PadAxis != nil:
+		src := *bound.PadAxis
 		if src.Pad == 0 {
 			src.Pad = anyPad
 		}
 		return State{}, am.padAxisValue(s, src)
-	case KeyPairInput:
+	case bound.KeyPair != nil:
+		src := bound.KeyPair
 		var value float64
 		if s.KeyHeld(src.Negative) {
 			value--
@@ -398,7 +467,7 @@ func (am *ActionMap) resolveInput(s *Snapshot, bound Input, anyPad int) (State, 
 		}
 		return State{}, value
 	default:
-		panic(fmt.Sprintf("input: unsupported binding %T reached resolver", bound))
+		panic(fmt.Sprintf("input: invalid binding %+v reached resolver", bound))
 	}
 }
 

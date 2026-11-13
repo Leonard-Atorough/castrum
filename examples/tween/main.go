@@ -61,12 +61,12 @@ func newGame() (*castrum.Game, *demo, error) {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - tween"),
 		castrum.WithBindings(input.Bindings{
-			"pause":   []input.Input{input.KeyInput{Key: input.KeySpace}},
-			"half":    []input.Input{input.KeyInput{Key: input.Key1}},
-			"normal":  []input.Input{input.KeyInput{Key: input.Key2}},
-			"double":  []input.Input{input.KeyInput{Key: input.Key3}},
-			"restart": []input.Input{input.KeyInput{Key: input.KeyR}},
-			"quit":    []input.Input{input.KeyInput{Key: input.KeyEscape}},
+			"pause":   []input.Input{input.KeyInput{Key: input.KeySpace}.Binding()},
+			"half":    []input.Input{input.KeyInput{Key: input.Key1}.Binding()},
+			"normal":  []input.Input{input.KeyInput{Key: input.Key2}.Binding()},
+			"double":  []input.Input{input.KeyInput{Key: input.Key3}.Binding()},
+			"restart": []input.Input{input.KeyInput{Key: input.KeyR}.Binding()},
+			"quit":    []input.Input{input.KeyInput{Key: input.KeyEscape}.Binding()},
 		}),
 	)
 	if err != nil {

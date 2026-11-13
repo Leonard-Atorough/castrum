@@ -210,7 +210,7 @@ func New(opts ...option) (*Game, error) {
 	}
 
 	if options.InputBindings != nil {
-		if err := g.wireInput(options.InputBindings); err != nil {
+		if err := g.wireInput(options.InputBindings, options.InputDeadzone); err != nil {
 			return nil, err
 		}
 	}

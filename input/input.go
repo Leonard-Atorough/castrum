@@ -256,53 +256,69 @@ type State struct {
 	Released bool
 }
 
-// Input is implemented by the physical input types accepted by [Bindings].
-type Input interface{ isInput() }
+// Input describes one JSON-serializable physical binding.
+//
+// Exactly one field must be non-nil. The binding types' Binding methods and
+// [Chord] construct inputs; [New] and [ActionMap.SetBindings] validate and copy
+// them.
+type Input struct {
+	// Key selects a keyboard binding.
+	Key *KeyInput `json:"key,omitempty"`
+	// MouseButton selects a mouse button binding.
+	MouseButton *MouseButtonInput `json:"mouse_button,omitempty"`
+	// PadButton selects a gamepad button binding.
+	PadButton *PadButtonInput `json:"pad_button,omitempty"`
+	// PadAxis selects a gamepad axis binding.
+	PadAxis *PadAxisInput `json:"pad_axis,omitempty"`
+	// KeyPair selects a keyboard axis binding.
+	KeyPair *KeyPairInput `json:"key_pair,omitempty"`
+	// Chord selects a combination of physical bindings.
+	Chord *ChordInput `json:"chord,omitempty"`
+}
 
 // KeyInput binds an action to a keyboard key, optionally requiring modifier
-// keys to be held. For example, Ctrl+S is KeyInput{Key: KeyS,
-// Modifiers: [3]Key{KeyControlLeft}}.
+// keys to be held. Use [KeyInput.Binding] to construct an [Input].
 type KeyInput struct {
 	// Key is the trigger: Pressed, Held, and Released follow this key
 	// while every modifier is held. A Key of KeyNone never fires.
-	Key Key
+	Key Key `json:"key"`
 	// Modifiers lists keys that must be held for Key to count.
 	// Empty slots (KeyNone) are ignored, so the zero value binds the
 	// plain key. A modifier dropped mid-hold stops the action without
 	// a release edge. A modifier equal to Key suppresses the release
 	// edge: the key is no longer held on its own release frame.
-	Modifiers [3]Key
+	Modifiers [3]Key `json:"modifiers,omitzero"`
 }
 
 // MouseButtonInput binds an action to a mouse button.
 type MouseButtonInput struct {
 	// Button is the mouse button that triggers the action.
-	Button MouseButton
+	Button MouseButton `json:"button"`
 }
 
 // PadButtonInput binds an action to a gamepad button.
 type PadButtonInput struct {
 	// Pad is the player number: 0 - the zero value - means any
 	// connected pad, 1 the first pad, 2 the second.
-	Pad int
+	Pad int `json:"pad,omitempty"`
 	// Button is the gamepad button that triggers the action.
-	Button PadButton
+	Button PadButton `json:"button"`
 }
 
 // PadAxisInput binds an action to a gamepad axis.
 type PadAxisInput struct {
 	// Pad is the player number: 0 - the zero value - means any
 	// connected pad, 1 the first pad, 2 the second.
-	Pad int
+	Pad int `json:"pad,omitempty"`
 	// Axis is the gamepad axis that triggers the action.
-	Axis PadAxis
+	Axis PadAxis `json:"axis"`
 	// Direction gates which deflection drives the binding: 0 -
 	// the zero value - either direction, -1 only the negative half
 	// (screen-up for a Y axis), +1 only the positive half.
-	Direction int
+	Direction int `json:"direction,omitempty"`
 	// Deadzone overrides the action map's deadzone. Zero inherits it.
 	// Values must be finite and in [0, 1]; active values are not rescaled.
-	Deadzone float64
+	Deadzone float64 `json:"deadzone,omitempty"`
 }
 
 // ChordInput binds a digital action to two or more inputs held together.
@@ -314,27 +330,38 @@ type PadAxisInput struct {
 // Explicit pad addresses remain independent. Nested chords are not supported.
 type ChordInput struct {
 	// Inputs lists the physical bindings that must all be active.
-	Inputs []Input
+	Inputs []Input `json:"inputs"`
 }
 
-// Chord returns a [ChordInput] that requires inputs to be active together.
+// Chord returns an [Input] that requires inputs to be active together.
 // [New] and [ActionMap.SetBindings] validate and copy its members.
-func Chord(inputs ...Input) ChordInput {
-	return ChordInput{Inputs: inputs}
+func Chord(inputs ...Input) Input {
+	return ChordInput{Inputs: inputs}.Binding()
 }
 
 // KeyPairInput binds the negative and positive directions of an axis to
 // keyboard keys.
 type KeyPairInput struct {
 	// Negative is the key for the negative axis direction.
-	Negative Key
+	Negative Key `json:"negative"`
 	// Positive is the key for the positive axis direction.
-	Positive Key
+	Positive Key `json:"positive"`
 }
 
-func (KeyInput) isInput()         {}
-func (MouseButtonInput) isInput() {}
-func (PadButtonInput) isInput()   {}
-func (PadAxisInput) isInput()     {}
-func (KeyPairInput) isInput()     {}
-func (ChordInput) isInput()       {}
+// Binding returns the keyboard binding as an [Input].
+func (value KeyInput) Binding() Input { return Input{Key: &value} }
+
+// Binding returns the mouse button binding as an [Input].
+func (value MouseButtonInput) Binding() Input { return Input{MouseButton: &value} }
+
+// Binding returns the gamepad button binding as an [Input].
+func (value PadButtonInput) Binding() Input { return Input{PadButton: &value} }
+
+// Binding returns the gamepad axis binding as an [Input].
+func (value PadAxisInput) Binding() Input { return Input{PadAxis: &value} }
+
+// Binding returns the keyboard axis binding as an [Input].
+func (value KeyPairInput) Binding() Input { return Input{KeyPair: &value} }
+
+// Binding returns the chord as an [Input], retaining its member slice.
+func (value ChordInput) Binding() Input { return Input{Chord: &value} }
