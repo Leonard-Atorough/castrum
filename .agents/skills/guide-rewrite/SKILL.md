@@ -1,115 +1,53 @@
 ---
 name: guide-rewrite
-description: "Plan, implement, or review a repository guide grounded in its owning API. Use for documentation rewrites, guide structure planning, API-accurate examples, and focused post-edit validation."
-argument-hint: "[plan|implement|review] <guide-path> [owning-package-or-folder]"
+description: "Plan, write, improve, or review Castrum tutorials and how-to guides. Use for reader-centered documentation structure, API-grounded workflows, examples, and focused validation."
+argument-hint: "[plan|implement|review] <reader-goal-or-guide-path> [owning-package-or-folder]"
 user-invocable: true
 ---
 
 # Guide Rewrite
 
-Use this skill for a user-facing guide whose behavior is controlled by a local package, folder, example, or test suite.
+Use this workflow for Castrum tutorials and how-to guides. It also applies when planning or reviewing their structure. Read and follow the shared [documentation editorial contract](../../../docs/CONTRIBUTING.md) before acting. Ground every behavioral claim in the public API and relevant working examples or tests.
 
-## Modes
+## Modes and scope
 
-Choose one mode from the request. If no mode is given, use `implement` when the user asks to write or update the guide, and use `plan` when the user asks only for structure or approach.
+Choose a mode from the request. Default to `implement` for a request to write or update documentation and to `plan` for a request about structure or approach.
 
-- `plan`: read-only analysis; do not edit files.
-- `implement`: apply the agreed guide rewrite and validate it.
-- `review`: read-only API and prose review; do not edit files.
+- `plan`: read-only; propose an outcome, structure, ownership, and checks.
+- `implement`: make the requested or agreed change and validate it.
+- `review`: read-only; report actionable findings and residual risk.
 
-## Required Inputs
+Identify the reader's goal, intended audience, target version, affected guide or area, owning public API, and closest runnable example or test. If the guide exists, read it first and preserve valid user-authored material. Inspect only the related material needed to understand the task; a cross-cutting workflow may involve more than one package.
 
-Identify these anchors before acting:
-
-- The current guide path.
-- The owning package or folder containing the public API.
-- A neighboring example, test, or related guide when one exists.
-
-If the guide path is known, read it first and preserve user edits. Do not map the whole repository.
+Keep changes within the requested scope. Do not move or split pages, change released snapshots, or alter examples or Go docs unless requested or necessary to correct an affected link or claim. If a necessary change would materially broaden scope, explain it and ask before proceeding. Follow the repository's versioning policy: development documentation lives under `docs/unreleased`, while released snapshots describe their matching tagged API.
 
 ## Procedure
 
 ### 1. Establish the contract
 
-Read the current guide and the owning public API. Then inspect only the closest test, runnable example, or related guide needed to answer these questions:
+Read the current guide, owning public API, and the closest relevant example or test. Determine:
 
-- What behavior does the API actually support?
-- What setup order, validation, ownership, caching, or lifecycle rules matter to readers?
-- Which examples can be copied or adapted from working code?
-- Which claims in the current guide are stale or stronger than the implementation?
+- The outcome, prerequisites, setup order, and observable result.
+- Relevant ownership, lifecycle, scheduling, caching, validation, and error timing.
+- Which example can be reused and whether it matches the target version.
+- Which claims are stale, which constraints matter to this task, and where related details already belong.
 
-State one concise implementation hypothesis and one focused validation check before editing.
+Distinguish verified facts from assumptions. State a concise implementation hypothesis and a focused validation check before editing.
 
-### 2. Plan mode
+### 2. Plan
 
-Return a compact plan containing:
+Return the proposed page purpose and heading hierarchy, reader workflow, API facts and limitations, existing material and examples to reuse, ownership and links, and focused validation. For a structural plan, map affected existing material to its proposed home and identify link and version compatibility. Do not edit files in this mode.
 
-- The proposed heading hierarchy.
-- The reader workflow from setup to common use.
-- API facts and constraints the guide must explain.
-- Examples or related guides to reuse.
-- Known limitations that should be stated explicitly.
-- The focused validation to run after implementation.
+### 3. Implement
 
-Do not modify files in this mode.
+Apply the editorial contract to the requested change. Preserve useful user-authored material and use ASCII by default.
 
-### 3. Implement mode
+After editing, check the page end to end for a reader's ability to complete the task. Verify API names, signatures, links and anchors, example version, error handling, and claims against the implementation. Run the smallest relevant executable check for the owning package or example when available, followed by existing documentation checks and `git diff --check`. State explicitly when a snippet, interactive step, link, or command was not verified. Do not claim that a package test proves independent Markdown snippets compile.
 
-Rewrite only the target guide unless a linked example or documentation reference must be corrected for accuracy.
+### 4. Review
 
-Use these writing rules:
+Do not edit. Report findings first, ordered by severity: incorrect behavior or examples; missing constraints, ownership, or failure timing; broken links or version mismatches; then confusing reader flow, duplicated ownership, and prose. Cite the affected location and practical consequence. End with checks performed and residual risk; say clearly if there are no findings.
 
-- Speak naturally and instructively to the reader.
-- Lead with the supported mental model and the shortest successful path.
-- Organize sections by the reader's decisions and workflow, not by source-file order.
-- Prefer working API examples from the repository; keep snippets focused.
-- Distinguish setup-time validation from lazy or runtime resolution.
-- State current limitations instead of implying unsupported features.
-- Link to neighboring guides for concepts already explained elsewhere.
-- Preserve valid user-authored material and avoid unrelated reformatting.
-- Do not hard-wrap Markdown prose at 80 characters or any other column limit. Keep each paragraph and list item on one source line and let the editor soft-wrap it. Preserve meaningful line breaks in code blocks, tables, and other structured content.
-- Use ASCII by default and avoid filler, placeholders, and speculative future promises.
+## Completion
 
-After the edit, run the focused executable check when available, then documentation checks. Typical checks are:
-
-```text
-go test ./<owning-package>
-git diff --check
-```
-
-Also inspect headings, API identifiers, links, and the guide end to end for a prose sniff test. Fix local documentation defects and rerun the same focused checks.
-
-### 4. Review mode
-
-Do not edit. Review the guide against the owning API and report findings first, ordered by severity:
-
-- Incorrect or unsupported API claims.
-- Examples that cannot work with the current public API.
-- Missing lifecycle, validation, error, ownership, or setup-order rules.
-- Broken or misleading links.
-- Remaining prose or structure problems.
-
-End with test gaps or residual documentation risk. If there are no findings, say so clearly.
-
-## Multi-agent Dispatch Contract
-
-When dispatching multiple agents, give each the same target guide and owning package, and assign one mode per agent:
-
-1. `plan`: proposes the structure and factual contract.
-2. `implement`: receives the approved plan and edits only the target guide.
-3. `review`: checks the implementation against the owning API and reports findings.
-
-The implementation agent must not broaden scope because another agent found an unrelated issue. The review agent must not silently edit; return findings for a follow-up implementation pass.
-
-## Completion Criteria
-
-A guide rewrite is complete when:
-
-- Its structure matches the approved reader workflow.
-- Its claims match the owning implementation.
-- Examples use current public names and signatures.
-- Current limitations and failure timing are clear.
-- The focused package check passes, or the reason it could not run is reported.
-- `git diff --check` passes.
-- Prose paragraphs and list items have no column-limit hard wrapping.
-- A final end-to-end prose sniff finds no obvious stale claims, placeholders, or awkward transitions.
+A rewrite is complete when its primary purpose and reader outcome are clear, its claims match the target API, necessary constraints and examples are accurate, links resolve to appropriate versions, and focused checks pass or their limitations are reported. Do a final prose and navigation check without expanding scope.
