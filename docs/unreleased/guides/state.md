@@ -6,6 +6,12 @@ You define the possible states as a `comparable` type, such as an `int` or `stri
 
 When a state transition is requested during gameplay it is queued for processing. The transition doesn't happen until the engine processes the request on the next display frame.
 
+## Run the focused example
+
+Run `go run .` from [examples/state](../../../examples/state) using the development workspace. SPACE cycles idle, playing, and done; R restarts the current mode. The readout shows the accepted pending request separately from the current mode for the requesting frame. The next frame applies it and records exit/enter hooks followed by the signal observer.
+
+The observer runs after the state system and its hooks. Its log position is not the emission point: `Changed` is emitted before enter hooks, as explained below. The example deliberately has no scenes or gameplay; [Signal Salvage](../../../examples/signal-salvage) demonstrates those integrations.
+
 ## Configure a machine
 
 To begin, define a comparable type for your machine, such as a named `int` or `string`. `state.New[GameMode]()` starts in that type's zero value. Chain `WithInitial` to choose a different starting value, then register the machine with the engine using `WithState`:
