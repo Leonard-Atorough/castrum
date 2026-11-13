@@ -2,7 +2,7 @@
 
 Your game refers to an asset by a slash-separated path relative to its asset filesystem. The game's loader reads and decodes that path; rendering and other consumers use the decoded data when they need it.
 
-This guide uses the development API and a game `g` created by `castrum.New`. For an end-to-end program that loads and displays an image, start with [Draw and position an image](../rendering/images.md).
+This guide introduces loading shipped assets and choosing where they come from. It uses an image as a concrete example and assumes a game `g` created by `castrum.New`. To put the image on an entity, see [Draw and position an image](../rendering/images.md). For saving game data, custom codecs, streams, and other asset workflows not yet covered here, use the existing [assets guide](../../../unreleased/guides/assets.md).
 
 ## Load a required image during setup
 

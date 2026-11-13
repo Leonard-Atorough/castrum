@@ -4,7 +4,7 @@ Think of the camera as a window into your game world. You can move it to follow 
 
 Every Castrum game starts with a camera at the world origin. Its position, rotation, and zoom live in a `core.Transform`, just like the transform of a visible entity. The `render.Camera` component holds the framing choices that are specific to cameras.
 
-The examples below use a game `g` created by `castrum.New`. You can try the setup snippets in [Draw and position an image](images.md), before creating its runner. They belong in a function that returns an error.
+The examples below use a game `g` created by `castrum.New`. They belong in a function that returns an error. If you have created a sprite as shown in [Draw and position an image](images.md), use its returned entity handle to try the follow example.
 
 ## Move and zoom the default camera
 
@@ -41,15 +41,15 @@ func followPlayer(camera, player *core.Entity) core.System {
 }
 ```
 
-Register it after the system that moves the player, in the same fixed phase:
+Register it after the system that moves the player, in the same fixed phase. This example assumes that system has already been registered as `"player.move"`:
 
 ```go
-if err := g.AddSystem(core.PhaseFixed, "camera.follow", followPlayer(g.MainCamera(), player)); err != nil {
+if err := g.AddSystem(core.PhaseFixed, "camera.follow", followPlayer(g.MainCamera(), player), castrum.After("player.move")); err != nil {
 	return fmt.Errorf("register camera follow: %w", err)
 }
 ```
 
-Here `player` is the handle returned when you created the player's entity. The renderer interpolates camera movement between fixed ticks, so the view can move smoothly even when the display draws more often than the simulation updates. If you use camera bounds, the displayed position can be clamped even though the system continues to copy the player's position.
+`castrum.After` inserts the follow system immediately after the named, already registered user system; it is not a permanent dependency. If you later insert another system after `"player.move"`, that new system goes closest to it. Here `player` is the handle returned when you created the player's entity. The renderer interpolates camera movement between fixed ticks, so the view can move smoothly even when the display draws more often than the simulation updates. If you use camera bounds, the displayed position can be clamped even though the system continues to copy the player's position.
 
 ## Choose the position's anchor
 

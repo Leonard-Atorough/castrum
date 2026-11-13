@@ -2,9 +2,9 @@
 
 A spritesheet lets several pictures share one texture. Instead of loading a separate file for each pose of a character, you can give each rectangle in the texture a name, draw one by name, and change the name when the character moves.
 
-This guide starts with a single still image, then turns it into a looping animation. You'll also see how to define regions in Go, check a sheet before the game starts, and control playback. If you'd rather explore a running game first, the [animate example](../../../../examples/animate/main.go) uses the same approach for a flickering torch.
+This guide explains how to define a sheet, draw a region, and play a sequence of regions as an animation. If you already have a sheet, jump to [drawing a region](#draw-one-region) or [playing frames](#play-the-frames). Later sections cover [playback controls](#pause-resume-and-restart), [startup checks](#check-the-sheet-before-opening-the-window), and [creating regions in Go](#create-regions-in-go). The [animate example](../../../../examples/animate/main.go) brings these ideas together in a running game with a flickering torch.
 
-You'll need a game created with `castrum.New` and a runner to display it. The snippets belong in an error-returning setup function with access to `g`; they use the development API. [Draw and position an image](images.md) has a complete game to start from.
+You'll need a game created with `castrum.New` and a runner to display it. The snippets belong in an error-returning setup function with access to `g`; they use the development API. For the basics of displaying an entity, see [Draw and position an image](images.md).
 
 ## Make a sheet
 
