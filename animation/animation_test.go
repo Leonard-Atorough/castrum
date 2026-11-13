@@ -7,10 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
 )
+
+var animSheet = asset.FileSheet("atlas.json")
 
 func newAnimWorld(t *testing.T, anim Animation, clip Clip) (*core.Entity, core.System, *core.Context) {
 	t.Helper()
@@ -59,15 +62,15 @@ func readSprite(t *testing.T, e *core.Entity, ctx *core.Context) render.Sprite {
 	return sprite
 }
 
-func region(s render.Sprite) (render.AtlasSource, bool) {
-	src, ok := s.Drawable.(render.AtlasSource)
+func region(s render.Sprite) (render.SheetSource, bool) {
+	src, ok := s.Drawable.(render.SheetSource)
 	return src, ok
 }
 
 func TestSystemAdvancesAndStamps(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopForever},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 1)
 
@@ -76,7 +79,7 @@ func TestSystemAdvancesAndStamps(t *testing.T) {
 		t.Fatalf("current = %d, want 1", anim.Current)
 	}
 	src, ok := region(readSprite(t, entity, ctx))
-	if !ok || src.Atlas != "atlas" || src.Region != "b" {
+	if !ok || src.Sheet != animSheet || src.Region != "b" {
 		t.Fatalf("drawable = %v, want atlas/b", readSprite(t, entity, ctx).Drawable)
 	}
 
@@ -88,10 +91,27 @@ func TestSystemAdvancesAndStamps(t *testing.T) {
 	}
 }
 
+func TestSystemRetainsMemorySheetReference(t *testing.T) {
+	sheet, err := asset.NewSheet("tex.png", map[string]asset.SheetRegion{
+		"a": {W: 1, H: 1}, "b": {X: 1, W: 1, H: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := asset.MemorySheet(sheet)
+	entity, sys, ctx := newAnimWorld(t, Animation{Clip: "walk"},
+		Clip{Source: ref, Frames: []string{"a", "b"}, FPS: 10})
+	tick(t, sys, ctx, 1)
+	src, ok := region(readSprite(t, entity, ctx))
+	if !ok || src.Sheet != ref || src.Region != "b" {
+		t.Fatalf("animation lost its memory reference: %+v", src)
+	}
+}
+
 func TestSystemAccumulatesSubFrameTime(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopNone},
-		Clip{Source: "atlas", Frames: []string{"a", "b", "c"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b", "c"}, FPS: 10},
 	)
 	ctx.DeltaTime = 50 * time.Millisecond
 	tick(t, sys, ctx, 1)
@@ -114,7 +134,7 @@ func TestSystemAccumulatesSubFrameTime(t *testing.T) {
 func TestSystemAdvancesMultipleFramesPerTick(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopForever},
-		Clip{Source: "atlas", Frames: []string{"a", "b", "c"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b", "c"}, FPS: 10},
 	)
 	ctx.DeltaTime = 250 * time.Millisecond // two 100ms frames per tick
 	tick(t, sys, ctx, 1)
@@ -131,7 +151,7 @@ func TestSystemAdvancesMultipleFramesPerTick(t *testing.T) {
 func TestFirstTickStampsFrameZero(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopForever},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	ctx.DeltaTime = 50 * time.Millisecond // below one frame duration
 	tick(t, sys, ctx, 1)
@@ -141,7 +161,7 @@ func TestFirstTickStampsFrameZero(t *testing.T) {
 		t.Fatalf("current = %d, want 0", anim.Current)
 	}
 	src, ok := region(readSprite(t, entity, ctx))
-	if !ok || src.Atlas != "atlas" || src.Region != "a" {
+	if !ok || src.Sheet != animSheet || src.Region != "a" {
 		t.Fatalf("drawable = %v, want atlas/a on the first tick", readSprite(t, entity, ctx).Drawable)
 	}
 }
@@ -174,7 +194,7 @@ func TestSystemRejectsFrameOutsideClip(t *testing.T) {
 		t.Run(fmt.Sprintf("paused=%v", paused), func(t *testing.T) {
 			entity, sys, ctx := newAnimWorld(t,
 				Animation{Clip: "walk", Current: 2, Paused: paused},
-				Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 1},
+				Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 1},
 			)
 			before := readAnim(t, entity, ctx)
 			err := sys.Update(ctx)
@@ -194,7 +214,7 @@ func TestSystemRejectsFrameOutsideClip(t *testing.T) {
 func TestSystemRejectsUnrepresentableFrameAdvance(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopForever, PlaybackMultiplier: math.MaxFloat64},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	before := readAnim(t, entity, ctx)
 	if err := sys.Update(ctx); err == nil || !strings.Contains(err.Error(), "frame advance") {
@@ -208,7 +228,7 @@ func TestSystemRejectsUnrepresentableFrameAdvance(t *testing.T) {
 func TestPlaybackMultiplierZeroIsNormalRate(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopForever},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 1)
 	if anim := readAnim(t, entity, ctx); anim.Current != 1 {
@@ -219,7 +239,7 @@ func TestPlaybackMultiplierZeroIsNormalRate(t *testing.T) {
 func TestPlaybackMultiplierScalesAdvance(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", PlaybackMultiplier: 2, Loop: LoopNone},
-		Clip{Source: "atlas", Frames: []string{"a", "b", "c", "d"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b", "c", "d"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 1)
 	if anim := readAnim(t, entity, ctx); anim.Current != 2 {
@@ -230,7 +250,7 @@ func TestPlaybackMultiplierScalesAdvance(t *testing.T) {
 func TestPausedAnimationSkips(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Paused: true, Loop: LoopForever},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 3)
 	anim := readAnim(t, entity, ctx)
@@ -278,12 +298,14 @@ func TestAnimationClipValidate(t *testing.T) {
 		clip Clip
 		want bool
 	}{
-		{"valid", Clip{Source: "atlas", Frames: []string{"a"}, FPS: 10}, true},
+		{"valid", Clip{Source: animSheet, Frames: []string{"a"}, FPS: 10}, true},
 		{"empty source", Clip{Frames: []string{"a"}, FPS: 10}, false},
-		{"no frames", Clip{Source: "atlas", FPS: 10}, false},
-		{"zero fps", Clip{Source: "atlas", Frames: []string{"a"}}, false},
-		{"NaN fps", Clip{Source: "atlas", Frames: []string{"a"}, FPS: math.NaN()}, false},
-		{"infinite fps", Clip{Source: "atlas", Frames: []string{"a"}, FPS: math.Inf(1)}, false},
+		{"no frames", Clip{Source: animSheet, FPS: 10}, false},
+		{"zero fps", Clip{Source: animSheet, Frames: []string{"a"}}, false},
+		{"NaN fps", Clip{Source: animSheet, Frames: []string{"a"}, FPS: math.NaN()}, false},
+		{"infinite fps", Clip{Source: animSheet, Frames: []string{"a"}, FPS: math.Inf(1)}, false},
+		{"invalid file", Clip{Source: asset.FileSheet("../atlas.json"), Frames: []string{"a"}, FPS: 10}, false},
+		{"nil memory", Clip{Source: asset.MemorySheet(nil), Frames: []string{"a"}, FPS: 10}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -310,7 +332,7 @@ func TestPlaybackMethods(t *testing.T) {
 func TestClipStoreAddCopiesFrames(t *testing.T) {
 	store := NewClipStore()
 	frames := []string{"a", "b"}
-	if err := store.Add("walk", Clip{Source: "atlas", Frames: frames, FPS: 10}); err != nil {
+	if err := store.Add("walk", Clip{Source: animSheet, Frames: frames, FPS: 10}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
@@ -326,16 +348,16 @@ func TestClipStoreAddCopiesFrames(t *testing.T) {
 
 func TestClipStoreAddErrors(t *testing.T) {
 	store := NewClipStore()
-	if err := store.Add("", Clip{Source: "atlas", Frames: []string{"a"}, FPS: 10}); err == nil {
+	if err := store.Add("", Clip{Source: animSheet, Frames: []string{"a"}, FPS: 10}); err == nil {
 		t.Fatal("empty name accepted")
 	}
-	if err := store.Add("walk", Clip{Source: "atlas", Frames: []string{"a"}, FPS: 10}); err != nil {
+	if err := store.Add("walk", Clip{Source: animSheet, Frames: []string{"a"}, FPS: 10}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	if err := store.Add("walk", Clip{Source: "atlas", Frames: []string{"a"}, FPS: 10}); err == nil {
+	if err := store.Add("walk", Clip{Source: animSheet, Frames: []string{"a"}, FPS: 10}); err == nil {
 		t.Fatal("duplicate accepted")
 	}
-	if err := store.Add("bad", Clip{Source: "atlas", Frames: []string{"a"}}); err == nil {
+	if err := store.Add("bad", Clip{Source: animSheet, Frames: []string{"a"}}); err == nil {
 		t.Fatal("invalid clip accepted")
 	}
 }
@@ -360,7 +382,7 @@ func tickAt(t *testing.T, sys core.System, ctx *core.Context, tick uint64) {
 func TestLoopNoneCompletionStampsAndHolds(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopNone},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 
 	tickAt(t, sys, ctx, 1) // 100ms tick, 100ms frames: frame 1 shows
@@ -402,7 +424,7 @@ func TestLoopNoneCompletionStampsAndHolds(t *testing.T) {
 func TestRestartClearsCompletion(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopNone},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 
 	tickAt(t, sys, ctx, 1)
@@ -431,7 +453,7 @@ func TestRestartClearsCompletion(t *testing.T) {
 func TestLoopForeverFiresEdgePerWrap(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopForever},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 
 	tickAt(t, sys, ctx, 1) // frame 1, no wrap
@@ -461,7 +483,7 @@ func TestLoopForeverFiresEdgePerWrap(t *testing.T) {
 func TestUnpausingACompletedAnimationCompletesAgain(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopNone},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 
 	tickAt(t, sys, ctx, 1)
@@ -483,7 +505,7 @@ func TestUnpausingACompletedAnimationCompletesAgain(t *testing.T) {
 func TestSystemEmitsCompletedSignal(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopNone},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	hub := ctx.World.MustResource[*signal.Hub]()
 	reader := hub.NewReader[Completed]()
@@ -505,7 +527,7 @@ func TestSystemEmitsCompletedSignal(t *testing.T) {
 func TestLoopForeverEmitsOnEachWrap(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
 		Animation{Clip: "walk", Loop: LoopForever},
-		Clip{Source: "atlas", Frames: []string{"a", "b"}, FPS: 10},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	hub := ctx.World.MustResource[*signal.Hub]()
 	reader := hub.NewReader[Completed]()

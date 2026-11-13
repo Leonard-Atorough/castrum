@@ -95,6 +95,8 @@ The baseline below is one 1s pass on the development machine (Windows, 12 hardwa
 
 Use these as workload references, not guarantees. Allocation-free queries still cost time, and the same collider population can behave differently depending on movement, overlap density, and shape sizes. The [spatial architecture reference](../reference/spatial-architecture.md) explains the collision cost model and internal spatial index.
 
+The dated `RegisterGridAtlas` row measures the retired loading-and-registration workflow. `BenchmarkSheetGrid` now measures pure slicing of known 512x512 bounds into 16x16 tiles, without texture decoding, registration, or retaining previous sheets. These are different workloads; their timings are not a direct before/after comparison.
+
 ## Keep systems within their phase budget
 
 Use the phase that matches the work:
@@ -151,7 +153,7 @@ When many entities start with the same component set, use `World.NewEntities` ra
 
 ## Reduce rendering work
 
-The renderer collects every non-hidden entity with `Sprite`, `Transform`, and the engine-managed previous transform. For each candidate it may resolve a texture or atlas region, calculate bounds, cull against the camera, and add the visible item to a sorted list. Culling under camera rotation uses a conservative circumscribed rectangle, so a rotated view may collect a few items that are just off screen.
+The renderer collects every non-hidden entity with `Sprite`, `Transform`, and the engine-managed previous transform. For each candidate it may resolve a texture or sheet region, calculate bounds, cull against the camera, and add the visible item to a sorted list. File sheets use the typed loader cache; memory sheets skip document loading. Selected regions are checked against cached texture pixels, not by scanning every region each frame. Culling under camera rotation uses a conservative circumscribed rectangle, so a rotated view may collect a few items that are just off screen.
 
 The collector reuses its working and sorted buffers across frames. That avoids an allocation per sprite in steady state, but visible sprites still cost collection, sorting, texture resolution, and backend drawing. The main levers are:
 
@@ -159,10 +161,10 @@ The collector reuses its working and sorted buffers across frames. That avoids a
 - Use `Hidden` when an entity should remain in the world but should not be collected or drawn.
 - Keep off-screen populations reasonable; culling prevents their draw calls, but they still cost query matching and bounds checks.
 - Use `Layer` and `SortOrder` intentionally, and avoid creating needless visible items solely to control ordering.
-- Use shapes for simple geometry when an image asset is not needed, and choose texture or atlas regions according to the visual result you need.
+- Use shapes for simple geometry when an image asset is not needed, and choose texture or sheet regions according to the visual result you need.
 - Keep debug and HUD drawing bounded; runner overlays run once per display frame after the world.
 
-The renderer sorts visible items by layer, then sort order, then interpolated world Y. Large visible sets make both collection and sorting worth measuring. An atlas can reduce texture resources and organize regions, but it does not make each visible sprite free: every visible atlas region is still a draw item.
+The renderer sorts visible items by layer, then sort order, then interpolated world Y. Large visible sets make both collection and sorting worth measuring. A sheet organizes regions sharing one texture, but it does not make each visible sprite free: every visible region is still a draw item.
 
 Smooth motion comes from transform interpolation. Raising the fixed tick rate increases simulation work; it is not a general rendering optimization.
 

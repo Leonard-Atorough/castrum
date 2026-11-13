@@ -20,7 +20,7 @@ Both policies return a zero value on failure, preserve owned-file close errors, 
 
 `asset.Codecs` configures decoders and encoders independently per exact target Go type and format. Formats normally come from lowercased file extensions. `SetDecoder` and `SetEncoder` install or replace their respective direction on the configuration. Format constants name vocabulary; they do not guarantee that a codec is configured.
 
-`NewCodecs` supplies backend-free image/font decoders and a JSON pair for `AtlasMeta`. `SetJSON[T]` installs or replaces both directions atomically and uses standard JSON behavior, including custom marshal/unmarshal methods. A decode must contain exactly one JSON value followed by whitespace or EOF. Missing fields are zero-valued, not filled from game defaults. Validation and schema evolution remain outside the codec registry.
+`NewCodecs` supplies backend-free image/font decoders and a JSON pair for `asset.Sheet`. Game-defined JSON types require registration. `SetJSON[T]` installs or replaces both directions atomically and uses standard JSON behavior. A decode must contain exactly one JSON value followed by whitespace or EOF. Missing fields are zero-valued, not filled from game defaults. Domain validation, application defaults, and schema evolution remain outside the codec registry.
 
 `NewLoader` and `NewSaver` take concrete `LoaderOptions` and `SaverOptions` values. Their `Codecs` field selects configuration to snapshot; nil selects the defaults. Subsequent configuration changes do not affect them. Their private scopes permit new local decoder/encoder registrations but not replacements; `RegisterDecoder` and `RegisterEncoder` reject duplicates. Snapshotting copies functions, not captured closure state. Constructors reject dependencies containing nil pointers, not valid nil-map or nil-slice implementations.
 
@@ -48,11 +48,17 @@ Saves do not update or invalidate loader, GPU, or font caches. Re-read mutable d
 
 This is staged replacement, not universal atomicity or crash durability. Rename semantics are platform-dependent, and publication failures are returned without a delete/truncate fallback or an unconditional rollback promise. Rooted operations confine access on supported desktop platforms; browser/cloud persistence requires another backend. Concurrent operations do not provide newest-snapshot ordering for writes to the same name.
 
-## Atlases
+## Spritesheets
 
-The loader owns one atlas store. `RegisterGridAtlas` loads a texture, divides it into row-major tiles, and registers names such as `prefix_0`. `RegisterAtlasFromSidecar` loads irregular regions from a JSON sidecar. Registration validates the source and region bounds before storing the atlas.
+`asset.Sheet` is the public JSON document and in-memory model: `Texture` holds a root-relative path and `Regions` is a map of names to `asset.SheetRegion` rectangles. There is no runtime ID or separate wire type. `asset.NewSheet` validates and copies a supplied map. The `spritesheet` package owns only pure slicing: `Grid` accepts image bounds and builds row-major regions named `prefix_0`, `prefix_1`, and so on, returning the same asset-owned model without I/O.
 
-A sprite refers to an atlas and region by ID. The collector resolves that pair when it collects a drawable, so an unknown atlas or region can fail on the first rendered frame even if the sprite component itself passed validation. Register atlases during setup to move predictable failures earlier.
+Default registration installs the `SetJSON[asset.Sheet]()` pair, then specializes its decoder to reuse `decodeJSON[Sheet]` and call `Sheet.Validate`. Exported fields and tags work with the existing JSON tooling; no custom marshalers or private lookup model are needed. Invalid metadata produces a path-aware decode `AssetError` before caching, returns no value, and subsequent loads retry. JSON map keys are sorted during encoding, and duplicate keys follow standard last-key-wins decoding behavior. `Sheet.Save` validates and delegates to the value-type JSON encoder, writing only metadata. An explicit `SetJSON[asset.Sheet]()` replacement restores ordinary decoding without domain validation.
+
+`asset.SheetRef` is a comparable, opaque file-or-memory reference. `asset.FileSheet` retains a cleaned root-relative path and loads JSON through the generic typed loader cache. `asset.MemorySheet` retains a sheet pointer without document I/O. Resolved values share region maps; treat cached and retained sheets as read-only. Neither reference transports the texture or carries physical filesystem identity. Texture paths are relative to the world's loader root, never rebased against the document path.
+
+`render.SheetSource` and `animation.Clip.Source` retain the same reference. There is no atlas store or registry provisioning. The collector resolves selected sheet regions, loads texture pixels through the world's loader, and checks actual image bounds before staging. `TextureProvider.SubImage` accepts the same reference and uses the existing texture-path/rectangle GPU cache, shared with collected items. Shapes need no loader.
+
+Default decoding checks every region's overflow-safe geometry and rejects invalid paths, names, empty maps, and zero/null documents before caching. Reference resolution also checks the path and a non-empty map; selected lookup remains defensive for memory sheets and custom decoders. Image-bound checks require loaded pixels: use `Sheet.ValidateBounds` during setup to check all regions, or let collection/direct subimage lookup check the selected region lazily. Missing codecs, documents, textures, or regions are explicit errors. Saving does not refresh file references or invalidate GPU caches; hot replacement is not provided.
 
 ## Audio paths
 

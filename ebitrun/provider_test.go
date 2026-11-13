@@ -10,6 +10,8 @@ import (
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/render"
 )
 
 func newAssetTestFS(t *testing.T) fstest.MapFS {
@@ -19,8 +21,8 @@ func newAssetTestFS(t *testing.T) fstest.MapFS {
 		t.Fatalf("encode test png: %v", err)
 	}
 	return fstest.MapFS{
-		"tex.png":    &fstest.MapFile{Data: buf.Bytes()},
-		"atlas.json": &fstest.MapFile{Data: []byte(`{"regions":[{"name":"player","x":0,"y":0,"w":2,"h":2},{"name":"enemy","x":2,"y":2,"w":2,"h":2}]}`)},
+		"tex.png":      &fstest.MapFile{Data: buf.Bytes()},
+		"sprites.json": &fstest.MapFile{Data: []byte(`{"texture":"./tex.png","regions":{"player":{"x":0,"y":0,"w":2,"h":2},"enemy":{"x":2,"y":2,"w":2,"h":2}}}`)},
 	}
 }
 
@@ -77,30 +79,19 @@ func TestNewWiresConfiguredFilesystem(t *testing.T) {
 }
 
 func TestSubImageResolvesAndCaches(t *testing.T) {
-	g, _ := castrum.New(castrum.WithFilesystem(newAssetTestFS(t)))
-	if _, err := New(g); err != nil {
-		t.Fatalf("New: %v", err)
-	}
-
-	loader, err := g.World().Resource[*asset.Loader]()
-	if err != nil {
-		t.Fatalf("Resource[*asset.Loader]: %v", err)
-	}
-	if err := loader.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
-		t.Fatalf("RegisterAtlasFromSidecar: %v", err)
-	}
+	g, _ := newSpriteGame(t)
 	provider, err := g.World().Resource[*TextureProvider]()
 	if err != nil {
 		t.Fatalf("Resource[*TextureProvider]: %v", err)
 	}
 
-	player, err := provider.SubImage("sprites", "player")
+	player, err := provider.SubImage(asset.FileSheet("sprites.json"), "player")
 	if err != nil {
 		t.Fatalf("SubImage: %v", err)
 	}
 
 	// Repeat resolution is a cache hit: the same pointer.
-	again, err := provider.SubImage("sprites", "player")
+	again, err := provider.SubImage(asset.FileSheet("./sprites.json"), "player")
 	if err != nil {
 		t.Fatalf("SubImage repeat: %v", err)
 	}
@@ -110,7 +101,7 @@ func TestSubImageResolvesAndCaches(t *testing.T) {
 
 	// A different region of the same atlas shares the converted texture
 	// and produces a distinct subimage.
-	enemy, err := provider.SubImage("sprites", "enemy")
+	enemy, err := provider.SubImage(asset.FileSheet("sprites.json"), "enemy")
 	if err != nil {
 		t.Fatalf("SubImage second region: %v", err)
 	}
@@ -122,11 +113,11 @@ func TestSubImageResolvesAndCaches(t *testing.T) {
 	}
 
 	// Misses name their handles.
-	_, err = provider.SubImage("sprites", "boss")
+	_, err = provider.SubImage(asset.FileSheet("sprites.json"), "boss")
 	if err == nil || !strings.Contains(err.Error(), "boss") {
 		t.Errorf("unknown region error = %v, want it to name the region", err)
 	}
-	_, err = provider.SubImage("other", "player")
+	_, err = provider.SubImage(asset.FileSheet("other.json"), "player")
 	if err == nil || !strings.Contains(err.Error(), "other") {
 		t.Errorf("unknown atlas error = %v, want it to name the atlas", err)
 	}
@@ -170,17 +161,7 @@ func TestTextureResolvesAndCaches(t *testing.T) {
 // and rect, shared with the atlas-named path, with user-supplied rects
 // validated against the texture.
 func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
-	g, _ := castrum.New(castrum.WithFilesystem(newAssetTestFS(t)))
-	if _, err := New(g); err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	loader, err := g.World().Resource[*asset.Loader]()
-	if err != nil {
-		t.Fatalf("Resource[*asset.Loader]: %v", err)
-	}
-	if err := loader.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
-		t.Fatalf("RegisterAtlasFromSidecar: %v", err)
-	}
+	g, _ := newSpriteGame(t)
 	provider, err := g.World().Resource[*TextureProvider]()
 	if err != nil {
 		t.Fatalf("Resource[*TextureProvider]: %v", err)
@@ -205,12 +186,30 @@ func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 	}
 
 	// The atlas-named path resolves regions through the same cache.
-	named, err := provider.SubImage("sprites", "player")
+	named, err := provider.SubImage(asset.FileSheet("sprites.json"), "player")
 	if err != nil {
 		t.Fatalf("SubImage: %v", err)
 	}
 	if named != sub {
 		t.Fatal("SubImage and SubImageRect must share the cached subimage")
+	}
+	if _, err := g.World().NewEntity(
+		render.Sprite{Drawable: render.SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}},
+		core.Transform{Scale: spriteScale},
+	); err != nil {
+		t.Fatal(err)
+	}
+	list, err := render.NewCollector(g.World()).Collect(g.Context())
+	if err != nil || len(list.Items) != 1 {
+		t.Fatalf("atlas collection = %+v, %v", list.Items, err)
+	}
+	item := list.Items[0]
+	if item.Texture != "tex.png" || item.Rect != player {
+		t.Fatalf("collector source = %q %v, want tex.png %v", item.Texture, item.Rect, player)
+	}
+	collected, err := provider.SubImageRect(item.Texture, item.Rect)
+	if err != nil || collected != named {
+		t.Fatalf("collector and direct lookup disagree: %v", err)
 	}
 
 	enemy := image.Rect(2, 2, 4, 4)
@@ -218,6 +217,7 @@ func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SubImageRect second rect: %v", err)
 	}
+
 	if other == sub || other.Bounds() != enemy {
 		t.Fatal("distinct rects must resolve to distinct subimages with their own bounds")
 	}
@@ -235,5 +235,28 @@ func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 	_, err = provider.SubImageRect("missing.png", player)
 	if err == nil || !strings.Contains(err.Error(), "missing.png") {
 		t.Errorf("unknown texture error = %v, want it to name the path", err)
+	}
+}
+
+func TestTextureProviderMemorySheet(t *testing.T) {
+	loader, err := asset.NewLoader(newAssetTestFS(t), asset.LoaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := newTextureProvider(loader)
+	if _, err := provider.Texture("tex.png"); err != nil {
+		t.Fatalf("whole texture: %v", err)
+	}
+	sheet, err := asset.NewSheet("./tex.png", map[string]asset.SheetRegion{"player": {W: 2, H: 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub, err := provider.SubImage(asset.MemorySheet(sheet), "player")
+	if err != nil || sub.Bounds() != image.Rect(0, 0, 2, 2) {
+		t.Fatalf("memory sheet: %v, %v", sub, err)
+	}
+	named, err := provider.SubImage(asset.FileSheet("sprites.json"), "player")
+	if err != nil || named != sub {
+		t.Fatalf("default file and memory references did not share their subimage: %v", err)
 	}
 }

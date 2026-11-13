@@ -1,11 +1,12 @@
 package benchmark
 
 import (
-	"fmt"
+	"image"
 	"io"
 	"testing"
 
 	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/spritesheet"
 	"github.com/hajimehoshi/ebiten/v2/audio/wav"
 )
 
@@ -103,18 +104,13 @@ func BenchmarkFontParse(b *testing.B) {
 	}
 }
 
-// BenchmarkRegisterGridAtlas reports registering a 32x32-tile grid
-// over a 512x512 texture: the setup path's atlas cost.
-func BenchmarkRegisterGridAtlas(b *testing.B) {
-	loader := benchLoader(b)
-	if _, err := loader.Load[asset.TextureData]("tiles.png"); err != nil {
-		b.Fatal(err)
-	}
+// BenchmarkSheetGrid reports pure slicing of a 512x512 texture into 16x16 tiles,
+// without texture decoding, registration, or retaining previous sheets.
+func BenchmarkSheetGrid(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := range b.N {
-		id := asset.AtlasID(fmt.Sprintf("tiles-%d", i))
-		if err := loader.RegisterGridAtlas(id, "tiles.png", 16, 16, "tile"); err != nil {
+	for b.Loop() {
+		if _, err := spritesheet.Grid("tiles.png", image.Rect(0, 0, 512, 512), 16, 16, "tile"); err != nil {
 			b.Fatal(err)
 		}
 	}

@@ -8,8 +8,9 @@ This page maps the packages that make up Castrum and the responsibility of each 
 | ------------------ | --------------------------------------------------------------------------------------------------------- |
 | `castrum`          | Game construction, options, schedules, fixed-loop control, and engine-system registration.                |
 | `core`             | The public world model: entities, components, queries, resources, phases, systems, and context.           |
-| `asset`            | Filesystem-backed asset loading, typed decoding, caching, and atlas registration.                         |
-| `animation`        | Atlas-backed clips and the animation component/system.                                                    |
+| `asset`            | Typed loading/saving, codecs, caches, directory storage, sheet documents, and asset references.           |
+| `spritesheet`      | Pure grid slicing that builds asset-owned sheet region maps.                                              |
+| `animation`        | Sheet-backed clips and the animation component/system.                                                    |
 | `audio`            | Source state, one-shots, mixer state, and the backend-free audio controller contract.                     |
 | `input`            | Raw snapshots and named action maps.                                                                      |
 | `ebitrun`          | The default Ebitengine runner: window, draw surface, input polling, texture conversion, and audio codecs. |

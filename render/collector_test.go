@@ -32,21 +32,18 @@ func newCollectorWorld(t *testing.T) *core.World {
 	files := fstest.MapFS{
 		"tex.png":  &fstest.MapFile{Data: encode()},
 		"tex2.png": &fstest.MapFile{Data: encode()},
-		"atlas.json": &fstest.MapFile{Data: []byte(
-			`{"regions":[{"name":"player","x":0,"y":0,"w":2,"h":2},{"name":"enemy","x":2,"y":2,"w":2,"h":2}]}`)},
+		"sprites.json": &fstest.MapFile{Data: []byte(
+			`{"texture":"./tex.png","regions":{"player":{"x":0,"y":0,"w":2,"h":2},"enemy":{"x":2,"y":2,"w":2,"h":2}}}`)},
+		"oversized.json": &fstest.MapFile{Data: []byte(
+			`{"texture":"tex.png","regions":{"player":{"x":0,"y":0,"w":99,"h":2}}}`)},
+		"missing-texture.json": &fstest.MapFile{Data: []byte(
+			`{"texture":"missing.png","regions":{"player":{"x":0,"y":0,"w":2,"h":2}}}`)},
 	}
 	w := core.NewWorld()
 	if err := w.Provide(func(*core.World) (*asset.Loader, error) {
 		return asset.NewLoader(files, asset.LoaderOptions{})
 	}); err != nil {
 		t.Fatalf("provide asset loader: %v", err)
-	}
-	loader, err := w.Resource[*asset.Loader]()
-	if err != nil {
-		t.Fatalf("resolve asset loader: %v", err)
-	}
-	if err := loader.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
-		t.Fatalf("register atlas: %v", err)
 	}
 	return w
 }
@@ -438,7 +435,7 @@ func TestCollectCullsByInterpolatedScale(t *testing.T) {
 	}
 }
 
-func TestCollectResolvesAtlasSprites(t *testing.T) {
+func TestCollectResolvesSheetSprites(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	for name := range map[string]image.Rectangle{
@@ -446,13 +443,13 @@ func TestCollectResolvesAtlasSprites(t *testing.T) {
 		"enemy":  image.Rect(2, 2, 4, 4),
 	} {
 		if _, err := w.NewEntity(
-			Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: name}},
+			Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: name}},
 			core.Transform{Position: geom.Vector2{}, Scale: unitScale},
 		); err != nil {
 			t.Fatalf("spawn atlas sprite %q: %v", name, err)
 		}
 		if _, err := w.NewEntity(
-			Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: name}},
+			Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: name}},
 			core.Transform{Position: geom.Vector2{X: 60}, Scale: unitScale},
 		); err != nil {
 			t.Fatalf("spawn culled atlas sprite %q: %v", name, err)
@@ -486,7 +483,7 @@ func TestCollectZeroScaleReadsAsUnit(t *testing.T) {
 	// No explicit prev: the pair rule snapshots the zero scale as
 	// unit at spawn, so both ends of the interpolation read unscaled.
 	if _, err := w.NewEntity(
-		Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: "player"}},
+		Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}},
 		core.Transform{Position: geom.Vector2{}},
 	); err != nil {
 		t.Fatalf("spawn zero-scale sprite: %v", err)
@@ -551,9 +548,9 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 		{"unloadable texture", func(t *testing.T, w *core.World) {
 			spawnTextureSprite(t, w, "missing.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
 		}, []string{"missing.png"}},
-		{"unregistered atlas", func(t *testing.T, w *core.World) {
+		{"missing sheet", func(t *testing.T, w *core.World) {
 			if _, err := w.NewEntity(
-				Sprite{Drawable: AtlasSource{Atlas: "ghost", Region: "player"}},
+				Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("ghost.json"), Region: "player"}},
 				core.Transform{Position: geom.Vector2{}, Scale: unitScale},
 				core.PrevTransform{},
 			); err != nil {
@@ -562,13 +559,21 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 		}, []string{"ghost"}},
 		{"unknown region", func(t *testing.T, w *core.World) {
 			if _, err := w.NewEntity(
-				Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: "boss"}},
+				Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "boss"}},
 				core.Transform{Position: geom.Vector2{}, Scale: unitScale},
 				core.PrevTransform{},
 			); err != nil {
 				t.Fatalf("spawn sprite: %v", err)
 			}
-		}, []string{"boss", "sprites"}},
+		}, []string{"boss", "tex.png"}},
+		{"out-of-bounds sheet", func(t *testing.T, w *core.World) {
+			spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+				Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("oversized.json"), Region: "player"}}, core.Transform{})
+		}, []string{"player", "tex.png", "outside"}},
+		{"missing sheet texture", func(t *testing.T, w *core.World) {
+			spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+				Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("missing-texture.json"), Region: "player"}}, core.Transform{})
+		}, []string{"player", "missing.png"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -818,7 +823,7 @@ func TestCollectKeepsRotatedAndStrokedGeometry(t *testing.T) {
 		{"outlined rect", Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}, Outline: true, StrokeWidth: 4}, geom.Vector2{X: 56}, 0, unitScale, 1},
 		{"thick line", Sprite{Drawable: LineShape{From: geom.Vector2{Y: -5}, To: geom.Vector2{Y: 5}}, StrokeWidth: 6}, geom.Vector2{X: 52}, 0, unitScale, 1},
 		{"reflected texture", Sprite{Drawable: TextureSource{Texture: "tex.png"}}, geom.Vector2{X: 60}, math.Pi / 2, geom.Vector2{X: -1, Y: 10}, 1},
-		{"rotated atlas", Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: "player"}}, geom.Vector2{X: 60}, math.Pi / 2, geom.Vector2{X: 1, Y: 20}, 1},
+		{"rotated sheet", Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}}, geom.Vector2{X: 60}, math.Pi / 2, geom.Vector2{X: 1, Y: 20}, 1},
 		{"outside", Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 40}}}, geom.Vector2{X: 80}, math.Pi / 2, unitScale, 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -936,18 +941,64 @@ func TestCollectMissingFontFails(t *testing.T) {
 	}
 }
 
-func TestCollectShapesNeedNoAssetLoader(t *testing.T) {
+func TestCollectDrawableAssetRequirements(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		world    func(*testing.T) *core.World
+		drawable Drawable
+	}{
+		{"shape", func(*testing.T) *core.World { return core.NewWorld() }, RectShape{Size: geom.Vector2{X: 10, Y: 10}}},
+		{"texture", newCollectorWorld, TextureSource{Texture: "tex.png"}},
+		{"text", newFontWorld, TextSource{Font: "fonts/go.ttf", Text: "player", Size: 16}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := tc.world(t)
+			spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+			spawnSprite(t, w, geom.Vector2{X: 50, Y: 50}, geom.Vector2{X: 50, Y: 50},
+				Sprite{Drawable: tc.drawable}, core.Transform{})
+			if list := collect(t, NewCollector(w), drawContext(w, 1)); len(list.Items) != 1 {
+				t.Fatalf("items = %d, want the %s drawable", len(list.Items), tc.name)
+			}
+		})
+	}
+}
+
+func TestCollectSheetLoaderIsResolvedLazily(t *testing.T) {
 	w := core.NewWorld()
+	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+		Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}}, core.Transform{})
+	collector := NewCollector(w)
+	if list := collect(t, collector, drawContext(w, 1)); len(list.Items) != 0 {
+		t.Fatal("no-camera collection should not resolve the sheet")
+	}
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-	if _, err := w.NewEntity(
-		core.Transform{Position: geom.Vector2{X: 50, Y: 50}},
-		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}},
-	); err != nil {
+	if _, err := collector.Collect(drawContext(w, 1)); err == nil || !strings.Contains(err.Error(), "asset loader") {
+		t.Fatalf("missing loader error = %v", err)
+	}
+	loader := newCollectorWorld(t).MustResource[*asset.Loader]()
+	if err := w.Provide(func(*core.World) (*asset.Loader, error) { return loader, nil }); err != nil {
 		t.Fatal(err)
 	}
+	list := collect(t, collector, drawContext(w, 1))
+	if len(list.Items) != 1 || list.Items[0].Texture != "tex.png" || list.Items[0].Rect != image.Rect(0, 0, 2, 2) {
+		t.Fatalf("sheet world produced %+v", list.Items)
+	}
+}
 
-	if list := collect(t, NewCollector(w), drawContext(w, 1)); len(list.Items) != 1 {
-		t.Fatalf("items = %d, want the shape", len(list.Items))
+func TestCollectMemorySheetAndFileShareDrawSource(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	sheet, err := asset.NewSheet("./tex.png", map[string]asset.SheetRegion{"player": {W: 2, H: 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range []asset.SheetRef{asset.FileSheet("sprites.json"), asset.MemorySheet(sheet)} {
+		spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
+			Sprite{Drawable: SheetSource{Sheet: ref, Region: "player"}}, core.Transform{})
+	}
+	list := collect(t, NewCollector(w), drawContext(w, 1))
+	if len(list.Items) != 2 || list.Items[0].Texture != list.Items[1].Texture || list.Items[0].Rect != list.Items[1].Rect {
+		t.Fatalf("file and memory sources disagree: %+v", list.Items)
 	}
 }
 

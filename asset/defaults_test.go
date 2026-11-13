@@ -7,12 +7,9 @@ import (
 )
 
 func TestNewRegistersDefaultDecoders(t *testing.T) {
-	// Defaults wired end to end through the public surface: real png
-	// decode, real json decode, cache and format inference included.
 	pngBytes := encodeTestPNG(t, 4, 3)
 	a := newTestLoader(t, newTestFS(map[string]string{
-		"tex.png":    string(pngBytes),
-		"atlas.json": `{"regions":[{"name":"player","x":0,"y":0,"w":4,"h":3}]}`,
+		"tex.png": string(pngBytes),
 	}), LoaderOptions{})
 
 	tex, err := a.Load[TextureData]("tex.png")
@@ -23,13 +20,6 @@ func TestNewRegistersDefaultDecoders(t *testing.T) {
 		t.Fatalf("dimensions = %dx%d, want 4x3", tex.Width, tex.Height)
 	}
 
-	meta, err := a.Load[AtlasMeta]("atlas.json")
-	if err != nil {
-		t.Fatalf("Load AtlasMeta: %v", err)
-	}
-	if len(meta.Regions) != 1 || meta.Regions[0].Name != "player" {
-		t.Fatalf("meta = %+v, want one region named player", meta)
-	}
 }
 
 func TestDefaultDecodersAnswerToUserRegistration(t *testing.T) {

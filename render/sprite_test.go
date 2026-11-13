@@ -6,13 +6,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
 func TestSpriteValidate(t *testing.T) {
 	valid := Sprite{
-		Drawable: AtlasSource{Atlas: "sprites", Region: "player"},
+		Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"},
 		Layer:    31,
 		Color:    color.White,
 	}
@@ -42,30 +43,30 @@ func TestSpriteValidate(t *testing.T) {
 	}
 
 	for name, sprite := range map[string]Sprite{
-		"layer over 31":          {Layer: 32},
-		"negative stroke width":  {StrokeWidth: -1},
-		"NaN stroke width":       {StrokeWidth: math.NaN()},
-		"infinite stroke width":  {StrokeWidth: math.Inf(1)},
-		"outline without width":  {Outline: true},
-		"atlas without ID":       {Drawable: AtlasSource{Region: "player"}},
-		"atlas without region":   {Drawable: AtlasSource{Atlas: "sprites"}},
-		"texture without ID":     {Drawable: TextureSource{}},
-		"rect zero size":         {Drawable: RectShape{}},
-		"rect zero width":        {Drawable: RectShape{Size: geom.Vector2{X: 10}}},
-		"rect negative size":     {Drawable: RectShape{Size: geom.Vector2{X: -1, Y: 10}}},
-		"rect infinite size":     {Drawable: RectShape{Size: geom.Vector2{X: math.Inf(1), Y: 10}}},
-		"circle zero radii":      {Drawable: CircleShape{}},
-		"circle zero Y radius":   {Drawable: CircleShape{Radii: geom.Vector2{X: 10}}},
-		"circle negative radii":  {Drawable: CircleShape{Radii: geom.Vector2{X: -5, Y: 5}}},
-		"circle NaN radius":      {Drawable: CircleShape{Radii: geom.Vector2{X: math.NaN(), Y: 5}}},
-		"line zero endpoints":    {Drawable: LineShape{}},
-		"line same endpoints":    {Drawable: LineShape{From: geom.Vector2{X: 1, Y: 1}, To: geom.Vector2{X: 1, Y: 1}}},
-		"line infinite endpoint": {Drawable: LineShape{From: geom.Vector2{X: math.Inf(1)}, To: geom.Vector2{X: 1}}},
-		"text without font":      {Drawable: TextSource{Text: "hi", Size: 16}},
-		"text zero size":         {Drawable: TextSource{Font: "f.ttf", Text: "hi"}},
-		"text negative size":     {Drawable: TextSource{Font: "f.ttf", Text: "hi", Size: -16}},
-		"text NaN size":          {Drawable: TextSource{Font: "f.ttf", Text: "hi", Size: math.NaN()}},
-		"text multiline":         {Drawable: TextSource{Font: "f.ttf", Text: "a\nb", Size: 16}},
+		"layer over 31":           {Layer: 32},
+		"negative stroke width":   {StrokeWidth: -1},
+		"NaN stroke width":        {StrokeWidth: math.NaN()},
+		"infinite stroke width":   {StrokeWidth: math.Inf(1)},
+		"outline without width":   {Outline: true},
+		"sheet without reference": {Drawable: SheetSource{Region: "player"}},
+		"sheet without region":    {Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json")}},
+		"texture without ID":      {Drawable: TextureSource{}},
+		"rect zero size":          {Drawable: RectShape{}},
+		"rect zero width":         {Drawable: RectShape{Size: geom.Vector2{X: 10}}},
+		"rect negative size":      {Drawable: RectShape{Size: geom.Vector2{X: -1, Y: 10}}},
+		"rect infinite size":      {Drawable: RectShape{Size: geom.Vector2{X: math.Inf(1), Y: 10}}},
+		"circle zero radii":       {Drawable: CircleShape{}},
+		"circle zero Y radius":    {Drawable: CircleShape{Radii: geom.Vector2{X: 10}}},
+		"circle negative radii":   {Drawable: CircleShape{Radii: geom.Vector2{X: -5, Y: 5}}},
+		"circle NaN radius":       {Drawable: CircleShape{Radii: geom.Vector2{X: math.NaN(), Y: 5}}},
+		"line zero endpoints":     {Drawable: LineShape{}},
+		"line same endpoints":     {Drawable: LineShape{From: geom.Vector2{X: 1, Y: 1}, To: geom.Vector2{X: 1, Y: 1}}},
+		"line infinite endpoint":  {Drawable: LineShape{From: geom.Vector2{X: math.Inf(1)}, To: geom.Vector2{X: 1}}},
+		"text without font":       {Drawable: TextSource{Text: "hi", Size: 16}},
+		"text zero size":          {Drawable: TextSource{Font: "f.ttf", Text: "hi"}},
+		"text negative size":      {Drawable: TextSource{Font: "f.ttf", Text: "hi", Size: -16}},
+		"text NaN size":           {Drawable: TextSource{Font: "f.ttf", Text: "hi", Size: math.NaN()}},
+		"text multiline":          {Drawable: TextSource{Font: "f.ttf", Text: "a\nb", Size: 16}},
 	} {
 		if err := sprite.Validate(); err == nil {
 			t.Errorf("Sprite with %s should fail validation", name)
@@ -107,7 +108,7 @@ func TestComponentValidationAtSpawn(t *testing.T) {
 	}
 	// Attaching the picture later is the supported flow: validate
 	// fires again at the add.
-	if err := entity.AddComponent(w, Sprite{Drawable: AtlasSource{Atlas: "sprites", Region: "player"}}); err != nil {
+	if err := entity.AddComponent(w, Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}}); err != nil {
 		t.Fatalf("attach drawable later: %v", err)
 	}
 	if err := entity.AddComponent(w, Sprite{Drawable: TextureSource{}}); err == nil {
