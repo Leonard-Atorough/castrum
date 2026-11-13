@@ -1,8 +1,16 @@
 # Assets
 
-The `asset` package converts files and streams into typed Go values and back again. A loader reads from an `fs.FS` and caches decoded assets; a saver encodes values to a write-capable store or a caller-owned writer. Codecs define the conversion for each Go type and format. Loading and saving are separate: sharing codecs does not connect their storage or caches.
+Use `asset` to load shipped content and persist game-defined documents without coupling either task to a renderer or a live world. Choose the storage and cache behavior first; codecs then determine how each Go type becomes bytes or a decoded value.
 
-## Load your first asset
+| What you need | Setup |
+| --- | --- |
+| Shared images, fonts, and other shipped content | The game's loader, with the default `CacheReuse` policy |
+| Preferences, save snapshots, or other mutable documents | A `Directory`, a bypass-default loader, and a saver |
+| Bytes from a network, buffer, or other stream | `LoadReader` or `SaveWriter` with an explicit format |
+
+A loader reads from an `fs.FS`; a saver writes through a `SaveStore`. `Directory` implements both interfaces for a host directory. `Codecs` configures conversion, not storage: sharing codecs does not connect two destinations or share their caches. Keep these objects for the lifetime of the work they serve rather than reconstructing them for each operation.
+
+## Load shipped content
 
 `castrum.New` provides an `*asset.Loader` on the world. By default, it reads game assets from the process working directory. If that directory contains `assets/sprites/hull.png`, preload the image during setup:
 
@@ -94,7 +102,7 @@ if err != nil {
 _ = texture.Image
 ```
 
-The cache key combines the cleaned source path, exact Go type, and format within one loader. Equivalent paths such as `./assets/sprites/hull.png` and `assets/sprites/hull.png` share a cached value; different paths or loaders do not. `WithID` cache aliases are no longer supported.
+The cache key combines the cleaned source path, exact Go type, and format within one loader. Equivalent paths such as `./assets/sprites/hull.png` and `assets/sprites/hull.png` share a cached value; different paths or loaders do not.
 
 ## Configure game-defined data
 
@@ -137,26 +145,90 @@ On `Codecs`, `SetDecoder` and `SetEncoder` install or replace their direction in
 
 Snapshots copy functions, not captured closure state. Custom codecs must support concurrent calls if used concurrently.
 
-### Load before creating a game
+## Save and reload a document
 
-A standalone loader is useful when configuration is needed before game or runner construction:
+For writable desktop storage, choose an application-owned directory and open it with `asset.NewDirectory`. The constructor opens an existing directory; your setup code decides where it belongs and creates it if needed. Castrum does not infer a preference or save location from the working directory, game title, or settings group.
+
+This complete operation writes a supplied snapshot and reads it back through the same directory. It uses the `Profile` type above:
 
 ```go
-loader, err := asset.NewLoader(files, asset.LoaderOptions{Codecs: codecs})
-if err != nil {
-	return err
-}
-profile, err := loader.Load[Profile]("profiles/player.json")
-if err != nil {
-	return err
+import (
+	"errors"
+	"os"
+
+	"github.com/Leonard-Atorough/castrum/asset"
+)
+
+func saveAndReloadProfile(root string, next Profile) (profile Profile, err error) {
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return profile, err
+	}
+	directory, err := asset.NewDirectory(root)
+	if err != nil {
+		return profile, err
+	}
+	defer func() {
+		err = errors.Join(err, directory.Close())
+	}()
+
+	codecs := asset.NewCodecs()
+	if err := codecs.SetJSON[Profile](); err != nil {
+		return profile, err
+	}
+	dataLoader, err := asset.NewLoader(directory, asset.LoaderOptions{
+		Codecs:      codecs,
+		CachePolicy: asset.CacheBypass,
+	})
+	if err != nil {
+		return profile, err
+	}
+	saver, err := asset.NewSaver(directory, asset.SaverOptions{Codecs: codecs})
+	if err != nil {
+		return profile, err
+	}
+	if err := saver.Save("profiles/player.json", next); err != nil {
+		return profile, err
+	}
+	return dataLoader.Load[Profile]("profiles/player.json")
 }
 ```
 
-`LoaderOptions{}` selects the default codecs; a nil filesystem uses the working directory. This loader remains independent of the world's loader. In particular, constructing a runner does not register audio decoders on standalone loaders.
+The loader and saver are connected by the same `Directory`, not merely the same codecs. `Save` selects the `Profile` encoder by its static Go type and the `.json` extension; the saver gives storage a callback already bound to that value and encoder. Storage supplies the writer, checks completion, and publishes the file. The loader independently selects the corresponding decoder.
 
-## Read changed files without disturbing cached content
+For a running game, keep the directory and facades open rather than calling this setup function for every save. Close the directory only after all users and open files have finished. Neither the loader nor saver closes borrowed storage. Handle the close error when ending its lifetime, as the named return does above.
 
-Use `CacheBypass` to read mutable documents through a long-lived loader:
+A standalone loader can restore configuration before game or runner construction. `LoaderOptions{}` selects default codecs; a nil filesystem reads from the working directory. Standalone loaders do not inherit the game's built-in overlay or runner-installed audio decoders.
+
+### Restore before applying or saving
+
+The example deliberately saves a new snapshot. For startup restoration, load first instead. Only `errors.Is(err, fs.ErrNotExist)` should select first-run defaults. Malformed JSON, unsupported versions, validation failures, and other I/O errors require an explicit recovery decision; do not silently replace a bad document with defaults.
+
+Persist preference values or game-defined snapshots, not `settings.Group`, runtime providers, or a live world. Your game owns migration, validation, applying restored values, and reconstructing gameplay. [Settings groups](settings.md) provide a copying and validation boundary, not a save-location policy.
+
+### Directory guarantees and limits
+
+`Directory.Write` creates missing parent directories and a uniquely named staging file in the destination's directory. It invokes the encoding callback synchronously, checks encoding and close errors, then replaces the destination using the platform's rename operation.
+
+- An encoding, staging-write, or close failure before publication leaves the previous destination untouched. Cleanup is attempted, and cleanup errors remain visible alongside the primary cause. Newly created parent directories may remain after a failed save.
+- Staging files request permissions `0o600`; new parent directories request `0o700`. Platform permissions and ACL rules still apply. Existing parent permissions are not changed.
+- Replacement errors are returned. The store never deletes the destination as a fallback and never truncates it before encoding.
+- This is staged replacement, not a promise of universal atomicity or power-loss durability. Go does not guarantee atomic rename on non-Unix platforms, including Windows. A publication error does not establish an unconditional rollback guarantee.
+- Rooted operations prevent paths and symlinks from escaping the supplied root on supported desktop platforms. This host-directory backend is not browser or cloud persistence.
+
+Asset names remain slash-separated relative paths on every platform, including Windows. `Saver.Save` cleans names before storage; direct `Directory.Write` calls require valid `fs.ValidPath` names other than `"."`, with no backslashes. Absolute, escaping, empty, and non-canonical direct-write names are rejected. The root passed to `NewDirectory` is instead a native OS directory path.
+
+Concurrent operations are supported, but writes to the same destination are not ordered by invocation time. Capture an owned snapshot before handing data to a worker and serialize saves when the newest snapshot must win. Do not close the directory while operations are active.
+
+## Choose cached content or fresh reads
+
+Saving does not invalidate decoded assets, GPU textures, or parsed runner fonts. Keep `CacheReuse` for shared content and use `CacheBypass` for mutable data, as in the directory example.
+
+| Policy | Read/populate decoded cache | Share in-flight reads |
+| --- | --- | --- |
+| `CacheReuse` (zero/default) | Yes | Yes |
+| `CacheBypass` | No | No |
+
+`LoaderOptions.CachePolicy` chooses a default. Override either default for one call with `WithCachePolicy`:
 
 ```go
 profile, err := loader.Load[Profile](
@@ -170,26 +242,9 @@ if err != nil {
 
 Bypass opens and decodes the source independently on every call. It does not consume, populate, replace, or invalidate cached values, and does not wait for an in-flight cached read. Concurrent bypass calls do not share their decode through the loader. A custom decoder can still return shared objects; bypass does not deep-copy them.
 
-Choose a default when constructing a loader used primarily for mutable data:
+Invalid policies and nil options return errors before opening a file. Both policies close files they open; failed decoding or closing returns no value and is never cached. If decoding and closing both fail, the returned error preserves both causes.
 
-```go
-loader, err := asset.NewLoader(files, asset.LoaderOptions{
-	Codecs:      codecs,
-	CachePolicy: asset.CacheBypass,
-})
-if err != nil {
-	return err
-}
-```
-
-| Policy | Read/populate decoded cache | Share in-flight reads |
-| --- | --- | --- |
-| `CacheReuse` (zero/default) | Yes | Yes |
-| `CacheBypass` | No | No |
-
-`WithCachePolicy` overrides either default for one load. Invalid policies and nil options return errors before opening a file. Both policies close files they open; failed decoding or closing returns no value and is never cached. If decoding and closing both fail, the returned error preserves both causes.
-
-Bypass is not cache refresh or hot reload. A previously started cached read can still finish and populate the reused cache with its own result. GPU textures and parsed runner fonts are not invalidated.
+Bypass is not cache refresh or hot reload. A previously started cached read can still finish and populate the reused cache with its own result.
 
 ## Register sprite atlases
 
@@ -236,7 +291,7 @@ Region names must be unique and non-empty, dimensions positive, and rectangles w
 
 ## Read streams without caching
 
-Use `LoadReader[T]` for bytes from somewhere other than the loader's filesystem, or when you need a fresh decode rather than a cached value. Supply the format explicitly because a reader has no extension:
+Use `LoadReader[T]` for bytes from somewhere other than the loader's filesystem. For fresh filesystem reads, prefer `Load` with `CacheBypass`. Supply the stream format explicitly because a reader has no extension:
 
 ```go
 profile, err := loader.LoadReader[Profile](reader, asset.FormatJSON)
@@ -328,71 +383,13 @@ if err != nil {
 
 Use `codecs.SetDecoder` instead when multiple loaders need the registration, or when replacing a default before construction. Use `codecs.SetEncoder` for the reverse direction, or `saver.RegisterEncoder` to add it to one existing saver. For extensionless or differently named files, pass `asset.WithFormat(textFormat)` to `Load` or `Save`.
 
-## Save game-defined data
-
-Use a long-lived saver when your game needs to persist ordinary values. A `SaveStore` provides write capability; an `fs.FS` alone does not. Castrum does not yet provide a directory-backed save store, and the game does not automatically construct a saver.
-
-Save preference values or game-defined documents, not `settings.Group`, runtime providers, or a live world. Applying loaded values and reconstructing gameplay state remain explicit game code.
-
-### How encoders and stores cooperate
-
-The encoder decides **how a value becomes bytes**. The store decides **where those bytes go and when they become visible**. The saver connects them:
-
-1. Configure an `Encoder[Profile]` with `Codecs.SetEncoder`, or use `SetJSON[Profile]` to install both JSON directions.
-2. Construct a saver with that configuration and a store.
-3. Call `saver.Save("profiles/player.json", profile)`. The saver validates the name and selects the encoder by the static Go type `Profile` and format `json`.
-4. The saver calls `store.Write(name, encode)`. It supplies the callback, bound to the selected encoder and value; the store does not construct it or look up a codec.
-5. The store prepares a private writer and calls `encode(writer)` synchronously. If encoding fails, it discards the staged output and returns the error.
-6. Otherwise, the store finishes writing and closing as needed, then publishes the completed document.
-
-The store only handles a name and a byte-producing callback. With suitable encoders, the same store can save JSON, images, or custom formats without knowing their Go types. Conversely, an encoder can write through different stores or directly to a caller-owned writer.
-
-### A minimal in-memory store
-
-This store stages bytes in a buffer and replaces the named document only after encoding succeeds:
-
-```go
-import (
-	"bytes"
-	"io"
-)
-
-type memoryStore map[string][]byte
-
-func (store memoryStore) Write(name string, encode func(io.Writer) error) error {
-	var staged bytes.Buffer
-	if err := encode(&staged); err != nil {
-		return err
-	}
-	store[name] = bytes.Clone(staged.Bytes())
-	return nil
-}
-```
-
-With the earlier `Profile` codecs:
-
-```go
-store := make(memoryStore)
-saver, err := asset.NewSaver(store, asset.SaverOptions{Codecs: codecs})
-if err != nil {
-	return err
-}
-if err := saver.Save("profiles/player.json", Profile{Name: "Player"}); err != nil {
-	return err
-}
-```
-
-The map now contains JSON bytes at `store["profiles/player.json"]`, not a `Profile` value. This example is in-memory only and is not safe for concurrent access. A file-backed store would instead encode to a staging file, check write and close errors, and publish it according to its platform's replacement guarantees. Opening and truncating the destination before encoding would not preserve the old document on failure.
-
-`Save` selects an encoder by the value's static type and lowercased extension. `asset.WithFormat` overrides the format for extensionless or custom-named files. Names are cleaned slash-separated paths relative to the store; empty names, absolute paths, backslashes, and paths that still escape the root after cleaning are rejected. Missing encoders and invalid names fail before storage is invoked.
-
-The store's `Write(name, encode)` method must call `encode` synchronously at most once, must call it before returning success, and must not retain it. The store owns its writer and must not publish incomplete output on an encoding failure. It reports write, close, and publication failures. Replacement, directory creation, and durability guarantees belong to the store.
-
-### Write to an existing stream
+## Write to an existing stream
 
 For a caller-owned writer, construct a stream-only saver with a nil store and call `SaveWriter`:
 
 ```go
+import "bytes"
+
 saver, err := asset.NewSaver(nil, asset.SaverOptions{Codecs: codecs})
 if err != nil {
 	return err
@@ -405,11 +402,21 @@ if err := saver.SaveWriter(&output, Profile{Name: "Player"}, asset.FormatJSON); 
 
 `SaverOptions{}` selects the default codecs. `SaveWriter` never closes the writer and does not use storage. It cannot provide staged publication or roll back bytes already written if encoding fails. `Save` on a stream-only saver returns an error.
 
-### Reload and coordinate mutable data
+## Supply another storage backend
 
-Saving does not invalidate a loader's decoded cache. To reread changed bytes, use `Load` with `CacheBypass` and a filesystem that can read the saved destination. Sharing codecs alone does not make saved bytes available to a loader.
+Implement `SaveStore` when documents belong somewhere other than a host directory:
 
-Coordinate concurrent saves to the same destination so an older snapshot cannot finish after a newer one. Encoders and storage must be concurrency-safe when used concurrently. Copy mutable data before handing it to a worker; [settings groups](settings.md) already provide a policy-based copying boundary.
+```go
+type SaveStore interface {
+	Write(name string, encode func(io.Writer) error) error
+}
+```
+
+The store receives a name and a byte-producing callback, not a codec registry or a typed value. It must invoke the callback synchronously at most once, invoke it before returning success, and never retain it. The store owns its writer and must not publish incomplete output on encoding failure. It reports write, close, and publication errors; its replacement and durability guarantees must be explicit.
+
+For example, an in-memory implementation can encode into a private `bytes.Buffer` and replace its map entry only after success. An object-store adapter can stage an upload according to its own publication semantics. Neither needs to understand JSON or the Go type being saved. Read capability is separate: implement `fs.FS` too if the same destination should be usable by a loader.
+
+Missing encoders and invalid save names fail before storage is invoked. `WithFormat` overrides extension inference for `Save`, just as it does for `Load`. Custom encoders and storage must be safe for concurrent use if called concurrently.
 
 ## Handle failures at the right time
 

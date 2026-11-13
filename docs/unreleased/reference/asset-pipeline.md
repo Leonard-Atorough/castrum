@@ -32,13 +32,21 @@ A missing file, missing codec, or codec failure returns an `AssetError` describi
 
 ## Saving
 
-`saver.Save` resolves an encoder before calling the configured `SaveStore`. It passes a synchronous encoding callback to storage, which owns its writer and publication semantics. A filesystem's read capability does not imply write capability; there is no built-in directory backend yet.
+`saver.Save` resolves an encoder before calling the configured `SaveStore`. It passes a synchronous encoding callback to storage, which owns its writer and publication semantics. A filesystem's read capability does not imply write capability; `Directory` implements both interfaces for a rooted host directory.
 
 `SaveWriter` performs encoding only. Like `LoadReader`, it neither closes its caller-owned stream nor accesses storage. A saver with no store supports `SaveWriter` but returns an error for path saves.
 
 The registry stores typed codec functions, recovering the exact `Decoder[T]` or `Encoder[T]` at lookup. Stream conversion keeps values typed throughout; only cached and in-flight load results need a typed value box. This preserves the static requested type even for nil interfaces and typed nil pointers. A decoder or encoder for one type cannot be selected solely because another type uses the same format.
 
 Saves do not update or invalidate loader, GPU, or font caches. Re-read mutable data with `Load` and `CacheBypass` against a filesystem that can read the saved destination. Games own snapshot copying, same-destination write ordering, versions, migration, validation, and application of loaded data.
+
+### Directory storage
+
+`NewDirectory` opens an existing root with `os.OpenRoot`; selecting and creating that directory remain application setup. The caller owns `Close`. Loaders and savers borrow the directory and do not close it. `Directory.Open` delegates to the root's `fs.FS` view, preserving slash-separated path semantics.
+
+`Directory.Write` rejects invalid names and nil callbacks before I/O, localizes the relative name, and creates missing parent directories with requested permissions `0o700`. It creates an exclusive, randomly named staging file in the destination directory with requested permissions `0o600`; collisions are retried. Encoding and closing must succeed before rooted rename replaces the destination. Pre-publication failures preserve the old document and attempt staging cleanup; cleanup errors are joined with the original error. Newly created parent directories can remain.
+
+This is staged replacement, not universal atomicity or crash durability. Rename semantics are platform-dependent, and publication failures are returned without a delete/truncate fallback or an unconditional rollback promise. Rooted operations confine access on supported desktop platforms; browser/cloud persistence requires another backend. Concurrent operations do not provide newest-snapshot ordering for writes to the same name.
 
 ## Atlases
 
