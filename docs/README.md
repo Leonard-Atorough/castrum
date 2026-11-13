@@ -5,4 +5,4 @@ Documentation is versioned with the engine API it describes. Use the released ve
 - [v0.3.0](v0.3.0/README.md) - documentation for the current released version.
 - [Unreleased](unreleased/README.md) - documentation for the next in-development version; not a promise of release timing or scope.
 
-Writing or reviewing documentation? See the [editorial contract](CONTRIBUTING.md).
+Writing or reviewing documentation? See the [documentation contribution guide](CONTRIBUTING.md).
