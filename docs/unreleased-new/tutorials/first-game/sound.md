@@ -1,6 +1,6 @@
-# Add sound and continue
+# Adding sound
 
-You have a complete round: the player can drive, aim, fire, win, and lose. Let's give it a little feedback with looping music and a sound for each shot.
+You have a complete round from [victory or defeat](victory-or-defeat.md). If you'd like to add a little feedback, this optional chapter adds looping music and a sound for each shot.
 
 ## Load the audio
 
@@ -61,10 +61,10 @@ The runner registers the audio decoders, so the shot preload must happen after t
 
 ## Play the shot
 
-In `combat.go`, find `fire`. At the end of the function, immediately after the successful `ctx.World.NewEntity` call, replace its final `return nil` with:
+In `shots.go`, find `spawnShot`. At the end of the function, immediately after the successful `world.NewEntity` call, replace its final `return nil` with:
 
 ```go
-	return playShot(ctx.World)
+	return playShot(world)
 ```
 
 Run `go run .` again. The music should loop while you play, and each accepted click should make a firing sound. `audio.OneShot` creates a temporary audio entity and removes it when playback finishes; the looping music is a separate, persistent entity.
