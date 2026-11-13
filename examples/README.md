@@ -50,6 +50,7 @@ These examples embed shared recordings. Audio output is required to hear the beh
 | Project | What it teaches | What to try or observe | Before reading | Guide |
 | --- | --- | --- | --- | --- |
 | [Playback](audio/playback) | Eager one-shots versus persistent streamed music | SPACE plays an effect; P pauses music and R restarts it | Audio sources and clips | [Audio](../docs/unreleased/guides/audio.md) |
+| [Playlist](audio/playlist) | Completion-driven sequencing, manual selection, sequence repeat, and post-frame signals | N/P changes tracks, R toggles repeat, SPACE pauses; observe exhaustion and the completion count | Playback example and signals | [Playlist example](../docs/unreleased/guides/audio.md#run-the-playlist-example) |
 | [Mixing](audio/mixing) | Master/group volume and global pause policies | Adjust volumes with arrows; ENTER pauses the mixer and SPACE plays an effect that continues through pause | Playback example | [Audio](../docs/unreleased/guides/audio.md) |
 | [Balance](audio/balance) | Live per-source stereo balance and preservation across pause/restart | Adjust balance with LEFT/RIGHT or 1/2/3; SPACE pauses and R restarts | Playback example; stereo output | [Audio](../docs/unreleased/guides/audio.md) |
 | [Spatial](audio/spatial) | A moving listener, a stationary spatial source, and a supplied attenuation curve | Move the listener marker with WASD/arrows and hear the source change with position | Transforms and audio sources/listeners | [Audio](../docs/unreleased/guides/audio.md) |

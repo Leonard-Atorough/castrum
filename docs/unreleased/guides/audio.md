@@ -258,7 +258,15 @@ if err := mixer.SetGroupVolume(
 
 Mixer setters clamp their values to `[0, 1]`, including infinities at the corresponding endpoints. NaN returns an error without changing the current value. An unmodified group starts at unity volume. Muting a bus does not pause its plays; silent playback can still finish.
 
-### Audio preferences
+### Run the playlist example
+
+Run `go run .` from [examples/audio/playlist](../../../examples/audio/playlist) using the development workspace. It streams the existing shared effect and music recording in sequence, without copying assets or adding attribution requirements. Audio output is needed to hear playback.
+
+N selects the next track, P selects the previous track, R toggles sequence repeat, and SPACE pauses/resumes. Manual selection wraps even when automatic repeat is off. Leave the effect playing to observe automatic advance; after the final track, repeat-off leaves the source exhausted until another selection is made. Turning repeat on after exhaustion does not restart playback by itself.
+
+The source uses `LoopNone` so completion can advance the playlist. A post-frame `audio.Finished` consumer counts completed tracks; it observes completion rather than advancing the selection itself. Tests attach a deterministic controller to the real engine audio system, so sequence and signal timing can be checked without waiting for recordings or opening an audio device.
+
+## Audio preferences
 
 Use audio preferences when you want to keep the player's desired levels separately from the mixer's runtime state. `audio.NewPreferences` creates a group with master, music, and sound-effects levels at unity. It does not change the mixer: your game decides when and how to apply the values. If you only need runtime volume control, you can use the mixer directly without creating a preferences group.
 
