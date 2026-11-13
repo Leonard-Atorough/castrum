@@ -28,8 +28,8 @@ If you'd like to understand the pieces as you go, the existing [key concepts](..
 
 ### Input and collision
 
-- [Bind and read player actions](guides/input/actions.md), [use the mouse](guides/input/pointer.md), or [rebind an action](guides/input/rebinding.md).
-- [Detect and respond to overlaps](guides/collision/contacts.md), or [find a target along a line](guides/collision/raycasts.md).
+- [Use input](guides/input/input.md) for actions, devices, aiming, and player-configured controls.
+- [Use collision](guides/collision/collision.md) to detect overlaps, respond to contacts, and cast rays.
 
 ### Create game behavior
 
