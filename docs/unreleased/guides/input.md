@@ -212,6 +212,14 @@ if err := ctx.Actions.SetPreferences(value); err != nil {
 
 Preferences are not saved automatically. Use an engine codec preset, restore into the validated group before calling `WithInputPreferences` or `SetPreferences`, and save the snapshot returned by `Value`. `ActionMap.Preferences()` returns an owned snapshot with the effective deadzone. An omitted or zero JSON deadzone selects the default; per-binding nonzero overrides still take precedence. See the [settings guide](settings.md#save-and-restore-engine-preferences) for the persistence workflow and the [audio guide](audio.md#audio-preferences) for mixer preferences.
 
+### Run the persistent rebinding example
+
+Run `go run .` from [examples/rebinding](../../../examples/rebinding), or use `go run . -directory ./controls-data` for an explicit native save location. The default is `castrum-examples/rebinding` beneath the OS user configuration directory.
+
+SPACE initially activates ping. F2 copies the confirmed preferences into a draft; press a candidate key, then ENTER to confirm or ESC to cancel. F2, ENTER, and ESC are reserved editor controls read from raw input, so rebinding ping cannot make the editor inaccessible. This focused example captures one keyboard key, not chords, mouse buttons, or gamepad inputs.
+
+Editing and cancelling change neither live controls nor the saved file. Confirmation replaces only ping's bindings, preserving other actions and the global deadzone, applies the validated snapshot, then saves `controls.json`. Application and saving are not transactional: a save failure is returned explicitly after live controls have changed. Restart to verify restoration. Defaults are used only for a missing file; malformed or invalid documents are reported and left untouched.
+
 ## Raw snapshots
 
 Use `ctx.Input` when you need a physical device directly, such as cursor position or the current update's scroll offset:
