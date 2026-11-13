@@ -28,7 +28,7 @@ If you'd like to understand the pieces as you go, the existing [key concepts](..
 
 ### Create game behavior
 
-- [Create and change game objects](guides/game-behavior/entities.md), then [update a group of entities](guides/game-behavior/systems.md) and [share data between systems](guides/game-behavior/resources.md).
+- [Create and change game objects](guides/world/entities.md), then [update a group of entities](guides/world/systems.md) and [share data between systems](guides/world/resources.md).
 - Handle controls with [input](../unreleased/guides/input.md), and detect overlaps with [collision](../unreleased/guides/collision.md).
 - Organize game modes and reusable world content with [state](../unreleased/guides/state.md) and [scenes](../unreleased/guides/scenes.md).
 - Use [signals](../unreleased/guides/signals.md) to communicate between systems, [timers](../unreleased/guides/timer.md) for countdowns, and [time control](../unreleased/guides/time-control.md) to pause or scale time.
