@@ -103,15 +103,15 @@ func run() error {
 func newGame() (*castrum.Game, *runState, error) {
 	bindings := input.Bindings{
 		"move_x": {
-			input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD},
-			input.KeyPairInput{Negative: input.KeyArrowLeft, Positive: input.KeyArrowRight},
+			input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD}.Binding(),
+			input.KeyPairInput{Negative: input.KeyArrowLeft, Positive: input.KeyArrowRight}.Binding(),
 		},
 		"move_y": {
-			input.KeyPairInput{Negative: input.KeyW, Positive: input.KeyS},
-			input.KeyPairInput{Negative: input.KeyArrowUp, Positive: input.KeyArrowDown},
+			input.KeyPairInput{Negative: input.KeyW, Positive: input.KeyS}.Binding(),
+			input.KeyPairInput{Negative: input.KeyArrowUp, Positive: input.KeyArrowDown}.Binding(),
 		},
-		"start":   {input.KeyInput{Key: input.KeySpace}},
-		"restart": {input.KeyInput{Key: input.KeyEnter}},
+		"start":   {input.KeyInput{Key: input.KeySpace}.Binding()},
+		"restart": {input.KeyInput{Key: input.KeyEnter}.Binding()},
 	}
 	game, err := castrum.New(
 		castrum.WithTitle("Signal Salvage"),

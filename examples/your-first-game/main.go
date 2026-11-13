@@ -116,23 +116,23 @@ func main() {
 func run() error {
 	bindings := input.Bindings{
 		"move_forward": []input.Input{
-			input.KeyInput{Key: input.KeyW},
-			input.KeyInput{Key: input.KeyArrowUp},
+			input.KeyInput{Key: input.KeyW}.Binding(),
+			input.KeyInput{Key: input.KeyArrowUp}.Binding(),
 		},
 		"move_backward": []input.Input{
-			input.KeyInput{Key: input.KeyS},
-			input.KeyInput{Key: input.KeyArrowDown},
+			input.KeyInput{Key: input.KeyS}.Binding(),
+			input.KeyInput{Key: input.KeyArrowDown}.Binding(),
 		},
 		"turn_left": []input.Input{
-			input.KeyInput{Key: input.KeyA},
-			input.KeyInput{Key: input.KeyArrowLeft},
+			input.KeyInput{Key: input.KeyA}.Binding(),
+			input.KeyInput{Key: input.KeyArrowLeft}.Binding(),
 		},
 		"turn_right": []input.Input{
-			input.KeyInput{Key: input.KeyD},
-			input.KeyInput{Key: input.KeyArrowRight},
+			input.KeyInput{Key: input.KeyD}.Binding(),
+			input.KeyInput{Key: input.KeyArrowRight}.Binding(),
 		},
 		"fire": []input.Input{
-			input.MouseButtonInput{Button: input.MouseButtonLeft},
+			input.MouseButtonInput{Button: input.MouseButtonLeft}.Binding(),
 		},
 	}
 

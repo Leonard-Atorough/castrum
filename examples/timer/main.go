@@ -81,9 +81,9 @@ func main() {
 
 func run() error {
 	bindings := input.Bindings{
-		"restart_one_shot":    {input.KeyInput{Key: input.KeyR}},
-		"start_held":          {input.KeyInput{Key: input.KeySpace}},
-		"toggle_combat_group": {input.KeyInput{Key: input.KeyP}},
+		"restart_one_shot":    {input.KeyInput{Key: input.KeyR}.Binding()},
+		"start_held":          {input.KeyInput{Key: input.KeySpace}.Binding()},
+		"toggle_combat_group": {input.KeyInput{Key: input.KeyP}.Binding()},
 	}
 
 	g, err := castrum.New(
