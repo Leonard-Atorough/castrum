@@ -58,8 +58,8 @@ func main() {
 	}
 }
 
-func run() error {
-	bindings := input.Bindings{
+func timeBindings() input.Bindings {
+	return input.Bindings{
 		"pause": []input.Input{
 			input.KeyInput{Key: input.KeySpace},
 			input.KeyInput{Key: input.KeyP},
@@ -73,10 +73,12 @@ func run() error {
 			input.KeyInput{Key: input.KeyS},
 		},
 	}
+}
 
+func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum — time control"),
-		castrum.WithBindings(bindings),
+		castrum.WithBindings(timeBindings()),
 	)
 	if err != nil {
 		return err
@@ -147,8 +149,29 @@ func run() error {
 	// The orbit advances on the fixed tick, which is simulation time: it
 	// stops when the game pauses and retimes when the scale changes, with
 	// no changes to this system.
+	if err := g.AddSystem(core.PhaseFixed, "orbit", orbitSystem(inner, outer)); err != nil {
+		return err
+	}
+
+	// The controls run in the frame phase: it never pauses, and its
+	// DeltaTime is unscaled wall-clock time, so the controls feel the
+	// same no matter what the simulation is doing. A fixed-phase system
+	// could never resume a paused game.
+	if err := g.AddSystem(core.PhaseFrame, "time control", timeControlSystem(g, state)); err != nil {
+		return err
+	}
+
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
+	if err != nil {
+		return err
+	}
+
+	return g.Run(runner)
+}
+
+func orbitSystem(inner, outer *core.Entity) core.System {
 	angle := 0.0
-	if err := g.AddSystem(core.PhaseFixed, "orbit", core.SystemFunc(func(ctx *core.Context) error {
+	return core.SystemFunc(func(ctx *core.Context) error {
 		angle += orbitSpeed * ctx.DeltaTime.Seconds()
 		center := geom.Vector2{X: screenW / 2, Y: screenH / 2}
 		innerPos := center.Add(geom.Vector2{X: 140 * math.Cos(angle), Y: 140 * math.Sin(angle)})
@@ -157,15 +180,11 @@ func run() error {
 			return err
 		}
 		return outer.Update(ctx.World, func(t *core.Transform) { t.Position = outerPos })
-	})); err != nil {
-		return err
-	}
+	})
+}
 
-	// The controls run in the frame phase: it never pauses, and its
-	// DeltaTime is unscaled wall-clock time, so the controls feel the
-	// same no matter what the simulation is doing. A fixed-phase system
-	// could never resume a paused game.
-	if err := g.AddSystem(core.PhaseFrame, "time control", core.SystemFunc(func(ctx *core.Context) error {
+func timeControlSystem(g *castrum.Game, state *core.Entity) core.System {
+	return core.SystemFunc(func(ctx *core.Context) error {
 		if ctx.Actions.JustPressed("pause") {
 			if g.Paused() {
 				g.Resume()
@@ -197,14 +216,5 @@ func run() error {
 				Size: 28,
 			}
 		})
-	})); err != nil {
-		return err
-	}
-
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-
-	return g.Run(runner)
+	})
 }

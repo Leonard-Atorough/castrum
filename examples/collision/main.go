@@ -266,7 +266,46 @@ func run() error {
 	// pair separates and re-enters, which a sweeping bar does on its
 	// own. The hit side is told from the wall by the other
 	// collider's layers: any overlap with the hazard mask counts.
-	if err := g.AddSystem(core.PhaseFixed, "hazard", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "hazard", hazardSystem(player, panel)); err != nil {
+		return err
+	}
+
+	// Spin every entity that carries a rotation component, at its own
+	// speed - the query finds the bars; no handle is held. The collider
+	// follows the rotation for free: the collision system transforms
+	// the shape by the transform every tick.
+	var spin *core.Query
+	if err := g.AddSystem(core.PhaseFixed, "bar", core.SystemFunc(func(ctx *core.Context) error {
+		if spin == nil {
+			spin = core.NewQuery(ctx.World).With(core.Transform{}, rotation(0))
+		}
+		for e := range spin.Execute() {
+			speed, _ := e.Component[rotation]()
+			e.Update(func(t *core.Transform) { t.Rotation += float64(speed) })
+		}
+		return nil
+	})); err != nil {
+		return err
+	}
+
+	// Collect pickups by deriving the enter edge from Contacts state:
+	// a contact in Current that was not in Previous. The trigger flag
+	// says which contacts are pickups; collecting one heals the
+	// player, clamped by max health.
+	if err := g.AddSystem(core.PhaseFixed, "pickups", pickupSystem(player, pickups, &score, panel)); err != nil {
+		return err
+	}
+
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
+	if err != nil {
+		return err
+	}
+
+	return g.Run(runner)
+}
+
+func hazardSystem(player *core.Entity, panel *debug.Panel) core.System {
+	return core.SystemFunc(func(ctx *core.Context) error {
 		contacts, ok := player.Component[collision.Contacts](ctx.World)
 		if !ok {
 			return nil
@@ -293,33 +332,11 @@ func run() error {
 			return err
 		}
 		return nil
-	})); err != nil {
-		return err
-	}
+	})
+}
 
-	// Spin every entity that carries a rotation component, at its own
-	// speed - the query finds the bars; no handle is held. The collider
-	// follows the rotation for free: the collision system transforms
-	// the shape by the transform every tick.
-	var spin *core.Query
-	if err := g.AddSystem(core.PhaseFixed, "bar", core.SystemFunc(func(ctx *core.Context) error {
-		if spin == nil {
-			spin = core.NewQuery(ctx.World).With(core.Transform{}, rotation(0))
-		}
-		for e := range spin.Execute() {
-			speed, _ := e.Component[rotation]()
-			e.Update(func(t *core.Transform) { t.Rotation += float64(speed) })
-		}
-		return nil
-	})); err != nil {
-		return err
-	}
-
-	// Collect pickups by deriving the enter edge from Contacts state:
-	// a contact in Current that was not in Previous. The trigger flag
-	// says which contacts are pickups; collecting one heals the
-	// player, clamped by max health.
-	if err := g.AddSystem(core.PhaseFixed, "pickups", core.SystemFunc(func(ctx *core.Context) error {
+func pickupSystem(player *core.Entity, pickups []*core.Entity, score *int, panel *debug.Panel) core.System {
+	return core.SystemFunc(func(ctx *core.Context) error {
 		for _, pickup := range pickups {
 			contacts, ok := pickup.Component[collision.Contacts](ctx.World)
 			if !ok {
@@ -329,30 +346,21 @@ func run() error {
 				if !hit.Trigger {
 					continue
 				}
-				score++
+				*score++
 				if err := pickup.SetComponent(ctx.World, core.Transform{Position: randomPosition()}); err != nil {
 					return err
 				}
 				if err := player.Update(ctx.World, func(s *playerStats) {
 					s.currentHealth = min(s.currentHealth+pickupHeal, s.maxHealth)
 					panel.Message(fmt.Sprintf("pickup: score %d, health %d/%d",
-						score, s.currentHealth, s.maxHealth))
+						*score, s.currentHealth, s.maxHealth))
 				}); err != nil {
 					return err
 				}
 			}
 		}
 		return nil
-	})); err != nil {
-		return err
-	}
-
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-
-	return g.Run(runner)
+	})
 }
 
 // spawnRect is a helper method to spawn a rectangular sprite and
@@ -375,7 +383,7 @@ func spawnRect(world *core.World, position, min, max geom.Vector2, fill color.Co
 }
 
 // entered compares the current contacts with contacts in the previous
-// frame and returns the new contacts that were not present before.
+// tick and returns the new contacts that were not present before.
 func entered(contacts collision.Contacts) []collision.Contact {
 	var edges []collision.Contact
 	for _, hit := range contacts.Current {

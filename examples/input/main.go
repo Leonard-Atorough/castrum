@@ -46,8 +46,8 @@ func main() {
 	}
 }
 
-func run() error {
-	bindings := input.Bindings{
+func tankBindings() input.Bindings {
+	return input.Bindings{
 		"move_forward": []input.Input{
 			input.KeyInput{Key: input.KeyW},
 			input.KeyInput{Key: input.KeyArrowUp},
@@ -72,10 +72,12 @@ func run() error {
 			input.KeyPairInput{Positive: input.KeyQ, Negative: input.KeyE},
 		},
 	}
+}
 
+func run() error {
 	g, err := castrum.New(
 		castrum.WithTitle("castrum - input"),
-		castrum.WithBindings(bindings),
+		castrum.WithBindings(tankBindings()),
 	)
 	if err != nil {
 		return err
