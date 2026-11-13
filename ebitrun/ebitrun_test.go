@@ -1,18 +1,106 @@
 package ebitrun
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/input"
 )
+
+func TestDisplayPreferencesPersistence(t *testing.T) {
+	root := t.TempDir()
+	directory, err := asset.NewDirectory(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := directory.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	codecs := NewAssetCodecs()
+	saver, err := asset.NewSaver(directory, asset.SaverOptions{Codecs: codecs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := DisplayPreferences{Window: Size{Width: 1600, Height: 900}}
+	if err := saver.Save("display.json", want); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "display.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gotJSON, wantJSON any
+	if err := json.Unmarshal(data, &gotJSON); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(`{"window":{"width":1600,"height":900},"resizable":false,"vsync":false}`), &wantJSON); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotJSON, wantJSON) {
+		t.Fatalf("display JSON=%s", data)
+	}
+	loader, err := asset.NewLoader(directory, asset.LoaderOptions{Codecs: codecs, CachePolicy: asset.CacheBypass})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := loader.Load[DisplayPreferences]("display.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded != want {
+		t.Fatalf("restored display=%+v, want %+v", loaded, want)
+	}
+	prefs, err := NewDisplayPreferences()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prefs.Set(loaded); err != nil {
+		t.Fatal(err)
+	}
+	value, err := prefs.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := mustRunner(t, mustGame(t), WithDisplayPreferences(value))
+	if runner.opts.Window != want.Window || runner.opts.Resizable || runner.opts.VSync {
+		t.Fatalf("restored display not applied: %+v", runner.opts)
+	}
+}
+
+func TestRunnerPreferenceCodecsIncludeCoreTypes(t *testing.T) {
+	files := fstest.MapFS{
+		"audio.json": {Data: []byte(`{"master":0.5,"music":0.25,"sfx":0}`)},
+		"input.json": {Data: []byte(`{"bindings":{},"deadzone":0.25}`)},
+	}
+	loader, err := asset.NewLoader(files, asset.LoaderOptions{Codecs: NewAssetCodecs()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	levels, err := loader.Load[audio.Preferences]("audio.json")
+	if err != nil || levels != (audio.Preferences{Master: 0.5, Music: 0.25}) {
+		t.Fatalf("core audio defaults unavailable: %+v, %v", levels, err)
+	}
+	controls, err := loader.Load[input.Preferences]("input.json")
+	if err != nil || controls.Deadzone != 0.25 || controls.Bindings == nil {
+		t.Fatalf("core input defaults unavailable: %+v, %v", controls, err)
+	}
+}
 
 func TestRunnerDefaults(t *testing.T) {
 	r := mustRunner(t, mustGame(t))

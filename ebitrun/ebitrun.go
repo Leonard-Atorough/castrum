@@ -20,9 +20,9 @@ import (
 // Size is a pixel dimension used for window or logical resolution.
 type Size struct {
 	// Width is the horizontal dimension in pixels.
-	Width int
+	Width int `json:"width"`
 	// Height is the vertical dimension in pixels.
-	Height int
+	Height int `json:"height"`
 }
 
 // DrawFunc renders one frame to the runner's Ebitengine canvas.

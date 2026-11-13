@@ -117,12 +117,12 @@ The window dimensions must be positive. These are startup settings: changing the
 
 ## Save and restore engine preferences
 
-`audio.Preferences` stores `master`, `music`, and `sfx` levels. `input.Preferences` stores JSON-native `bindings` and the map-wide `deadzone`. Persist these snapshots, not their `settings.Group` wrappers. They can also be fields of an application-owned document registered with `SetJSON`. There is no separate settings registry, automatic file I/O, or implicit application.
+`audio.Preferences` stores `master`, `music`, and `sfx` levels. `input.Preferences` stores JSON-native `bindings` and the map-wide `deadzone`. `ebitrun.DisplayPreferences` stores `window` (`width` and `height`), `resizable`, and `vsync`. Persist these snapshots, not their `settings.Group` wrappers. They can also be fields of an application-owned document registered with `SetJSON`. There is no separate settings registry, automatic file I/O, or implicit application.
 
-Choose an application-data location and open an `asset.Directory`; see [Save and reload a document](assets.md#save-and-reload-a-document) for directory ownership and write guarantees. `castrum.NewAssetCodecs` includes audio and input preferences, so no per-type JSON registration is needed. With that open directory named `directory`, construct the preference loader and saver:
+Choose an application-data location and open an `asset.Directory`; see [Save and reload a document](assets.md#save-and-reload-a-document) for directory ownership and write guarantees. `ebitrun.NewAssetCodecs` includes all three snapshot types, so no per-type JSON registration is needed. With that open directory named `directory`, construct the preference loader and saver:
 
 ```go
-codecs := castrum.NewAssetCodecs()
+codecs := ebitrun.NewAssetCodecs()
 loader, err := asset.NewLoader(directory, asset.LoaderOptions{
 	Codecs: codecs,
 	CachePolicy: asset.CacheBypass,
@@ -138,7 +138,9 @@ if err != nil {
 
 The loader reads mutable preference documents independently of its decoded cache. Each loader and saver snapshots registrations at construction, so configure game-owned document codecs or replacements first. Each preset call returns independent codecs. The directory remains caller-owned and must be closed after both facades finish using it.
 
-`castrum.New` selects this preset when `WithAssetCodecs` is absent or nil; an explicit codec configuration is used as supplied. The low-level `asset.NewCodecs` stays engine-independent. Pass the configured set through `castrum.WithAssetCodecs(codecs)` if the game's content loader should use it too. Audio sample decoders remain runner-installed at the effective sample rate.
+Headless or custom-runner games can use `castrum.NewAssetCodecs`, which includes audio and input preferences without importing the default runner. `castrum.New` selects this core preset when `WithAssetCodecs` is absent or nil; an explicit codec configuration is used as supplied. The low-level `asset.NewCodecs` stays engine-independent. Pass the configured set through `castrum.WithAssetCodecs(codecs)` if the game's content loader should use it too. Audio sample decoders remain runner-installed at the effective sample rate.
+
+Restore display preferences before constructing the runner, using the loader above and a validated display group. The runner preset is available beforehand and creates neither a window nor an audio controller. Pass the group's value through `ebitrun.WithDisplayPreferences(value)`; changing the group later does not reconfigure an existing runner.
 
 Restore defaults only when the file is missing. Decode failures and invalid values are errors, not a reason to overwrite the player's file:
 
