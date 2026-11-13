@@ -42,6 +42,12 @@ A system error stops the current schedule and is returned through `Startup` or `
 
 The timer, collision, and animation systems do work declared by component presence; an unmatched system costs an empty query per tick. Their registration names and other public built-in names are exported by their owning packages, but these names cannot be used as relative insertion targets.
 
+## Run the relative-ordering example
+
+Run `go run .` from [examples/scheduling](../../../examples/scheduling) using the development workspace. This headless command registers apply/report first, then inserts sample before apply and audit after apply. One frame prints sample 21, apply 42, audit 42, report 42.
+
+The targets already exist in the same user phase. The example uses neither engine-system names nor cross-phase ordering and returns registration or execution errors to the caller. For clock controls, use [Time control](../../../examples/time-control); for coordinated system groups, use [Signal Salvage](../../../examples/signal-salvage).
+
 ## System groups
 
 The `castrum.InGroup` option assigns a system to a named group. Groups start
