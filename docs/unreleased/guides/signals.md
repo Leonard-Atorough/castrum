@@ -4,7 +4,7 @@ If you're coming from an engine like Godot, the idea is familiar: one part of th
 
 Readers don't compete for a shared queue. Each reader has its own cursor, so multiple systems can react to the same signal independently.
 
-The runnable [signal example](../../../examples/unreleased/signals) demonstrates how to react to an engine signal, define and emit game signals, and carry a sequence across fixed and frame systems.
+The runnable [signal example](../../../examples/signals) demonstrates how to react to an engine signal, define and emit game signals, and carry a sequence across fixed and frame systems.
 
 ## The signal model
 

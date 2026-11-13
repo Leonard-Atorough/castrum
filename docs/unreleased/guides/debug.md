@@ -52,7 +52,7 @@ The first line shows enabled rate readouts, adding `paused` or `scale` when eith
 
 ## Where to go next
 
-- [Timer example](../../../examples/unreleased/timer) - report timer completions and control changes as messages.
+- [Timer example](../../../examples/timer) - report timer completions and control changes as messages.
 - [Input example](../../../examples/input) - update live cursor and control status.
 - [Audio mixing example](../../../examples/audio/mixing) - show live mixer values and pause events.
 - [Performance](performance.md) and [Troubleshooting](troubleshooting.md) - investigate frame costs and runtime problems.

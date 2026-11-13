@@ -626,7 +626,7 @@ func fireSystem(turret *core.Entity) core.System {
 
 `Restart` resets the elapsed time, clears the completion, and runs the timer again - the same timer counts down every shot. The reload is 750 milliseconds of real time, and the timer advances on fixed ticks, so it pauses with the game for free.
 
-Click the left mouse button after each reload to fire again. The [timers guide](../guides/timer.md) covers completion edges and repeating timers; the [timer example](../../../examples/unreleased/timer) shows them in a complete program.
+Click the left mouse button after each reload to fire again. The [timers guide](../guides/timer.md) covers completion edges and repeating timers; the [timer example](../../../examples/timer) shows them in a complete program.
 
 ### Adding enemies
 

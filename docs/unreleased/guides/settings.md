@@ -2,7 +2,7 @@
 
 The `settings` package holds game-defined player preferences in typed groups. A group is the **desired** value; your game decides how to apply it and whether to save it.
 
-The runnable [settings example](../../../examples/unreleased/settings/main.go) defines preferences, validates and copies them, then reads them before and after a change. Run it from `examples/unreleased/settings` with `go run .`.
+The runnable [settings example](../../../examples/settings/main.go) restores, validates, applies, and saves preferences through an application-owned directory. Run it from `examples/settings` with the repository's development workspace and `go run .`. It writes `preferences.json` beneath the OS user configuration directory; `-directory` selects another location. Application in this command-line example means printing the values, not updating a live game.
 
 ## Define a group
 
@@ -10,8 +10,8 @@ Define your own preference type and, when needed, methods for validation and cop
 
 ```go
 type Preferences struct {
-	TextSize int
-	Hints    []string
+	TextSize int      `json:"text_size"`
+	Hints    []string `json:"hints"`
 }
 
 func (p Preferences) Validate() error {
@@ -115,8 +115,22 @@ if err != nil {
 
 The window dimensions must be positive. These are startup settings: changing the group later does not change an existing runner. Options passed after `WithDisplayPreferences` override its values.
 
+## Run the persistence example
+
+From `examples/settings`, use the development workspace and run:
+
+```sh
+go run . -directory ./preferences-data
+```
+
+This explicitly chooses a native save directory. Without `-directory`, the command creates `castrum-examples/settings` beneath the OS user configuration directory returned by `os.UserConfigDir`.
+
+The command reports the destination of `preferences.json` after saving. First-run defaults are used only when the document is missing. Malformed JSON, invalid preferences, and other read failures return errors without applying or replacing the document.
+
+Application means printing the values in this command-line example. After printing restored values, it sets text size to 20 and adds the `jump` hint if absent, applies the result, and saves a copied snapshot. A second run restores the saved values without accumulating duplicate hints. Directory close errors are returned too.
+
 ## Ownership and persistence
 
 Groups are not safe for concurrent use. Read and copy the needed value on the game-loop goroutine before handing it to a worker; return results to the game loop before changing the group.
 
-The package does not apply preferences, retain a separate applied or saved value, serialize data, or write files. Keep any last-applied or last-saved value yourself if you need to display or restore it. A persistence implementation must arrange safe ordering of writes to the same destination.
+The settings package does not apply preferences, retain a separate applied or saved value, serialize data, or write files. Keep any last-applied or last-saved value yourself if you need to display or restore it. A persistence implementation must arrange safe ordering of writes to the same destination.
