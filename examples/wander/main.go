@@ -3,8 +3,8 @@
 // it interpolated between ticks, and the debug overlay draws its
 // rates above the engine-rendered world.
 //
-// Assets load from an embedded filesystem - the single-binary
-// passed via castrum.WithFilesystem.
+// Assets load from an embedded filesystem, passed via
+// castrum.WithFilesystem for a single-binary game.
 //
 // Run from this directory:
 //
@@ -88,20 +88,7 @@ func run() error {
 	// constant speed; reaching it picks a new random one. The engine's
 	// prev-transform capture and the renderer's interpolation make the
 	// motion smooth without any per-frame work here.
-	target := randomPoint()
-	if err := g.AddSystem(core.PhaseFixed, "wander", core.SystemFunc(func(ctx *core.Context) error {
-		return sprite.Update(ctx.World, func(t *core.Transform) {
-			delta := target.Sub(t.Position)
-			distance := delta.Length()
-			step := speed * ctx.DeltaTime.Seconds()
-			if distance <= step {
-				t.Position = target
-				target = randomPoint()
-			} else {
-				t.Position = t.Position.Add(delta.Mul(step / distance))
-			}
-		})
-	})); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "wander", wanderSystem(sprite, randomPoint)); err != nil {
 		return err
 	}
 
@@ -113,6 +100,23 @@ func run() error {
 	// g.Run is the canonical entry: the guard against a second run
 	// lives on the game, not the runner.
 	return g.Run(runner)
+}
+
+func wanderSystem(sprite *core.Entity, nextTarget func() geom.Vector2) core.System {
+	target := nextTarget()
+	return core.SystemFunc(func(ctx *core.Context) error {
+		return sprite.Update(ctx.World, func(t *core.Transform) {
+			delta := target.Sub(t.Position)
+			distance := delta.Length()
+			step := speed * ctx.DeltaTime.Seconds()
+			if distance <= step {
+				t.Position = target
+				target = nextTarget()
+			} else {
+				t.Position = t.Position.Add(delta.Mul(step / distance))
+			}
+		})
+	})
 }
 
 // randomPoint picks a world point; with the camera framing the screen,
