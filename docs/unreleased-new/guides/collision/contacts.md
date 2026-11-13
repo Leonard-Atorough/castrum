@@ -65,6 +65,9 @@ func collectPickups(player *core.Entity, collected *int) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		contacts, ok := player.Component[collision.Contacts](ctx.World)
 		if !ok {
+			if !player.HasComponent[core.Transform](ctx.World) || !player.HasComponent[collision.Collider](ctx.World) {
+				return fmt.Errorf("collect pickups: player has no transform or collider")
+			}
 			return nil
 		}
 		for _, contact := range contacts.Current {
@@ -82,7 +85,7 @@ func collectPickups(player *core.Entity, collected *int) core.System {
 }
 ```
 
-Register the system in `core.PhaseFixed`, keep the counter where your score display can read it, and handle registration errors. A contacted pickup disappears and is counted once. The marker check prevents an unrelated trigger from being collected. Contacts may not exist before the first collision update; if they remain missing, check that the player still has both a transform and collider.
+Register the system in `core.PhaseFixed`, keep the counter where your score display can read it, and handle registration errors. A contacted pickup disappears and is counted once. The marker check prevents an unrelated trigger from being collected. Contacts may not exist before the first collision update; if they are missing and the player also lacks a transform or collider, the system reports an error instead of silently continuing.
 
 `Current` is the latest set of overlaps and `Previous` is the preceding tick's. The slices are borrowed, read-only views valid until the next collision update. This example destroys the pickup, so it doesn't need a separate enter check. For an object that remains in the world, compare the two sets or consume enter/exit signals to react once per encounter; see [contact lifecycle](../../../unreleased/guides/collision.md#read-the-contact-lifecycle).
 

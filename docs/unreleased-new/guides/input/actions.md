@@ -24,7 +24,7 @@ func newGame() (*castrum.Game, error) {
 }
 ```
 
-Return the error to your caller: game creation rejects invalid bindings. A/D and the left stick both control `"move_x"`; Space and the south controller button both activate `"fire"`. Inputs in the same list are alternatives. When more than one axis contributes, the value with the greatest absolute magnitude wins.
+Return the error to your caller: game creation rejects malformed binding structures. A/D and the left stick both control `"move_x"`; Space and the south controller button both activate `"fire"`. Inputs in the same list are alternatives. When more than one axis contributes, the value with the greatest absolute magnitude wins.
 
 The game copies the bindings, so later changes to the original map don't change the active controls. To change them while the game is running, see [Rebind an action](rebinding.md).
 
