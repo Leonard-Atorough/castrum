@@ -56,12 +56,12 @@ func (s Sprite) Validate() error {
 	switch d := s.Drawable.(type) {
 	case nil:
 		// Style without a picture: legal, not drawn.
-	case AtlasSource:
-		if d.Atlas == "" {
-			return fmt.Errorf("atlas source requires an atlas ID")
+	case SheetSource:
+		if err := d.Sheet.Validate(); err != nil {
+			return fmt.Errorf("sheet source: %w", err)
 		}
 		if d.Region == "" {
-			return fmt.Errorf("atlas source requires a region")
+			return fmt.Errorf("sheet source requires a region")
 		}
 	case TextureSource:
 		if d.Texture == "" {
@@ -113,16 +113,16 @@ func isFiniteVector(v geom.Vector2) bool {
 }
 
 // Drawable is the image, text, or shape rendered by a [Sprite]. Its
-// implementations are [AtlasSource],
+// implementations are [SheetSource],
 // [TextureSource], [TextSource], [RectShape], [CircleShape], and [LineShape].
 type Drawable interface {
 	isDrawable()
 }
 
-// AtlasSource draws a named region of a registered atlas.
-type AtlasSource struct {
-	// Atlas is the ID of the registered atlas.
-	Atlas asset.AtlasID
+// SheetSource draws a named region of a file-backed or in-memory spritesheet.
+type SheetSource struct {
+	// Sheet identifies the JSON document or retains a constructed sheet.
+	Sheet asset.SheetRef
 	// Region is the name of the region to draw.
 	Region string
 }
@@ -174,7 +174,7 @@ type LineShape struct {
 	To geom.Vector2
 }
 
-func (AtlasSource) isDrawable()   {}
+func (SheetSource) isDrawable()   {}
 func (TextSource) isDrawable()    {}
 func (TextureSource) isDrawable() {}
 func (RectShape) isDrawable()     {}

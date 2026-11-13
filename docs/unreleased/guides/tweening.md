@@ -183,7 +183,7 @@ updates and ownership.
 
 There is no tween manager, target binding, callback, sequence, or looping mode.
 Pause an individual tween by not advancing it. Sprite clip playback remains
-the separate concern described in the [animation guide](animation.md).
+the separate concern described in [Sprite animation](spritesheets.md#animate-ordered-regions).
 
 ## Run the example
 

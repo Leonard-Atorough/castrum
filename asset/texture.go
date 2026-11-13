@@ -8,9 +8,8 @@ import (
 	_ "image/png"  // register PNG decoding with image.Decode
 )
 
-// TextureData holds a decoded image and its dimensions. Atlas registration
-// uses the dimensions to validate regions; runners convert the image to a
-// backend texture.
+// TextureData holds a decoded image and its dimensions. Collectors use its
+// bounds to validate sheet regions; runners convert it to a backend texture.
 type TextureData struct {
 	// Image is the decoded image.
 	Image image.Image

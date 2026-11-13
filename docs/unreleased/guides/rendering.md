@@ -8,7 +8,7 @@ The rendering path is:
 Transform + Sprite -> collect -> resolve -> cull -> sort -> draw
 ```
 
-The [primitive example](../../../examples/primitive) shows the shape drawables, while [examples/animate](../../../examples/animate) shows an atlas-backed sprite. The [assets guide](assets.md) covers loading textures and registering atlases.
+The [primitive example](../../../examples/primitive) shows the shape drawables. The [spritesheets guide](spritesheets.md) covers region authoring, loading, saving, and frame playback; [Assets](assets.md) covers generic texture loading and storage.
 
 ## Draw a sprite
 
@@ -32,28 +32,23 @@ The zero `Sprite` is valid but invisible: a nil `Drawable` declares style withou
 
 `Sprite.Drawable` is a sealed set of six current choices:
 
-- `AtlasSource` draws one named region from a registered atlas.
+- `SheetSource` draws one named region from a file-backed or in-memory sheet.
 - `TextureSource` draws a standalone texture at its full size.
 - `RectShape` draws a rectangle in world units.
 - `CircleShape` draws a circle or ellipse in world units.
 - `LineShape` draws a segment between two points relative to the entity position.
 - `TextSource` draws a string of text in a loaded font.
 
-### Atlas regions
+### Sheet regions
 
-Register an atlas before creating sprites that depend on it, then point the sprite at a named region:
+Using the default asset codecs, point the sprite at a sheet document and a named region:
 
 ```go
-loader := g.World().MustResource[*asset.Loader]()
-if err := loader.RegisterGridAtlas("characters", "char.png", 16, 16, "char"); err != nil {
-	return err
-}
-
 _, err := g.World().NewEntity(
 	core.Transform{Position: geom.Vector2{X: 100, Y: 100}},
-	render.Sprite{Drawable: render.AtlasSource{
-		Atlas:  "characters",
-		Region: "char_0",
+	render.Sprite{Drawable: render.SheetSource{
+		Sheet:  asset.FileSheet("assets/sprites/characters.sheet.json"),
+		Region: "hero_idle_0",
 	}},
 )
 if err != nil {
@@ -61,11 +56,13 @@ if err != nil {
 }
 ```
 
-An `AtlasSource` stores names, not image data. The collector resolves the atlas and region when it builds a frame. An unknown atlas or region therefore reports an error at the first rendered frame, not when the `Sprite` component is validated. Register atlases during setup when you want those failures near the declaration. See [Assets](assets.md) for grid and sidecar atlases.
+A `SheetSource` retains an `asset.SheetRef`, not image data. `asset.FileSheet` loads JSON through the world's loader when collected; `asset.MemorySheet(sheet)` uses a sheet pointer directly. Neither requires a registry. Texture paths inside sheets are relative to the world's filesystem root, not to the JSON document. The collector validates the selected region and rejects rectangles outside the loaded texture.
+
+`Sprite.Validate` checks the reference's shape and a non-empty region name without file I/O. Missing files, missing codecs or regions, and image mismatches can therefore fail on the first collected frame. See [Spritesheet validation](spritesheets.md#choose-when-validation-happens) for setup-time checks.
 
 ### Standalone textures
 
-Use `TextureSource` when the entity should draw the entire image rather than a named atlas region:
+Use `TextureSource` when the entity should draw the entire image rather than a named sheet region:
 
 ```go
 render.Sprite{Drawable: render.TextureSource{Texture: "sprites/player.png"}}
@@ -256,12 +253,12 @@ The collector culls conservative drawable bounds against the active camera viewp
 
 If no primary camera exists, the world draw list is empty and overlays still run. The engine camera normally prevents that case.
 
-Rendering errors usually mean a reference could not be resolved: a texture could not load, or an atlas or region was not registered. Texture, atlas, and text drawables resolve through the world's asset loader, which `castrum.New` always provides; a core-only headless world that draws them provides its own through `World.Provide`. Shapes are the exception - they draw with no loader and no loaded assets, so a shape-only world needs no asset wiring at all. Return errors from setup when you preload or register assets, and keep the first-frame resolution behavior in mind for assets you load lazily.
+Rendering errors usually mean a document, texture, font, or region could not be resolved, or a sheet rectangle exceeds its image. `castrum.New` provides the `asset.Loader`, whose defaults include sheet JSON. A core-only headless world supplies a loader through `World.Provide` for sheet sprites, standalone textures, and text; shapes need no asset resource. Memory sheets bypass document loading, but their texture pixels still come from that loader. Custom empty codec configurations must register the needed types before constructing facades. Resource lookup is lazy, so no primary camera means no drawable resolution. Return errors from setup when preloading, and keep first-frame failures in mind for assets loaded lazily.
 
 ## Where to go next
 
-- [Assets](assets.md) - filesystem roots, texture loads, and atlas registration.
-- [Animation](animation.md) - change atlas regions over time with animation clips.
+- [Assets](assets.md) - filesystem roots, texture loads, and sheet references.
+- [Spritesheets](spritesheets.md) - author sheet regions and change them over time with animation clips.
 - [Input](input.md) - screen-space input and frame snapshots.
 - [The coordinate system](../reference/coordinate-system.md) - world, screen, zoom, and interpolation details.
 - [examples/primitive](../../../examples/primitive) - a runnable shape-rendering example.

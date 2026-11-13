@@ -251,7 +251,7 @@ func TestLoadRejectsInvalidOptionsBeforeIO(t *testing.T) {
 	}
 	loader := newTestLoader(t, files, LoaderOptions{})
 	for _, opt := range []loadOption{nil, (*formatOption)(nil), WithCachePolicy(-1), WithCachePolicy(2)} {
-		_, err := loader.Load[AtlasMeta]("profile.json", opt)
+		_, err := loader.Load[spriteMeta]("profile.json", opt)
 		var assetErr *AssetError
 		if !errors.As(err, &assetErr) || assetErr.Op != "Load" || assetErr.ID != "profile.json" {
 			t.Fatalf("invalid load option lost error context: %v", err)
@@ -365,7 +365,8 @@ func TestLoadInFlightIdentityUsesExactType(t *testing.T) {
 		if err := <-firstDone; err != nil {
 			t.Error(err)
 		}
-		if _, err := loader.Load[AtlasMeta]("value.json"); err != nil {
+		mustRegisterJSONDecoder(t, loader)
+		if _, err := loader.Load[spriteMeta]("value.json"); err != nil {
 			t.Fatalf("same-path third representation: %v", err)
 		}
 	})

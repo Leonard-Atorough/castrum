@@ -20,6 +20,7 @@ mygame/
   assets/
     sprites/
       player.png
+      player.sheet.json
     audio/
       music.ogg
 ```
@@ -37,7 +38,7 @@ Keep every referenced file under that directory. The [assets guide](assets.md) c
 
 ## Use the embedded filesystem
 
-Pass the filesystem when constructing the game, before registering assets or creating entities that depend on them:
+Pass the embedded filesystem to the game. The default codecs include sheet JSON; the document must contain its texture's root-relative path, here `assets/sprites/player.png`:
 
 ```go
 func run() error {
@@ -49,9 +50,16 @@ func run() error {
 		return err
 	}
 
-	if err := g.World().MustResource[*asset.Loader]().RegisterGridAtlas(
-		"characters", "assets/sprites/characters.png", 16, 16, "char",
-	); err != nil {
+	loader := g.World().MustResource[*asset.Loader]()
+	sheet, err := asset.FileSheet("assets/sprites/player.sheet.json").Resolve(loader)
+	if err != nil {
+		return err
+	}
+	texture, err := loader.Load[asset.TextureData](string(sheet.Texture))
+	if err != nil {
+		return err
+	}
+	if err := sheet.ValidateBounds(texture.Image.Bounds()); err != nil {
 		return err
 	}
 
@@ -69,7 +77,8 @@ func run() error {
 
 Put required setup and validation before `g.Run`:
 
-- Register atlases and custom decoders.
+- Register custom codecs before game construction.
+- Resolve required sheet documents, preload their textures, and validate every region against the image bounds.
 - Preload assets whose absence should prevent launch.
 - Spawn initial entities and check every returned error.
 - Construct `ebitrun` and validate its options.
@@ -116,11 +125,11 @@ cd /tmp
 /path/to/mygame-linux-amd64
 ```
 
-Exercise the first use of every lazy asset and startup path. Embedding proves that files are present in the binary; it does not prove that an asset ID, decoder, atlas region, or runtime platform configuration is correct.
+Exercise the first use of every lazy asset and startup path. Embedding proves that files are present in the binary; it does not prove that an asset ID, decoder, sheet region, or runtime platform configuration is correct.
 
 ## Where to go next
 
 - [examples/wander](../../../examples/wander) - a runnable embedded-filesystem pattern.
-- [Assets](assets.md) - filesystem roots, typed loads, atlases, and streaming.
+- [Assets](assets.md) - filesystem roots, typed loads, sheets, and streaming.
 - [Audio](audio.md) - eager and streaming playback, including embedded files.
 - [Ebitengine's platform docs](https://ebitengine.org) - the maintained platform matrix and distribution guidance.

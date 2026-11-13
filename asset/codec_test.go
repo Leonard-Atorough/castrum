@@ -159,7 +159,7 @@ func TestFacadesRejectInvalidDependencies(t *testing.T) {
 	}
 	loader := newTestLoader(t, nil, LoaderOptions{})
 	for _, reader := range []io.Reader{nil, (*bytes.Reader)(nil)} {
-		if _, err := loader.LoadReader[AtlasMeta](reader, FormatJSON); err == nil {
+		if _, err := loader.LoadReader[spriteMeta](reader, FormatJSON); err == nil {
 			t.Fatal("nil reader accepted")
 		}
 	}
@@ -170,7 +170,8 @@ func TestLoaderAcceptsNilMapFilesystem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := loader.Load[AtlasMeta]("missing.json"); !errors.Is(err, fs.ErrNotExist) {
+	mustRegisterJSONDecoder(t, loader)
+	if _, err := loader.Load[spriteMeta]("missing.json"); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("empty filesystem load = %v, want fs.ErrNotExist", err)
 	}
 }
@@ -186,17 +187,22 @@ func (unavailableStore) Write(string, func(io.Writer) error) error { return fs.E
 
 func TestFacadesAcceptNilMapAndSliceImplementations(t *testing.T) {
 	loader := newTestLoader(t, nil, LoaderOptions{})
-	if _, err := loader.LoadReader[AtlasMeta](emptyStream(nil), FormatJSON); !errors.Is(err, io.EOF) {
+	codecs := NewCodecs()
+	if err := codecs.SetJSON[spriteMeta](); err != nil {
+		t.Fatal(err)
+	}
+	mustRegisterJSONDecoder(t, loader)
+	if _, err := loader.LoadReader[spriteMeta](emptyStream(nil), FormatJSON); !errors.Is(err, io.EOF) {
 		t.Fatalf("empty stream decode = %v, want io.EOF", err)
 	}
-	saver, err := NewSaver(unavailableStore(nil), SaverOptions{})
+	saver, err := NewSaver(unavailableStore(nil), SaverOptions{Codecs: codecs})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := saver.SaveWriter(emptyStream(nil), AtlasMeta{}, FormatJSON); err != nil {
+	if err := saver.SaveWriter(emptyStream(nil), spriteMeta{}, FormatJSON); err != nil {
 		t.Fatalf("nil slice writer: %v", err)
 	}
-	if err := saver.Save("atlas.json", AtlasMeta{}); !errors.Is(err, fs.ErrPermission) {
+	if err := saver.Save("data.json", spriteMeta{}); !errors.Is(err, fs.ErrPermission) {
 		t.Fatalf("nil map store = %v, want fs.ErrPermission", err)
 	}
 }

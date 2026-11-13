@@ -73,17 +73,17 @@ Standalone loaders do not receive this overlay automatically; give them `builtin
 
 ## Choose a decoded type and format
 
-The default codecs support these combinations:
+The pipeline supports these type and format combinations:
 
 | Go type | Formats | Availability |
 | --- | --- | --- |
 | `asset.TextureData` | PNG, JPG, JPEG | Default loader |
 | `asset.FontData` | TTF, OTF | Default loader |
-| `asset.AtlasMeta` | JSON | Default loader and saver |
+| `asset.Sheet` | JSON | Default loader and saver |
 | `asset.AudioData` | WAV, MP3, OGG | Game loader after `ebitrun.New` |
 | Game-defined types | JSON or custom formats | Explicit codec registration |
 
-Textures and fonts have default decoders, not default encoders. `AtlasMeta` has both JSON directions. A constant such as `asset.FormatYAML` names a format; it does not install a codec. Registrations match the exact Go type: a codec for `Profile` is not a codec for `*Profile` or every JSON document.
+Textures and fonts have default decoders, not default encoders. Sheets have a default JSON pair; game-defined JSON types require registration. A constant such as `asset.FormatYAML` names a format; it does not install a codec. Registrations match the exact Go type: a codec for `Profile` is not a codec for `*Profile` or every JSON document.
 
 ### Cache identity
 
@@ -104,9 +104,15 @@ _ = texture.Image
 
 The cache key combines the cleaned source path, exact Go type, and format within one loader. Equivalent paths such as `./assets/sprites/hull.png` and `assets/sprites/hull.png` share a cached value; different paths or loaders do not.
 
+## Draw regions from a spritesheet
+
+An `asset.Sheet` describes one texture and its named pixel rectangles. Its default JSON decoder validates metadata before caching; actual image bounds require the texture. Loading and saving use the value type `asset.Sheet`, and file or memory references let sprites and clips share it without a registry.
+
+See [Spritesheets](spritesheets.md) for the complete authoring, saving, loading, drawing, and animation workflow, including [setup-time validation](spritesheets.md#choose-when-validation-happens). Generic storage and cache choices remain in this guide.
+
 ## Configure game-defined data
 
-Use `asset.Codecs` to configure conversion once and reuse it across loaders and savers. Start with `asset.NewCodecs` to retain the default image, font, and atlas codecs, then register your own types before constructing the game:
+Use `asset.Codecs` to configure conversion once and reuse it across loaders and savers. Start with `asset.NewCodecs` to retain image/font decoders and the sheet JSON pair, then register your own types before constructing the game:
 
 ```go
 type Profile struct {
@@ -246,49 +252,6 @@ Invalid policies and nil options return errors before opening a file. Both polic
 
 Bypass is not cache refresh or hot reload. A previously started cached read can still finish and populate the reused cache with its own result.
 
-## Register sprite atlases
-
-Register atlases during setup, before spawning entities that refer to them. Registration loads the image through the normal typed cache, validates the regions, and stores the atlas for sprites to resolve later.
-
-For a regular grid, provide tile dimensions and a non-empty prefix. The image dimensions must be evenly divisible by the tile dimensions. Regions are named in row-major order as `prefix_0`, `prefix_1`, and so on:
-
-```go
-if err := loader.RegisterGridAtlas(
-	"characters", "assets/sprites/characters.png", 16, 16, "char",
-); err != nil {
-	return err
-}
-
-sprite := render.Sprite{
-	Drawable: render.AtlasSource{Atlas: "characters", Region: "char_0"},
-}
-```
-
-For irregular regions, put pixel rectangles in a JSON sidecar:
-
-```json
-{
-  "regions": [
-    { "name": "hero_idle_0", "x": 0, "y": 0, "w": 32, "h": 32 },
-    { "name": "hero_idle_1", "x": 32, "y": 0, "w": 32, "h": 32 }
-  ]
-}
-```
-
-Register the image and sidecar together:
-
-```go
-if err := loader.RegisterAtlasFromSidecar(
-	"characters",
-	"assets/sprites/characters.png",
-	"assets/sprites/characters.atlas.json",
-); err != nil {
-	return err
-}
-```
-
-Region names must be unique and non-empty, dimensions positive, and rectangles within the image bounds. Duplicate atlas IDs are rejected. A malformed image or sidecar fails during registration; an unknown atlas or region referenced by a sprite fails when the renderer resolves it. See [Rendering](rendering.md) for atlas drawables.
-
 ## Read streams without caching
 
 Use `LoadReader[T]` for bytes from somewhere other than the loader's filesystem. For fresh filesystem reads, prefer `Load` with `CacheBypass`. Supply the stream format explicitly because a reader has no extension:
@@ -424,7 +387,7 @@ Path and stream load/save operations return errors containing `*asset.AssetError
 
 Choose when predictable failures should surface:
 
-- Preload required images, fonts, configuration, and atlases during setup.
+- Preload required images, fonts, configuration, and sheets during setup; validate sheet bounds when every region must be checked.
 - Construct the runner before preloading required audio effects.
 - Load optional assets on demand when the first-use cost and failure timing are acceptable.
 - Stream long audio when retaining complete decoded PCM would be wasteful, while accepting lazy playback errors.
@@ -432,7 +395,8 @@ Choose when predictable failures should surface:
 
 ## Where to go next
 
-- [Rendering](rendering.md) - drawables that consume textures and atlas regions.
+- [Spritesheets](spritesheets.md) - author regions, save and load sheets, and animate sprites.
+- [Rendering](rendering.md) - drawables that consume textures and sheet regions.
 - [Audio](audio.md) - eager and streaming playback, buses, and the mixer.
 - [Publishing your game](publishing-your-game.md) - embedding assets in a single binary.
 - [The asset pipeline](../reference/asset-pipeline.md) - the implementation-level loading and caching model.

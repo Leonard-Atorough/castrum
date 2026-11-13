@@ -103,21 +103,21 @@ type Completed struct {
 }
 
 // Clip is a reusable definition of an animation sequence. It specifies the
-// source atlas, frame names in playback order, and playback rate.
+// source sheet, frame names in playback order, and playback rate.
 type Clip struct {
-	// Source is the atlas holding the frames.
-	Source asset.AtlasID
+	// Source identifies the file-backed or in-memory sheet holding the frames.
+	Source asset.SheetRef
 	// Frames holds the frame region names, in playback order.
 	Frames []string
 	// FPS is the playback rate in frames per second.
 	FPS float64
 }
 
-// Validate reports an error if Source or Frames is empty, or FPS is not
+// Validate reports an error if Source is invalid, Frames is empty, or FPS is not
 // finite and positive.
 func (c Clip) Validate() error {
-	if c.Source == "" {
-		return fmt.Errorf("animation: clip source must not be empty")
+	if err := c.Source.Validate(); err != nil {
+		return fmt.Errorf("animation: clip source: %w", err)
 	}
 	if len(c.Frames) == 0 {
 		return fmt.Errorf("animation: clip must have at least one frame")
@@ -253,7 +253,7 @@ func NewAnimationSystem(store *ClipStore) core.System {
 			}
 
 			sprite, _ := e.Component[render.Sprite]()
-			target := render.AtlasSource{Atlas: clip.Source, Region: clip.Frames[anim.Current]}
+			target := render.SheetSource{Sheet: clip.Source, Region: clip.Frames[anim.Current]}
 			if sprite.Drawable != target {
 				sprite.Drawable = target
 				e.SetComponent(sprite)

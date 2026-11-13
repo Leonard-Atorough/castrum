@@ -117,6 +117,8 @@ func NewCollector(world *core.World) *Collector {
 //
 // If no primary camera is available, Collect returns an empty list without an
 // error. Asset lookup and loading errors are returned; shapes require no assets.
+// Sheet documents, textures, and text resolve through the world's [asset.Loader].
+// Sheet regions are checked against the decoded texture before staging.
 func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 	camera, ok, err := c.camera.Resolve(ctx.Alpha, ctx.LogicalWidth, ctx.LogicalHeight)
 	if err != nil {
@@ -157,38 +159,40 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		scale := prev.Scale.Lerp(transform.Scale, ctx.Alpha)
 		rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*ctx.Alpha
 
+		var item DrawItem
+		var offset, size geom.Vector2
 		switch drawable := sprite.Drawable.(type) {
 		case nil:
 			continue
-		case AtlasSource:
+		case SheetSource:
 			srv, err := assetLoader()
 			if err != nil {
 				return DrawList{}, err
 			}
-			atlas, err := srv.Atlas(drawable.Atlas)
+			sheet, err := drawable.Sheet.Resolve(srv)
 			if err != nil {
 				return DrawList{}, fmt.Errorf("castrum: collect: %w", err)
 			}
-			region, err := atlas.Region(drawable.Region)
+			region, err := sheet.Region(drawable.Region)
 			if err != nil {
 				return DrawList{}, fmt.Errorf("castrum: collect: %w", err)
 			}
-			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
-				prev.Position, transform.Position,
-				geom.Vector2{},
-				geom.Vector2{
-					X: float64(region.W) * scale.X,
-					Y: float64(region.H) * scale.Y,
-				},
-				DrawItem{
-					Texture:  atlas.TexturePath(),
-					Rect:     region.Rect(),
-					Rotation: rotation,
-					Scale:    scale,
-					FlipH:    sprite.FlipH,
-					FlipV:    sprite.FlipV,
-					Color:    sprite.Color,
-				})
+			texture, err := srv.Load[asset.TextureData](string(sheet.Texture))
+			if err != nil {
+				return DrawList{}, fmt.Errorf("castrum: collect: sheet region %q: %w", drawable.Region, err)
+			}
+			if texture.Image == nil {
+				return DrawList{}, fmt.Errorf("castrum: collect: sheet texture %q has no decoded image", sheet.Texture)
+			}
+			if !region.In(texture.Image.Bounds()) {
+				return DrawList{}, fmt.Errorf("castrum: collect: sheet region %q falls outside texture %q bounds %v",
+					drawable.Region, sheet.Texture, texture.Image.Bounds())
+			}
+			size = geom.Vector2{
+				X: float64(region.Dx()) * scale.X,
+				Y: float64(region.Dy()) * scale.Y,
+			}
+			item = textureItem(sprite, rotation, scale, sheet.Texture, region)
 		case TextureSource:
 			srv, err := assetLoader()
 			if err != nil {
@@ -198,22 +202,11 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			if err != nil {
 				return DrawList{}, fmt.Errorf("castrum: collect: texture %q: %w", drawable.Texture, err)
 			}
-			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
-				prev.Position, transform.Position,
-				geom.Vector2{},
-				geom.Vector2{
-					X: float64(data.Width) * scale.X,
-					Y: float64(data.Height) * scale.Y,
-				},
-				DrawItem{
-					Texture:  drawable.Texture,
-					Rect:     image.Rectangle{},
-					Rotation: rotation,
-					Scale:    scale,
-					FlipH:    sprite.FlipH,
-					FlipV:    sprite.FlipV,
-					Color:    sprite.Color,
-				})
+			size = geom.Vector2{
+				X: float64(data.Width) * scale.X,
+				Y: float64(data.Height) * scale.Y,
+			}
+			item = textureItem(sprite, rotation, scale, drawable.Texture, image.Rectangle{})
 		case TextSource:
 			if drawable.Text == "" {
 				continue
@@ -231,43 +224,33 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			if fill == nil {
 				fill = color.White
 			}
-			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
-				prev.Position, transform.Position,
-				geom.Vector2{},
-				geom.Vector2{
-					X: textWidth * scale.X,
-					Y: textHeight * scale.Y,
-				},
-				DrawItem{
-					Text:       drawable.Text,
-					Font:       drawable.Font,
-					TextSize:   drawable.Size,
-					TextWidth:  textWidth,
-					TextHeight: textHeight,
-					Rotation:   rotation,
-					Scale:      scale,
-					Color:      fill,
-				})
+			size = geom.Vector2{
+				X: textWidth * scale.X,
+				Y: textHeight * scale.Y,
+			}
+			item = DrawItem{
+				Text:       drawable.Text,
+				Font:       drawable.Font,
+				TextSize:   drawable.Size,
+				TextWidth:  textWidth,
+				TextHeight: textHeight,
+				Rotation:   rotation,
+				Scale:      scale,
+				Color:      fill,
+			}
 		case RectShape:
-			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
-				prev.Position, transform.Position,
-				geom.Vector2{},
-				geom.Vector2{
-					X: drawable.Size.X * scale.X,
-					Y: drawable.Size.Y * scale.Y,
-				},
-				shapeItem(sprite, rotation, scale, drawable))
+			size = geom.Vector2{
+				X: drawable.Size.X * scale.X,
+				Y: drawable.Size.Y * scale.Y,
+			}
+			item = shapeItem(sprite, rotation, scale, drawable)
 		case CircleShape:
-			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
-				prev.Position, transform.Position,
-				geom.Vector2{},
-				geom.Vector2{
-					X: 2 * drawable.Radii.X * scale.X,
-					Y: 2 * drawable.Radii.Y * scale.Y,
-				},
-				shapeItem(sprite, rotation, scale, drawable))
+			size = geom.Vector2{
+				X: 2 * drawable.Radii.X * scale.X,
+				Y: 2 * drawable.Radii.Y * scale.Y,
+			}
+			item = shapeItem(sprite, rotation, scale, drawable)
 		case LineShape:
-
 			segment := geom.Segment{
 				Start: geom.Vector2{
 					X: drawable.From.X * scale.X,
@@ -279,13 +262,14 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 				},
 			}
 			bounds := segment.BoundingBox()
-			c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
-				prev.Position, transform.Position, bounds.Center(), bounds.Size(),
-				shapeItem(sprite, rotation, scale, drawable))
+			offset, size = bounds.Center(), bounds.Size()
+			item = shapeItem(sprite, rotation, scale, drawable)
 		default:
 			// Unreachable: the sum is sealed and Validate covers it.
 			continue
 		}
+		c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
+			prev.Position, transform.Position, offset, size, item)
 	}
 
 	slices.SortStableFunc(c.working, func(a, b workingItem) int {
@@ -363,6 +347,18 @@ func (c *Collector) initializeView(world *core.World) error {
 	}
 	c.view = view
 	return nil
+}
+
+func textureItem(sprite Sprite, rotation float64, scale geom.Vector2, texture asset.ID, region image.Rectangle) DrawItem {
+	return DrawItem{
+		Texture:  texture,
+		Rect:     region,
+		Rotation: rotation,
+		Scale:    scale,
+		FlipH:    sprite.FlipH,
+		FlipV:    sprite.FlipV,
+		Color:    sprite.Color,
+	}
 }
 
 func shapeItem(sprite Sprite, rotation float64, scale geom.Vector2, shape Shape) DrawItem {

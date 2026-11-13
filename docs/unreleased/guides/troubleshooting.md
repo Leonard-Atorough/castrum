@@ -13,7 +13,7 @@ Use this order:
 3. **Setup failure:** an entity, resource, asset, clip, or runner registration returned an error.
 4. **Startup failure:** eager resource resolution or a startup system failed.
 5. **Loop failure:** a startup, frame, fixed, or draw system returned an error.
-6. **Late resolution failure:** a lazy texture, atlas region, or streamed asset failed on first use.
+6. **Late resolution failure:** a lazy texture, sheet region, or streamed asset failed on first use.
 
 Preserve the original error when adding context:
 
@@ -45,7 +45,7 @@ After construction, check each setup boundary independently:
 
 - `World.NewEntity` rejects nil or invalid components.
 - `Game.AddSystem` rejects an empty system name.
-- asset and atlas registration can fail while reading or decoding files.
+- asset loading and sheet resolution can fail while reading or decoding files; selected sheet regions are also checked against actual texture bounds.
 - resource registration rejects duplicate types.
 - clip registration rejects duplicate names.
 - `ebitrun.New` can fail while configuring runner providers.
@@ -70,7 +70,7 @@ Check the following:
 2. Confirm the process working directory, or pass an explicit `fs.FS`.
 3. Confirm the file is included by `embed.FS`.
 4. Preload required data during setup to move filesystem and decode errors earlier.
-5. Check whether the consumer is lazy. A `TextureSource` can fail when the collector first renders it, and an unknown atlas or region can fail on the first rendered frame.
+5. Check whether the consumer is lazy. A `TextureSource` or `SheetSource` can fail when first collected. Default codecs include JSON for `asset.Sheet`; a custom empty configuration must supply it. Resolve and validate required sheets during setup to surface errors earlier.
 
 See [Assets](assets.md) for roots, cache behavior, and loading timing, and [Publishing your game](publishing-your-game.md) for embedded files.
 
@@ -101,10 +101,10 @@ Check the rendering path in order:
 
 1. Confirm the entity has both `Transform` and `Sprite`.
 2. Confirm `Sprite.Drawable` is non-nil. A zero `Sprite` is valid but invisible.
-3. For `TextureSource`, verify the texture path and filesystem. For `AtlasSource`, verify the registered atlas and region.
+3. For `TextureSource`, verify the texture path and filesystem. For `SheetSource`, verify the reference, region name, root-relative texture path, and image bounds.
 4. Confirm the entity is inside the active camera viewport and that the camera's uniform `Transform.Scale` resolves to positive zoom.
 5. Check `Hidden`, color alpha, layer, and sort order.
-6. Inspect the returned error. Lazy texture and atlas resolution failures can surface during the first rendered frame.
+6. Inspect the returned error. Lazy texture and sheet resolution failures can surface during the first rendered frame.
 
 Every game starts with an engine camera. A user-spawned `Camera{Primary: true}` takes precedence, so check that its transform and zoom are intentional and that there is only one active user primary. Negative or non-uniform camera `Transform.Scale` is a collect-time error. Screen-to-world systems must also skip `core.ErrResourceNotRegistered` on the first tick, before the renderer publishes `*render.CameraView`; do not call `MustResource` for this resource. See [Rendering](rendering.md) for drawable bounds, camera selection, ordering, and culling.
 

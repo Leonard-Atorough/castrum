@@ -67,18 +67,11 @@ func TestEngineDrawFailsFast(t *testing.T) {
 }
 
 // The happy path is a smoke test only: with a camera, a whole-texture
-// sprite, a registered atlas sprite and text, the engine draw runs against
+// sprite, a file-backed sheet sprite and text, the engine draw runs against
 // an offscreen image and returns nil. DrawImage works headless; pixel
 // reads do not, so assert no error and no panic - nothing visual.
 func TestEngineDrawSmoke(t *testing.T) {
 	g, r := newSpriteGame(t)
-	loader, err := g.World().Resource[*asset.Loader]()
-	if err != nil {
-		t.Fatalf("resolve asset loader: %v", err)
-	}
-	if err := loader.RegisterAtlasFromSidecar("sprites", "tex.png", "atlas.json"); err != nil {
-		t.Fatalf("register atlas: %v", err)
-	}
 
 	if _, err := g.World().NewEntity(
 		render.Sprite{Drawable: render.TextureSource{Texture: "tex.png"}},
@@ -87,7 +80,7 @@ func TestEngineDrawSmoke(t *testing.T) {
 		t.Fatalf("spawn texture sprite: %v", err)
 	}
 	if _, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.AtlasSource{Atlas: "sprites", Region: "player"}},
+		render.Sprite{Drawable: render.SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn atlas sprite: %v", err)

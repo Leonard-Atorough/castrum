@@ -53,7 +53,7 @@ Fixed steps give gameplay a consistent interval, but they do not by themselves g
 
 `Pause` stops adding time to the fixed-loop accumulator and stops fixed ticks; `Resume` allows them to continue. Pause preserves both the scale and the accumulator remainder. While an advance remains paused, its elapsed time is not accumulated for later recovery.
 
-Frame-phase systems continue while paused, as do input polling and rendering with the Ebitengine runner. The always-registered timer and animation systems advance on fixed ticks, so they stop with the simulation. See the [timer](./timer.md) and [animation](./animation.md) guides for their behavior.
+Frame-phase systems continue while paused, as do input polling and rendering with the Ebitengine runner. The always-registered timer and animation systems advance on fixed ticks, so they stop with the simulation. See the [timer](./timer.md) and [sprite animation](./spritesheets.md#timing) guides for their behavior.
 
 Caller-owned [tweens](./tweening.md) follow the phase that advances them: fixed-phase movement pauses with simulation, while frame-phase tint or opacity can continue. Pass the phase's `DeltaTime` without applying time scale again.
 

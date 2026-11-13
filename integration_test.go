@@ -191,7 +191,7 @@ func TestEngineTickSignalsAndPreFixedMovement(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := g.World().MustResource[*animation.ClipStore]().Add("clip", animation.Clip{
-		Source: "sprites", Frames: []string{"frame"}, FPS: 4,
+		Source: asset.FileSheet("sprites.json"), Frames: []string{"frame"}, FPS: 4,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -528,7 +528,7 @@ func TestAnimationSystemAlwaysRegistered(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	if err := g.World().MustResource[*animation.ClipStore]().Add("clip", animation.Clip{
-		Source: "sprites", Frames: []string{"frame_0", "frame_1"}, FPS: 60,
+		Source: asset.FileSheet("sprites.json"), Frames: []string{"frame_0", "frame_1"}, FPS: 60,
 	}); err != nil {
 		t.Fatalf("Add clip: %v", err)
 	}
@@ -543,7 +543,7 @@ func TestAnimationSystemAlwaysRegistered(t *testing.T) {
 	if !ok {
 		t.Fatal("animated entity has no sprite")
 	}
-	if _, ok := sprite.Drawable.(render.AtlasSource); !ok {
+	if _, ok := sprite.Drawable.(render.SheetSource); !ok {
 		t.Errorf("drawable = %#v, want an atlas source without any option", sprite.Drawable)
 	}
 }

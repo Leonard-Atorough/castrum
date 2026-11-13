@@ -114,7 +114,7 @@ Several engine features emit typed signals. Their guides explain each payload, w
 | Feature   | Signal                                  | Details                                                                     |
 | --------- | --------------------------------------- | --------------------------------------------------------------------------- |
 | Timers    | `gametime.Completed`                       | [Timer signals](timer.md#signals)                                           |
-| Animation | `animation.Completed`                   | [Animation signals](animation.md#signals)                                   |
+| Animation | `animation.Completed`                   | [Animation signals](spritesheets.md#signals)                                |
 | Collision | `collision.Entered`, `collision.Exited` | [Contact edge signals](collision.md#react-to-enters-and-exits-with-signals) |
 | Audio     | `audio.Finished`                        | [Audio completion](audio.md#play-a-sound-effect)                            |
 | State     | `state.Initialized[S]`, `state.Changed[S]` | [State lifecycle signals](state.md#observe-lifecycle-signals)               |

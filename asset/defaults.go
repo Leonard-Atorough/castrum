@@ -6,7 +6,8 @@ func (c *Codecs) registerDefaults() {
 	for _, format := range []Format{FormatPNG, FormatJPG, FormatJPEG} {
 		mustRegister(c.SetDecoder(format, decodeTexture))
 	}
-	mustRegister(c.SetJSON[AtlasMeta]())
+	mustRegister(c.SetJSON[Sheet]())
+	mustRegister(c.SetDecoder(FormatJSON, decodeSheetJSON))
 	for _, format := range []Format{FormatTTF, FormatOTF} {
 		mustRegister(c.SetDecoder(format, decodeFont))
 	}

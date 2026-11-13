@@ -64,13 +64,12 @@ func (p CachePolicy) validate() error {
 }
 
 // Loader loads assets from a filesystem, decodes them with registered
-// decoders, and caches the results. It also owns the atlas registry.
+// decoders, and caches the results.
 type Loader struct {
 	fs          fs.FS
 	codecs      *Codecs
 	cache       *cache
 	cachePolicy CachePolicy
-	atlases     *atlasRegistry
 }
 
 // LoaderOptions configures a loader at construction.
@@ -100,7 +99,6 @@ func NewLoader(filesystem fs.FS, opts LoaderOptions) (*Loader, error) {
 		codecs:      opts.Codecs.snapshot(),
 		cache:       newCache(),
 		cachePolicy: opts.CachePolicy,
-		atlases:     newAtlasRegistry(),
 	}
 	return a, nil
 }

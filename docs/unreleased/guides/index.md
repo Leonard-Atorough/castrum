@@ -6,7 +6,7 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 
 - [The ECS in depth](ecs.md) - entities, components, systems, queries, resources, and validation.
 - [Scheduling systems](system-scheduling.md) - phase choice, registration order, runtime additions, and groups.
-- [Assets](assets.md) - filesystem roots, loading, atlases, and setup-time failures.
+- [Assets](assets.md) - filesystem roots, codecs, loading, saving, and cache policies.
 - [Conventions and best practices](conventions.md) - setup, zero values, validation, errors, and state-driven APIs.
 - [Settings](settings.md) - typed preferences, validation, copying, and applying values.
 
@@ -14,7 +14,7 @@ The guides are Castrum's manual: each chapter explains one engine feature in dep
 
 - [Rendering](rendering.md) - sprites, shapes, text, cameras, overlays, ordering, and culling.
 - [Camera](camera.md) - framing the world: position, rotation, zoom, anchor, bounds, and the resolved view.
-- [Animation](animation.md) - atlas clips, playback state, looping, and control.
+- [Spritesheets](spritesheets.md) - region authoring, loading, saving, drawing, and sprite animation.
 - [Tweening](tweening.md) - easing curves, caller-owned transitions, and frame versus fixed clocks.
 
 ## Interaction and audio

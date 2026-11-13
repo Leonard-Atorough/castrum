@@ -4,7 +4,7 @@ The engine follows a handful of rules everywhere. Learn them once, here, and you
 
 ## Finish setup before the loop
 
-`castrum.New` applies defaults, validates options, creates the world, and provides the engine's asset loader, clip store, and audio mixer. Use that setup window to register assets and clips, spawn initial entities, configure the camera, and register systems. The runner should be the last setup step:
+`castrum.New` applies defaults, validates options, creates the world, and provides the engine's asset loader, clip store, and audio mixer. Configure codecs before construction; then preload required content, construct memory sheets or resolve JSON sheet references, register clips, spawn initial entities, configure the camera, and register systems. There is no atlas registration step. The runner should be the last setup step:
 
 ```go
 func run() error {
@@ -16,10 +16,16 @@ func run() error {
 		return err
 	}
 
-	if err := g.World().MustResource[*asset.Loader]().RegisterGridAtlas("characters", "characters.png", 16, 16, "char"); err != nil {
+	texture, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData]("characters.png")
+	if err != nil {
 		return err
 	}
-	player, err := g.World().NewEntity(core.Transform{})
+	sheet, err := spritesheet.Grid("characters.png", texture.Image.Bounds(), 16, 16, "char")
+	if err != nil {
+		return err
+	}
+	player, err := g.World().NewEntity(core.Transform{},
+		render.Sprite{Drawable: render.SheetSource{Sheet: asset.MemorySheet(sheet), Region: "char_0"}})
 	if err != nil {
 		return fmt.Errorf("spawn player: %w", err)
 	}
@@ -150,7 +156,7 @@ Use a component for per-entity state and a resource for one world-owned instance
 
 The engine registers shared services such as `*asset.Loader`, `*animation.ClipStore`, and `*audio.Mixer` as world resources. Resolve them through `g.World().Resource[T]()` during setup or `ctx.World.Resource[T]()` inside systems. Use `MustResource[T]()` only for resources guaranteed by the engine configuration.
 
-Use one filesystem root consistently. `WithFilesystem` accepts an `fs.FS`; the default resolves paths from the process working directory, while `embed.FS` makes the asset set part of a single binary. Register atlases and clips before entities or systems depend on them. The [assets](assets.md), [animation](animation.md), and [audio](audio.md) guides cover loading and streaming choices.
+Use one filesystem root consistently. `WithFilesystem` accepts an `fs.FS`; the default resolves paths from the process working directory, while `embed.FS` makes the asset set part of a single binary. Sheet texture paths use that root, not the document's directory. Register codecs before constructing facades, and preload required sheets and textures and register clips before first use. The [assets](assets.md), [spritesheets](spritesheets.md), and [audio](audio.md) guides cover loading and streaming choices.
 
 ## Choose input explicitly
 
@@ -163,4 +169,4 @@ Keep input sampling and simulation responsibilities separate: read frame-level i
 - [Performance](performance.md) - what the conventions cost and buy in the frame budget.
 - [The examples](../../../examples) - every rule above, in working programs.
 - The [reasoning](../reference/core-principles.md) behind each rule - the reference tier.
-- [ECS](ecs.md), [assets](assets.md), [animation](animation.md), and [audio](audio.md) for focused feature guidance.
+- [ECS](ecs.md), [assets](assets.md), [spritesheets](spritesheets.md), and [audio](audio.md) for focused feature guidance.
