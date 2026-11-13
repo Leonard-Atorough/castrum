@@ -6,14 +6,14 @@ import (
 	"github.com/Leonard-Atorough/castrum/settings"
 )
 
-// DisplayPreferences holds desired startup window settings.
+// DisplayPreferences holds JSON-serializable desired startup window settings.
 type DisplayPreferences struct {
 	// Window is the initial window size in pixels.
-	Window Size
+	Window Size `json:"window"`
 	// Resizable permits window resizing.
-	Resizable bool
+	Resizable bool `json:"resizable"`
 	// VSync enables vertical synchronization.
-	VSync bool
+	VSync bool `json:"vsync"`
 }
 
 // NewDisplayPreferences returns a group with the runner's default window
