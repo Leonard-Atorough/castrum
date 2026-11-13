@@ -1,6 +1,6 @@
 // Command animate demonstrates frame animation: a torch flickers
-// through a grid-atlas clip at a fixed frame rate, driven entirely by
-// engine wiring - the game only registers the atlas, the clip, and
+// through a spritesheet clip at a fixed frame rate, driven entirely by
+// engine wiring - the game only defines the sheet, the clip, and
 // the entity; the renderer stays animation-blind.
 //
 // Assets are embedded into the binary via //go:embed, passed to the
@@ -19,6 +19,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/spritesheet"
 )
 
 //go:embed torch_light.png
@@ -28,7 +29,6 @@ const (
 	TorchLightFPS  = 10
 	TorchLightLoop = animation.LoopForever
 
-	AssetTorchLight     = "torch_light"
 	ClipFlickeringTorch = "flickering_torch"
 
 	Scale = 4
@@ -49,14 +49,19 @@ func run() error {
 		return err
 	}
 
-	if err := g.World().MustResource[*asset.Loader]().RegisterGridAtlas(AssetTorchLight, "torch_light.png", 16, 28, "torch_light"); err != nil {
+	texture, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData]("torch_light.png")
+	if err != nil {
+		return err
+	}
+	sheet, err := spritesheet.Grid("torch_light.png", texture.Image.Bounds(), 16, 28, "torch_light")
+	if err != nil {
 		return err
 	}
 
 	clipStore := g.World().MustResource[*animation.ClipStore]()
 
 	if err := clipStore.Add(ClipFlickeringTorch, animation.Clip{
-		Source: AssetTorchLight,
+		Source: asset.MemorySheet(sheet),
 		Frames: []string{
 			"torch_light_0",
 			"torch_light_1",

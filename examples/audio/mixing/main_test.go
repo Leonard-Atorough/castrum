@@ -57,9 +57,10 @@ func TestMixingEffectsDuringGlobalPause(t *testing.T) {
 		t.Fatal("Enter did not pause mixer")
 	}
 	count := 0
-	for entity := range core.NewQuery(world).With(audio.Source{}).Execute() {
+	for entity := range core.NewQuery(world).With(audio.Source{}, audio.Clip{}).Execute() {
 		source, _ := entity.Component[audio.Source]()
-		if source.Audio != audioassets.Magic || source.Group != audio.GroupSFX || source.Pause != audio.PauseContinues {
+		clip, _ := entity.Component[audio.Clip]()
+		if clip.Audio != audioassets.Magic || source.Group != audio.GroupSFX || source.Pause != audio.PauseContinues {
 			t.Fatalf("effect = %+v, want SFX that continues through global pause", source)
 		}
 		count++

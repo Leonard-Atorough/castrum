@@ -35,11 +35,11 @@ func TestBalanceControls(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			world := core.NewWorld()
-			source := audio.NewSource(audioassets.Music)
+			source := audio.NewSource()
 			source.Balance = tt.initial
 			source.Paused = tt.paused
 			source.Completed = true
-			entity, err := world.NewEntity(source)
+			entity, err := world.NewEntity(source, audio.Clip{Audio: audioassets.Music})
 			if err != nil {
 				t.Fatal(err)
 			}

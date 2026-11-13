@@ -380,4 +380,4 @@ If a sheet or animation does not behave as expected, check the layer that owns t
 - [Rendering](rendering.md) - sprite style, cameras, ordering, and culling.
 - [ECS](ecs.md) - queries and component updates for gameplay control.
 - [Signals](signals.md) - independent readers and completion delivery.
-- [examples/animate](../../../examples/animate) - a released frame-playback example pinned to v0.3.0; it uses the old atlas API rather than the sheet references above.
+- [examples/animate](../../../examples/animate) - runnable grid slicing and frame playback; use the repository's development workspace.

@@ -6,6 +6,11 @@ movement system, and the Ebitengine runner.
 
 Requires Go 1.27.2 or later.
 
+Source on `main` follows the development engine API. Use the repository's
+[development workspace](../../CONTRIBUTING.md#develop-examples-against-the-checkout)
+when testing it in the checkout. For an independently usable template, copy
+this directory from a release tag.
+
 ## Run
 
 Copy this directory to your new project, then run these commands from the
@@ -27,8 +32,7 @@ Before publishing your game, replace `example.com/mygame` in `go.mod` and
   starts the game.
 - `internal/game/game.go` defines the Castrum world, input bindings, player,
   and gameplay system.
-- `go.mod` pins the template to the latest released Castrum version when this
-  template was prepared.
+- `go.mod` is pinned to the matching Castrum version when the release is tagged.
 
 Add assets under your project as needed and configure Castrum's asset loader
 for their location. See the [asset guide](https://github.com/Leonard-Atorough/castrum/blob/main/docs/v0.3.0/guides/assets.md)

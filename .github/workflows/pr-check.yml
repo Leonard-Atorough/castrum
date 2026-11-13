@@ -85,16 +85,17 @@ jobs:
         run: |
           xvfb-run -a go test -v -race -coverprofile=coverage.out $(go list ./... | grep -vE '/internal/render|/(cmd|examples)(/|$)')
 
+      - name: Use checkout for examples and starter
+        run: |
+          go work init .
+          go work use ./templates/starter
+          go work use -r ./examples
+
       - name: Test shared example assets
         run: go test ./examples/audio
 
-      - name: Test standalone examples
-        run: |
-          find examples -name go.mod -print0 | while IFS= read -r -d '' module_file; do
-            directory="$(dirname "$module_file")"
-            echo "Testing $directory"
-            (cd "$directory" && xvfb-run -a go test -race ./...)
-          done
+      - name: Build, vet and test examples and starter
+        run: bash ./.github/scripts/check-examples.sh
 
       - name: Check coverage threshold
         run: |
@@ -135,8 +136,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Use checkout for starter module
-        working-directory: templates/starter
-        run: go mod edit '-replace=github.com/Leonard-Atorough/castrum=../..'
+        run: |
+          go work init .
+          go work use ./templates/starter
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'

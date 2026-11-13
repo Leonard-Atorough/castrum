@@ -6,7 +6,7 @@ Audio is state on the world. An `audio.Source` describes how playback should beh
 
 An entity playing audio has one `Source` and exactly one selector: `Clip` for a single asset or `Playlist` for a sequence. A `Source` without a selector does not play audio, and an entity with both selectors is rejected by the audio system.
 
-The runnable audio examples are standalone projects pinned to v0.3.0. They show the released API, not the split API described here. Their assets are in the shared [examples/audio package](../../../examples/audio):
+The runnable audio examples use the split API described here. Run them against the checkout using the [development workspace](../../../CONTRIBUTING.md#develop-examples-against-the-checkout); release tags preserve independently runnable versions. Their assets are in the shared [examples/audio package](../../../examples/audio):
 
 | Example | Run command | Focus |
 | --- | --- | --- |

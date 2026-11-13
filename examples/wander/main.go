@@ -1,11 +1,10 @@
-// Command wander demonstrates the engine renderer: an atlas sprite
+// Command wander demonstrates the engine renderer: a sheet-region sprite
 // wanders to random screen points at fixed ticks, the engine renders
 // it interpolated between ticks, and the debug overlay draws its
 // rates above the engine-rendered world.
 //
 // Assets load from an embedded filesystem - the single-binary
-// alternative to the default working-directory filesystem that
-// animate demonstrates - passed via castrum.WithFilesystem.
+// passed via castrum.WithFilesystem.
 //
 // Run from this directory:
 //
@@ -22,6 +21,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/spritesheet"
 )
 
 //go:embed Dungeon_Character_2.png
@@ -29,7 +29,7 @@ var files embed.FS
 
 const (
 	// The sheet is 112x32 pixels of 16x16 tiles: 7 across, 2 down, so
-	// the grid atlas registers char_0 through char_13. Any region works.
+	// the grid defines char_0 through char_13. Any region works.
 	region = "char_0"
 	speed  = 120 // world units per second
 
@@ -51,10 +51,15 @@ func run() error {
 		return err
 	}
 
-	// Register the atlas at setup, before the window opens: a bad path
+	// Slice the sheet at setup, before the window opens: a bad path
 	// or uneven tile division fails the launch, not the first frame.
 	// The engine provides the loader at New.
-	if err := g.World().MustResource[*asset.Loader]().RegisterGridAtlas("characters", "Dungeon_Character_2.png", 16, 16, "char"); err != nil {
+	texture, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData]("Dungeon_Character_2.png")
+	if err != nil {
+		return err
+	}
+	sheet, err := spritesheet.Grid("Dungeon_Character_2.png", texture.Image.Bounds(), 16, 16, "char")
+	if err != nil {
 		return err
 	}
 
@@ -69,7 +74,7 @@ func run() error {
 	// The sprite's zero-value style is shown and opaque; the Drawable
 	// carries the picture.
 	sprite, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.AtlasSource{Atlas: "characters", Region: region}},
+		render.Sprite{Drawable: render.SheetSource{Sheet: asset.MemorySheet(sheet), Region: region}},
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 			Scale:    geom.Vector2{X: 4, Y: 4}, // 16px tiles read better at 64px
