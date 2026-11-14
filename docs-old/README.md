@@ -1,8 +1,8 @@
 # Castrum documentation
 
-Documentation is versioned with the engine API it describes. Use the released version for code that depends on a released Castrum module; unreleased documentation describes work in progress and may require the repository's current source.
+These older guides are kept for reference and may not describe the current API.
 
-- [v0.3.0](v0.3.0/README.md) - documentation for the current released version.
-- [Unreleased](unreleased/README.md) - documentation for the next in-development version; not a promise of release timing or scope.
+- [v0.3.0](../docs/versioned_docs/version-v0.3.0/README.md) - documentation for the released version.
+- [Old unreleased documentation](unreleased/README.md) - previous development guides kept for reference.
 
 Writing or reviewing documentation? See the [documentation contribution guide](CONTRIBUTING.md).

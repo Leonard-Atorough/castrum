@@ -1,6 +1,6 @@
 # Audio
 
-This guide describes the in-development audio API and is not compatible with Castrum v0.3.0. Use the [released v0.3.0 audio guide](../../v0.3.0/guides/audio.md) for projects pinned to that version.
+This guide describes the in-development audio API and is not compatible with Castrum v0.3.0. Use the [released v0.3.0 audio guide](../../../docs/versioned_docs/version-v0.3.0/guides/audio.md) for projects pinned to that version.
 
 Audio is state on the world. An `audio.Source` describes how playback should behave; a separate `audio.Clip` or `audio.Playlist` selects what to play. The engine reconciles those components with the runner's players. You do not call a backend player directly. Reconciliation runs during frame updates, independently of simulation pause and time scale. It is inactive until a runner attaches an `audio.Controller`; the default runner does this during construction.
 

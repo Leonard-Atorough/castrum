@@ -47,7 +47,7 @@ go mod init firstgame
 go get github.com/Leonard-Atorough/castrum@main
 ```
 
-`@main` uses unreleased engine code. It may change before a version is published; use the [v0.3.0 tutorial](../../v0.3.0/getting-started/your-first-game.md) for a stable, released API.
+`@main` uses unreleased engine code. It may change before a version is published; use the [v0.3.0 tutorial](../../../docs/versioned_docs/version-v0.3.0/getting-started/your-first-game.md) for a stable, released API.
 
 Create `main.go` and extract the asset bundle in the project root. Asset paths resolve from the process working directory, so run the commands below from that directory.
 
