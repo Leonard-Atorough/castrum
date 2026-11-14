@@ -3,8 +3,8 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Castrum',
-  url: 'http://localhost:3000',
-  baseUrl: '/',
+  url: 'https://leonard-atorough.github.io',
+  baseUrl: '/castrum/',
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
   presets: [
@@ -13,6 +13,11 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
+          versions: {
+            current: {
+              label: 'Development',
+            },
+          },
         },
         blog: false,
       } satisfies Preset.Options,
@@ -27,6 +32,10 @@ const config: Config = {
           sidebarId: 'docsSidebar',
           position: 'left',
           label: 'Documentation',
+        },
+        {
+          type: 'docsVersionDropdown',
+          position: 'right',
         },
       ],
     },

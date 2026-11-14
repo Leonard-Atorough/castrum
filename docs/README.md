@@ -17,5 +17,19 @@ To check the website builds:
 npm run build
 ```
 
-The site URL and base path in `docusaurus.config.ts` are for local use and
-must be updated before deployment.
+The website is published to GitHub Pages from `main`. Pull requests build and
+type-check the website; publishing requires the repository's Pages source to
+be set to GitHub Actions. Its address is
+`https://leonard-atorough.github.io/castrum/`.
+
+After a release without an explicit pre-release suffix, the release workflow
+snapshots documentation from the release tag and commits it to `main`. The
+latest release is the default; the version menu also links to development docs.
+Tags such as `v0.4.0-rc.1` do not create a documentation snapshot.
+
+If snapshotting fails after a release is published, fix the reported problem
+and run the **Version documentation** workflow manually with the existing
+release tag. It is safe to rerun for an already-created matching snapshot.
+The workflow uses the release environment and the same GitHub App credentials
+as the release workflow, so it may require a separate release-environment
+approval. The app must be allowed to push to `main`.

@@ -1,0 +1,113 @@
+name: Version documentation
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Published release tag
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published release tag, for example v0.4.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-version
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Snapshot release documentation
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate published release
+        shell: bash
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Expected a release tag without a pre-release suffix, such as v0.4.0."
+            exit 1
+          fi
+          draft="$(gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"
+          if [[ "$draft" != "false" ]]; then
+            echo "::error::Release $VERSION is not published."
+            exit 1
+          fi
+
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: target
+          persist-credentials: false
+
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+          path: source
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            target/docs/package-lock.json
+            source/docs/package-lock.json
+
+      - name: Install release website dependencies
+        working-directory: source/docs
+        run: npm ci
+
+      - name: Generate snapshot from release tag
+        shell: bash
+        run: bash target/.github/scripts/version-docs.sh "$VERSION" "$GITHUB_WORKSPACE/source" "$GITHUB_WORKSPACE/target"
+
+      - name: Install current website dependencies
+        working-directory: target/docs
+        run: npm ci
+
+      - name: Type-check and build snapshot
+        working-directory: target/docs
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Mint app installation token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Commit and push snapshot
+        working-directory: target
+        shell: bash
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          git add -- docs/versions.json \
+            "docs/versioned_docs/version-${VERSION}" \
+            "docs/versioned_sidebars/version-${VERSION}-sidebars.json"
+          if git diff --cached --quiet; then
+            echo "Documentation snapshot $VERSION is already committed."
+            exit 0
+          fi
+          git config user.name "github-castrum[bot]"
+          git config user.email "41898282+github-castrum[bot]@users.noreply.github.com"
+          git commit -m "docs: snapshot documentation for ${VERSION}" \
+          auth="$(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w 0)"
+          echo "::add-mask::${auth}"
+          git -c "http.extraheader=AUTHORIZATION: basic ${auth}" \
+            push "https://github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/main
