@@ -1,8 +1,21 @@
-# Castrum documentation
+# Castrum documentation website
 
-Documentation is versioned with the engine API it describes. Use the released version for code that depends on a released Castrum module; unreleased documentation describes work in progress and may require the repository's current source.
+From this directory, install dependencies and start the local website:
 
-- [v0.3.0](v0.3.0/README.md) - documentation for the current released version.
-- [Unreleased](unreleased/README.md) - documentation for the next in-development version; not a promise of release timing or scope.
+```sh
+npm ci
+npm start
+```
 
-Writing or reviewing documentation? See the [documentation contribution guide](CONTRIBUTING.md).
+Add Markdown pages under `docs/`. Folders containing pages appear as groups in
+the sidebar. Set `sidebar_position` in a page's front matter to change its
+order.
+
+To check the website builds:
+
+```sh
+npm run build
+```
+
+The site URL and base path in `docusaurus.config.ts` are for local use and
+must be updated before deployment.
