@@ -39,7 +39,7 @@ go work use ./templates/starter
 
 If `go.work` already exists, skip `init` and run the two `use` commands to include new modules. The workspace resolves Castrum to this checkout without module-level `replace` directives. Do not commit `go.work` or `go.work.sum`.
 
-Run builds and tests from each example's directory. Root `go test ./...` does not traverse nested modules. PR and release CI build, vet, and race-test every example and the starter against the checkout. For a feature change, review the affected examples and unreleased documentation, and update them when their behavior or reader workflows change. On Linux with Xvfb and the dependencies above, `bash ./.github/scripts/check-examples.sh` runs that gate.
+Run builds and tests from each example's directory. Root `go test ./...` does not traverse nested modules. PR and release CI build, vet, and race-test every example and the starter against the checkout. For a feature change, review the affected examples and documentation, and update them when their behavior or reader workflows change. On Linux with Xvfb and the dependencies above, `bash ./.github/scripts/check-examples.sh` runs that gate.
 
 To use a released example independently, check out its release tag and set `GOWORK=off` before running it. Development examples may use APIs absent from the version currently recorded in their module files.
 
@@ -49,9 +49,9 @@ Every change keeps the gates green, and the gates are the floor, not the ceiling
 
 - `gofmt -l .` is empty, `go vet ./...` and `go test ./...` pass, and merged coverage stays at or above the threshold in the PR checks (85% at the time of writing, with per-package coverage published on every run).
 - Public API has Go documentation that states the contract - what a caller can rely on and what fails how - rather than the implementation's internals. A reader who cannot act on a sentence does not need it.
-- Follow the [documentation editorial contract](docs/CONTRIBUTING.md) when writing or reviewing tutorials, guides, explanations, or reference material.
+- Write documentation for the reader, and check API behavior and examples against the source. See the [documentation website instructions](docs/README.md) to run and build the site.
 - A behavior change comes with a test that fails without it. A performance claim comes with a number from the `benchmark/` module, before and after, compared with benchstat.
-- Put in-progress documentation under `docs/unreleased`. At release, snapshot it into `docs/vX.Y.Z` and keep that released copy aligned with the tagged API. Runnable examples on `main` follow the checkout; release tags preserve standalone modules pinned to that release.
+- Put new documentation under `docs/docs`. The previous guides are in `docs-old` for reference. Runnable examples on `main` follow the checkout; release tags preserve standalone modules pinned to that release.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org); CI validates the PR title against the same types the release tooling derives versions from.
 
 ## Pull requests

@@ -149,10 +149,12 @@ jobs:
 
           LATEST="$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)"
           if [[ -z "${LATEST}" ]]; then
-            COUNT=$(git rev-list --count HEAD)
+            RANGE="HEAD"
           else
-            COUNT=$(git rev-list --count "${LATEST}..HEAD")
+            RANGE="${LATEST}..HEAD"
           fi
+          COUNT=$(git rev-list --count --extended-regexp --invert-grep \
+            --grep='^docs: snapshot documentation for v[0-9]+\.[0-9]+\.[0-9]+$' "$RANGE")
           if (( COUNT == 0 )); then
             echo "::error::Nothing to release - no commits since ${LATEST:-beginning}"
             exit 1
@@ -171,7 +173,7 @@ jobs:
           {
             echo "### Next version: ${NEXT}"
             echo "- Pre-release: $([[ "${NEXT}" =~ ^v0\. ]] && echo yes || echo no)"
-            echo "- Commits since ${LATEST:-beginning}: ${COUNT}"
+            echo "- Release-relevant commits since ${LATEST:-beginning}: ${COUNT}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Package tutorial assets
@@ -229,7 +231,6 @@ jobs:
           git add CHANGELOG.md
           find examples templates/starter -name go.mod -print0 | xargs -0 git add --
           git commit -m "chore(release): ${{ steps.version.outputs.version }}" \
-            -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
           git tag "${{ steps.version.outputs.version }}"
           git push "https://x-access-token:${APP_TOKEN}@github.com/${{ github.repository }}.git" main --tags
 
@@ -288,3 +289,12 @@ jobs:
 
       - name: Build, vet and test without checkout replacements
         run: bash ./.github/scripts/check-examples.sh "${VERSION}"
+
+  version-documentation:
+    name: Version documentation
+    needs: [release, verify-published]
+    if: ${{ !inputs.dry_run && !contains(needs.release.outputs.version, '-') }}
+    uses: ./.github/workflows/docs-version.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+    secrets: inherit
