@@ -6,13 +6,14 @@ You declare what your game contains - an entity with a position and a picture, a
 
 Castrum uses [Ebitengine](https://ebitengine.org) as its underlying rendering and window management library, leveraging its capabilities to handle graphics, input, and other low-level tasks efficiently. To facilitate this, castrum wraps Ebitengine functionality within its own abstractions, providing a more structured and game-focused interface for developers.
 
-See the [feature overview](docs/v0.3.0/getting-started/features.md) for what Castrum supports in the current release and the [roadmap](ROADMAP.md) for candidate directions tracked in GitHub Issues. Version labels are proposals, not dated commitments; released guides describe the behavior supported by their matching release.
+See the [feature overview](docs-old/v0.3.0/getting-started/features.md) for what Castrum supports in the current release and the [roadmap](ROADMAP.md) for candidate directions tracked in GitHub Issues. Version labels are proposals, not dated commitments; released guides describe the behavior supported by their matching release.
 
 ## Documentation
 
-- [Documentation versions](docs/README.md) - choose the released v0.3.0 docs or the unreleased documentation.
+- [New documentation](docs/docs/introduction.md) - the documentation being developed for Castrum.
+- [Earlier documentation](docs-old/README.md) - the previous guides, kept for reference.
 - [Starter project](templates/starter/README.md) - copyable, asset-free project with a runnable Castrum game.
-- [Migration notes](docs/v0.3.0/migrations/README.md) - upgrade guidance between releases.
+- [Migration notes](docs-old/v0.3.0/migrations/README.md) - upgrade guidance between releases.
 - [Examples](examples/README.md) - standalone projects pinned to the v0.3.0 release.
 - [API reference](https://pkg.go.dev/github.com/Leonard-Atorough/castrum@v0.3.0) - browse exported types and methods for this release.
 
