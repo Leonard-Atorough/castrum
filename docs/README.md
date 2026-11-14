@@ -26,6 +26,8 @@ After a release without an explicit pre-release suffix, the release workflow
 snapshots documentation from the release tag and commits it to `main`. The
 latest release is the default; the version menu also links to development docs.
 Tags such as `v0.4.0-rc.1` do not create a documentation snapshot.
+The v0.3.0 documentation was imported from the earlier archive; its tag
+predates this website and cannot be regenerated with the versioning workflow.
 
 If snapshotting fails after a release is published, fix the reported problem
 and run the **Version documentation** workflow manually with the existing

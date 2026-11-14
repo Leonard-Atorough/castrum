@@ -35,6 +35,6 @@ Before publishing your game, replace `example.com/mygame` in `go.mod` and
 - `go.mod` is pinned to the matching Castrum version when the release is tagged.
 
 Add assets under your project as needed and configure Castrum's asset loader
-for their location. See the [asset guide](https://github.com/Leonard-Atorough/castrum/blob/main/docs/v0.3.0/guides/assets.md)
-and [first-game tutorial](https://github.com/Leonard-Atorough/castrum/blob/main/docs/v0.3.0/getting-started/your-first-game.md)
+for their location. See the [asset guide](https://github.com/Leonard-Atorough/castrum/blob/main/docs/versioned_docs/version-v0.3.0/guides/assets.md)
+and [first-game tutorial](https://github.com/Leonard-Atorough/castrum/blob/main/docs/versioned_docs/version-v0.3.0/getting-started/your-first-game.md)
 for the next steps.
