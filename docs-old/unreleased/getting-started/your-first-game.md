@@ -311,13 +311,13 @@ Let's start with the background music. Declare the asset path and create an audi
 ```go
 const AssetMusic = "audio/arpmedia-retro-arcade-game-music-577821.mp3"
 
-music := audio.NewSource()
+music := audio.NewSource(AssetMusic)
 music.Volume = 0.5
 music.Group = audio.GroupMusic
 music.Loop = audio.LoopForever
 music.Load = audio.LoadStream
 music.Pause = audio.PauseHolds
-if _, err := g.World().NewEntity(music, audio.Clip{Audio: AssetMusic}); err != nil {
+if _, err := g.World().NewEntity(music); err != nil {
 	return err
 }
 ```
@@ -348,9 +348,9 @@ func sfxSystem() core.System {
 		if !ctx.Input.MousePressed(input.MouseButtonLeft) {
 			return nil
 		}
-		shot := audio.NewSource()
+		shot := audio.NewSource(AssetSFX)
 		shot.Pause = audio.PauseContinues
-		_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: AssetSFX})
+		_, err := audio.OneShot(ctx.World, shot, AssetSFX)
 		return err
 	})
 }
@@ -474,9 +474,9 @@ func fireSystem(turret *core.Entity) core.System {
 			return err
 		}
 
-		shot := audio.NewSource()
+		shot := audio.NewSource(AssetSFX)
 		shot.Pause = audio.PauseContinues
-		_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: AssetSFX})
+		_, err := audio.OneShot(ctx.World, shot, AssetSFX)
 		return err
 	})
 }
@@ -616,9 +616,9 @@ func fireSystem(turret *core.Entity) core.System {
 			return err
 		}
 
-		shot := audio.NewSource()
+		shot := audio.NewSource(AssetSFX)
 		shot.Pause = audio.PauseContinues
-		_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: AssetSFX})
+		_, err := audio.OneShot(ctx.World, shot, AssetSFX)
 		return err
 	})
 }

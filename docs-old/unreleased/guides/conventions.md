@@ -55,7 +55,7 @@ So partial literals are idiomatic. Write the fields you care about and leave the
 render.Sprite{Color: color.White} // everything else zero, everything valid
 ```
 
-Some fields have no sensible zero, and the engine says so at spawn. An `audio.Source` must have a `Volume` in (0, 1], and a `Clip` must name an asset - a silent or unselected play is not useful. These components meet you halfway: a constructor supplies the minimal valid form (`audio.NewSource`), or the component is meaningless without one named field (for example, `Animation.Clip`).
+Some fields have no sensible zero, and the engine says so at spawn. An `audio.Source` must have a `Volume` in (0, 1] and must not name follow-on tracks without a first track. These components meet you halfway: a constructor supplies the minimal valid form (`audio.NewSource` takes the track to play), or the component is meaningless without one named field (for example, `Animation.Clip`).
 
 Between the two sit fields where zero means "the sensible default." A zero `Transform.Scale` axis reads as 1. Camera zoom rides the paired transform's uniform scale, while `Camera` remains pure framing policy. A zero `PlaybackMultiplier` plays at the normal rate. The loop and pause enums name their zero value for the common case - `LoopNone`, `PauseHolds` - so the field reads truthfully at rest.
 
@@ -113,7 +113,7 @@ func main() {
 
 ## State, not commands
 
-The engine's systems make the world match what components declare. A `Sprite` with a picture renders. An `Animation` advances. An audio `Source` paired with a `Clip` or `Playlist` plays. Steering any of them is field writes: pause, resume, retarget, restart - all plain state on the component.
+The engine's systems make the world match what components declare. A `Sprite` with a picture renders. An `Animation` advances. An audio `Source` with a named track plays. Steering any of them is field writes: pause, resume, retarget, restart - all plain state on the component.
 
 Instead of `play()`, `advance()`, or `redraw()` calls, the game writes state and the engine observes it on the next tick. Playback control is field writes, and the world catches up in the phase that owns the component.
 

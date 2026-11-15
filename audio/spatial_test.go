@@ -181,11 +181,11 @@ func TestSpatialCameraFollow(t *testing.T) {
 func TestSpatialErrorKeepsHealthyPlaysSynced(t *testing.T) {
 	w := newWorldWithHub(t)
 	provideListener(t, w, &Listener{Enabled: true, Mode: FixedPosition, Range: 100})
-	if _, err := w.NewEntity(Source{Volume: 1, Spatial: true}, Clip{Audio: "sfx/broken.wav"}); err != nil {
+	if _, err := w.NewEntity(Source{Volume: 1, Spatial: true, Track: "sfx/broken.wav"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := w.NewEntity(
-		Source{Volume: 1, Spatial: true}, Clip{Audio: "sfx/healthy.wav"},
+		Source{Volume: 1, Spatial: true, Track: "sfx/healthy.wav"},
 		core.Transform{Position: geom.Vector2{X: 50}},
 	); err != nil {
 		t.Fatal(err)

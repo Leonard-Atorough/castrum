@@ -9,6 +9,7 @@ package audio
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
@@ -55,11 +56,16 @@ const (
 	PauseContinues
 )
 
-// Source describes an audio play attached to a [core.Entity]. The audio system
-// applies its settings to a runner's player.
+// Source describes an audio play attached to a [core.Entity]: the tracks it
+// plays and the mix settings the audio system applies to a runner's player.
+// A source with only [Source.Track] set plays a single clip; adding entries to
+// [Source.More] turns it into a sequence. [NewSource] creates a single-track
+// source and [NewPlaylistSource] creates a multi-track source, both at unity
+// volume.
 //
-// The zero value is invalid. Use [NewSource] to create a source at unity
-// volume, and pair it with a [Clip] or [Playlist] component.
+// The zero value is invalid: Volume must be in (0, 1]. A source with no tracks
+// is valid but silent: the audio system releases its player until tracks are
+// added again.
 type Source struct {
 	// Group is the volume bus the play mixes through.
 	Group Group
@@ -91,23 +97,45 @@ type Source struct {
 	// A custom curve must be pure, map 0 to 0 and 1 to 1, and return finite
 	// values in [0, 1].
 	Attenuation geom.Ease
+	// Track is the asset ID of the first track in the play's sequence. It is
+	// the only track unless [Source.More] names follow-on tracks.
+	Track asset.ID
+	// More lists the tracks that follow [Source.Track], in play order.
+	// A nil slice means the source plays [Source.Track] alone.
+	More []asset.ID
+	// Repeat controls whether the sequence restarts after its last track
+	// finishes. It has no effect on a single-track source's own looping,
+	// which [Source.Loop] governs.
+	Repeat RepeatMode
 
-	restarts              uint64
-	syncedRestarts        uint64
-	syncedAudio           asset.ID
-	syncedPlaylist        bool
-	syncedPlaylistVersion uint64
+	index            int
+	selectionVersion uint64
+	restarts         uint64
+	syncedRestarts   uint64
+	syncedAudio      asset.ID
+	syncedVersion    uint64
 }
 
-// NewSource creates a source at unity volume with all other settings at their
-// zero values.
-func NewSource() Source {
-	return Source{Volume: 1}
+// NewSource creates a source that plays track at unity volume with all other
+// settings at their zero values.
+func NewSource(track asset.ID) Source {
+	return Source{Volume: 1, Track: track}
+}
+
+// NewPlaylistSource creates a source that plays tracks in order at unity
+// volume with all other settings at their zero values. With no tracks it
+// returns a source that fails [Source.Validate] until tracks are added.
+func NewPlaylistSource(tracks ...asset.ID) Source {
+	if len(tracks) == 0 {
+		return Source{Volume: 1}
+	}
+	return Source{Volume: 1, Track: tracks[0], More: slices.Clone(tracks[1:])}
 }
 
 // Validate reports an error if Volume is non-finite or outside (0, 1],
 // PlaybackMultiplier is non-finite or negative, Balance is non-finite or
-// outside [-1, 1], or Group, Loop, Pause, or Load has an unsupported value.
+// outside [-1, 1], Group, Loop, Pause, or Load has an unsupported value, a
+// track ID is empty, or Repeat has an unsupported value.
 func (s Source) Validate() error {
 	if math.IsNaN(s.Volume) || s.Volume <= 0 || s.Volume > 1 {
 		return fmt.Errorf("audio: source volume must be finite and in (0, 1], got %v", s.Volume)
@@ -130,6 +158,17 @@ func (s Source) Validate() error {
 	if math.IsNaN(s.Balance) || s.Balance < -1 || s.Balance > 1 {
 		return fmt.Errorf("audio: source balance must be finite and in [-1, 1], got %v", s.Balance)
 	}
+	if s.Track == "" && len(s.More) > 0 {
+		return fmt.Errorf("audio: source must name a first track before follow-on tracks")
+	}
+	for i, track := range s.More {
+		if track == "" {
+			return fmt.Errorf("audio: source track %d must not be empty", i+1)
+		}
+	}
+	if s.Repeat != RepeatNone && s.Repeat != RepeatAll {
+		return fmt.Errorf("audio: invalid repeat mode")
+	}
 	return nil
 }
 
@@ -139,19 +178,6 @@ func (s *Source) Restart() {
 	s.Completed = false
 	s.Paused = false
 	s.restarts++
-}
-
-// Clip selects one audio asset for a [Source].
-type Clip struct {
-	// Audio is the asset ID of the audio file to play.
-	Audio asset.ID
-}
-
-func (c Clip) Validate() error {
-	if c.Audio == "" {
-		return fmt.Errorf("audio: clip audio must not be empty")
-	}
-	return nil
 }
 
 // Mixer holds the master and group volume levels and the global pause state
@@ -245,37 +271,39 @@ type oneshot struct {
 	self *core.Entity
 }
 
-// OneShot starts src playing clip on a new engine-owned entity and returns its
-// handle. The audio system destroys the entity when playback finishes; it
+// OneShot starts src playing track on a new engine-owned entity and returns
+// its handle. The audio system destroys the entity when playback finishes; it
 // never destroys entities that carry ordinary [Source] components.
 //
 // The source must not loop: a [LoopForever] play never finishes and its
 // entity would not be reclaimed. Use a regular [Source] for looping audio.
 // OneShot returns an error for a looping, spatial, or invalid source.
-func OneShot(world *core.World, src Source, clip Clip) (*core.Entity, error) {
+func OneShot(world *core.World, src Source, track asset.ID) (*core.Entity, error) {
 	if src.Spatial {
-		return nil, fmt.Errorf("audio: one-shot %q must not be spatial: use OneShotAt", clip.Audio)
+		return nil, fmt.Errorf("audio: one-shot %q must not be spatial: use OneShotAt", track)
 	}
-	return oneShot(world, src, clip, core.Transform{})
+	return oneShot(world, src, track, core.Transform{})
 }
 
-// OneShotAt starts clip at position on a new engine-owned entity and returns
+// OneShotAt starts track at position on a new engine-owned entity and returns
 // its handle. It enables [Source.Spatial] and sets the entity's
 // [core.Transform] position. The world must provide a [Listener]; spatial
 // adjustment is applied only when it is enabled.
 //
 // The source must not loop: a [LoopForever] play never finishes and its entity
 // would not be reclaimed. Use a regular [Source] for looping audio.
-func OneShotAt(world *core.World, src Source, clip Clip, position geom.Vector2) (*core.Entity, error) {
+func OneShotAt(world *core.World, src Source, track asset.ID, position geom.Vector2) (*core.Entity, error) {
 	src.Spatial = true
-	return oneShot(world, src, clip, core.Transform{Position: position})
+	return oneShot(world, src, track, core.Transform{Position: position})
 }
 
-func oneShot(world *core.World, src Source, clip Clip, transform core.Transform) (*core.Entity, error) {
+func oneShot(world *core.World, src Source, track asset.ID, transform core.Transform) (*core.Entity, error) {
 	if src.Loop == LoopForever {
-		return nil, fmt.Errorf("audio: one-shot %q must not loop: use a Source on a game entity", clip.Audio)
+		return nil, fmt.Errorf("audio: one-shot %q must not loop: use a Source on a game entity", track)
 	}
-	entity, err := world.NewEntity(src, clip, transform)
+	src.Track = track
+	src.index = 0
+	entity, err := world.NewEntity(src, transform)
 	if err != nil {
 		return nil, err
 	}

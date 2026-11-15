@@ -49,7 +49,7 @@ func (c *finishedAudioController) Sweep() error { return nil }
 func TestRunnerAudioRunsAfterFrameAndSignalsPostFrame(t *testing.T) {
 	g := newTestGame(t)
 	controller := &finishedAudioController{}
-	if _, err := g.World().NewEntity(audio.NewSource(), audio.Clip{Audio: "sound"}); err != nil {
+	if _, err := g.World().NewEntity(audio.NewSource("sound")); err != nil {
 		t.Fatal(err)
 	}
 	hub := g.World().MustResource[*signal.Hub]()
@@ -109,7 +109,7 @@ func TestAudioBackendAttachmentTiming(t *testing.T) {
 		t.Run(phase.String(), func(t *testing.T) {
 			g := newTestGame(t)
 			controller := &integrationAudioController{}
-			if _, err := g.World().NewEntity(audio.NewSource(), audio.Clip{Audio: "sound"}); err != nil {
+			if _, err := g.World().NewEntity(audio.NewSource("sound")); err != nil {
 				t.Fatal(err)
 			}
 			attached := false
@@ -146,7 +146,7 @@ func (c failingAudioController) Sweep() error { return nil }
 
 func TestAudioBackendHeadlessAndErrors(t *testing.T) {
 	g := newTestGame(t)
-	if _, err := g.World().NewEntity(audio.NewSource(), audio.Clip{Audio: "sound"}); err != nil {
+	if _, err := g.World().NewEntity(audio.NewSource("sound")); err != nil {
 		t.Fatal(err)
 	}
 	advanceTestGame(t, g, time.Millisecond)
@@ -234,9 +234,9 @@ func TestSpatialAudioFrameAndFixedOrder(t *testing.T) {
 	}
 	listener := g.World().MustResource[*audio.Listener]()
 	listener.Enabled, listener.Mode, listener.Range = true, audio.FixedPosition, 100
-	source := audio.NewSource()
+	source := audio.NewSource("sound.wav")
 	source.Spatial = true
-	entity, err := g.World().NewEntity(source, audio.Clip{Audio: "sound.wav"}, core.Transform{})
+	entity, err := g.World().NewEntity(source, core.Transform{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +311,7 @@ func TestSettingsWorldAndFrameApplication(t *testing.T) {
 	mixer := game.World().MustResource[*audio.Mixer]()
 	actions := game.World().MustResource[*input.ActionMap]()
 	controller := &integrationAudioController{}
-	if _, err := game.World().NewEntity(audio.NewSource(), audio.Clip{Audio: asset.ID("sound")}); err != nil {
+	if _, err := game.World().NewEntity(audio.NewSource(asset.ID("sound"))); err != nil {
 		t.Fatal(err)
 	}
 	if err := game.AddSystem(core.PhaseFrame, "audio.reconcile", audio.NewAudioSystem(controller, mixer)); err != nil {

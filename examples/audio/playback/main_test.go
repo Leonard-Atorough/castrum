@@ -12,10 +12,10 @@ import (
 
 func TestPlaybackOneShotsAndSourceControls(t *testing.T) {
 	world := core.NewWorld()
-	music := audio.NewSource()
+	music := audio.NewSource(audioassets.Music)
 	music.Load = audio.LoadStream
 	music.Loop = audio.LoopForever
-	entity, err := world.NewEntity(music, audio.Clip{Audio: audioassets.Music})
+	entity, err := world.NewEntity(music)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,10 +34,9 @@ func TestPlaybackOneShotsAndSourceControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	count := 0
-	for e := range core.NewQuery(world).With(audio.Source{}, audio.Clip{}).Execute() {
+	for e := range core.NewQuery(world).With(audio.Source{}).Execute() {
 		source, _ := e.Component[audio.Source]()
-		clip, _ := e.Component[audio.Clip]()
-		if clip.Audio == audioassets.Magic {
+		if source.Current() == audioassets.Magic {
 			if source.Load != audio.LoadEager || source.Loop != audio.LoopNone {
 				t.Fatalf("effect = %+v, want eager non-looping source", source)
 			}

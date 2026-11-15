@@ -118,8 +118,8 @@ See the [input guide](../guides/input.md) for action state and binding examples.
 ## Audio
 
 ```go
-shot := audio.NewSource()
-_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: id})
+shot := audio.NewSource(id)
+_, err := audio.OneShot(ctx.World, shot, id)
 ```
 
 See the [audio guide](../guides/audio.md) for persistent sources, loading, and mixer controls.

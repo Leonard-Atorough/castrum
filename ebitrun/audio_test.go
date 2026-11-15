@@ -544,13 +544,13 @@ func TestPlaylistEditsReleasePlayback(t *testing.T) {
 				})
 				g := mustGame(t)
 				w := g.World()
-				s := audio.NewSource()
+				s := audio.NewSource(asset.ID(source))
 				s.Load, s.Loop, s.Paused = audio.LoadStream, audio.LoopForever, paused
-				entity, err := w.NewEntity(s, audio.NewPlaylist([]asset.ID{asset.ID(source)}))
+				entity, err := w.NewEntity(s)
 				if err != nil {
 					t.Fatal(err)
 				}
-				healthy, err := w.NewEntity(s, audio.Clip{Audio: asset.ID(source)})
+				healthy, err := w.NewEntity(s)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -567,38 +567,38 @@ func TestPlaylistEditsReleasePlayback(t *testing.T) {
 				oldPlayer, oldSource := old.player, old.source
 				healthySession := p.players[healthy.ID()]
 				var editErr error
-				if err := entity.Update(w, func(pl *audio.Playlist) {
+				if err := entity.Update(w, func(pl *audio.Source) {
 					if edit == "clear" {
 						pl.Clear()
 					} else {
 						editErr = pl.RemoveTrack(0)
 					}
 				}); err != nil || editErr != nil {
-					t.Fatalf("empty playlist update: validation=%v edit=%v", err, editErr)
+					t.Fatalf("empty sequence update: validation=%v edit=%v", err, editErr)
 				}
-				pl, ok := entity.Component[audio.Playlist](w)
+				pl, ok := entity.Component[audio.Source](w)
 				if !ok || pl.Len() != 0 || pl.Current() != "" {
-					t.Fatalf("stored playlist = %+v, want empty", pl)
+					t.Fatalf("stored source = %+v, want no tracks", pl)
 				}
 				run()
 				run()
 				if p.players[entity.ID()] != nil || old.player != nil || oldPlayer.IsPlaying() {
-					t.Fatal("empty playlist retained or replayed old playback")
+					t.Fatal("empty sequence retained or replayed old playback")
 				}
 				if err := oldSource.Close(); err == nil {
-					t.Fatal("empty playlist did not close the old stream")
+					t.Fatal("empty sequence did not close the old stream")
 				}
 				if p.players[healthy.ID()] != healthySession {
-					t.Fatal("empty playlist disrupted healthy playback")
+					t.Fatal("empty sequence disrupted healthy playback")
 				}
 				stored, _ := entity.Component[audio.Source](w)
 				if stored.Completed {
-					t.Fatal("empty playlist marked completed")
+					t.Fatal("empty sequence marked completed")
 				}
-				if err := entity.Update(w, func(pl *audio.Playlist) {
+				if err := entity.Update(w, func(pl *audio.Source) {
 					editErr = pl.AddTrack(asset.ID(source))
 				}); err != nil || editErr != nil {
-					t.Fatalf("refill playlist: validation=%v edit=%v", err, editErr)
+					t.Fatalf("refill sequence: validation=%v edit=%v", err, editErr)
 				}
 				run()
 				fresh := p.players[entity.ID()]
@@ -729,18 +729,18 @@ func TestDefaultRunnerAudioPlaybackAndCleanup(t *testing.T) {
 	world := g.World()
 
 	// One eager play and one streaming loop, as games build them.
-	shot := audio.NewSource()
+	shot := audio.NewSource("tone.wav")
 	shot.Load = audio.LoadEager
 	shot.Balance = -1
-	shotEntity, err := world.NewEntity(shot, audio.Clip{Audio: "tone.wav"})
+	shotEntity, err := world.NewEntity(shot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	music := audio.NewSource()
+	music := audio.NewSource("tone.wav")
 	music.Load = audio.LoadStream
 	music.Loop = audio.LoopForever
 	music.Balance = 0.5
-	musicEntity, err := world.NewEntity(music, audio.Clip{Audio: "tone.wav"})
+	musicEntity, err := world.NewEntity(music)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -850,14 +850,14 @@ func TestDefaultRunnerAudioPlaybackAndCleanup(t *testing.T) {
 		t.Error("destroyed eager play should release its session")
 	}
 
-	stream := audio.NewSource()
+	stream := audio.NewSource("tone.wav")
 	stream.Load = audio.LoadStream
 	stream.Balance = -0.5
-	persistent, err := world.NewEntity(stream, audio.Clip{Audio: "tone.wav"})
+	persistent, err := world.NewEntity(stream)
 	if err != nil {
 		t.Fatal(err)
 	}
-	oneShot, err := audio.OneShot(world, stream, audio.Clip{Audio: "tone.wav"})
+	oneShot, err := audio.OneShot(world, stream, "tone.wav")
 	if err != nil {
 		t.Fatal(err)
 	}

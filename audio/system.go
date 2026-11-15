@@ -29,7 +29,7 @@ type Playback struct {
 	// Playing reports whether playback should advance. False holds its position.
 	Playing bool
 	// Restart requests a fresh player from the beginning. The audio system
-	// sets it on the first sync, a clip or playlist selection change, or
+	// sets it on the first sync, a track selection change, or
 	// [Source.Restart].
 	Restart bool
 	// Volume is the final mix, including spatial attenuation, in [0, 1].
@@ -88,7 +88,7 @@ type Controller interface {
 // requires a [core.Transform] on each spatial source. Invalid listener state,
 // transforms, and attenuation results are reported during reconciliation.
 func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
-	var sourceQuery, oneshotQuery, playlistQuery, ambiguousSelectorQuery *core.Query
+	var sourceQuery, oneshotQuery *core.Query
 	var hub *signal.Hub
 	var camera *render.CameraResolver
 	return core.SystemFunc(func(ctx *core.Context) error {
@@ -98,16 +98,10 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 		spatial := spatialPass{ctx: ctx, camera: camera}
 		var spatialErr error
 		if sourceQuery == nil {
-			sourceQuery = core.NewQuery(ctx.World).With(Source{}, Clip{}).Without(Playlist{})
+			sourceQuery = core.NewQuery(ctx.World).With(Source{})
 		}
 		if oneshotQuery == nil {
 			oneshotQuery = core.NewQuery(ctx.World).With(Source{}, oneshot{})
-		}
-		if playlistQuery == nil {
-			playlistQuery = core.NewQuery(ctx.World).With(Source{}, Playlist{}).Without(Clip{})
-		}
-		if ambiguousSelectorQuery == nil {
-			ambiguousSelectorQuery = core.NewQuery(ctx.World).With(Source{}, Clip{}, Playlist{})
 		}
 		if hub == nil {
 			resolved, err := ctx.World.Resource[*signal.Hub]()
@@ -116,70 +110,26 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 			}
 			hub = resolved
 		}
-		for e := range ambiguousSelectorQuery.Execute() {
-			return fmt.Errorf("audio: entity %d has both Clip and Playlist selectors", e.ID())
-		}
 		for e := range sourceQuery.Execute() {
 			s, _ := e.Component[Source]()
-			cl, _ := e.Component[Clip]()
 
-			restart := s.syncedRestarts != s.restarts ||
-				s.syncedPlaylist || s.syncedAudio != cl.Audio
-			if restart {
-				s.Completed = false
-				s.syncedRestarts = s.restarts
-				s.syncedAudio = cl.Audio
-				s.syncedPlaylist = false
-			}
-
-			want := fold(s, mixer)
-			if err := spatial.apply(e.ID(), s, &want); err != nil {
-				if spatialErr == nil {
-					spatialErr = err
-				}
-				continue
-			}
-			want.Restart = restart
-			live, err := controller.Sync(e.ID(), cl.Audio, want)
-			if err != nil {
-				return fmt.Errorf("audio: entity %d: %w", e.ID(), err)
-			}
-
-			changed := restart
-			if !live && s.Loop == LoopNone && !s.Completed {
-				s.Completed = true
-				changed = true
-				hub.Emit(Finished{Entity: e.ID(), Audio: cl.Audio})
-			}
-			if changed {
-				e.SetComponent(s)
-			}
-		}
-
-		for e := range playlistQuery.Execute() {
-			s, _ := e.Component[Source]()
-			pl, _ := e.Component[Playlist]()
-
-			current := pl.Current()
+			current := s.Current()
 			if current == "" {
-				if s.syncedPlaylist {
+				if s.syncedAudio != "" {
 					s.Completed = false
 					s.syncedAudio = ""
-					s.syncedPlaylist = false
-					s.syncedPlaylistVersion = 0
+					s.syncedVersion = s.selectionVersion
 					e.SetComponent(s)
 				}
 				continue
 			}
 			restart := s.syncedRestarts != s.restarts ||
-				!s.syncedPlaylist || s.syncedPlaylistVersion != pl.selectionVersion ||
-				s.syncedAudio != current
+				s.syncedAudio != current || s.syncedVersion != s.selectionVersion
 			if restart {
 				s.Completed = false
 				s.syncedRestarts = s.restarts
 				s.syncedAudio = current
-				s.syncedPlaylist = true
-				s.syncedPlaylistVersion = pl.selectionVersion
+				s.syncedVersion = s.selectionVersion
 			}
 
 			want := fold(s, mixer)
@@ -200,10 +150,7 @@ func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 				s.Completed = true
 				changed = true
 				hub.Emit(Finished{Entity: e.ID(), Audio: current})
-				if pl.advanceAfterCompletion() {
-					e.SetComponent(pl)
-					s.Completed = false
-				}
+				s.Completed = !s.advanceAfterCompletion()
 			}
 			if changed {
 				e.SetComponent(s)

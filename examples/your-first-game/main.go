@@ -147,14 +147,15 @@ func run() error {
 
 	// Add the tutorial's looping background music as a streamed source.
 	if _, err := g.World().NewEntity(
-		audio.Source{
-			Volume: 0.5,
-			Group:  audio.GroupMusic,
-			Loop:   audio.LoopForever,
-			Load:   audio.LoadStream,
-			Pause:  audio.PauseHolds,
-		},
-		audio.Clip{Audio: AssetMusic},
+		func() audio.Source {
+			music := audio.NewSource(AssetMusic)
+			music.Volume = 0.5
+			music.Group = audio.GroupMusic
+			music.Loop = audio.LoopForever
+			music.Load = audio.LoadStream
+			music.Pause = audio.PauseHolds
+			return music
+		}(),
 	); err != nil {
 		return err
 	}
@@ -426,9 +427,9 @@ func fireSystem(turret, stats *core.Entity) core.System {
 			return err
 		}
 
-		shot := audio.NewSource()
+		shot := audio.NewSource(AssetSFX)
 		shot.Pause = audio.PauseContinues
-		_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: AssetSFX})
+		_, err := audio.OneShot(ctx.World, shot, AssetSFX)
 		return err
 	})
 }

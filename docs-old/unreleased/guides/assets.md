@@ -302,11 +302,10 @@ These decoders use the runner's audio-context sample rate. They do not modify th
 For short repeated effects, use `audio.LoadEager`, the default on `audio.Source`. It caches complete decoded PCM that multiple players can share. For long music, use `audio.LoadStream`:
 
 ```go
-source := audio.NewSource()
+source := audio.NewSource("assets/audio/music.ogg")
 source.Load = audio.LoadStream
 source.Loop = audio.LoopForever
-clip := audio.Clip{Audio: "assets/audio/music.ogg"}
-_, err := g.World().NewEntity(source, clip)
+_, err := g.World().NewEntity(source)
 if err != nil {
 	return err
 }

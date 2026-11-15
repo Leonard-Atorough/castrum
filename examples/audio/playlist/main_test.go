@@ -36,7 +36,7 @@ func TestCompletionAdvancesAndExhaustsOrRepeats(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := demo.entity.Update(g.World(), func(p *audio.Playlist) { p.Repeat = repeat }); err != nil {
+			if err := demo.entity.Update(g.World(), func(s *audio.Source) { s.Repeat = repeat }); err != nil {
 				t.Fatal(err)
 			}
 			backend := &controller{}
@@ -55,7 +55,7 @@ func TestCompletionAdvancesAndExhaustsOrRepeats(t *testing.T) {
 			advance()
 			backend.finished = true
 			advance()
-			p, _ := demo.entity.Component[audio.Playlist](g.World())
+			p, _ := demo.entity.Component[audio.Source](g.World())
 			if p.Current() != audioassets.Music || demo.completions != 1 || demo.last != audioassets.Magic {
 				t.Fatal("completion did not advance selection or reach the post-frame observer")
 			}
@@ -113,8 +113,8 @@ func TestManualSelectionPauseAndRepeatControls(t *testing.T) {
 		if err := g.Advance(time.Millisecond); err != nil {
 			t.Fatal(err)
 		}
-		p, _ := demo.entity.Component[audio.Playlist](g.World())
-		source, _ := demo.entity.Component[audio.Source](g.World())
+		p, _ := demo.entity.Component[audio.Source](g.World())
+		source := p
 		if p.Current() != step.track || p.Repeat != step.repeat || source.Paused != step.paused ||
 			backend.want.Playing == step.paused || backend.want.Loop != audio.LoopNone {
 			t.Fatalf("control %v: playlist=%+v source=%+v playback=%+v", step.key, p, source, backend.want)

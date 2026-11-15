@@ -25,17 +25,17 @@ type demonstration struct {
 
 func (d *demonstration) controls(ctx *core.Context) error {
 	if ctx.Input.KeyPressed(input.KeyN) || ctx.Input.KeyPressed(input.KeyP) || ctx.Input.KeyPressed(input.KeyR) {
-		if err := d.entity.Update(ctx.World, func(p *audio.Playlist) {
+		if err := d.entity.Update(ctx.World, func(s *audio.Source) {
 			if ctx.Input.KeyPressed(input.KeyN) {
-				p.Next()
+				s.Next()
 			} else if ctx.Input.KeyPressed(input.KeyP) {
-				p.Previous()
+				s.Previous()
 			}
 			if ctx.Input.KeyPressed(input.KeyR) {
-				if p.Repeat == audio.RepeatNone {
-					p.Repeat = audio.RepeatAll
+				if s.Repeat == audio.RepeatNone {
+					s.Repeat = audio.RepeatAll
 				} else {
-					p.Repeat = audio.RepeatNone
+					s.Repeat = audio.RepeatNone
 				}
 			}
 		}); err != nil {
@@ -59,10 +59,10 @@ func newGame() (*castrum.Game, *demonstration, error) {
 	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 		return nil, nil, err
 	}
-	source := audio.NewSource()
+	source := audio.NewPlaylistSource(audioassets.Magic, audioassets.Music)
 	source.Load = audio.LoadStream
 	source.Group = audio.GroupMusic
-	entity, err := g.World().NewEntity(source, audio.NewPlaylist([]asset.ID{audioassets.Magic, audioassets.Music}))
+	entity, err := g.World().NewEntity(source)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -99,21 +99,17 @@ func newGame() (*castrum.Game, *demonstration, error) {
 		labels[line] = label
 	}
 	if err := g.AddSystem(core.PhasePostFrame, "show playlist", core.SystemFunc(func(ctx *core.Context) error {
-		p, ok := entity.Component[audio.Playlist](ctx.World)
-		if !ok {
-			return fmt.Errorf("playlist component is missing")
-		}
 		s, ok := entity.Component[audio.Source](ctx.World)
 		if !ok {
 			return fmt.Errorf("source component is missing")
 		}
 		repeat := "off"
-		if p.Repeat == audio.RepeatAll {
+		if s.Repeat == audio.RepeatAll {
 			repeat = "all"
 		}
 		lines := []string{
 			"N: next   P: previous   R: repeat sequence   SPACE: pause",
-			fmt.Sprintf("Selected: %s", p.Current()),
+			fmt.Sprintf("Selected: %s", s.Current()),
 			fmt.Sprintf("Repeat: %s | Paused: %t | Exhausted: %t", repeat, s.Paused, s.Completed),
 			fmt.Sprintf("Completed tracks: %d | Last: %s", d.completions, d.last),
 		}
