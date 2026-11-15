@@ -26,7 +26,7 @@ const (
 	sheetPath = "torch_light.sheet.json"
 
 	TorchLightFPS  = 10
-	TorchLightLoop = animation.LoopForever
+	TorchLightLoop = animation.LoopAll
 
 	ClipFlickeringTorch = "flickering_torch"
 
@@ -171,7 +171,7 @@ func playbackSystem(torch *core.Entity) core.System {
 				value.Restart()
 			}
 			if loop {
-				value.Loop = animation.LoopForever
+				value.Loop = animation.LoopAll
 				value.Restart()
 			}
 		})

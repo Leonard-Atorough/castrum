@@ -173,7 +173,7 @@ func TestAnimationControlsAndCompletion(t *testing.T) {
 	}
 	press(input.Key2)
 	tick(60)
-	if got := read(); got.Loop != animation.LoopForever || got.Paused || got.HasCompleted() || got.CompletedOn == 0 {
+	if got := read(); got.Loop != animation.LoopAll || got.Paused || got.HasCompleted() || got.CompletedOn == 0 {
 		t.Fatalf("loop mode did not wrap: %+v", got)
 	}
 	if !slices.Contains(panel.Lines(), "loop completed") {

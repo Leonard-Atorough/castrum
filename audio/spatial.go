@@ -84,7 +84,7 @@ func (p *spatialPass) resolve() error {
 	return nil
 }
 
-func (p *spatialPass) apply(id core.EntityID, s Source, want *Playback) error {
+func (p *spatialPass) apply(id core.EntityID, s Settings, want *Playback) error {
 	if !s.Spatial {
 		return nil
 	}

@@ -257,7 +257,7 @@ func (a *audioProvider) createPlayer(source asset.ID, want audio.Playback) (_ *a
 	default:
 		return nil, fmt.Errorf("castrum/ebiten: audio: invalid load mode %d for source %q", want.Load, source)
 	}
-	if want.Loop == audio.LoopForever {
+	if want.Loop == audio.LoopTrack {
 		reader = ebitaudio.NewInfiniteLoop(reader, length)
 	}
 	session.balance, err = newBalanceReader(reader, want.Balance)

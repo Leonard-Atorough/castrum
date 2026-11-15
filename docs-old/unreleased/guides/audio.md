@@ -33,7 +33,7 @@ if ctx.Input.KeyPressed(input.KeySpace) {
 
 `NewSource` supplies the required unity volume. `OneShot` spawns an engine-owned entity and destroys it after a non-looping play finishes. Every call owns a separate play, so overlapping effects layer instead of interrupting one another.
 
-A one-shot must not use `LoopForever`; a play that never finishes could never be reclaimed. Use a regular `Source` on a game entity for looping audio or for a play you need to keep and control.
+A one-shot must not use `LoopAll`; a play that never finishes could never be reclaimed. Use a regular `Source` on a game entity for looping audio or for a play you need to keep and control.
 
 When a non-looping track finishes, the audio system emits an `audio.Finished` signal carrying the source's entity ID and asset ID. For a clip or an exhausted playlist, it also sets `Source.Completed`; an automatically advancing playlist clears it for the next track. The game reconciles audio after user frame systems, so read `Finished` in `PhasePostFrame` before the frame window closes. Poll `Source.Completed` from anywhere when the exact frame does not matter. See the [signals guide](signals.md) for reader rules.
 
@@ -44,7 +44,7 @@ Create a `Source` and `Clip` on the same entity when the play should remain in y
 ```go
 music := audio.NewSource()
 music.Group = audio.GroupMusic
-music.Loop = audio.LoopForever
+music.Loop = audio.LoopAll
 music.Load = audio.LoadStream
 music.Pause = audio.PauseHolds
 _, err := g.World().NewEntity(music, audio.Clip{Audio: AssetMusic})
@@ -75,7 +75,7 @@ if err != nil {
 }
 ```
 
-`Source.Loop` repeats the current asset; `Playlist.Repeat` controls whether the sequence wraps. Leave `Source.Loop` at `LoopNone` when the playlist should advance automatically. A `LoopForever` source never completes a track, so the playlist cannot advance on completion.
+`Source.Loop` repeats the current asset; `Playlist.Repeat` controls whether the sequence wraps. Leave `Source.Loop` at `LoopNone` when the playlist should advance automatically. A `LoopAll` source never completes a track, so the playlist cannot advance on completion.
 
 The audio system emits `audio.Finished` for each completed track. When another track is available, it advances the playlist and starts that selection on the next audio-system pass. At the final track with `RepeatNone`, the source becomes completed. `Playlist.Next` and `Previous` wrap when called directly, regardless of `Repeat`; `Seek` selects a position without wrapping. Write the updated component back to the entity:
 
@@ -131,7 +131,7 @@ Streaming opens and decodes a source for each play instead of placing the entire
 music := audio.NewSource()
 music.Group = audio.GroupMusic
 music.Load = audio.LoadStream
-music.Loop = audio.LoopForever
+music.Loop = audio.LoopAll
 clip := audio.Clip{Audio: "audio/music.ogg"}
 _, err := g.World().NewEntity(music, clip)
 if err != nil {
@@ -152,7 +152,7 @@ Looping and position resets require a seek-capable file. Normal directory files 
 - `Spatial` opts the play into listener-relative volume and balance. It is off by default.
 - `Attenuation` shapes spatial volume falloff; nil uses a linear curve.
 - `Group` selects `GroupSFX` or `GroupMusic`. The zero value is `GroupSFX`.
-- `Loop` selects `LoopNone` or `LoopForever`. The zero value is `LoopNone`.
+- `Loop` selects `LoopNone` or `LoopAll`. The zero value is `LoopNone`.
 - `Pause` selects `PauseHolds` or `PauseContinues`. The zero value is `PauseHolds`.
 - `Load` selects eager or streaming playback. The zero value is `LoadEager`.
 - `PlaybackMultiplier` scales the desired rate. Zero means normal rate; negative values are invalid.
@@ -203,7 +203,7 @@ listener.Enabled = true
 source := audio.NewSource()
 source.Spatial = true
 source.Attenuation = geom.EaseInQuad
-source.Loop = audio.LoopForever
+source.Loop = audio.LoopAll
 _, err := g.World().NewEntity(
 	source,
 	audio.Clip{Audio: "audio/waterfall.ogg"},

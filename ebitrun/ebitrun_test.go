@@ -128,7 +128,11 @@ func TestRunnerAudioIsProtectedAfterFrameSystems(t *testing.T) {
 			if runnerFirst {
 				mustRunner(t, g)
 			}
-			entity, err := g.World().NewEntity(audio.NewSource(), audio.Clip{Audio: "unused"}, audio.NewPlaylist(nil))
+			player, err := audio.NewPlayer(audio.Track("unknown"), audio.DefaultSettings())
+			if err != nil {
+				t.Fatal(err)
+			}
+			entity, err := g.World().NewEntity(player)
 			if err != nil {
 				t.Fatal(err)
 			}

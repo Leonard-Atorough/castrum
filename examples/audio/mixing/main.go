@@ -42,17 +42,19 @@ func run() error {
 	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](audioassets.Magic); err != nil {
 		return err
 	}
-	music := audio.NewSource()
-	music.Group = audio.GroupMusic
-	music.Load = audio.LoadStream
-	music.Loop = audio.LoopForever
-	music.Pause = audio.PauseHolds
-	if _, err := g.World().NewEntity(music, audio.Clip{Audio: audioassets.Music}); err != nil {
+	p, err := audio.NewPlayer(
+		audio.Track(audioassets.Music),
+		audio.Settings{Load: audio.LoadStream, Loop: audio.LoopTrack, Group: audio.GroupMusic, Pause: audio.PauseHolds, Volume: 1},
+	)
+	if err != nil {
+		return err
+	}
+	if _, err := g.World().NewEntity(p); err != nil {
 		return err
 	}
 	mixer := g.World().MustResource[*audio.Mixer]()
 	panel := g.World().MustResource[*debug.Panel]()
-	panel.Status("controls", "UP/DOWN: master volume   LEFT/RIGHT: music bus   SPACE: play effect")
+	panel.Status("controls", "UP/DOWN: master volume   LEFT/RIGHT: music bus   ENTER: pause   SPACE: play effect")
 	if err := g.AddSystem(core.PhaseFrame, "audio.mixing", mixingSystem(mixer, panel)); err != nil {
 		return err
 	}
@@ -91,9 +93,7 @@ func mixingSystem(mixer *audio.Mixer, panel *debug.Panel) core.System {
 			panel.Message("global pause toggled - music holds, effects play through")
 		}
 		if ctx.Input.KeyPressed(input.KeySpace) {
-			shot := audio.NewSource()
-			shot.Pause = audio.PauseContinues
-			_, err := audio.OneShot(ctx.World, shot, audio.Clip{Audio: audioassets.Magic})
+			_, err := audio.OneShot(ctx.World, audio.Track(audioassets.Magic), audio.Settings{Pause: audio.PauseContinues, Volume: 1})
 			return err
 		}
 		return nil

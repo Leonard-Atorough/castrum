@@ -36,10 +36,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	music := audio.NewSource()
-	music.Load = audio.LoadStream
-	music.Loop = audio.LoopForever
-	entity, err := g.World().NewEntity(music, audio.Clip{Audio: audioassets.Music})
+
+	p, err := audio.NewPlayer(audio.Track(audioassets.Music), audio.Settings{Load: audio.LoadStream, Loop: audio.LoopTrack, Volume: 1})
+	if err != nil {
+		return err
+	}
+	entity, err := g.World().NewEntity(p)
 	if err != nil {
 		return err
 	}
@@ -58,38 +60,38 @@ func run() error {
 
 func balanceSystem(music *core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		return music.Update(ctx.World, func(s *audio.Source) {
+		return music.Update(ctx.World, func(s *audio.Player) {
 			step := balanceSpeed * ctx.DeltaTime.Seconds()
 			if ctx.Input.KeyHeld(input.KeyArrowLeft) {
-				s.Balance -= step
+				s.Settings.Balance -= step
 			}
 			if ctx.Input.KeyHeld(input.KeyArrowRight) {
-				s.Balance += step
+				s.Settings.Balance += step
 			}
 			// Source validation rejects out-of-range values rather than
 			// clamping them, so the interactive control supplies that bound.
-			s.Balance = math.Max(-1, math.Min(1, s.Balance))
+			s.Settings.Balance = math.Max(-1, math.Min(1, s.Settings.Balance))
 			if ctx.Input.KeyPressed(input.Key1) {
-				s.Balance = -1
+				s.Settings.Balance = -1
 			}
 			if ctx.Input.KeyPressed(input.Key2) {
-				s.Balance = 0
+				s.Settings.Balance = 0
 			}
 			if ctx.Input.KeyPressed(input.Key3) {
-				s.Balance = 1
+				s.Settings.Balance = 1
 			}
 
-			left := math.Sqrt(1 - math.Max(s.Balance, 0))
-			right := math.Sqrt(1 - math.Max(-s.Balance, 0))
+			left := math.Sqrt(1 - math.Max(s.Settings.Balance, 0))
+			right := math.Sqrt(1 - math.Max(-s.Settings.Balance, 0))
 			panel.Status("balance", fmt.Sprintf("balance %+.2f   left %3.0f%%   right %3.0f%%   paused: %t",
-				s.Balance, left*100, right*100, s.Paused))
+				s.Settings.Balance, left*100, right*100, s.Paused))
 			if ctx.Input.KeyPressed(input.KeySpace) {
 				s.Paused = !s.Paused
 				panel.Message(fmt.Sprintf("paused: %t", s.Paused))
 			}
 			if ctx.Input.KeyPressed(input.KeyR) {
 				s.Restart()
-				panel.Message(fmt.Sprintf("restarted, balance %+.2f kept", s.Balance))
+				panel.Message(fmt.Sprintf("restarted, balance %+.2f kept", s.Settings.Balance))
 			}
 		})
 	})

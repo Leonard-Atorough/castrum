@@ -10,13 +10,6 @@ import (
 	"github.com/Leonard-Atorough/castrum/render"
 )
 
-func provideListener(t *testing.T, w *core.World, listener *Listener) {
-	t.Helper()
-	if err := w.Provide(func(*core.World) (*Listener, error) { return listener, nil }); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestSpatialPlayback(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
@@ -37,27 +30,26 @@ func TestSpatialPlayback(t *testing.T) {
 		{name: "negative bias clamped", position: geom.Vector2{X: -50}, bias: -0.75, wantGain: 0.5, wantBalance: -1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			source := Source{Volume: 0.8, Spatial: true, Balance: tc.bias, Attenuation: tc.curve}
-			entity, ctx := newAudioWorld(t, source, "sound.wav")
-			if err := entity.AddComponent(ctx.World, core.Transform{Position: tc.position}); err != nil {
+			settings := Settings{Volume: 0.8, Spatial: true, Balance: tc.bias, Attenuation: tc.curve}
+			h := newAudioHarness(t)
+			entity := h.spawn(Track("sound.wav"), settings)
+			if err := entity.AddComponent(h.world, core.Transform{Position: tc.position}); err != nil {
 				t.Fatal(err)
 			}
-			provideListener(t, ctx.World, &Listener{Enabled: true, Mode: FixedPosition, Range: 100})
-			mixer := NewMixer()
-			if err := mixer.SetMaster(0.5); err != nil {
+			*h.listener = Listener{Enabled: true, Mode: FixedPosition, Range: 100}
+			if err := h.mixer.SetMaster(0.5); err != nil {
 				t.Fatal(err)
 			}
-			if err := mixer.SetGroupVolume(GroupSFX, 0.5); err != nil {
+			if err := h.mixer.SetGroupVolume(GroupSFX, 0.5); err != nil {
 				t.Fatal(err)
 			}
-			fake := &fakeController{live: true}
-			runAudio(t, NewAudioSystem(fake, mixer), ctx)
-			got := fake.syncs[0].want
+			h.update()
+			got := h.lastSync(entity.ID()).want
 			if math.Abs(got.Volume-0.2*tc.wantGain) > 1e-12 || math.Abs(got.Balance-tc.wantBalance) > 1e-12 || !got.Playing {
 				t.Fatalf("playback = %+v, want volume %v, balance %v, playing", got, 0.2*tc.wantGain, tc.wantBalance)
 			}
-			stored := readSource(t, entity, ctx)
-			if stored.Volume != source.Volume || stored.Balance != source.Balance {
+			stored := h.player(entity)
+			if stored.Settings.Volume != settings.Volume || stored.Settings.Balance != settings.Balance {
 				t.Fatalf("spatialization modified source: %+v", stored)
 			}
 		})
@@ -65,144 +57,150 @@ func TestSpatialPlayback(t *testing.T) {
 }
 
 func TestSpatialLiveUpdatesAndPause(t *testing.T) {
-	entity, ctx := newAudioWorld(t, Source{Volume: 1, Balance: -0.25, Spatial: true}, "sound.wav")
-	if err := entity.AddComponent(ctx.World, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
+	h := newAudioHarness(t)
+	entity := h.spawn(Track("sound.wav"), Settings{Volume: 1, Balance: -0.25, Spatial: true})
+	if err := entity.AddComponent(h.world, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
 		t.Fatal(err)
 	}
-	listener := &Listener{Enabled: true, Mode: FixedPosition, Range: 100}
-	provideListener(t, ctx.World, listener)
-	fake := &fakeController{live: true}
-	mixer := NewMixer()
-	sys := NewAudioSystem(fake, mixer)
-	runAudio(t, sys, ctx)
+	*h.listener = Listener{Enabled: true, Mode: FixedPosition, Range: 100}
+	h.update()
 
-	mixer.PauseAll()
-	if err := entity.Update(ctx.World, func(tr *core.Transform) { tr.Position.X = -50 }); err != nil {
+	h.mixer.PauseAll()
+	if err := entity.Update(h.world, func(tr *core.Transform) { tr.Position.X = -50 }); err != nil {
 		t.Fatal(err)
 	}
-	runAudio(t, sys, ctx)
-	got := fake.syncs[len(fake.syncs)-1].want
+	h.update()
+	got := h.lastSync(entity.ID()).want
 	if got.Playing || got.Restart || got.Volume != 0.5 || got.Balance != -0.75 {
 		t.Fatalf("paused movement = %+v", got)
 	}
-	mixer.ResumeAll()
-	listener.Position.X = -25
-	runAudio(t, sys, ctx)
-	got = fake.syncs[len(fake.syncs)-1].want
+	h.mixer.ResumeAll()
+	h.listener.Position.X = -25
+	h.update()
+	got = h.lastSync(entity.ID()).want
 	if !got.Playing || got.Restart || got.Volume != 0.75 || got.Balance != -0.5 {
 		t.Fatalf("moved listener = %+v", got)
 	}
-	if err := entity.Update(ctx.World, func(s *Source) { s.Attenuation = geom.EaseInQuad }); err != nil {
+	if err := entity.Update(h.world, func(s *Player) { s.Settings.Attenuation = geom.EaseInQuad }); err != nil {
 		t.Fatal(err)
 	}
-	runAudio(t, sys, ctx)
-	got = fake.syncs[len(fake.syncs)-1].want
+	h.update()
+	got = h.lastSync(entity.ID()).want
 	if got.Restart || got.Volume != 0.9375 || got.Balance != -0.5 {
 		t.Fatalf("updated curve = %+v", got)
 	}
-	listener.Enabled = false
-	runAudio(t, sys, ctx)
-	got = fake.syncs[len(fake.syncs)-1].want
+	h.listener.Enabled = false
+	h.update()
+	got = h.lastSync(entity.ID()).want
 	if !got.Playing || got.Restart || got.Volume != 1 || got.Balance != -0.25 {
 		t.Fatalf("disabled listener = %+v", got)
 	}
-	listener.Enabled = true
-	if err := entity.Update(ctx.World, func(s *Source) { s.Spatial = false }); err != nil {
+	h.listener.Enabled = true
+	if err := entity.Update(h.world, func(s *Player) { s.Settings.Spatial = false }); err != nil {
 		t.Fatal(err)
 	}
-	if err := entity.RemoveComponent[core.Transform](ctx.World); err != nil {
+	if err := entity.RemoveComponent[core.Transform](h.world); err != nil {
 		t.Fatal(err)
 	}
-	runAudio(t, sys, ctx)
-	got = fake.syncs[len(fake.syncs)-1].want
+	h.update()
+	got = h.lastSync(entity.ID()).want
 	if got.Restart || got.Volume != 1 || got.Balance != -0.25 {
 		t.Fatalf("disabled spatial source = %+v", got)
 	}
-	if err := entity.RemoveComponent[Source](ctx.World); err != nil {
+	if err := entity.RemoveComponent[Player](h.world); err != nil {
 		t.Fatal(err)
 	}
-	before := len(fake.syncs)
-	runAudio(t, sys, ctx)
-	if len(fake.syncs) != before || fake.sweeps != 7 {
-		t.Fatalf("removed source: syncs = %d, sweeps = %d", len(fake.syncs), fake.sweeps)
+	before := len(h.controller.syncs)
+	h.update()
+	if len(h.controller.syncs) != before || h.controller.sweeps != 7 {
+		t.Fatalf("removed source: syncs = %d, sweeps = %d", len(h.controller.syncs), h.controller.sweeps)
 	}
 }
 
 func TestDisabledListenerDoesNotRequireTransform(t *testing.T) {
-	_, ctx := newAudioWorld(t, Source{Volume: 1, Spatial: true, Balance: 0.5}, "sound.wav")
-	provideListener(t, ctx.World, &Listener{})
-	fake := &fakeController{live: true}
-	runAudio(t, NewAudioSystem(fake, NewMixer()), ctx)
-	if got := fake.syncs[0].want; got.Volume != 1 || got.Balance != 0.5 {
+	h := newAudioHarness(t)
+	entity := h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true, Balance: 0.5})
+	h.update()
+	if got := h.lastSync(entity.ID()).want; got.Volume != 1 || got.Balance != 0.5 {
 		t.Fatalf("disabled listener playback = %+v", got)
 	}
 }
 
 func TestSpatialCameraFollow(t *testing.T) {
-	entity, ctx := newAudioWorld(t, Source{Volume: 1, Spatial: true}, "sound.wav")
-	ctx.LogicalWidth, ctx.LogicalHeight = 100, 100
-	if err := entity.AddComponent(ctx.World, core.Transform{Position: geom.Vector2{X: 100, Y: 150}}); err != nil {
+	h := newAudioHarness(t)
+	entity := h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true})
+	h.ctx.LogicalWidth, h.ctx.LogicalHeight = 100, 100
+	if err := entity.AddComponent(h.world, core.Transform{Position: geom.Vector2{X: 100, Y: 150}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := render.SpawnEngineCamera(ctx.World); err != nil {
+	if _, err := render.SpawnEngineCamera(h.world); err != nil {
 		t.Fatal(err)
 	}
-	camera, err := ctx.World.NewEntity(
+	camera, err := h.world.NewEntity(
 		render.Camera{Primary: true, Bounds: geom.RectFromMinMax(geom.Vector2{}, geom.Vector2{X: 200, Y: 200})},
 		core.Transform{Position: geom.Vector2{X: 300, Y: 100}, Rotation: math.Pi / 2},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	provideListener(t, ctx.World, &Listener{Enabled: true, Range: 100})
-	fake := &fakeController{live: true}
-	sys := NewAudioSystem(fake, NewMixer())
-	runAudio(t, sys, ctx)
+	*h.listener = Listener{Enabled: true, Range: 100}
+	h.update()
 	// Bounds clamp the user camera to x=150; rotation makes (0, 50)
 	// camera-right. The source is then moved to isolate that axis.
-	if err := entity.Update(ctx.World, func(tr *core.Transform) { tr.Position.X = 150 }); err != nil {
+	if err := entity.Update(h.world, func(tr *core.Transform) { tr.Position.X = 150 }); err != nil {
 		t.Fatal(err)
 	}
-	runAudio(t, sys, ctx)
-	got := fake.syncs[len(fake.syncs)-1].want
+	h.update()
+	got := h.lastSync(entity.ID()).want
 	if math.Abs(got.Volume-0.5) > 1e-12 || math.Abs(got.Balance-0.5) > 1e-12 || got.Restart {
 		t.Fatalf("camera-follow playback = %+v, want volume 0.5 and right balance 0.5", got)
 	}
-	if err := camera.Update(ctx.World, func(tr *core.Transform) { tr.Position.X = 100 }); err != nil {
+	if err := camera.Update(h.world, func(tr *core.Transform) { tr.Position.X = 100 }); err != nil {
 		t.Fatal(err)
 	}
-	runAudio(t, sys, ctx)
-	got = fake.syncs[len(fake.syncs)-1].want
+	h.update()
+	got = h.lastSync(entity.ID()).want
 	if math.Abs(got.Volume-(1-math.Sqrt(0.5))) > 1e-12 || math.Abs(got.Balance-0.5) > 1e-12 {
 		t.Fatalf("moved camera playback = %+v", got)
 	}
 }
 
 func TestSpatialErrorKeepsHealthyPlaysSynced(t *testing.T) {
-	w := newWorldWithHub(t)
-	provideListener(t, w, &Listener{Enabled: true, Mode: FixedPosition, Range: 100})
-	if _, err := w.NewEntity(Source{Volume: 1, Spatial: true}, Clip{Audio: "sfx/broken.wav"}); err != nil {
+	h := newAudioHarness(t)
+	*h.listener = Listener{Enabled: true, Mode: FixedPosition, Range: 100}
+	broken := h.spawn(Track("sfx/broken.wav"), Settings{Volume: 1, Spatial: true})
+	healthy := h.spawn(Track("sfx/healthy.wav"), Settings{Volume: 1, Spatial: true})
+	if err := healthy.AddComponent(h.world, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.NewEntity(
-		Source{Volume: 1, Spatial: true}, Clip{Audio: "sfx/healthy.wav"},
-		core.Transform{Position: geom.Vector2{X: 50}},
-	); err != nil {
-		t.Fatal(err)
-	}
-	fake := &fakeController{live: true}
-	err := NewAudioSystem(fake, NewMixer()).Update(&core.Context{World: w})
+
+	err := h.step()
 	if err == nil || !strings.Contains(err.Error(), "requires a Transform") {
 		t.Fatalf("Update() = %v, want Transform error", err)
 	}
-	if len(fake.syncs) != 1 || fake.syncs[0].source != "sfx/healthy.wav" {
-		t.Fatalf("syncs = %+v, want the healthy play only", fake.syncs)
+	if len(h.controller.syncs) != 1 {
+		t.Fatalf("syncs = %+v, want the healthy play only", h.controller.syncs)
 	}
-	if got := fake.syncs[0].want; got.Volume != 0.5 || got.Balance != 0.5 {
+	call := h.lastSync(healthy.ID())
+	if call.source != "sfx/healthy.wav" {
+		t.Fatalf("source = %q, want sfx/healthy.wav", call.source)
+	}
+	if got := call.want; got.Volume != 0.5 || got.Balance != 0.5 {
 		t.Fatalf("healthy playback = %+v, want spatialized mix", got)
 	}
-	if fake.sweeps != 1 {
-		t.Fatalf("sweeps = %d, want the pass to complete", fake.sweeps)
+	if h.controller.sweeps != 0 {
+		t.Fatalf("sweeps = %d, want none during an incomplete pass", h.controller.sweeps)
+	}
+
+	if err := broken.AddComponent(h.world, core.Transform{}); err != nil {
+		t.Fatal(err)
+	}
+	h.update()
+	if got := h.lastSync(healthy.ID()).want; got.Restart {
+		t.Fatalf("healthy playback restarted after recovery: %+v", got)
+	}
+	if h.controller.sweeps != 1 {
+		t.Fatalf("sweeps = %d, want one after recovery", h.controller.sweeps)
 	}
 }
 
@@ -214,20 +212,19 @@ func TestAttenuationEndpointsRevalidated(t *testing.T) {
 		}
 		return t
 	}
-	entity, ctx := newAudioWorld(t, Source{Volume: 1, Spatial: true, Attenuation: curve}, "sound.wav")
-	if err := entity.AddComponent(ctx.World, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
+	h := newAudioHarness(t)
+	entity := h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true, Attenuation: curve})
+	if err := entity.AddComponent(h.world, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
 		t.Fatal(err)
 	}
-	provideListener(t, ctx.World, &Listener{Enabled: true, Mode: FixedPosition, Range: 100})
-	fake := &fakeController{live: true}
-	sys := NewAudioSystem(fake, NewMixer())
-	runAudio(t, sys, ctx)
+	*h.listener = Listener{Enabled: true, Mode: FixedPosition, Range: 100}
+	h.update()
 	endpoint = 0
-	if err := sys.Update(ctx); err == nil || !strings.Contains(err.Error(), "attenuation curve") {
+	if err := h.step(); err == nil || !strings.Contains(err.Error(), "attenuation curve") {
 		t.Fatalf("Update() = %v, want invalid endpoint error", err)
 	}
-	if len(fake.syncs) != 1 || fake.sweeps != 2 {
-		t.Fatalf("syncs=%d sweeps=%d, want invalid play skipped and sweep completed", len(fake.syncs), fake.sweeps)
+	if len(h.controller.syncs) != 1 || h.controller.sweeps != 1 {
+		t.Fatalf("syncs=%d sweeps=%d, want invalid play skipped without sweeping", len(h.controller.syncs), h.controller.sweeps)
 	}
 }
 
@@ -257,21 +254,41 @@ func TestAttenuationClosuresValidateCapturedEndpoints(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			curve := factory(tc.start, tc.end)
-			entity, ctx := newAudioWorld(t, Source{Volume: 1, Spatial: true, Attenuation: curve}, "sound.wav")
-			if err := entity.AddComponent(ctx.World, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
+			h := newAudioHarness(t)
+			entity := h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true, Attenuation: curve})
+			if err := entity.AddComponent(h.world, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
 				t.Fatal(err)
 			}
-			provideListener(t, ctx.World, &Listener{Enabled: true, Mode: FixedPosition, Range: 100})
-			fake := &fakeController{live: true}
-			err := NewAudioSystem(fake, NewMixer()).Update(ctx)
+			*h.listener = Listener{Enabled: true, Mode: FixedPosition, Range: 100}
+			err := h.step()
 			if tc.valid {
-				if err != nil || len(fake.syncs) != 1 || fake.syncs[0].want.Volume != 0.5 {
-					t.Fatalf("valid curve: syncs=%+v err=%v", fake.syncs, err)
+				if err != nil || len(h.controller.syncs) != 1 || h.controller.syncs[0].want.Volume != 0.5 {
+					t.Fatalf("valid curve: syncs=%+v err=%v", h.controller.syncs, err)
 				}
-			} else if err == nil || !strings.Contains(err.Error(), "attenuation curve") || len(fake.syncs) != 0 {
-				t.Fatalf("invalid curve: syncs=%+v err=%v", fake.syncs, err)
+			} else if err == nil || !strings.Contains(err.Error(), "attenuation curve") || len(h.controller.syncs) != 0 {
+				t.Fatalf("invalid curve: syncs=%+v err=%v", h.controller.syncs, err)
 			}
 		})
+	}
+}
+
+func TestSpatialMissingListener(t *testing.T) {
+	h := newAudioHarnessWithWorld(t, core.NewWorld())
+	h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true})
+	if err := h.step(); err == nil || !strings.Contains(err.Error(), "resolve listener") {
+		t.Fatalf("Update() = %v, want missing listener error", err)
+	}
+}
+
+func TestSpatialNilListener(t *testing.T) {
+	world := core.NewWorld()
+	if err := world.Provide(func(*core.World) (*Listener, error) { return nil, nil }); err != nil {
+		t.Fatal(err)
+	}
+	h := newAudioHarnessWithWorld(t, world)
+	h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true})
+	if err := h.step(); err == nil || !strings.Contains(err.Error(), "listener must not be nil") {
+		t.Fatalf("Update() = %v, want nil listener error", err)
 	}
 }
 
@@ -281,12 +298,9 @@ func TestSpatialErrors(t *testing.T) {
 		listener   *Listener
 		transform  *core.Transform
 		curve      geom.Ease
-		provide    bool
 		noViewport bool
 		want       string
 	}{
-		{name: "missing listener", want: "resolve listener"},
-		{name: "nil listener", provide: true, want: "listener must not be nil"},
 		{name: "zero range", listener: &Listener{Enabled: true, Mode: FixedPosition}, want: "range"},
 		{name: "infinite range", listener: &Listener{Enabled: true, Mode: FixedPosition, Range: math.Inf(1)}, want: "range"},
 		{name: "nan range", listener: &Listener{Enabled: true, Mode: FixedPosition, Range: math.NaN()}, want: "range"},
@@ -296,7 +310,6 @@ func TestSpatialErrors(t *testing.T) {
 		{name: "missing camera", listener: &Listener{Enabled: true, Range: 100}, want: "primary camera"},
 		{name: "missing transform", listener: &Listener{Enabled: true, Mode: FixedPosition, Range: 100}, want: "Transform"},
 		{name: "invalid source position", listener: &Listener{Enabled: true, Mode: FixedPosition, Range: 100}, transform: &core.Transform{Position: geom.Vector2{Y: math.Inf(1)}}, want: "position"},
-		{name: "invalid curve endpoint", listener: &Listener{Enabled: true, Mode: FixedPosition, Range: 100}, transform: &core.Transform{}, curve: func(float64) float64 { return 0 }, want: "attenuation curve"},
 		{name: "invalid curve result", listener: &Listener{Enabled: true, Mode: FixedPosition, Range: 100}, transform: &core.Transform{Position: geom.Vector2{X: 50}}, curve: func(t float64) float64 {
 			if t == 0.5 {
 				return math.NaN()
@@ -311,19 +324,18 @@ func TestSpatialErrors(t *testing.T) {
 		}, want: "attenuation curve"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			entity, ctx := newAudioWorld(t, Source{Volume: 1, Spatial: true, Attenuation: tc.curve}, "sound.wav")
+			h := newAudioHarness(t)
+			*h.listener = *tc.listener
+			entity := h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true, Attenuation: tc.curve})
 			if !tc.noViewport {
-				ctx.LogicalWidth, ctx.LogicalHeight = 100, 100
-			}
-			if tc.listener != nil || tc.provide {
-				provideListener(t, ctx.World, tc.listener)
+				h.ctx.LogicalWidth, h.ctx.LogicalHeight = 100, 100
 			}
 			if tc.transform != nil {
-				if err := entity.AddComponent(ctx.World, *tc.transform); err != nil {
+				if err := entity.AddComponent(h.world, *tc.transform); err != nil {
 					t.Fatal(err)
 				}
 			}
-			err := NewAudioSystem(&fakeController{live: true}, NewMixer()).Update(ctx)
+			err := h.step()
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("Update() = %v, want %q error", err, tc.want)
 			}

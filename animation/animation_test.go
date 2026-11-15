@@ -69,7 +69,7 @@ func region(s render.Sprite) (render.SheetSource, bool) {
 
 func TestSystemAdvancesAndStamps(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", Loop: LoopForever},
+		Animation{Clip: "walk", Loop: LoopAll},
 		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 1)
@@ -133,7 +133,7 @@ func TestSystemAccumulatesSubFrameTime(t *testing.T) {
 
 func TestSystemAdvancesMultipleFramesPerTick(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", Loop: LoopForever},
+		Animation{Clip: "walk", Loop: LoopAll},
 		Clip{Source: animSheet, Frames: []string{"a", "b", "c"}, FPS: 10},
 	)
 	ctx.DeltaTime = 250 * time.Millisecond // two 100ms frames per tick
@@ -150,7 +150,7 @@ func TestSystemAdvancesMultipleFramesPerTick(t *testing.T) {
 
 func TestFirstTickStampsFrameZero(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", Loop: LoopForever},
+		Animation{Clip: "walk", Loop: LoopAll},
 		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	ctx.DeltaTime = 50 * time.Millisecond // below one frame duration
@@ -213,7 +213,7 @@ func TestSystemRejectsFrameOutsideClip(t *testing.T) {
 
 func TestSystemRejectsUnrepresentableFrameAdvance(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", Loop: LoopForever, PlaybackMultiplier: math.MaxFloat64},
+		Animation{Clip: "walk", Loop: LoopAll, PlaybackMultiplier: math.MaxFloat64},
 		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	before := readAnim(t, entity, ctx)
@@ -227,7 +227,7 @@ func TestSystemRejectsUnrepresentableFrameAdvance(t *testing.T) {
 
 func TestPlaybackMultiplierZeroIsNormalRate(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", Loop: LoopForever},
+		Animation{Clip: "walk", Loop: LoopAll},
 		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 1)
@@ -249,7 +249,7 @@ func TestPlaybackMultiplierScalesAdvance(t *testing.T) {
 
 func TestPausedAnimationSkips(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", Paused: true, Loop: LoopForever},
+		Animation{Clip: "walk", Paused: true, Loop: LoopAll},
 		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	tick(t, sys, ctx, 3)
@@ -452,7 +452,7 @@ func TestRestartClearsCompletion(t *testing.T) {
 
 func TestLoopForeverFiresEdgePerWrap(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", Loop: LoopForever},
+		Animation{Clip: "walk", Loop: LoopAll},
 		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 
@@ -526,7 +526,7 @@ func TestSystemEmitsCompletedSignal(t *testing.T) {
 
 func TestLoopForeverEmitsOnEachWrap(t *testing.T) {
 	entity, sys, ctx := newAnimWorld(t,
-		Animation{Clip: "walk", Loop: LoopForever},
+		Animation{Clip: "walk", Loop: LoopAll},
 		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
 	)
 	hub := ctx.World.MustResource[*signal.Hub]()

@@ -52,7 +52,7 @@ func (a Animation) Validate() error {
 	if !isFinite(a.PlaybackMultiplier) || a.PlaybackMultiplier < 0 {
 		return fmt.Errorf("animation: playback multiplier must be finite and not negative (0 is the normal rate), got %v", a.PlaybackMultiplier)
 	}
-	if a.Loop != LoopNone && a.Loop != LoopForever {
+	if a.Loop != LoopNone && a.Loop != LoopAll {
 		return fmt.Errorf("animation: invalid loop mode %v", a.Loop)
 	}
 	return nil
@@ -65,8 +65,8 @@ const (
 	// LoopNone plays the clip once, then pauses on its final frame. It is the
 	// zero value, so animations play once by default.
 	LoopNone LoopMode = iota
-	// LoopForever wraps from the final frame back to the first.
-	LoopForever
+	// LoopAll wraps from the final frame back to the first.
+	LoopAll
 )
 
 // Restart rewinds to the first frame and resumes playback.
@@ -85,14 +85,14 @@ func (a Animation) JustCompleted(tick uint64) bool {
 // HasCompleted reports whether a non-looping animation has completed since
 // its last [Animation.Restart].
 //
-// For [LoopForever], it always returns false. Use [Animation.JustCompleted]
+// For [LoopAll], it always returns false. Use [Animation.JustCompleted]
 // to observe each loop completion.
 func (a Animation) HasCompleted() bool {
 	return a.Loop == LoopNone && a.CompletedOn != 0
 }
 
 // Completed is the signal the animation system emits when an [Animation]
-// reaches the end of its clip. For [LoopForever] animations, it is emitted
+// reaches the end of its clip. For [LoopAll] animations, it is emitted
 // each time the clip wraps to its first frame. Tick equals
 // [Animation.CompletedOn].
 type Completed struct {
@@ -242,7 +242,7 @@ func NewAnimationSystem(store *ClipStore) core.System {
 					anim.CompletedOn = ctx.Tick
 					hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick})
 
-					if anim.Loop == LoopForever {
+					if anim.Loop == LoopAll {
 						anim.Current %= len(clip.Frames)
 					} else {
 						anim.Current = len(clip.Frames) - 1
