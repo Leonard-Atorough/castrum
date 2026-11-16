@@ -15,7 +15,7 @@ an essay.
 ## Rules
 
 1. Every exported name gets a doc comment starting with its name.
-   Unexported names get none, unless the comment carries a *why* the
+   Unexported names get none, unless the comment carries a _why_ the
    code cannot show (a decision, a contract, an ownership rule) —
    never a what.
 2. Purpose, not mechanics. Document what the thing does, its
@@ -35,8 +35,7 @@ an essay.
    inverted zero, ownership, who writes it). Field docs do not
    repeat the struct doc.
 4. Package docs live in the main file for small packages, in doc.go
-   for large ones. One paragraph: what the package provides and how
-   its pieces relate.
+   for large ones.
 5. Follow go.dev/doc/comment: complete sentences, no first person,
    [T] links for exported names in the same module, names written
    exactly as they appear, a blank comment line between the summary
