@@ -92,14 +92,16 @@ func (a Animation) HasCompleted() bool {
 }
 
 // Completed is the signal the animation system emits when an [Animation]
-// reaches the end of its clip. For [LoopAll] animations, it is emitted
-// each time the clip wraps to its first frame. Tick equals
+// reaches the end of its clip. The system emits one signal per animation
+// per update, even if a looping clip wraps multiple times. Tick equals
 // [Animation.CompletedOn].
 type Completed struct {
 	// Entity is the entity whose Animation finished the clip.
 	Entity core.EntityID
 	// Tick is the fixed tick of the completion.
 	Tick uint64
+	// Loops is the number of crossings in this tick; 1 for a LoopNone completion.
+	Loops uint64
 }
 
 // Clip is a reusable definition of an animation sequence. It specifies the
@@ -240,7 +242,11 @@ func NewAnimationSystem(store *ClipStore) core.System {
 				anim.Current += crossed
 				if anim.Current > len(clip.Frames)-1 {
 					anim.CompletedOn = ctx.Tick
-					hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick})
+					loops := uint64(1)
+					if anim.Loop == LoopAll {
+						loops = uint64(anim.Current / len(clip.Frames))
+					}
+					hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick, Loops: loops})
 
 					if anim.Loop == LoopAll {
 						anim.Current %= len(clip.Frames)
