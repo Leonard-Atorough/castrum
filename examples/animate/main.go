@@ -16,7 +16,6 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 //go:embed torch_light.png torch_light.sheet.json
@@ -89,37 +88,34 @@ func newGame() (*castrum.Game, error) {
 		return nil, err
 	}
 
-	clipStore := g.World().MustResource[*animation.ClipStore]()
-
-	clip := animation.Clip{
-		Source: source,
-		Frames: []string{
-			"torch_light_0",
-			"torch_light_1",
-			"torch_light_2",
-			"torch_light_3",
-			"torch_light_4",
-			"torch_light_5",
-		},
-		FPS: TorchLightFPS,
+	frames := []string{
+		"torch_light_0",
+		"torch_light_1",
+		"torch_light_2",
+		"torch_light_3",
+		"torch_light_4",
+		"torch_light_5",
 	}
-	for _, name := range clip.Frames {
+	for _, name := range frames {
 		if _, err := sheet.Region(name); err != nil {
 			return nil, err
 		}
 	}
-	if err := clipStore.Add(ClipFlickeringTorch, clip); err != nil {
+	clip, err := animation.NewSpriteClip(source, frames, TorchLightFPS)
+	if err != nil {
 		return nil, err
 	}
 
+	torchAnimated, err := animation.NewAnimatedSprite(clip)
+	if err != nil {
+		return nil, err
+	}
+	torchAnimated.Loop = TorchLightLoop
+
 	torch, err := g.World().NewEntity(
-		sprite.Sprite{Drawable: sprite.SheetSource{Sheet: source, Region: clip.Frames[0]}},
+		torchAnimated,
 		core.Transform{
 			Scale: geom.Vector2{X: Scale, Y: Scale},
-		},
-		animation.Animation{
-			Clip: ClipFlickeringTorch,
-			Loop: TorchLightLoop,
 		},
 	)
 	if err != nil {
@@ -131,11 +127,15 @@ func newGame() (*castrum.Game, error) {
 	panel := g.World().MustResource[*debug.Panel]()
 	panel.Status("controls", "SPACE: pause/resume   R: restart   1: play once   2: loop")
 	if err := g.AddSystem(core.PhaseFixed, "animation.readout", core.SystemFunc(func(ctx *core.Context) error {
-		value, ok := torch.Component[animation.Animation](ctx.World)
+		value, ok := torch.Component[animation.AnimatedSprite](ctx.World)
 		if !ok {
 			return fmt.Errorf("animated torch has no playback component")
 		}
-		panel.Status("playback", fmt.Sprintf("frame %d   paused: %t   completed: %t", value.Current, value.Paused, value.HasCompleted()))
+		frame, _, err := value.CurrentFrame()
+		if err != nil {
+			return err
+		}
+		panel.Status("playback", fmt.Sprintf("frame %s   paused: %t   completed: %t", frame.Region, value.Paused, value.HasCompleted()))
 		if value.JustCompleted(ctx.Tick) {
 			if value.HasCompleted() {
 				panel.Message("finished - R restarts playback")
@@ -159,7 +159,7 @@ func playbackSystem(torch *core.Entity) core.System {
 		if !pause && !restart && !once && !loop {
 			return nil
 		}
-		return torch.Update(ctx.World, func(value *animation.Animation) {
+		return torch.Update(ctx.World, func(value *animation.AnimatedSprite) {
 			if pause {
 				value.Paused = !value.Paused
 			}

@@ -11,9 +11,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// Style is the visual style of a [Sprite]: ordering, color,
-// outline, flips, and visibility. The zero value is a visible, plain sprite on
-// layer 0.
+// Style controls sprite ordering, color, outline, flips, and visibility.
+// The zero value is a visible, plain sprite on layer 0.
 type Style struct {
 	// Outline strokes a shape's border instead of filling it. It requires a
 	// positive StrokeWidth and has no effect on non-shape drawables.
@@ -37,6 +36,7 @@ type Style struct {
 	FlipH, FlipV bool
 }
 
+// Validate reports an error if the layer or stroke width is invalid.
 func (st Style) Validate() error {
 	if st.Layer > 31 {
 		return fmt.Errorf("layer must be 0-31")

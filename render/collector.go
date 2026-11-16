@@ -18,7 +18,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
-// DrawItem is one drawable resolved from a [sprite.Sprite] for a frame.
+// DrawItem is one drawable resolved from a [sprite.Sprite] or
+// [animation.AnimatedSprite] for a frame.
 type DrawItem struct {
 	// Texture is the source texture for a texture item; empty for text and shapes.
 	Texture asset.ID
@@ -132,6 +133,8 @@ func NewCollector(world *core.World) *Collector {
 // error. Asset lookup and loading errors are returned; shapes require no assets.
 // Sheet documents, textures, and text resolve through the world's [asset.Loader].
 // Sheet regions are checked against the decoded texture before staging.
+// With a primary camera, an entity with both [sprite.Sprite] and
+// [animation.AnimatedSprite] causes an error, even if either is hidden.
 func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 	camera, ok, err := c.camera.Resolve(ctx.Alpha, ctx.LogicalWidth, ctx.LogicalHeight)
 	if err != nil {

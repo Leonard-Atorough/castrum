@@ -62,6 +62,14 @@ func drainCompleted(r *signal.Reader[Completed]) []Completed {
 	return got
 }
 
+func tickAt(t *testing.T, sys core.System, ctx *core.Context, tick uint64) {
+	t.Helper()
+	ctx.Tick = tick
+	if err := sys.Update(ctx); err != nil {
+		t.Fatalf("update at tick %d: %v", tick, err)
+	}
+}
+
 func TestSpriteAnimationSystemAdvancement(t *testing.T) {
 	tests := []struct {
 		name  string
