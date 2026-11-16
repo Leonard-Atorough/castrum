@@ -5,8 +5,10 @@ import (
 	"image"
 	"image/png"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -259,5 +261,46 @@ func TestTextureProviderMemorySheet(t *testing.T) {
 	named, err := provider.SubImage(asset.FileSheet("sprites.json"), "player")
 	if err != nil || named != sub {
 		t.Fatalf("default file and memory references did not share their subimage: %v", err)
+	}
+}
+func TestTextureProviderConcurrentMissesKeepTheLockAvailable(t *testing.T) {
+	g, _ := newSpriteGame(t)
+	provider, err := g.World().Resource[*TextureProvider]()
+	if err != nil {
+		t.Fatalf("Resource[*TextureProvider]: %v", err)
+	}
+
+	rect := image.Rect(0, 0, 2, 2)
+	const workers = 8
+	done := make(chan struct{})
+	go func() {
+		var group sync.WaitGroup
+		for range workers {
+			group.Add(1)
+			go func() {
+				defer group.Done()
+				for range 100 {
+					if _, err := provider.Texture("tex.png"); err != nil {
+						t.Error(err)
+						return
+					}
+					if _, err := provider.SubImageRect("tex.png", rect); err != nil {
+						t.Error(err)
+						return
+					}
+				}
+			}()
+		}
+		group.Wait()
+		close(done)
+	}()
+
+	// Regression for the duplicate-miss early returns: they once held the
+	// write lock after returning, so an overlapping miss would block here
+	// forever. The timeout turns a leaked lock into a test failure.
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("concurrent cache misses deadlocked: a duplicate miss returned while holding the write lock")
 	}
 }

@@ -76,6 +76,7 @@ func (p *TextureProvider) SubImageRect(texturePath asset.ID, rect image.Rectangl
 	sub = texture.SubImage(rect).(*ebiten.Image)
 	p.mu.Lock()
 	if existing, ok := p.subs[key]; ok {
+		p.mu.Unlock()
 		return existing, nil
 	}
 	p.subs[key] = sub
@@ -120,6 +121,7 @@ func (p *TextureProvider) texture(path asset.ID) (*ebiten.Image, error) {
 
 	p.mu.Lock()
 	if existing, ok := p.images[path]; ok {
+		p.mu.Unlock()
 		return existing, nil
 	}
 	p.images[path] = image
