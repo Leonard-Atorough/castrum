@@ -12,7 +12,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 )
 
 func TestAuthoredSheetMatchesShippedDocument(t *testing.T) {
@@ -89,13 +89,13 @@ func TestAnimationControlsAndCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entry, ok := core.NewQuery(g.World()).With(animation.Animation{}, render.Sprite{}).First()
+	entry, ok := core.NewQuery(g.World()).With(animation.Animation{}, spr.Sprite{}).First()
 	if !ok {
 		t.Fatal("setup did not spawn an animated sprite")
 	}
 	torch := core.NewEntity(entry.ID())
-	sprite, _ := torch.Component[render.Sprite](g.World())
-	if sprite.Drawable != (render.SheetSource{Sheet: asset.FileSheet(sheetPath), Region: "torch_light_0"}) {
+	sprite, _ := torch.Component[spr.Sprite](g.World())
+	if sprite.Drawable != (spr.SheetSource{Sheet: asset.FileSheet(sheetPath), Region: "torch_light_0"}) {
 		t.Fatalf("initial drawable=%+v, want file-backed first frame", sprite.Drawable)
 	}
 	if err := g.Startup(); err != nil {
@@ -163,8 +163,8 @@ func TestAnimationControlsAndCompletion(t *testing.T) {
 	if got := read(); got.Current != completed.Current || got.CompletedOn != completed.CompletedOn {
 		t.Fatalf("completed animation did not hold: %+v", got)
 	}
-	sprite, _ = torch.Component[render.Sprite](g.World())
-	if sprite.Drawable != (render.SheetSource{Sheet: asset.FileSheet(sheetPath), Region: "torch_light_5"}) {
+	sprite, _ = torch.Component[spr.Sprite](g.World())
+	if sprite.Drawable != (spr.SheetSource{Sheet: asset.FileSheet(sheetPath), Region: "torch_light_5"}) {
 		t.Fatalf("completed drawable=%+v, want file-backed final frame", sprite.Drawable)
 	}
 	press(input.KeyR)

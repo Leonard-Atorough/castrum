@@ -11,6 +11,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 // newEngineDrawFunc returns the world renderer. [Runner] draws it before user
@@ -76,7 +77,7 @@ func drawShape(screen *ebiten.Image, item render.DrawItem, camera render.CameraV
 	rotation := item.Rotation - camera.Rotation
 
 	switch shape := item.Shape.(type) {
-	case render.RectShape:
+	case sprite.RectShape:
 		center := camera.WorldToScreen(item.Position, width, height)
 		corners := rectCorners(center, shape.Size, item.Scale, camera.Zoom, rotation)
 		var path vector.Path
@@ -86,7 +87,7 @@ func drawShape(screen *ebiten.Image, item render.DrawItem, camera render.CameraV
 		}
 		path.Close()
 		fillOrStrokePath(screen, &path, item.Color, item, camera.Zoom)
-	case render.CircleShape:
+	case sprite.CircleShape:
 		center := camera.WorldToScreen(item.Position, width, height)
 		points := ellipsePoints(center, shape.Radii, item.Scale, camera.Zoom, rotation)
 		var path vector.Path
@@ -100,7 +101,7 @@ func drawShape(screen *ebiten.Image, item render.DrawItem, camera render.CameraV
 		}
 		path.Close()
 		fillOrStrokePath(screen, &path, item.Color, item, camera.Zoom)
-	case render.LineShape:
+	case sprite.LineShape:
 		start := camera.WorldToScreen(item.Position, width, height)
 		from := offsetPoint(start, shape.From, item.Scale, camera.Zoom, rotation)
 		to := offsetPoint(start, shape.To, item.Scale, camera.Zoom, rotation)

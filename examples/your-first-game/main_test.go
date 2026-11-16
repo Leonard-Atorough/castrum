@@ -10,7 +10,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
-	"github.com/Leonard-Atorough/castrum/render"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 )
 
 // newTestGame builds the game headless: no runner, no window - the
@@ -78,14 +78,14 @@ func newTestGame(t *testing.T) (*castrum.Game, *core.Entity, *core.Entity) {
 	}
 	readout, err := world.NewEntity(
 		core.Transform{Position: geom.Vector2{X: 200, Y: 430}, Scale: geom.Vector2{X: 1, Y: 1}},
-		render.Sprite{Drawable: render.TextSource{Font: AssetFont, Text: "", Size: 18}},
+		spr.Sprite{Drawable: spr.TextSource{Font: AssetFont, Text: "", Size: 18}},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	banner, err := world.NewEntity(
 		core.Transform{Position: geom.Vector2{X: 200, Y: 360}},
-		render.Sprite{Style: render.SpriteStyle{Hidden: true, Layer: 10}},
+		spr.Sprite{Style: spr.Style{Hidden: true, Layer: 10}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -322,7 +322,7 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 
 	advance(t, g, 3)
 	// Idle: hidden.
-	if sprite, _ := readout.Component[render.Sprite](world); !sprite.Style.Hidden {
+	if sprite, _ := readout.Component[spr.Sprite](world); !sprite.Style.Hidden {
 		t.Error("idle gun should hide the reload text")
 	}
 
@@ -331,18 +331,18 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 		t.Fatal(err)
 	}
 	advance(t, g, 3)
-	sprite, _ := readout.Component[render.Sprite](world)
+	sprite, _ := readout.Component[spr.Sprite](world)
 	if sprite.Style.Hidden {
 		t.Fatal("cooling gun should show the reload text")
 	}
-	text, ok := sprite.Drawable.(render.TextSource)
+	text, ok := sprite.Drawable.(spr.TextSource)
 	if !ok || text.Text == "" {
 		t.Errorf("reload text = %+v, want a countdown string", sprite.Drawable)
 	}
 
 	// Once the cooldown completes the readout hides again.
 	advance(t, g, 120)
-	if sprite, _ := readout.Component[render.Sprite](world); !sprite.Style.Hidden {
+	if sprite, _ := readout.Component[spr.Sprite](world); !sprite.Style.Hidden {
 		t.Error("ready gun should hide the reload text")
 	}
 }
@@ -351,10 +351,10 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 // is not the banner.
 func findReadout(t *testing.T, world *core.World) *core.Entity {
 	t.Helper()
-	query := core.NewQuery(world).With(render.Sprite{}, core.Transform{})
+	query := core.NewQuery(world).With(spr.Sprite{}, core.Transform{})
 	for e := range query.Execute() {
-		sprite, _ := e.Component[render.Sprite]()
-		if _, ok := sprite.Drawable.(render.TextSource); ok {
+		sprite, _ := e.Component[spr.Sprite]()
+		if _, ok := sprite.Drawable.(spr.TextSource); ok {
 			return core.NewEntity(e.ID())
 		}
 	}
@@ -365,10 +365,10 @@ func findReadout(t *testing.T, world *core.World) *core.Entity {
 // findBanner resolves the end banner and checks its text.
 func findBanner(t *testing.T, world *core.World, want string) *core.Entity {
 	t.Helper()
-	query := core.NewQuery(world).With(render.Sprite{})
+	query := core.NewQuery(world).With(spr.Sprite{})
 	for e := range query.Execute() {
-		sprite, _ := e.Component[render.Sprite]()
-		if text, ok := sprite.Drawable.(render.TextSource); ok && text.Text == want {
+		sprite, _ := e.Component[spr.Sprite]()
+		if text, ok := sprite.Drawable.(spr.TextSource); ok && text.Text == want {
 			return core.NewEntity(e.ID())
 		}
 	}

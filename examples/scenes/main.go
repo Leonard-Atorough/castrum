@@ -15,8 +15,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 type spin struct{ speed float64 }
@@ -74,7 +74,7 @@ func newGame() (*castrum.Game, error) {
 				Name: "ship",
 				Components: []any{
 					core.Transform{Position: geom.Vector2{X: 640, Y: 400}},
-					render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 120, Y: 60}}, Style: render.SpriteStyle{Color: color.NRGBA{R: 90, G: 210, B: 240, A: 255}, Layer: 1}},
+					sprite.Sprite{Drawable: sprite.RectShape{Size: geom.Vector2{X: 120, Y: 60}}, Style: sprite.Style{Color: color.NRGBA{R: 90, G: 210, B: 240, A: 255}, Layer: 1}},
 					spin{speed: 0.6},
 				},
 			},
@@ -112,9 +112,9 @@ func newGame() (*castrum.Game, error) {
 			Name: "scanner ring",
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: 640, Y: 400}},
-				render.Sprite{
-					Drawable: render.CircleShape{Radii: geom.Vector2{X: 190, Y: 190}},
-					Style:    render.SpriteStyle{Layer: 2, Outline: true, StrokeWidth: 3, Color: color.NRGBA{R: 90, G: 240, B: 130, A: 255}},
+				sprite.Sprite{
+					Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 190, Y: 190}},
+					Style:    sprite.Style{Layer: 2, Outline: true, StrokeWidth: 3, Color: color.NRGBA{R: 90, G: 240, B: 130, A: 255}},
 				},
 			},
 		}},
@@ -182,7 +182,7 @@ func shape(name string, x, y, width, height float64, layer uint8, tint color.NRG
 		Name: name,
 		Components: []any{
 			core.Transform{Position: geom.Vector2{X: x, Y: y}},
-			render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: width, Y: height}}, Style: render.SpriteStyle{Color: tint, Layer: layer}},
+			sprite.Sprite{Drawable: sprite.RectShape{Size: geom.Vector2{X: width, Y: height}}, Style: sprite.Style{Color: tint, Layer: layer}},
 		},
 	}
 }

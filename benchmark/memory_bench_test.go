@@ -6,7 +6,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
-	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 // BenchmarkMemoryPerEntity reports the heap cost of one entity with
@@ -23,7 +23,7 @@ func BenchmarkMemoryPerEntity(b *testing.B) {
 	for range population {
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: 1, Y: 2}},
-			render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 4, Y: 4}}},
+			sprite.Sprite{Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 4, Y: 4}}},
 		); err != nil {
 			b.Fatal(err)
 		}

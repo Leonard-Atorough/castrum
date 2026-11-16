@@ -9,7 +9,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 )
 
 func TestTimeControlsPauseScaleAndResumeOrbit(t *testing.T) {
@@ -25,7 +25,7 @@ func TestTimeControlsPauseScaleAndResumeOrbit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := g.World().NewEntity(render.Sprite{})
+	state, err := g.World().NewEntity(spr.Sprite{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,8 +80,8 @@ func TestTimeControlsPauseScaleAndResumeOrbit(t *testing.T) {
 		if math.Abs(g.TimeScale()-step.scale) > 1e-9 {
 			t.Fatalf("scale=%v, want %v", g.TimeScale(), step.scale)
 		}
-		sprite, _ := state.Component[render.Sprite](g.World())
-		source, ok := sprite.Drawable.(render.TextSource)
+		sprite, _ := state.Component[spr.Sprite](g.World())
+		source, ok := sprite.Drawable.(spr.TextSource)
 		if !ok || source.Text != step.text {
 			t.Fatalf("status=%v, want %q", sprite.Drawable, step.text)
 		}
@@ -103,7 +103,7 @@ func TestTimeScaleControlsClampWhilePaused(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		state, err := g.World().NewEntity(render.Sprite{})
+		state, err := g.World().NewEntity(spr.Sprite{})
 		if err != nil {
 			t.Fatal(err)
 		}

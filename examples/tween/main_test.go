@@ -8,7 +8,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 func TestTweenExamplePauseAndRestart(t *testing.T) {
@@ -30,7 +30,7 @@ func TestTweenExamplePauseAndRestart(t *testing.T) {
 	if before.Position.X <= 240 {
 		t.Error("body did not move on the fixed tick")
 	}
-	initial, ok := d.swatch.Component[render.Sprite](g.World())
+	initial, ok := d.swatch.Component[sprite.Sprite](g.World())
 	if !ok {
 		t.Fatal("swatch has no Sprite")
 	}
@@ -60,7 +60,7 @@ func TestTweenExamplePauseAndRestart(t *testing.T) {
 	if after.Position != before.Position {
 		t.Errorf("paused position = %v, want %v", after.Position, before.Position)
 	}
-	tinted, ok := d.swatch.Component[render.Sprite](g.World())
+	tinted, ok := d.swatch.Component[sprite.Sprite](g.World())
 	if !ok {
 		t.Fatal("swatch lost its Sprite")
 	}
@@ -78,7 +78,7 @@ func TestTweenExamplePauseAndRestart(t *testing.T) {
 	if d.motion.Progress() != 0 || d.tint.Progress() != 0 {
 		t.Error("restart did not reset both playheads")
 	}
-	tinted, _ = d.swatch.Component[render.Sprite](g.World())
+	tinted, _ = d.swatch.Component[sprite.Sprite](g.World())
 	if got := tinted.Style.Color; got != (color.NRGBA{R: 255, G: 180, B: 60, A: 255}) {
 		t.Errorf("restarted tint = %v, want initial orange", got)
 	}
@@ -124,7 +124,7 @@ func TestTweenExampleEndpoints(t *testing.T) {
 	if body.Position.X != 1040 || body.Position.Y != 260 {
 		t.Errorf("completed position = %v, want (1040, 260)", body.Position)
 	}
-	swatch, ok := d.swatch.Component[render.Sprite](g.World())
+	swatch, ok := d.swatch.Component[sprite.Sprite](g.World())
 	if !ok {
 		t.Fatal("swatch has no Sprite")
 	}

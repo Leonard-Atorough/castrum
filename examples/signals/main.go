@@ -41,8 +41,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
-	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 const (
@@ -302,16 +302,16 @@ func (s *sequence) flashColor() color.Color {
 	return runningColor
 }
 
-func barSprite(fill color.Color) render.Sprite {
-	return render.Sprite{
-		Drawable: render.RectShape{Size: geom.Vector2{X: injectorW, Y: injectorH}},
-		Style:    render.SpriteStyle{Color: fill},
+func barSprite(fill color.Color) sprite.Sprite {
+	return sprite.Sprite{
+		Drawable: sprite.RectShape{Size: geom.Vector2{X: injectorW, Y: injectorH}},
+		Style:    sprite.Style{Color: fill},
 	}
 }
 
-func coreSprite(size float64, fill color.Color) render.Sprite {
-	return render.Sprite{
-		Drawable: render.RectShape{Size: geom.Vector2{X: size, Y: size}},
-		Style:    render.SpriteStyle{Color: fill},
+func coreSprite(size float64, fill color.Color) sprite.Sprite {
+	return sprite.Sprite{
+		Drawable: sprite.RectShape{Size: geom.Vector2{X: size, Y: size}},
+		Style:    sprite.Style{Color: fill},
 	}
 }

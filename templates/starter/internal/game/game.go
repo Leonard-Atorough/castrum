@@ -10,7 +10,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 const playerSpeed = 240
@@ -36,9 +36,9 @@ func New() (*castrum.Game, error) {
 
 	player, err := g.World().NewEntity(
 		core.Transform{},
-		render.Sprite{
-			Drawable: render.RectShape{Size: geom.Vector2{X: 48, Y: 48}},
-			Style:    render.SpriteStyle{Color: color.RGBA{R: 80, G: 180, B: 240, A: 255}},
+		sprite.Sprite{
+			Drawable: sprite.RectShape{Size: geom.Vector2{X: 48, Y: 48}},
+			Style:    sprite.Style{Color: color.RGBA{R: 80, G: 180, B: 240, A: 255}},
 		},
 	)
 	if err != nil {

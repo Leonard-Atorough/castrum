@@ -19,6 +19,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 var (
@@ -50,9 +51,9 @@ func run() error {
 
 	if _, err := world.NewEntity(
 		core.Transform{Position: origin},
-		render.Sprite{
-			Drawable: render.CircleShape{Radii: geom.Vector2{X: 9, Y: 9}},
-			Style:    render.SpriteStyle{Color: markerColor},
+		sprite.Sprite{
+			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 9, Y: 9}},
+			Style:    sprite.Style{Color: markerColor},
 		},
 	); err != nil {
 		return err
@@ -60,7 +61,7 @@ func run() error {
 
 	if err := addTarget(world, geom.Vector2{X: -180, Y: -120},
 		collision.Circle{Radius: 42},
-		render.CircleShape{Radii: geom.Vector2{X: 42, Y: 42}},
+		sprite.CircleShape{Radii: geom.Vector2{X: 42, Y: 42}},
 		0, circleColor); err != nil {
 		return err
 	}
@@ -69,13 +70,13 @@ func run() error {
 			Min: geom.Vector2{X: -70, Y: -35},
 			Max: geom.Vector2{X: 70, Y: 35},
 		},
-		render.RectShape{Size: geom.Vector2{X: 140, Y: 70}},
+		sprite.RectShape{Size: geom.Vector2{X: 140, Y: 70}},
 		1, boxColor); err != nil {
 		return err
 	}
 	if err := addTarget(world, geom.Vector2{X: 340, Y: 150},
 		collision.Circle{Radius: 56},
-		render.CircleShape{Radii: geom.Vector2{X: 56, Y: 56}},
+		sprite.CircleShape{Radii: geom.Vector2{X: 56, Y: 56}},
 		0, circleColor); err != nil {
 		return err
 	}
@@ -84,22 +85,22 @@ func run() error {
 			Min: geom.Vector2{X: -60, Y: -40},
 			Max: geom.Vector2{X: 60, Y: 40},
 		},
-		render.RectShape{Size: geom.Vector2{X: 120, Y: 80}},
+		sprite.RectShape{Size: geom.Vector2{X: 120, Y: 80}},
 		1, boxColor); err != nil {
 		return err
 	}
 	if err := addTarget(world, geom.Vector2{X: 550, Y: 250},
 		collision.Circle{Radius: 50},
-		render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}},
+		sprite.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}},
 		0, circleColor); err != nil {
 		return err
 	}
 
 	beam, err := world.NewEntity(
 		core.Transform{Position: origin},
-		render.Sprite{
-			Drawable: render.LineShape{To: geom.Vector2{X: 1}},
-			Style:    render.SpriteStyle{StrokeWidth: 3, Color: missColor},
+		sprite.Sprite{
+			Drawable: sprite.LineShape{To: geom.Vector2{X: 1}},
+			Style:    sprite.Style{StrokeWidth: 3, Color: missColor},
 		},
 	)
 	if err != nil {
@@ -137,9 +138,9 @@ func run() error {
 		} else {
 			panel.Status("hit", "No hit.")
 		}
-		return beam.SetComponent(ctx.World, render.Sprite{
-			Drawable: render.LineShape{To: lineEnd},
-			Style:    render.SpriteStyle{StrokeWidth: 3, Color: lineColor},
+		return beam.SetComponent(ctx.World, sprite.Sprite{
+			Drawable: sprite.LineShape{To: lineEnd},
+			Style:    sprite.Style{StrokeWidth: 3, Color: lineColor},
 		})
 	})); err != nil {
 		return err
@@ -156,7 +157,7 @@ func addTarget(
 	world *core.World,
 	position geom.Vector2,
 	shape collision.ColliderShape,
-	drawable render.Drawable,
+	drawable sprite.Drawable,
 	layer int,
 	tint color.Color,
 ) error {
@@ -168,7 +169,7 @@ func addTarget(
 	_, err = world.NewEntity(
 		core.Transform{Position: position},
 		collider,
-		render.Sprite{Drawable: drawable, Style: render.SpriteStyle{Color: tint}},
+		sprite.Sprite{Drawable: drawable, Style: sprite.Style{Color: tint}},
 	)
 	return err
 }

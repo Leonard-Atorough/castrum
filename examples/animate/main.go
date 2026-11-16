@@ -16,7 +16,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 //go:embed torch_light.png torch_light.sheet.json
@@ -113,7 +113,7 @@ func newGame() (*castrum.Game, error) {
 	}
 
 	torch, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.SheetSource{Sheet: source, Region: clip.Frames[0]}},
+		sprite.Sprite{Drawable: sprite.SheetSource{Sheet: source, Region: clip.Frames[0]}},
 		core.Transform{
 			Scale: geom.Vector2{X: Scale, Y: Scale},
 		},

@@ -10,15 +10,15 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
-	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 // ClipID identifies an animation clip in a [ClipStore].
 type ClipID string
 
 // Animation stores the playback state for a [Clip] displayed by an entity's
-// [render.Sprite].
+// [sprite.Sprite].
 type Animation struct {
 	// Clip identifies the animation definition to play.
 	Clip ClipID
@@ -176,7 +176,7 @@ const SystemName = "engine.animation"
 
 // NewAnimationSystem returns a [core.System] that advances [Animation]
 // components on fixed updates using clips from store. Each animated entity
-// must also have a [render.Sprite]. The system returns an error if an
+// must also have a [sprite.Sprite]. The system returns an error if an
 // animation references a clip that is not registered, its current frame is
 // outside the clip, its frame advance cannot be represented as an int, or
 // advancing its current frame would overflow an int.
@@ -193,7 +193,7 @@ func NewAnimationSystem(store *ClipStore) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if animations == nil {
 			animations = core.NewQuery(ctx.World).
-				With(Animation{}, render.Sprite{})
+				With(Animation{}, sprite.Sprite{})
 		}
 		if hub == nil {
 			resolved, err := ctx.World.Resource[*signal.Hub]()
@@ -252,11 +252,11 @@ func NewAnimationSystem(store *ClipStore) core.System {
 				e.SetComponent(anim)
 			}
 
-			sprite, _ := e.Component[render.Sprite]()
-			target := render.SheetSource{Sheet: clip.Source, Region: clip.Frames[anim.Current]}
-			if sprite.Drawable != target {
-				sprite.Drawable = target
-				e.SetComponent(sprite)
+			visual, _ := e.Component[sprite.Sprite]()
+			target := sprite.SheetSource{Sheet: clip.Source, Region: clip.Frames[anim.Current]}
+			if visual.Drawable != target {
+				visual.Drawable = target
+				e.SetComponent(visual)
 			}
 		}
 		return nil

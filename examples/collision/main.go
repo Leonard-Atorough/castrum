@@ -28,7 +28,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 const (
@@ -145,9 +145,9 @@ func run() error {
 	stats := newPlayerStats(maxHealth, moveSpeed)
 	player, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: 0 + wallThickness*2}},
-		render.Sprite{
-			Drawable: render.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
-			Style:    render.SpriteStyle{Color: playerColor},
+		sprite.Sprite{
+			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
+			Style:    sprite.Style{Color: playerColor},
 		},
 		playerCollider,
 		stats,
@@ -208,9 +208,9 @@ func run() error {
 		collider.Trigger = true
 		pickups[i], err = g.World().NewEntity(
 			core.Transform{Position: randomPosition()},
-			render.Sprite{
-				Drawable: render.CircleShape{Radii: geom.Vector2{X: pickupRadius, Y: pickupRadius}},
-				Style:    render.SpriteStyle{Color: pickupColor},
+			sprite.Sprite{
+				Drawable: sprite.CircleShape{Radii: geom.Vector2{X: pickupRadius, Y: pickupRadius}},
+				Style:    sprite.Style{Color: pickupColor},
 			},
 			collider,
 		)
@@ -253,9 +253,9 @@ func run() error {
 				}
 			}
 		}
-		return player.SetComponent(ctx.World, render.Sprite{
-			Drawable: render.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
-			Style:    render.SpriteStyle{Color: tint},
+		return player.SetComponent(ctx.World, sprite.Sprite{
+			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
+			Style:    sprite.Style{Color: tint},
 		})
 	})); err != nil {
 		return err
@@ -377,7 +377,7 @@ func spawnRect(world *core.World, position, min, max geom.Vector2, fill color.Co
 	size := max.Sub(min)
 	return world.NewEntity(append([]any{
 		core.Transform{Position: position},
-		render.Sprite{Drawable: render.RectShape{Size: size}, Style: render.SpriteStyle{Color: fill}},
+		sprite.Sprite{Drawable: sprite.RectShape{Size: size}, Style: sprite.Style{Color: fill}},
 		collider,
 	}, extra...)...)
 }
