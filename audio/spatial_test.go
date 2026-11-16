@@ -178,15 +178,15 @@ func TestSpatialErrorKeepsHealthyPlaysSynced(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "requires a Transform") {
 		t.Fatalf("Update() = %v, want Transform error", err)
 	}
-	if len(h.controller.syncs) != 1 {
-		t.Fatalf("syncs = %+v, want the healthy play only", h.controller.syncs)
-	}
 	call := h.lastSync(healthy.ID())
 	if call.source != "sfx/healthy.wav" {
 		t.Fatalf("source = %q, want sfx/healthy.wav", call.source)
 	}
 	if got := call.want; got.Volume != 0.5 || got.Balance != 0.5 {
 		t.Fatalf("healthy playback = %+v, want spatialized mix", got)
+	}
+	if got := h.lastSync(broken.ID()).want; got.Playing || got.Restart {
+		t.Fatalf("broken playback = %+v, want a hold without restart", got)
 	}
 	if h.controller.sweeps != 0 {
 		t.Fatalf("sweeps = %d, want none during an incomplete pass", h.controller.sweeps)
@@ -199,8 +199,44 @@ func TestSpatialErrorKeepsHealthyPlaysSynced(t *testing.T) {
 	if got := h.lastSync(healthy.ID()).want; got.Restart {
 		t.Fatalf("healthy playback restarted after recovery: %+v", got)
 	}
+	if got := h.lastSync(broken.ID()).want; !got.Playing || !got.Restart {
+		t.Fatalf("broken playback = %+v, want a first sync after recovery", got)
+	}
 	if h.controller.sweeps != 1 {
 		t.Fatalf("sweeps = %d, want one after recovery", h.controller.sweeps)
+	}
+}
+
+func TestSpatialErrorHoldsUntilRecovery(t *testing.T) {
+	h := newAudioHarness(t)
+	*h.listener = Listener{Enabled: true, Mode: FixedPosition, Range: 100}
+	entity := h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true})
+	if err := entity.AddComponent(h.world, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
+		t.Fatal(err)
+	}
+	h.update()
+
+	h.listener.Range = 0
+	if err := h.step(); err == nil {
+		t.Fatal("Update() = nil, want range error")
+	}
+	h.listener.Range = 100
+	h.update()
+	if got := h.lastSync(entity.ID()).want; !got.Playing || got.Restart {
+		t.Fatalf("recovered playback = %+v, want a resume without restart", got)
+	}
+
+	h.listener.Range = 0
+	if err := entity.Update(h.world, func(p *Player) { p.Restart() }); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.step(); err == nil {
+		t.Fatal("Update() = nil, want range error")
+	}
+	h.listener.Range = 100
+	h.update()
+	if got := h.lastSync(entity.ID()).want; !got.Playing || !got.Restart {
+		t.Fatalf("recovered playback = %+v, want the pending restart", got)
 	}
 }
 
@@ -223,8 +259,11 @@ func TestAttenuationEndpointsRevalidated(t *testing.T) {
 	if err := h.step(); err == nil || !strings.Contains(err.Error(), "attenuation curve") {
 		t.Fatalf("Update() = %v, want invalid endpoint error", err)
 	}
-	if len(h.controller.syncs) != 1 || h.controller.sweeps != 1 {
-		t.Fatalf("syncs=%d sweeps=%d, want invalid play skipped without sweeping", len(h.controller.syncs), h.controller.sweeps)
+	if got := h.lastSync(entity.ID()).want; got.Playing || got.Restart {
+		t.Fatalf("invalid curve playback = %+v, want a hold without restart", got)
+	}
+	if h.controller.sweeps != 1 {
+		t.Fatalf("sweeps = %d, want none during an incomplete pass", h.controller.sweeps)
 	}
 }
 
@@ -265,7 +304,8 @@ func TestAttenuationClosuresValidateCapturedEndpoints(t *testing.T) {
 				if err != nil || len(h.controller.syncs) != 1 || h.controller.syncs[0].want.Volume != 0.5 {
 					t.Fatalf("valid curve: syncs=%+v err=%v", h.controller.syncs, err)
 				}
-			} else if err == nil || !strings.Contains(err.Error(), "attenuation curve") || len(h.controller.syncs) != 0 {
+			} else if err == nil || !strings.Contains(err.Error(), "attenuation curve") || len(h.controller.syncs) != 1 ||
+				h.controller.syncs[0].want.Playing || h.controller.syncs[0].want.Restart {
 				t.Fatalf("invalid curve: syncs=%+v err=%v", h.controller.syncs, err)
 			}
 		})

@@ -141,6 +141,7 @@ func TestNewPlayerValidation(t *testing.T) {
 	}{
 		{name: "default settings", source: Track("sound"), settings: DefaultSettings()},
 		{name: "empty source", settings: DefaultSettings(), wantErr: true},
+		{name: "empty track ID", source: Tracks("a", ""), settings: DefaultSettings(), wantErr: true},
 		{name: "zero volume", source: Track("sound"), wantErr: true},
 		{name: "nan volume", source: Track("sound"), settings: Settings{Volume: math.NaN()}, wantErr: true},
 		{name: "infinite rate", source: Track("sound"), settings: Settings{Volume: 1, PlaybackMultiplier: math.Inf(1)}, wantErr: true},
@@ -240,12 +241,8 @@ func TestPlayerAppendDoesNotChangeOtherPlayers(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := first
-	if err := first.Append("first"); err != nil {
-		t.Fatal(err)
-	}
-	if err := second.Append("second"); err != nil {
-		t.Fatal(err)
-	}
+	first.Append("first")
+	second.Append("second")
 	if first.Source().At(2) != "first" || second.Source().At(2) != "second" {
 		t.Fatal("appending to one player changed another player's source")
 	}

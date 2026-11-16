@@ -81,7 +81,8 @@ type Controller interface {
 	// for each [Player] on every run.
 	Sync(entityID core.EntityID, source asset.ID, want Playback) (live bool, err error)
 	// Sweep releases players for entities not passed to Sync since the
-	// previous sweep. The audio system calls it after each reconciliation pass.
+	// previous sweep. The audio system calls it after each reconciliation
+	// pass that reports no error.
 	Sweep() error
 }
 
@@ -141,6 +142,11 @@ func (s *system) Update(ctx *core.Context) error {
 			if spatialErr == nil {
 				spatialErr = err
 			}
+			want.Playing = false
+			want.Restart = false
+			if _, err := s.controller.Sync(e.ID(), audio, want); err != nil {
+				return fmt.Errorf("audio: entity %d: %w", e.ID(), err)
+			}
 			continue
 		}
 		want.Restart = restart
@@ -172,8 +178,8 @@ func (s *system) Update(ctx *core.Context) error {
 	}
 
 	for e := range s.oneshots.Execute() {
-		s, _ := e.Component[Player]()
-		if !s.Completed {
+		p, _ := e.Component[Player]()
+		if !p.Completed {
 			continue
 		}
 		shot, _ := e.Component[oneshot]()

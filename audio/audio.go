@@ -79,10 +79,16 @@ func (s Source) Len() int { return len(s.tracks) }
 // At returns the track at index i. It panics if i is out of range.
 func (s Source) At(i int) asset.ID { return s.tracks[i] }
 
-// Validate reports an error if the source has no tracks.
+// Validate reports an error if the source has no tracks or a track ID is
+// empty.
 func (s Source) Validate() error {
 	if len(s.tracks) == 0 {
 		return fmt.Errorf("audio: source must have at least one track")
+	}
+	for i, track := range s.tracks {
+		if track == "" {
+			return fmt.Errorf("audio: track at index %d is empty", i)
+		}
 	}
 	return nil
 }
@@ -122,10 +128,10 @@ func DefaultSettings() Settings {
 // Validate reports an error for invalid numeric or enum settings.
 func (s Settings) Validate() error {
 	if math.IsNaN(s.Volume) || s.Volume <= 0 || s.Volume > 1 {
-		return fmt.Errorf("audio: source volume must be finite and in (0, 1], got %v", s.Volume)
+		return fmt.Errorf("audio: settings volume must be finite and in (0, 1], got %v", s.Volume)
 	}
 	if math.IsNaN(s.PlaybackMultiplier) || math.IsInf(s.PlaybackMultiplier, 0) || s.PlaybackMultiplier < 0 {
-		return fmt.Errorf("audio: source playback multiplier must be finite and not negative (0 is the normal rate), got %v", s.PlaybackMultiplier)
+		return fmt.Errorf("audio: settings playback multiplier must be finite and not negative (0 is the normal rate), got %v", s.PlaybackMultiplier)
 	}
 	if s.Loop != LoopNone && s.Loop != LoopTrack && s.Loop != LoopAll {
 		return fmt.Errorf("audio: invalid loop mode %d", s.Loop)
@@ -140,7 +146,7 @@ func (s Settings) Validate() error {
 		return fmt.Errorf("audio: invalid group %d", s.Group)
 	}
 	if math.IsNaN(s.Balance) || s.Balance < -1 || s.Balance > 1 {
-		return fmt.Errorf("audio: source balance must be finite and in [-1, 1], got %v", s.Balance)
+		return fmt.Errorf("audio: settings balance must be finite and in [-1, 1], got %v", s.Balance)
 	}
 	return nil
 }
@@ -254,9 +260,8 @@ func (p *Player) SetSource(src Source) error {
 }
 
 // Append adds a track after the existing sequence.
-func (p *Player) Append(id asset.ID) error {
+func (p *Player) Append(id asset.ID) {
 	p.source.tracks = append(slices.Clone(p.source.tracks), id)
-	return nil
 }
 
 // Insert adds a track at i, preserving the current selection. It returns an
@@ -410,6 +415,7 @@ func oneShot(world *core.World, src Source, s Settings, pos geom.Vector2) (*core
 		return nil, err
 	}
 	if err := entity.AddComponent(world, oneshot{self: entity}); err != nil {
+		_ = world.DestroyEntity(entity)
 		return nil, err
 	}
 	return entity, nil
