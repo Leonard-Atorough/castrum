@@ -10,6 +10,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
+	"github.com/Leonard-Atorough/castrum/blueprint"
 	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
@@ -92,6 +93,24 @@ func New(opts ...option) (*Game, error) {
 		return loader, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide asset loader: %w", err)
+	}
+	if err := g.world.Provide(func(*core.World) (*asset.Codecs, error) {
+		return codecs, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide asset codecs: %w", err)
+	}
+
+	// Blueprint registry: engine packages register their persistent state.
+	// The call site never changes when types are added - the owning
+	// package's registration file does.
+	reg := blueprint.NewRegistry(g.world)
+	if err := gametime.RegisterBlueprints(reg); err != nil {
+		return nil, fmt.Errorf("castrum: engine blueprints: %w", err)
+	}
+	if err := g.world.Provide(func(*core.World) (*blueprint.Registry, error) {
+		return reg, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide blueprint registry: %w", err)
 	}
 
 	if err := g.addEngineFirst(core.PhasePreFixed, core.PrevTransformSystemName, core.NewPrevTransformCapture()); err != nil {
