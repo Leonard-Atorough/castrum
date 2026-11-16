@@ -37,6 +37,22 @@ type Style struct {
 	FlipH, FlipV bool
 }
 
+func (st Style) Validate() error {
+	if st.Layer > 31 {
+		return fmt.Errorf("layer must be 0-31")
+	}
+	if !isFinite(st.StrokeWidth) {
+		return fmt.Errorf("stroke width must be finite")
+	}
+	if st.Outline && st.StrokeWidth <= 0 {
+		return fmt.Errorf("outline requires a positive stroke width")
+	}
+	if st.StrokeWidth < 0 {
+		return fmt.Errorf("stroke width must not be negative")
+	}
+	return nil
+}
+
 // Sprite is a drawable component with shared style and an optional drawable.
 //
 // The zero value is visible but draws nothing until [Sprite.Drawable] is set.
@@ -50,17 +66,8 @@ type Sprite struct {
 // Validate reports whether the sprite's style and drawable parameters are
 // valid. It does not resolve referenced assets.
 func (s Sprite) Validate() error {
-	if s.Style.Layer > 31 {
-		return fmt.Errorf("layer must be between 0 and 31")
-	}
-	if !isFinite(s.Style.StrokeWidth) {
-		return fmt.Errorf("stroke width must be finite")
-	}
-	if s.Style.Outline && s.Style.StrokeWidth <= 0 {
-		return fmt.Errorf("outline requires a positive stroke width")
-	}
-	if s.Style.StrokeWidth < 0 {
-		return fmt.Errorf("stroke width must not be negative")
+	if err := s.Style.Validate(); err != nil {
+		return fmt.Errorf("style: %w", err)
 	}
 	switch d := s.Drawable.(type) {
 	case nil:
