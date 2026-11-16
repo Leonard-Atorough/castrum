@@ -1,6 +1,7 @@
 package castrum
 
 import (
+	"bytes"
 	"errors"
 	"math"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
+	"github.com/Leonard-Atorough/castrum/blueprint"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/gametime"
@@ -1220,5 +1222,46 @@ func TestDeltaTimeMirrorsThePhaseResources(t *testing.T) {
 	}
 	if sim.Elapsed() != 250*time.Millisecond {
 		t.Fatalf("sim Elapsed = %v, want 250ms", sim.Elapsed())
+	}
+}
+
+func TestBlueprintRegistryProvided(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	world := g.World()
+
+	// The game's codecs are a world resource - the same instance the
+	// loader uses.
+	codecs, err := world.Resource[*asset.Codecs]()
+	if err != nil {
+		t.Fatalf("resolve codecs: %v", err)
+	}
+
+	// The registry is provided with the engine's persistent state
+	// registered.
+	reg, err := world.Resource[*blueprint.Registry]()
+	if err != nil {
+		t.Fatalf("resolve registry: %v", err)
+	}
+
+	// A game component registers and decodes through the game's codecs.
+	type trader struct {
+		Name string `json:"name"`
+	}
+	if err := reg.Component[trader]("test.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := codecs.Encode[trader](&buf, trader{Name: "Vex"}, asset.FormatJSON); err != nil {
+		t.Fatalf("encode via game codecs: %v", err)
+	}
+	value, err := reg.DecodeComponent("test.Trader", buf.Bytes())
+	if err != nil {
+		t.Fatalf("DecodeComponent: %v", err)
+	}
+	if got := value.(trader); got.Name != "Vex" {
+		t.Fatalf("decoded trader = %+v, want name Vex", got)
 	}
 }
