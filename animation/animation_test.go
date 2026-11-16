@@ -519,7 +519,7 @@ func TestSystemEmitsCompletedSignal(t *testing.T) {
 	for event, ok := reader.Next(); ok; event, ok = reader.Next() {
 		got = append(got, event)
 	}
-	if len(got) != 1 || got[0] != (Completed{Entity: entity.ID(), Tick: 2}) {
+	if len(got) != 1 || got[0] != (Completed{Entity: entity.ID(), Tick: 2, Loops: 1}) {
 		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
 	}
 }
@@ -542,8 +542,50 @@ func TestLoopForeverEmitsOnEachWrap(t *testing.T) {
 	for event, ok := reader.Next(); ok; event, ok = reader.Next() {
 		got = append(got, event)
 	}
-	want := []Completed{{Entity: entity.ID(), Tick: 1}, {Entity: entity.ID(), Tick: 2}}
+	want := []Completed{{Entity: entity.ID(), Tick: 1, Loops: 1}, {Entity: entity.ID(), Tick: 2, Loops: 1}}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("signals = %v, want completions on ticks 1 and 2", got)
+	}
+}
+
+// A tick that crosses the wrap boundary more than once emits one signal
+// carrying the crossing count, so loops are not silently lost.
+func TestLoopForeverCountsCrossingsInOneTick(t *testing.T) {
+	entity, sys, ctx := newAnimWorld(t,
+		Animation{Clip: "walk", Loop: LoopAll},
+		Clip{Source: animSheet, Frames: []string{"a", "b"}, FPS: 10},
+	)
+	hub := ctx.World.MustResource[*signal.Hub]()
+	reader := hub.NewReader[Completed]()
+
+	// Five 100ms frames on a two-frame clip from frame 0: two wraps,
+	// landing back on frame 1.
+	ctx.DeltaTime = 500 * time.Millisecond
+	ctx.Tick = 1
+	tick(t, sys, ctx, 1)
+	if anim := readAnim(t, entity, ctx); anim.Current != 1 {
+		t.Fatalf("current = %d, want 1 after two wraps", anim.Current)
+	}
+
+	var got []Completed
+	for event, ok := reader.Next(); ok; event, ok = reader.Next() {
+		got = append(got, event)
+	}
+	if len(got) != 1 || got[0] != (Completed{Entity: entity.ID(), Tick: 1, Loops: 2}) {
+		t.Fatalf("signals = %v, want one completion of entity %d with two loops on tick 1", got, entity.ID())
+	}
+
+	// The same 500ms tick from frame 1 crosses three times and wraps to
+	// frame 0: the count follows the boundary passes, not the tick length.
+	ctx.Tick = 2
+	tick(t, sys, ctx, 1)
+	if anim := readAnim(t, entity, ctx); anim.Current != 0 {
+		t.Fatalf("current = %d, want 0 after three wraps", anim.Current)
+	}
+	for event, ok := reader.Next(); ok; event, ok = reader.Next() {
+		got = append(got, event)
+	}
+	if len(got) != 2 || got[1] != (Completed{Entity: entity.ID(), Tick: 2, Loops: 3}) {
+		t.Fatalf("signals = %v, want a second completion with three loops on tick 2", got)
 	}
 }
