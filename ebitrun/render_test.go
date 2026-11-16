@@ -11,6 +11,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 	"github.com/hajimehoshi/ebiten/v2"
 	"golang.org/x/image/font/gofont/goregular"
 )
@@ -51,7 +52,7 @@ func newSpriteGame(t *testing.T) (*castrum.Game, *Runner) {
 func TestEngineDrawFailsFast(t *testing.T) {
 	g, r := newSpriteGame(t)
 	if _, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.TextureSource{Texture: "missing.png"}},
+		spr.Sprite{Drawable: spr.TextureSource{Texture: "missing.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn sprite: %v", err)
@@ -74,19 +75,19 @@ func TestEngineDrawSmoke(t *testing.T) {
 	g, r := newSpriteGame(t)
 
 	if _, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.TextureSource{Texture: "tex.png"}},
+		spr.Sprite{Drawable: spr.TextureSource{Texture: "tex.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn texture sprite: %v", err)
 	}
 	if _, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}},
+		spr.Sprite{Drawable: spr.SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn atlas sprite: %v", err)
 	}
 	if _, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.TextSource{Font: "fonts/go.ttf", Text: "score", Size: 16}},
+		spr.Sprite{Drawable: spr.TextSource{Font: "fonts/go.ttf", Text: "score", Size: 16}},
 		core.Transform{Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn text sprite: %v", err)
@@ -104,7 +105,7 @@ func TestEngineDrawSmoke(t *testing.T) {
 func TestDrawEngineErrorPrefixedAndUserDrawsRun(t *testing.T) {
 	g, r := newSpriteGame(t)
 	if _, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.TextureSource{Texture: "missing.png"}},
+		spr.Sprite{Drawable: spr.TextureSource{Texture: "missing.png"}},
 		core.Transform{Position: geom.Vector2{X: 0, Y: 0}, Scale: spriteScale},
 	); err != nil {
 		t.Fatalf("spawn sprite: %v", err)
@@ -252,12 +253,12 @@ func TestEllipsePoints(t *testing.T) {
 // no panic. Nothing pixel-assertable headless.
 func TestEngineDrawShapeSmoke(t *testing.T) {
 	g, r := newSpriteGame(t)
-	spawns := []render.Sprite{
-		{Drawable: render.RectShape{Size: geom.Vector2{X: 10, Y: 20}}},
-		{Drawable: render.RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 2}},
-		{Drawable: render.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}},
-		{Drawable: render.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 1}},
-		{Drawable: render.LineShape{To: geom.Vector2{X: 30, Y: 0}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 2}},
+	spawns := []spr.Sprite{
+		{Drawable: spr.RectShape{Size: geom.Vector2{X: 10, Y: 20}}},
+		{Drawable: spr.RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Style: spr.Style{Outline: true, StrokeWidth: 2}},
+		{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}},
+		{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Style: spr.Style{Outline: true, StrokeWidth: 1}},
+		{Drawable: spr.LineShape{To: geom.Vector2{X: 30, Y: 0}}, Style: spr.Style{Outline: true, StrokeWidth: 2}},
 	}
 	for i, sprite := range spawns {
 		sprite.Style.Layer = uint8(i)
@@ -275,9 +276,9 @@ func TestEngineDrawShapeSmoke(t *testing.T) {
 	// A rotated ellipse declares its own unequal radii and rides the
 	// Béziers.
 	if _, err := g.World().NewEntity(
-		render.Sprite{
-			Drawable: render.CircleShape{Radii: geom.Vector2{X: 15, Y: 5}},
-			Style:    render.SpriteStyle{Outline: true, StrokeWidth: 1, Layer: 5},
+		spr.Sprite{
+			Drawable: spr.CircleShape{Radii: geom.Vector2{X: 15, Y: 5}},
+			Style:    spr.Style{Outline: true, StrokeWidth: 1, Layer: 5},
 		},
 		core.Transform{
 			Position: geom.Vector2{X: 50, Y: 50},

@@ -1,4 +1,5 @@
-package render
+// Package sprite defines drawable components and their visual styles.
+package sprite
 
 import (
 	"fmt"
@@ -10,10 +11,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// SpriteStyle is the shared visual style of a [Sprite]: ordering, color,
+// Style is the visual style of a [Sprite]: ordering, color,
 // outline, flips, and visibility. The zero value is a visible, plain sprite on
 // layer 0.
-type SpriteStyle struct {
+type Style struct {
 	// Outline strokes a shape's border instead of filling it. It requires a
 	// positive StrokeWidth and has no effect on non-shape drawables.
 	Outline bool
@@ -43,7 +44,7 @@ type Sprite struct {
 	// Drawable is the image, text, or shape to draw. A nil value draws nothing.
 	Drawable Drawable
 	// Style holds the sprite's visual style.
-	Style SpriteStyle
+	Style Style
 }
 
 // Validate reports whether the sprite's style and drawable parameters are

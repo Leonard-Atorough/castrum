@@ -20,7 +20,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
-	"github.com/Leonard-Atorough/castrum/render"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 	"github.com/Leonard-Atorough/castrum/spritesheet"
 )
 
@@ -74,7 +74,7 @@ func run() error {
 	// The sprite's zero-value style is shown and opaque; the Drawable
 	// carries the picture.
 	sprite, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.SheetSource{Sheet: asset.MemorySheet(sheet), Region: region}},
+		spr.Sprite{Drawable: spr.SheetSource{Sheet: asset.MemorySheet(sheet), Region: region}},
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 			Scale:    geom.Vector2{X: 4, Y: 4}, // 16px tiles read better at 64px

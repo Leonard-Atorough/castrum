@@ -23,9 +23,9 @@ import (
 	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/signal"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 )
 
 const (
@@ -249,7 +249,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 						if err := other.Update(world, func(c *dataCore) { c.collected = true }); err != nil {
 							return err
 						}
-						if err := other.Update(world, func(s *render.Sprite) { s.Style.Hidden = true }); err != nil {
+						if err := other.Update(world, func(s *spr.Sprite) { s.Style.Hidden = true }); err != nil {
 							return err
 						}
 						if err := other.Update(world, func(c *collision.Collider) { c.Active = false }); err != nil {
@@ -274,7 +274,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 				state.score++
 				panel.Message(fmt.Sprintf("CORE RECOVERED  %d / %d", state.score, coreGoal))
 				if entry, ok := scoreQuery.First(); ok {
-					entry.Update(func(sprite *render.Sprite) {
+					entry.Update(func(sprite *spr.Sprite) {
 						sprite.Drawable = textDrawable(fmt.Sprintf("CORES  %d / %d", state.score, coreGoal), 24)
 					})
 				}
@@ -305,7 +305,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 						continue
 					}
 					state.displayedSeconds = seconds
-					entry.Update(func(sprite *render.Sprite) {
+					entry.Update(func(sprite *spr.Sprite) {
 						sprite.Drawable = textDrawable(fmt.Sprintf("TIME  %02d", seconds), 24)
 					})
 				}
@@ -380,9 +380,9 @@ func makeArenaBlueprint(world *core.World) (*scene.Blueprint, *core.Query, *core
 			Name: "arena-border",
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: 286}},
-				render.Sprite{
-					Drawable: render.RectShape{Size: geom.Vector2{X: 900, Y: 428}},
-					Style:    render.SpriteStyle{Outline: true, StrokeWidth: 2, Color: borderColor, Layer: 2},
+				spr.Sprite{
+					Drawable: spr.RectShape{Size: geom.Vector2{X: 900, Y: 428}},
+					Style:    spr.Style{Outline: true, StrokeWidth: 2, Color: borderColor, Layer: 2},
 				},
 			},
 		},
@@ -390,7 +390,7 @@ func makeArenaBlueprint(world *core.World) (*scene.Blueprint, *core.Query, *core
 			Name: "score",
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: 180, Y: 43}},
-				render.Sprite{Drawable: textDrawable("CORES  0 / 5", 24), Style: render.SpriteStyle{Color: coreColor, Layer: 5}},
+				spr.Sprite{Drawable: textDrawable("CORES  0 / 5", 24), Style: spr.Style{Color: coreColor, Layer: 5}},
 				scoreLabel{},
 			},
 		},
@@ -398,7 +398,7 @@ func makeArenaBlueprint(world *core.World) (*scene.Blueprint, *core.Query, *core
 			Name: "round-clock",
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: 780, Y: 43}},
-				render.Sprite{Drawable: textDrawable("TIME  20", 24), Style: render.SpriteStyle{Color: color.White, Layer: 5}},
+				spr.Sprite{Drawable: textDrawable("TIME  20", 24), Style: spr.Style{Color: color.White, Layer: 5}},
 				clockLabel{},
 				roundClock{},
 				gametime.NewTimer(roundLength, false),
@@ -409,9 +409,9 @@ func makeArenaBlueprint(world *core.World) (*scene.Blueprint, *core.Query, *core
 			Name: "pilot",
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: 424}},
-				render.Sprite{
-					Drawable: render.CircleShape{Radii: geom.Vector2{X: 16, Y: 16}},
-					Style:    render.SpriteStyle{Color: playerColor, Layer: 4},
+				spr.Sprite{
+					Drawable: spr.CircleShape{Radii: geom.Vector2{X: 16, Y: 16}},
+					Style:    spr.Style{Color: playerColor, Layer: 4},
 				},
 				playerCollider,
 				pilot{},
@@ -421,9 +421,9 @@ func makeArenaBlueprint(world *core.World) (*scene.Blueprint, *core.Query, *core
 			Name: "pulse-drone",
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: screenWidth/2 + 235, Y: 275}},
-				render.Sprite{
-					Drawable: render.CircleShape{Radii: geom.Vector2{X: 26, Y: 26}},
-					Style:    render.SpriteStyle{Color: droneColor, Outline: true, StrokeWidth: 4, Layer: 4},
+				spr.Sprite{
+					Drawable: spr.CircleShape{Radii: geom.Vector2{X: 26, Y: 26}},
+					Style:    spr.Style{Color: droneColor, Outline: true, StrokeWidth: 4, Layer: 4},
 				},
 				droneCollider,
 				pulseDrone{},
@@ -441,9 +441,9 @@ func makeArenaBlueprint(world *core.World) (*scene.Blueprint, *core.Query, *core
 			Name: fmt.Sprintf("core-%d", i+1),
 			Components: []any{
 				core.Transform{Position: position},
-				render.Sprite{
-					Drawable: render.CircleShape{Radii: geom.Vector2{X: 12, Y: 12}},
-					Style:    render.SpriteStyle{Color: coreColor, Outline: true, StrokeWidth: 3, Layer: 3},
+				spr.Sprite{
+					Drawable: spr.CircleShape{Radii: geom.Vector2{X: 12, Y: 12}},
+					Style:    spr.Style{Color: coreColor, Outline: true, StrokeWidth: 3, Layer: 3},
 				},
 				coreCollider,
 				dataCore{},
@@ -457,8 +457,8 @@ func makeArenaBlueprint(world *core.World) (*scene.Blueprint, *core.Query, *core
 	}
 
 	return blueprint,
-		core.NewQuery(world).With(scoreLabel{}, render.Sprite{}),
-		core.NewQuery(world).With(clockLabel{}, gametime.Timer{}, render.Sprite{}),
+		core.NewQuery(world).With(scoreLabel{}, spr.Sprite{}),
+		core.NewQuery(world).With(clockLabel{}, gametime.Timer{}, spr.Sprite{}),
 		core.NewQuery(world).With(pilot{}, core.Transform{}),
 		core.NewQuery(world).With(core.Transform{}, pulseDrone{}),
 		nil
@@ -496,9 +496,9 @@ func rectSpec(name string, position geom.Vector2, width, height float64, tint co
 		Name: name,
 		Components: []any{
 			core.Transform{Position: position},
-			render.Sprite{
-				Drawable: render.RectShape{Size: geom.Vector2{X: width, Y: height}},
-				Style:    render.SpriteStyle{Color: tint, Layer: layer},
+			spr.Sprite{
+				Drawable: spr.RectShape{Size: geom.Vector2{X: width, Y: height}},
+				Style:    spr.Style{Color: tint, Layer: layer},
 			},
 		},
 	}
@@ -509,11 +509,11 @@ func textSpec(name string, position geom.Vector2, text string, size float64, tin
 		Name: name,
 		Components: []any{
 			core.Transform{Position: position},
-			render.Sprite{Drawable: textDrawable(text, size), Style: render.SpriteStyle{Color: tint, Layer: 5}},
+			spr.Sprite{Drawable: textDrawable(text, size), Style: spr.Style{Color: tint, Layer: 5}},
 		},
 	}
 }
 
-func textDrawable(text string, size float64) render.TextSource {
-	return render.TextSource{Font: builtin.Font, Text: text, Size: size}
+func textDrawable(text string, size float64) spr.TextSource {
+	return spr.TextSource{Font: builtin.Font, Text: text, Size: size}
 }

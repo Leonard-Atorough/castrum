@@ -9,8 +9,8 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
-	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 )
 
 var animSheet = asset.FileSheet("atlas.json")
@@ -27,7 +27,7 @@ func newAnimWorld(t *testing.T, anim Animation, clip Clip) (*core.Entity, core.S
 	if err := store.Add(anim.Clip, clip); err != nil {
 		t.Fatalf("add clip: %v", err)
 	}
-	entity, err := w.NewEntity(anim, render.Sprite{})
+	entity, err := w.NewEntity(anim, spr.Sprite{})
 	if err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
@@ -53,17 +53,17 @@ func readAnim(t *testing.T, e *core.Entity, ctx *core.Context) Animation {
 	return anim
 }
 
-func readSprite(t *testing.T, e *core.Entity, ctx *core.Context) render.Sprite {
+func readSprite(t *testing.T, e *core.Entity, ctx *core.Context) spr.Sprite {
 	t.Helper()
-	sprite, ok := e.Component[render.Sprite](ctx.World)
+	sprite, ok := e.Component[spr.Sprite](ctx.World)
 	if !ok {
 		t.Fatal("sprite component missing")
 	}
 	return sprite
 }
 
-func region(s render.Sprite) (render.SheetSource, bool) {
-	src, ok := s.Drawable.(render.SheetSource)
+func region(s spr.Sprite) (spr.SheetSource, bool) {
+	src, ok := s.Drawable.(spr.SheetSource)
 	return src, ok
 }
 
@@ -173,7 +173,7 @@ func TestMissingClipFailsFast(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("provide signal hub: %v", err)
 	}
-	if _, err := w.NewEntity(Animation{Clip: "nope"}, render.Sprite{}); err != nil {
+	if _, err := w.NewEntity(Animation{Clip: "nope"}, spr.Sprite{}); err != nil {
 		t.Fatalf("spawn: %v", err)
 	}
 	ctx := &core.Context{World: w, DeltaTime: 100 * time.Millisecond}

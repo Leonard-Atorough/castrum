@@ -4,7 +4,7 @@
 // it down, and the frame phase keeps running throughout - the controls
 // respond even while the simulation stands still.
 //
-// The on-screen HUD is engine text (render.TextSource), not a runner
+// The on-screen HUD is engine text (sprite.TextSource), not a runner
 // overlay: it lives on entities, renders with the world, and - because
 // its update runs in the frame phase - keeps showing live state while
 // the simulation is paused. The debug overlay in the corner shows the
@@ -28,7 +28,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 const (
@@ -99,7 +99,7 @@ func run() error {
 	// The controls line is static text; the state line below it is
 	// rewritten every frame.
 	if _, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.TextSource{
+		sprite.Sprite{Drawable: sprite.TextSource{
 			Font: goFont, Text: "space: pause/resume  up/down: time scale", Size: 22,
 		}},
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: controlsY}, Scale: geom.Vector2{X: 1, Y: 1}},
@@ -107,7 +107,7 @@ func run() error {
 		return err
 	}
 	state, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.TextSource{
+		sprite.Sprite{Drawable: sprite.TextSource{
 			Font: goFont, Text: "1.00x, running", Size: 28,
 		}},
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: stateY}, Scale: geom.Vector2{X: 1, Y: 1}},
@@ -117,18 +117,18 @@ func run() error {
 	}
 
 	if _, err := g.World().NewEntity(
-		render.Sprite{
-			Drawable: render.CircleShape{Radii: geom.Vector2{X: 12, Y: 12}},
-			Style:    render.SpriteStyle{Color: color.NRGBA{R: 255, G: 200, B: 80, A: 255}},
+		sprite.Sprite{
+			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 12, Y: 12}},
+			Style:    sprite.Style{Color: color.NRGBA{R: 255, G: 200, B: 80, A: 255}},
 		},
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: screenH / 2}},
 	); err != nil {
 		return err
 	}
 	inner, err := g.World().NewEntity(
-		render.Sprite{
-			Drawable: render.CircleShape{Radii: geom.Vector2{X: 20, Y: 20}},
-			Style:    render.SpriteStyle{Color: color.NRGBA{R: 120, G: 220, B: 120, A: 255}},
+		sprite.Sprite{
+			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 20, Y: 20}},
+			Style:    sprite.Style{Color: color.NRGBA{R: 120, G: 220, B: 120, A: 255}},
 		},
 		core.Transform{},
 	)
@@ -136,9 +136,9 @@ func run() error {
 		return err
 	}
 	outer, err := g.World().NewEntity(
-		render.Sprite{
-			Drawable: render.CircleShape{Radii: geom.Vector2{X: 32, Y: 32}},
-			Style:    render.SpriteStyle{Color: color.NRGBA{R: 120, G: 160, B: 220, A: 255}},
+		sprite.Sprite{
+			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 32, Y: 32}},
+			Style:    sprite.Style{Color: color.NRGBA{R: 120, G: 160, B: 220, A: 255}},
 		},
 		core.Transform{},
 	)
@@ -209,8 +209,8 @@ func timeControlSystem(g *castrum.Game, state *core.Entity) core.System {
 		if g.Paused() {
 			word = "paused"
 		}
-		return state.Update(ctx.World, func(s *render.Sprite) {
-			s.Drawable = render.TextSource{
+		return state.Update(ctx.World, func(s *sprite.Sprite) {
+			s.Drawable = sprite.TextSource{
 				Font: goFont,
 				Text: fmt.Sprintf("%.2fx, %s", g.TimeScale(), word),
 				Size: 28,

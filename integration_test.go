@@ -16,10 +16,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/settings"
 	"github.com/Leonard-Atorough/castrum/signal"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 	"github.com/Leonard-Atorough/castrum/state"
 	"github.com/Leonard-Atorough/castrum/tween"
 )
@@ -217,7 +217,7 @@ func TestEngineTickSignalsAndPreFixedMovement(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := g.World().NewEntity(animation.Animation{Clip: "clip"}, render.Sprite{}, core.Transform{}); err != nil {
+	if _, err := g.World().NewEntity(animation.Animation{Clip: "clip"}, spr.Sprite{}, core.Transform{}); err != nil {
 		t.Fatal(err)
 	}
 	shape, err := collision.NewCollider(collision.Circle{Radius: 1})
@@ -529,18 +529,18 @@ func TestAnimationSystemAlwaysRegistered(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Add clip: %v", err)
 	}
-	entity, err := g.World().NewEntity(animation.Animation{Clip: "clip"}, render.Sprite{}, core.Transform{})
+	entity, err := g.World().NewEntity(animation.Animation{Clip: "clip"}, spr.Sprite{}, core.Transform{})
 	if err != nil {
 		t.Fatalf("spawn animated sprite: %v", err)
 	}
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	sprite, ok := entity.Component[render.Sprite](g.World())
+	sprite, ok := entity.Component[spr.Sprite](g.World())
 	if !ok {
 		t.Fatal("animated entity has no sprite")
 	}
-	if _, ok := sprite.Drawable.(render.SheetSource); !ok {
+	if _, ok := sprite.Drawable.(spr.SheetSource); !ok {
 		t.Errorf("drawable = %#v, want an atlas source without any option", sprite.Drawable)
 	}
 }

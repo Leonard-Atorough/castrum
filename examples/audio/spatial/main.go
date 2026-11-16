@@ -10,7 +10,7 @@ import (
 	audioassets "github.com/Leonard-Atorough/castrum/examples/audio"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 const (
@@ -47,9 +47,9 @@ func run() error {
 	playerStart := geom.Vector2{X: -200}
 	player, err := game.World().NewEntity(
 		core.Transform{Position: playerStart},
-		render.Sprite{
-			Drawable: render.CircleShape{Radii: geom.Vector2{X: 20, Y: 20}},
-			Style:    render.SpriteStyle{Color: color.RGBA{G: 200, B: 255, A: 255}},
+		sprite.Sprite{
+			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 20, Y: 20}},
+			Style:    sprite.Style{Color: color.RGBA{G: 200, B: 255, A: 255}},
 		},
 	)
 	if err != nil {
@@ -71,9 +71,9 @@ func run() error {
 	_, err = game.World().NewEntity(
 		source,
 		core.Transform{},
-		render.Sprite{
-			Drawable: render.RectShape{Size: geom.Vector2{X: 80, Y: 80}},
-			Style:    render.SpriteStyle{Color: color.RGBA{R: 220, G: 100, A: 255}},
+		sprite.Sprite{
+			Drawable: sprite.RectShape{Size: geom.Vector2{X: 80, Y: 80}},
+			Style:    sprite.Style{Color: color.RGBA{R: 220, G: 100, A: 255}},
 		},
 	)
 	if err != nil {

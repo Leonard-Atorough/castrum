@@ -12,6 +12,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 func newAssetTestFS(t *testing.T) fstest.MapFS {
@@ -194,7 +195,7 @@ func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 		t.Fatal("SubImage and SubImageRect must share the cached subimage")
 	}
 	if _, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}},
+		sprite.Sprite{Drawable: sprite.SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}},
 		core.Transform{Scale: spriteScale},
 	); err != nil {
 		t.Fatal(err)

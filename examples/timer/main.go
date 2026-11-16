@@ -36,7 +36,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
-	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 const (
@@ -275,9 +275,9 @@ func spawnBar(world *core.World, y float64, duration time.Duration, repeating bo
 }
 
 // barSprite builds the bar's drawable rect in the given state color.
-func barSprite(fill color.Color) render.Sprite {
-	return render.Sprite{
-		Drawable: render.RectShape{Size: geom.Vector2{X: barWidth, Y: barHeight}},
-		Style:    render.SpriteStyle{Color: fill},
+func barSprite(fill color.Color) sprite.Sprite {
+	return sprite.Sprite{
+		Drawable: sprite.RectShape{Size: geom.Vector2{X: barWidth, Y: barHeight}},
+		Style:    sprite.Style{Color: fill},
 	}
 }

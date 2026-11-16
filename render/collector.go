@@ -1,5 +1,5 @@
-// Package render defines drawable components and camera state, then resolves
-// them into ordered [DrawList] values for a renderer to draw.
+// Package render defines camera state and collects sprites into ordered
+// [DrawList] values for a renderer to draw.
 package render
 
 import (
@@ -14,9 +14,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
-// DrawItem is one drawable resolved from a [Sprite] for a frame.
+// DrawItem is one drawable resolved from a [sprite.Sprite] for a frame.
 type DrawItem struct {
 	// Texture is the source texture for a texture item; empty for text and shapes.
 	Texture asset.ID
@@ -24,7 +25,7 @@ type DrawItem struct {
 	// selects the whole texture.
 	Rect image.Rectangle
 	// Shape is the geometry of a shape item; nil for texture and text items.
-	Shape Shape
+	Shape sprite.Shape
 	// Text is the text to draw; empty for non-text items.
 	Text string
 	// Font is the font asset for a text item; empty for non-text items.
@@ -85,9 +86,9 @@ type Collector struct {
 // precedence over the engine camera.
 func NewCollector(world *core.World) *Collector {
 	sprites := core.NewQuery(world).
-		With(Sprite{}, core.Transform{}, core.PrevTransform{}).
+		With(sprite.Sprite{}, core.Transform{}, core.PrevTransform{}).
 		Where(func(e core.Entry) bool {
-			s, ok := e.Component[Sprite]()
+			s, ok := e.Component[sprite.Sprite]()
 			if !ok {
 				return false
 			}
@@ -145,7 +146,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 	c.working = c.working[:0]
 
 	for e := range c.sprites.Execute() {
-		sprite, _ := e.Component[Sprite]()
+		s, _ := e.Component[sprite.Sprite]()
 		transform, _ := e.Component[core.Transform]()
 		prev, _ := e.Component[core.PrevTransform]()
 
@@ -161,10 +162,10 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 
 		var item DrawItem
 		var offset, size geom.Vector2
-		switch drawable := sprite.Drawable.(type) {
+		switch drawable := s.Drawable.(type) {
 		case nil:
 			continue
-		case SheetSource:
+		case sprite.SheetSource:
 			srv, err := assetLoader()
 			if err != nil {
 				return DrawList{}, err
@@ -192,8 +193,8 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 				X: float64(region.Dx()) * scale.X,
 				Y: float64(region.Dy()) * scale.Y,
 			}
-			item = textureItem(sprite, rotation, scale, sheet.Texture, region)
-		case TextureSource:
+			item = textureItem(s, rotation, scale, sheet.Texture, region)
+		case sprite.TextureSource:
 			srv, err := assetLoader()
 			if err != nil {
 				return DrawList{}, err
@@ -206,8 +207,8 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 				X: float64(data.Width) * scale.X,
 				Y: float64(data.Height) * scale.Y,
 			}
-			item = textureItem(sprite, rotation, scale, drawable.Texture, image.Rectangle{})
-		case TextSource:
+			item = textureItem(s, rotation, scale, drawable.Texture, image.Rectangle{})
+		case sprite.TextSource:
 			if drawable.Text == "" {
 				continue
 			}
@@ -220,7 +221,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 				return DrawList{}, fmt.Errorf("castrum: collect: font %q: %w", drawable.Font, err)
 			}
 			textWidth, textHeight := font.Measure(drawable.Size, drawable.Text)
-			fill := sprite.Style.Color
+			fill := s.Style.Color
 			if fill == nil {
 				fill = color.White
 			}
@@ -238,19 +239,19 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 				Scale:      scale,
 				Color:      fill,
 			}
-		case RectShape:
+		case sprite.RectShape:
 			size = geom.Vector2{
 				X: drawable.Size.X * scale.X,
 				Y: drawable.Size.Y * scale.Y,
 			}
-			item = shapeItem(sprite, rotation, scale, drawable)
-		case CircleShape:
+			item = shapeItem(s, rotation, scale, drawable)
+		case sprite.CircleShape:
 			size = geom.Vector2{
 				X: 2 * drawable.Radii.X * scale.X,
 				Y: 2 * drawable.Radii.Y * scale.Y,
 			}
-			item = shapeItem(sprite, rotation, scale, drawable)
-		case LineShape:
+			item = shapeItem(s, rotation, scale, drawable)
+		case sprite.LineShape:
 			segment := geom.Segment{
 				Start: geom.Vector2{
 					X: drawable.From.X * scale.X,
@@ -263,12 +264,12 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			}
 			bounds := segment.BoundingBox()
 			offset, size = bounds.Center(), bounds.Size()
-			item = shapeItem(sprite, rotation, scale, drawable)
+			item = shapeItem(s, rotation, scale, drawable)
 		default:
 			// Unreachable: the sum is sealed and Validate covers it.
 			continue
 		}
-		c.stage(viewport, ctx.Alpha, sprite.Style.Layer, sprite.Style.SortOrder,
+		c.stage(viewport, ctx.Alpha, s.Style.Layer, s.Style.SortOrder,
 			prev.Position, transform.Position, offset, size, item)
 	}
 
@@ -297,7 +298,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 func (c *Collector) stage(viewport geom.Rect, alpha float64, layer uint8, sortOrder int8, prev, curr, offset, size geom.Vector2, item DrawItem) {
 	position := prev.Lerp(curr, alpha)
 	half := geom.Vector2{X: math.Abs(size.X) / 2, Y: math.Abs(size.Y) / 2}
-	_, line := item.Shape.(LineShape)
+	_, line := item.Shape.(sprite.LineShape)
 	if item.Outline || line {
 		half.X += item.StrokeWidth / 2
 		half.Y += item.StrokeWidth / 2
@@ -349,7 +350,7 @@ func (c *Collector) initializeView(world *core.World) error {
 	return nil
 }
 
-func textureItem(sprite Sprite, rotation float64, scale geom.Vector2, texture asset.ID, region image.Rectangle) DrawItem {
+func textureItem(sprite sprite.Sprite, rotation float64, scale geom.Vector2, texture asset.ID, region image.Rectangle) DrawItem {
 	return DrawItem{
 		Texture:  texture,
 		Rect:     region,
@@ -361,7 +362,7 @@ func textureItem(sprite Sprite, rotation float64, scale geom.Vector2, texture as
 	}
 }
 
-func shapeItem(sprite Sprite, rotation float64, scale geom.Vector2, shape Shape) DrawItem {
+func shapeItem(sprite sprite.Sprite, rotation float64, scale geom.Vector2, shape sprite.Shape) DrawItem {
 	fill := sprite.Style.Color
 	if fill == nil {
 		fill = color.Black

@@ -24,6 +24,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 	"golang.org/x/image/font/gofont/goregular"
 
 	"testing/fstest"
@@ -132,11 +133,11 @@ func spriteWorld(b *testing.B, n int, shape bool, viewportFraction float64) (*co
 			x = (float64(i%160) / 160) * (1280 / viewportFraction)
 			y = (float64(i/160) / 160) * (720 / viewportFraction)
 		}
-		sprite := render.Sprite{Layer: uint8(i % 3), SortOrder: int8(i % 5)}
+		sprite := spr.Sprite{Style: spr.Style{Layer: uint8(i % 3), SortOrder: int8(i % 5)}}
 		if shape {
-			sprite.Drawable = render.CircleShape{Radii: geom.Vector2{X: 16, Y: 16}}
+			sprite.Drawable = spr.CircleShape{Radii: geom.Vector2{X: 16, Y: 16}}
 		} else {
-			sprite.Drawable = render.TextureSource{Texture: "tex.png"}
+			sprite.Drawable = spr.TextureSource{Texture: "tex.png"}
 		}
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: x, Y: y}},

@@ -22,6 +22,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 const (
@@ -112,16 +113,16 @@ func run() error {
 		for y := 0; y <= levelH; y += gridStep {
 			if _, err := g.World().NewEntity(
 				core.Transform{Position: geom.Vector2{X: float64(x), Y: float64(y)}},
-				render.Sprite{
-					Drawable: render.CircleShape{Radii: geom.Vector2{X: dotRadius, Y: dotRadius}},
-					Style:    render.SpriteStyle{Color: dotColor, SortOrder: -1},
+				sprite.Sprite{
+					Drawable: sprite.CircleShape{Radii: geom.Vector2{X: dotRadius, Y: dotRadius}},
+					Style:    sprite.Style{Color: dotColor, SortOrder: -1},
 				},
 			); err != nil {
 				return err
 			}
 		}
 	}
-	edges := []render.LineShape{
+	edges := []sprite.LineShape{
 		{From: geom.Vector2{}, To: geom.Vector2{X: levelW}}, // top
 		{From: geom.Vector2{}, To: geom.Vector2{X: levelW}}, // bottom
 		{From: geom.Vector2{}, To: geom.Vector2{Y: levelH}}, // left
@@ -132,9 +133,9 @@ func run() error {
 	} {
 		if _, err := g.World().NewEntity(
 			core.Transform{Position: pos},
-			render.Sprite{
+			sprite.Sprite{
 				Drawable: edges[i],
-				Style:    render.SpriteStyle{Outline: true, StrokeWidth: edgeWidth, Color: edgeColor},
+				Style:    sprite.Style{Outline: true, StrokeWidth: edgeWidth, Color: edgeColor},
 			},
 		); err != nil {
 			return err
@@ -143,7 +144,7 @@ func run() error {
 
 	// The HUD contains a static controls line and a live state line.
 	if _, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.TextSource{
+		sprite.Sprite{Drawable: sprite.TextSource{
 			Font: goFont, Text: "arrows: pan  A/D: rotate  W/S: zoom", Size: 22,
 		}},
 		core.Transform{Position: geom.Vector2{X: center.X, Y: controlsY}, Scale: geom.Vector2{X: 1, Y: 1}},
@@ -151,7 +152,7 @@ func run() error {
 		return err
 	}
 	state, err := g.World().NewEntity(
-		render.Sprite{Drawable: render.TextSource{
+		sprite.Sprite{Drawable: sprite.TextSource{
 			Font: goFont, Text: "0 degrees, 1.00x", Size: 28,
 		}},
 		core.Transform{Position: geom.Vector2{X: center.X, Y: stateY}, Scale: geom.Vector2{X: 1, Y: 1}},
@@ -214,8 +215,8 @@ func run() error {
 	// uses to resolve the view.
 	if err := g.AddSystem(core.PhaseFrame, "camera.hud", core.SystemFunc(func(ctx *core.Context) error {
 		transform, _ := camera.Component[core.Transform](ctx.World)
-		return state.Update(ctx.World, func(s *render.Sprite) {
-			s.Drawable = render.TextSource{
+		return state.Update(ctx.World, func(s *sprite.Sprite) {
+			s.Drawable = sprite.TextSource{
 				Font: goFont,
 				Text: fmt.Sprintf("%.0f degrees, %.2fx",
 					transform.Rotation*180/math.Pi, transform.Scale.X),

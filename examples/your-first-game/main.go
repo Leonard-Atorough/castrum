@@ -29,6 +29,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 // This example embeds its assets; the tutorial loads them from a downloaded
@@ -163,9 +164,9 @@ func run() error {
 	// A fixed landmark makes the camera's movement visible as the tank drives.
 	if _, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
-		render.Sprite{
-			Drawable: render.RectShape{Size: geom.Vector2{X: TileSize, Y: TileSize}},
-			Style:    render.SpriteStyle{Color: tileColor, SortOrder: -1},
+		sprite.Sprite{
+			Drawable: sprite.RectShape{Size: geom.Vector2{X: TileSize, Y: TileSize}},
+			Style:    sprite.Style{Color: tileColor, SortOrder: -1},
 		},
 	); err != nil {
 		return err
@@ -181,7 +182,7 @@ func run() error {
 	playerCollider.Mask = collision.Mask(enemyLayer)
 	hull, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
-		render.Sprite{Drawable: render.TextureSource{Texture: AssetHull}},
+		sprite.Sprite{Drawable: sprite.TextureSource{Texture: AssetHull}},
 		playerCollider,
 	)
 	if err != nil {
@@ -192,7 +193,7 @@ func run() error {
 	// Start it paused: a stopped timer means the gun is ready to fire.
 	turret, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
-		render.Sprite{Drawable: render.TextureSource{Texture: AssetTurret}, Style: render.SpriteStyle{Layer: 1}},
+		sprite.Sprite{Drawable: sprite.TextureSource{Texture: AssetTurret}, Style: sprite.Style{Layer: 1}},
 		gametime.NewTimer(FireCooldown, false),
 	)
 	if err != nil {
@@ -220,7 +221,7 @@ func run() error {
 	// the gun is ready.
 	cooldown, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos.Add(geom.Vector2{X: 0, Y: 72}), Scale: geom.Vector2{X: 1, Y: 1}},
-		render.Sprite{Drawable: render.TextSource{Font: AssetFont, Text: "", Size: 18}},
+		sprite.Sprite{Drawable: sprite.TextSource{Font: AssetFont, Text: "", Size: 18}},
 	)
 	if err != nil {
 		return err
@@ -230,7 +231,7 @@ func run() error {
 	// the game world.
 	banner, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
-		render.Sprite{Style: render.SpriteStyle{Hidden: true, Layer: 10}},
+		sprite.Sprite{Style: sprite.Style{Hidden: true, Layer: 10}},
 	)
 	if err != nil {
 		return err
@@ -270,7 +271,7 @@ func run() error {
 	// camera's top-left as it follows the tank.
 	scoreHUD, err := g.World().NewEntity(
 		core.Transform{},
-		render.Sprite{Drawable: render.TextSource{Font: AssetFont, Text: "", Size: 20}},
+		sprite.Sprite{Drawable: sprite.TextSource{Font: AssetFont, Text: "", Size: 20}},
 	)
 	if err != nil {
 		return err
@@ -379,8 +380,8 @@ func scoreSystem(hud, camera, stats *core.Entity) core.System {
 		}); err != nil {
 			return err
 		}
-		return hud.Update(ctx.World, func(s *render.Sprite) {
-			s.Drawable = render.TextSource{
+		return hud.Update(ctx.World, func(s *sprite.Sprite) {
+			s.Drawable = sprite.TextSource{
 				Font: AssetFont,
 				Text: fmt.Sprintf("score %d / %d", run.Score, WinScore),
 				Size: 20,
@@ -442,9 +443,9 @@ func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (*core.En
 	collider.Mask = collision.Mask(enemyLayer)
 	return world.NewEntity(
 		core.Transform{Position: at, Rotation: rotation, Scale: geom.Vector2{X: 1, Y: 1}},
-		render.Sprite{
-			Drawable: render.CircleShape{Radii: geom.Vector2{X: BulletRadius, Y: BulletRadius}},
-			Style:    render.SpriteStyle{Color: bulletColor},
+		sprite.Sprite{
+			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: BulletRadius, Y: BulletRadius}},
+			Style:    sprite.Style{Color: bulletColor},
 		},
 		collider,
 		bullet{},
@@ -565,7 +566,7 @@ func spawnEnemy(world *core.World, at geom.Vector2) (*core.Entity, error) {
 	collider.Mask = collision.Mask(bulletLayer, playerLayer)
 	return world.NewEntity(
 		core.Transform{Position: at, Scale: geom.Vector2{X: 1, Y: 1}},
-		render.Sprite{Drawable: render.TextureSource{Texture: AssetEnemy}},
+		sprite.Sprite{Drawable: sprite.TextureSource{Texture: AssetEnemy}},
 		collider,
 		enemy{},
 	)
@@ -612,7 +613,7 @@ func resultSystem(banner, hull, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		run, _ := stats.Component[game](ctx.World)
 		if !run.Won && !run.Lost {
-			return banner.Update(ctx.World, func(s *render.Sprite) { s.Style.Hidden = true })
+			return banner.Update(ctx.World, func(s *sprite.Sprite) { s.Style.Hidden = true })
 		}
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		if err := banner.Update(ctx.World, func(t *core.Transform) {
@@ -624,9 +625,9 @@ func resultSystem(banner, hull, stats *core.Entity) core.System {
 		if run.Won {
 			text = "YOU WIN"
 		}
-		return banner.Update(ctx.World, func(s *render.Sprite) {
+		return banner.Update(ctx.World, func(s *sprite.Sprite) {
 			s.Style.Hidden = false
-			s.Drawable = render.TextSource{Font: AssetFont, Text: text, Size: 48}
+			s.Drawable = sprite.TextSource{Font: AssetFont, Text: text, Size: 48}
 		})
 	})
 }
@@ -636,7 +637,7 @@ func resultSystem(banner, hull, stats *core.Entity) core.System {
 func reloadReadoutSystem(readout, turret, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if over(stats, ctx) {
-			return readout.Update(ctx.World, func(s *render.Sprite) { s.Style.Hidden = true })
+			return readout.Update(ctx.World, func(s *sprite.Sprite) { s.Style.Hidden = true })
 		}
 		gun, _ := turret.Component[gametime.Timer](ctx.World)
 		turretTransform, _ := turret.Component[core.Transform](ctx.World)
@@ -645,10 +646,10 @@ func reloadReadoutSystem(readout, turret, stats *core.Entity) core.System {
 		}); err != nil {
 			return err
 		}
-		return readout.Update(ctx.World, func(s *render.Sprite) {
+		return readout.Update(ctx.World, func(s *sprite.Sprite) {
 			if gun.Running {
 				s.Style.Hidden = false
-				s.Drawable = render.TextSource{
+				s.Drawable = sprite.TextSource{
 					Font: AssetFont,
 					Text: fmt.Sprintf("reloading %.1fs", (gun.Duration - gun.Elapsed).Seconds()),
 					Size: 18,

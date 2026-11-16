@@ -15,7 +15,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
-	"github.com/Leonard-Atorough/castrum/render"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 )
 
 func newGame(directory *asset.Directory) (*castrum.Game, *editor, error) {
@@ -46,7 +46,7 @@ func newGame(directory *asset.Directory) (*castrum.Game, *editor, error) {
 	for line := range labels {
 		label, err := g.World().NewEntity(
 			core.Transform{Position: geom.Vector2{X: 560, Y: float64(80 + line*70)}},
-			render.Sprite{Drawable: render.TextSource{Font: builtin.Font, Size: 20}},
+			spr.Sprite{Drawable: spr.TextSource{Font: builtin.Font, Size: 20}},
 		)
 		if err != nil {
 			return nil, nil, err
@@ -67,8 +67,8 @@ func newGame(directory *asset.Directory) (*castrum.Game, *editor, error) {
 			e.notice,
 		}
 		for i, label := range labels {
-			if err := label.Update(ctx.World, func(sprite *render.Sprite) {
-				sprite.Drawable = render.TextSource{Font: builtin.Font, Text: lines[i], Size: 20}
+			if err := label.Update(ctx.World, func(sprite *spr.Sprite) {
+				sprite.Drawable = spr.TextSource{Font: builtin.Font, Text: lines[i], Size: 20}
 			}); err != nil {
 				return err
 			}

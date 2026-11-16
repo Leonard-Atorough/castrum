@@ -6,7 +6,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
-	"github.com/Leonard-Atorough/castrum/render"
+	spr "github.com/Leonard-Atorough/castrum/sprite"
 )
 
 // benchSizes are the population sizes the go-ecs-benchmark suite
@@ -35,7 +35,7 @@ func BenchmarkSpawnEntityThreeComponents(b *testing.B) {
 	for b.Loop() {
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: 1, Y: 2}},
-			render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 4, Y: 4}}},
+			spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 4, Y: 4}}},
 			benchTag{},
 		); err != nil {
 			b.Fatal(err)
@@ -122,10 +122,10 @@ func BenchmarkComponentAddRemove(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		if err := e.AddComponent(world, render.Sprite{}); err != nil {
+		if err := e.AddComponent(world, spr.Sprite{}); err != nil {
 			b.Fatal(err)
 		}
-		if err := e.RemoveComponent[render.Sprite](world); err != nil {
+		if err := e.RemoveComponent[spr.Sprite](world); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -162,12 +162,12 @@ func BenchmarkQuery2(b *testing.B) {
 			for range n {
 				if _, err := world.NewEntity(
 					core.Transform{},
-					render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}},
+					spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}},
 				); err != nil {
 					b.Fatal(err)
 				}
 			}
-			query := core.NewQuery(world).With(core.Transform{}, render.Sprite{})
+			query := core.NewQuery(world).With(core.Transform{}, spr.Sprite{})
 			b.ReportAllocs()
 			b.ResetTimer()
 			for range b.N {
@@ -189,13 +189,13 @@ func BenchmarkQuery3(b *testing.B) {
 			for range n {
 				if _, err := world.NewEntity(
 					core.Transform{},
-					render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}},
+					spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}},
 					benchTag{},
 				); err != nil {
 					b.Fatal(err)
 				}
 			}
-			query := core.NewQuery(world).With(core.Transform{}, render.Sprite{}, benchTag{})
+			query := core.NewQuery(world).With(core.Transform{}, spr.Sprite{}, benchTag{})
 			b.ReportAllocs()
 			b.ResetTimer()
 			for range b.N {
@@ -213,9 +213,9 @@ func BenchmarkQuery3(b *testing.B) {
 func BenchmarkQueryWhere(b *testing.B) {
 	world := core.NewWorld()
 	for i := range 1000 {
-		sprite := render.Sprite{}
+		sprite := spr.Sprite{}
 		if i%2 == 0 {
-			sprite.Drawable = render.CircleShape{Radii: geom.Vector2{X: 1, Y: 1}}
+			sprite.Drawable = spr.CircleShape{Radii: geom.Vector2{X: 1, Y: 1}}
 		}
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: 1, Y: 1}},
@@ -224,8 +224,8 @@ func BenchmarkQueryWhere(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-	query := core.NewQuery(world).With(core.Transform{}, render.Sprite{}).Where(func(e core.Entry) bool {
-		s, _ := e.Component[render.Sprite]()
+	query := core.NewQuery(world).With(core.Transform{}, spr.Sprite{}).Where(func(e core.Entry) bool {
+		s, _ := e.Component[spr.Sprite]()
 		return s.Drawable != nil
 	})
 	matched := 0
@@ -250,14 +250,14 @@ func BenchmarkQueryWhere(b *testing.B) {
 func BenchmarkQueryConstruct(b *testing.B) {
 	world := core.NewWorld()
 	for range 1000 {
-		if _, err := world.NewEntity(core.Transform{}, render.Sprite{}); err != nil {
+		if _, err := world.NewEntity(core.Transform{}, spr.Sprite{}); err != nil {
 			b.Fatal(err)
 		}
 	}
 	b.ReportAllocs()
 
 	for b.Loop() {
-		query := core.NewQuery(world).With(core.Transform{}, render.Sprite{})
+		query := core.NewQuery(world).With(core.Transform{}, spr.Sprite{})
 		for e := range query.Execute() {
 			sinkEnt = e.ID()
 		}
