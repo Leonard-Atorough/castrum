@@ -1277,6 +1277,35 @@ func TestCollectSkipsCliplessAnimatedSprite(t *testing.T) {
 	}
 }
 
+func TestCollectDrawsPausedAnimatedSpriteFrameZero(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+
+	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"player", "enemy"}, 10)
+	if err != nil {
+		t.Fatalf("clip: %v", err)
+	}
+	paused, err := animation.NewAnimatedSprite(clip)
+	if err != nil {
+		t.Fatalf("animated sprite: %v", err)
+	}
+	paused.Paused = true
+	if _, err := w.NewEntity(
+		paused,
+		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
+	); err != nil {
+		t.Fatalf("spawn paused animated sprite: %v", err)
+	}
+
+	list := collect(t, NewCollector(w), drawContext(w, 0))
+	if len(list.Items) != 1 {
+		t.Fatalf("Items = %d, want 1", len(list.Items))
+	}
+	if list.Items[0].Texture != "tex.png" || list.Items[0].Rect != (image.Rect(0, 0, 2, 2)) {
+		t.Errorf("texture/rect = %q/%v, want frame zero drawn while paused", list.Items[0].Texture, list.Items[0].Rect)
+	}
+}
+
 func TestCollectRejectsSpriteAndAnimatedSpriteConflict(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
