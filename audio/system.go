@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -82,7 +83,7 @@ type Controller interface {
 	Sync(entityID core.EntityID, source asset.ID, want Playback) (live bool, err error)
 	// Sweep releases players for entities not passed to Sync since the
 	// previous sweep. The audio system calls it after each reconciliation
-	// pass that reports no error.
+	// pass in which all players were synced, including spatial-error passes.
 	Sweep() error
 }
 
@@ -191,11 +192,8 @@ func (s *system) Update(ctx *core.Context) error {
 		}
 	}
 
-	if spatialErr != nil {
-		return spatialErr
-	}
 	if err := s.controller.Sweep(); err != nil {
-		return fmt.Errorf("audio: sweep: %w", err)
+		return errors.Join(spatialErr, fmt.Errorf("audio: sweep: %w", err))
 	}
-	return nil
+	return spatialErr
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/signal"
 )
 
@@ -20,6 +21,7 @@ type fakeController struct {
 	live         bool
 	liveByEntity map[core.EntityID]bool
 	err          error
+	sweepErr     error
 	sweeps       int
 }
 
@@ -40,7 +42,7 @@ func (f *fakeController) setLive(id core.EntityID, live bool) {
 
 func (f *fakeController) Sweep() error {
 	f.sweeps++
-	return nil
+	return f.sweepErr
 }
 
 type harness struct {
@@ -200,6 +202,15 @@ func TestPlayerTrackEdits(t *testing.T) {
 	if err := player.Seek(1); err != nil {
 		t.Fatal(err)
 	}
+	if err := player.Append(""); err == nil {
+		t.Fatal("append accepted empty track")
+	}
+	if err := player.Insert(0, ""); err == nil {
+		t.Fatal("insert accepted empty track")
+	}
+	if player.Source().Len() != 3 || player.Current() != "b" || player.Index() != 1 {
+		t.Fatalf("invalid track edits changed selection or source: %+v", player)
+	}
 	if err := player.Insert(0, "x"); err != nil {
 		t.Fatal(err)
 	}
@@ -241,8 +252,12 @@ func TestPlayerAppendDoesNotChangeOtherPlayers(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := first
-	first.Append("first")
-	second.Append("second")
+	if err := first.Append("first"); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.Append("second"); err != nil {
+		t.Fatal(err)
+	}
 	if first.Source().At(2) != "first" || second.Source().At(2) != "second" {
 		t.Fatal("appending to one player changed another player's source")
 	}
@@ -264,12 +279,26 @@ func TestMixerVolumeClampingAndNaN(t *testing.T) {
 	}
 }
 
-func TestOneShotRejectsLooping(t *testing.T) {
+func TestOneShotValidation(t *testing.T) {
 	for _, mode := range []LoopMode{LoopTrack, LoopAll} {
 		settings := DefaultSettings()
 		settings.Loop = mode
 		if _, err := OneShot(core.NewWorld(), Track("sound"), settings); err == nil {
 			t.Errorf("OneShot accepted loop mode %v", mode)
 		}
+	}
+	world := core.NewWorld()
+	settings := Settings{Volume: 1, Spatial: true}
+	if entity, err := OneShot(world, Track("sound"), settings); err == nil || entity != nil {
+		t.Fatalf("OneShot() = %v, %v; want spatial error", entity, err)
+	}
+	pos := geom.Vector2{X: 25, Y: 40}
+	entity, err := OneShotAt(world, Track("sound"), settings, pos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transform, ok := entity.Component[core.Transform](world)
+	if !ok || transform.Position != pos {
+		t.Fatalf("transform = %+v, exists = %t", transform, ok)
 	}
 }

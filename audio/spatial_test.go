@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -170,6 +171,7 @@ func TestSpatialErrorKeepsHealthyPlaysSynced(t *testing.T) {
 	*h.listener = Listener{Enabled: true, Mode: FixedPosition, Range: 100}
 	broken := h.spawn(Track("sfx/broken.wav"), Settings{Volume: 1, Spatial: true})
 	healthy := h.spawn(Track("sfx/healthy.wav"), Settings{Volume: 1, Spatial: true})
+	removed := h.spawn(Track("sfx/removed.wav"), DefaultSettings())
 	if err := healthy.AddComponent(h.world, core.Transform{Position: geom.Vector2{X: 50}}); err != nil {
 		t.Fatal(err)
 	}
@@ -188,10 +190,23 @@ func TestSpatialErrorKeepsHealthyPlaysSynced(t *testing.T) {
 	if got := h.lastSync(broken.ID()).want; got.Playing || got.Restart {
 		t.Fatalf("broken playback = %+v, want a hold without restart", got)
 	}
-	if h.controller.sweeps != 0 {
-		t.Fatalf("sweeps = %d, want none during an incomplete pass", h.controller.sweeps)
+	if h.controller.sweeps != 1 {
+		t.Fatalf("sweeps = %d, want one after a fully synced pass", h.controller.sweeps)
 	}
 
+	if err := h.world.DestroyEntity(removed); err != nil {
+		t.Fatal(err)
+	}
+	sweepErr := errors.New("sweep failed")
+	h.controller.sweepErr = sweepErr
+	err = h.step()
+	if err == nil || !strings.Contains(err.Error(), "requires a Transform") || !errors.Is(err, sweepErr) {
+		t.Fatalf("Update() = %v, want spatial and sweep errors", err)
+	}
+	if h.controller.sweeps != 2 || len(h.controller.syncs)-h.syncStart != 2 {
+		t.Fatal("removed player was synced or error pass did not sweep")
+	}
+	h.controller.sweepErr = nil
 	if err := broken.AddComponent(h.world, core.Transform{}); err != nil {
 		t.Fatal(err)
 	}
@@ -202,8 +217,8 @@ func TestSpatialErrorKeepsHealthyPlaysSynced(t *testing.T) {
 	if got := h.lastSync(broken.ID()).want; !got.Playing || !got.Restart {
 		t.Fatalf("broken playback = %+v, want a first sync after recovery", got)
 	}
-	if h.controller.sweeps != 1 {
-		t.Fatalf("sweeps = %d, want one after recovery", h.controller.sweeps)
+	if h.controller.sweeps != 3 {
+		t.Fatalf("sweeps = %d, want three after recovery", h.controller.sweeps)
 	}
 }
 
@@ -262,8 +277,8 @@ func TestAttenuationEndpointsRevalidated(t *testing.T) {
 	if got := h.lastSync(entity.ID()).want; got.Playing || got.Restart {
 		t.Fatalf("invalid curve playback = %+v, want a hold without restart", got)
 	}
-	if h.controller.sweeps != 1 {
-		t.Fatalf("sweeps = %d, want none during an incomplete pass", h.controller.sweeps)
+	if h.controller.sweeps != 2 {
+		t.Fatalf("sweeps = %d, want one per fully synced pass", h.controller.sweeps)
 	}
 }
 

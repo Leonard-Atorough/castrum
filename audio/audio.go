@@ -99,11 +99,13 @@ type Settings struct {
 	Group Group
 	// Volume is the finite per-player volume in (0, 1].
 	Volume float64
-	// Loop selects how the player advances and repeats tracks.
+	// Loop selects how the player advances and repeats tracks. The ebitrun
+	// runner restarts the current track when its track-repeat setting changes.
 	Loop LoopMode
 	// Pause selects how the player responds to a mixer-wide pause.
 	Pause PauseMode
-	// Load selects eager decoding or streaming.
+	// Load selects eager decoding or streaming. The ebitrun runner restarts
+	// the current track when this changes.
 	Load LoadMode
 	// PlaybackMultiplier is the finite non-negative playback rate; zero means
 	// normal speed. A runner may reject unsupported rates.
@@ -259,16 +261,25 @@ func (p *Player) SetSource(src Source) error {
 	return nil
 }
 
-// Append adds a track after the existing sequence.
-func (p *Player) Append(id asset.ID) {
+// Append adds a track after the existing sequence. It returns an error
+// without changing the player if id is empty.
+func (p *Player) Append(id asset.ID) error {
+	if id == "" {
+		return fmt.Errorf("audio: track is empty")
+	}
 	p.source.tracks = append(slices.Clone(p.source.tracks), id)
+	return nil
 }
 
 // Insert adds a track at i, preserving the current selection. It returns an
-// error if i is negative or greater than the source length.
+// error without changing the player if id is empty or i is negative or greater
+// than the source length.
 func (p *Player) Insert(i int, id asset.ID) error {
 	if i < 0 || i > len(p.source.tracks) {
 		return fmt.Errorf("audio: index out of range")
+	}
+	if id == "" {
+		return fmt.Errorf("audio: track is empty")
 	}
 	if len(p.source.tracks) > 0 && i <= p.current {
 		p.current++
@@ -391,13 +402,18 @@ type oneshot struct {
 
 // OneShot creates a temporary entity for a non-looping play. The audio system
 // destroys the entity when the sequence finishes. It returns an error if the
-// source or settings is invalid or settings requests looping.
+// source or settings is invalid or settings requests looping or spatial
+// playback. Use [OneShotAt] for spatial playback.
 func OneShot(world *core.World, src Source, s Settings) (*core.Entity, error) {
+	if s.Spatial {
+		return nil, fmt.Errorf("audio: spatial one-shot requires OneShotAt")
+	}
 	return oneShot(world, src, s, geom.Vector2{})
 }
 
-// OneShotAt starts a [OneShot] at pos. Set [Settings.Spatial] to enable
-// listener-relative playback.
+// OneShotAt creates a temporary entity at pos. Set [Settings.Spatial] to enable
+// listener-relative playback. It returns an error if the source or settings is
+// invalid or settings requests looping.
 func OneShotAt(world *core.World, src Source, s Settings, pos geom.Vector2) (*core.Entity, error) {
 	return oneShot(world, src, s, pos)
 }
