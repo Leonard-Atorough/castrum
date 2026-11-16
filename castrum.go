@@ -100,9 +100,6 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide asset codecs: %w", err)
 	}
 
-	// Blueprint registry: engine packages register their persistent state.
-	// The call site never changes when types are added - the owning
-	// package's registration file does.
 	reg := blueprint.NewRegistry(g.world)
 	if err := gametime.RegisterBlueprints(reg); err != nil {
 		return nil, fmt.Errorf("castrum: engine blueprints: %w", err)
