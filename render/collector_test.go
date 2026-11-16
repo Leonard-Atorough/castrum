@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/image/font/gofont/goregular"
 
+	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
@@ -1206,5 +1207,130 @@ func TestCollectFailurePublishesNoView(t *testing.T) {
 	}
 	if _, err := broken.Resource[*CameraView](); !errors.Is(err, core.ErrResourceNotRegistered) {
 		t.Errorf("failed first Collect registered a view: %v, want ErrResourceNotRegistered", err)
+	}
+}
+
+func TestCollectGathersAnimatedSprites(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+
+	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"player", "enemy"}, 10)
+	if err != nil {
+		t.Fatalf("clip: %v", err)
+	}
+	animated, err := animation.NewAnimatedSprite(clip)
+	if err != nil {
+		t.Fatalf("animated sprite: %v", err)
+	}
+	animated.Style.FlipH = true
+	animated.Style.Color = color.NRGBA{R: 255, A: 255}
+	if _, err := w.NewEntity(
+		animated,
+		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
+	); err != nil {
+		t.Fatalf("spawn animated sprite: %v", err)
+	}
+
+	// Hidden animated sprites stay excluded, like hidden sprites.
+	hidden, err := animation.NewAnimatedSprite(clip)
+	if err != nil {
+		t.Fatalf("hidden animated sprite: %v", err)
+	}
+	hidden.Style.Hidden = true
+	if _, err := w.NewEntity(
+		hidden,
+		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
+	); err != nil {
+		t.Fatalf("spawn hidden animated sprite: %v", err)
+	}
+
+	list := collect(t, NewCollector(w), drawContext(w, 0))
+	if len(list.Items) != 1 {
+		t.Fatalf("Items = %d, want 1 (current frame plus a hidden sprite)", len(list.Items))
+	}
+	item := list.Items[0]
+	if item.Texture != "tex.png" || item.Rect != (image.Rect(0, 0, 2, 2)) {
+		t.Errorf("texture/rect = %q/%v, want tex.png frame zero of the player region", item.Texture, item.Rect)
+	}
+	if !item.FlipH || item.Color != color.Color(color.NRGBA{R: 255, A: 255}) {
+		t.Errorf("flip/color = %v/%v, want the animated sprite's own style", item.FlipH, item.Color)
+	}
+}
+
+func TestCollectSkipsCliplessAnimatedSprite(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+
+	if _, err := w.NewEntity(
+		animation.AnimatedSprite{},
+		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
+	); err != nil {
+		t.Fatalf("spawn clipless animated sprite: %v", err)
+	}
+
+	list, err := NewCollector(w).Collect(drawContext(w, 0))
+	if err != nil {
+		t.Fatalf("Collect = %v, want no error for a clipless sprite", err)
+	}
+	if len(list.Items) != 0 {
+		t.Fatalf("Items = %d, want 0", len(list.Items))
+	}
+}
+
+func TestCollectRejectsSpriteAndAnimatedSpriteConflict(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+
+	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"player"}, 10)
+	if err != nil {
+		t.Fatalf("clip: %v", err)
+	}
+	animated, err := animation.NewAnimatedSprite(clip)
+	if err != nil {
+		t.Fatalf("animated sprite: %v", err)
+	}
+	if _, err := w.NewEntity(
+		animated,
+		spr.Sprite{Drawable: spr.SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}},
+		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
+	); err != nil {
+		t.Fatalf("spawn conflicting components: %v", err)
+	}
+
+	_, err = NewCollector(w).Collect(drawContext(w, 0))
+	if err == nil || !strings.Contains(err.Error(), "sprite.Sprite") || !strings.Contains(err.Error(), "animation.AnimatedSprite") {
+		t.Fatalf("Collect error = %v, want a conflict naming both components", err)
+	}
+}
+
+func TestCollectSurfacesInvalidAnimatedSpriteConfig(t *testing.T) {
+	w := newCollectorWorld(t)
+	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+
+	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"player", "enemy"}, 10)
+	if err != nil {
+		t.Fatalf("clip: %v", err)
+	}
+	animated, err := animation.NewAnimatedSprite(clip)
+	if err != nil {
+		t.Fatalf("animated sprite: %v", err)
+	}
+	if _, err := w.NewEntity(
+		animated,
+		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
+	); err != nil {
+		t.Fatalf("spawn animated sprite: %v", err)
+	}
+
+	// The write path a system uses: read through the entry, mutate, write
+	// back. Entry.SetComponent skips component validation.
+	for e := range core.NewQuery(w).With(animation.AnimatedSprite{}).Execute() {
+		a, _ := e.Component[animation.AnimatedSprite]()
+		a.PlaybackMultiplier = -1
+		e.SetComponent(a)
+	}
+	_, err = NewCollector(w).Collect(drawContext(w, 0))
+	if err == nil || !strings.Contains(err.Error(), "playback multiplier") {
+		t.Fatalf("Collect error = %v, want the invalid playback multiplier surfaced", err)
 	}
 }
