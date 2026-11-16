@@ -10,7 +10,6 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/builtin"
@@ -208,9 +207,6 @@ func TestNewProvidesResources(t *testing.T) {
 	}
 	if loader, err := g.World().Resource[*asset.Loader](); err != nil || loader == nil {
 		t.Errorf("asset loader = %v, error %v", loader, err)
-	}
-	if store, err := g.World().Resource[*animation.ClipStore](); err != nil || store == nil {
-		t.Errorf("clip store = %v, error %v", store, err)
 	}
 	if mixer, err := g.World().Resource[*audio.Mixer](); err != nil || mixer == nil {
 		t.Errorf("audio mixer = %v, error %v", mixer, err)

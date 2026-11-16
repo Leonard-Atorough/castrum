@@ -12,7 +12,6 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/input"
-	spr "github.com/Leonard-Atorough/castrum/sprite"
 )
 
 func TestAuthoredSheetMatchesShippedDocument(t *testing.T) {
@@ -89,25 +88,32 @@ func TestAnimationControlsAndCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entry, ok := core.NewQuery(g.World()).With(animation.Animation{}, spr.Sprite{}).First()
+	entry, ok := core.NewQuery(g.World()).With(animation.AnimatedSprite{}).First()
 	if !ok {
 		t.Fatal("setup did not spawn an animated sprite")
 	}
 	torch := core.NewEntity(entry.ID())
-	sprite, _ := torch.Component[spr.Sprite](g.World())
-	if sprite.Drawable != (spr.SheetSource{Sheet: asset.FileSheet(sheetPath), Region: "torch_light_0"}) {
-		t.Fatalf("initial drawable=%+v, want file-backed first frame", sprite.Drawable)
-	}
-	if err := g.Startup(); err != nil {
-		t.Fatal(err)
-	}
-	read := func() animation.Animation {
+	read := func() animation.AnimatedSprite {
 		t.Helper()
-		value, ok := torch.Component[animation.Animation](g.World())
+		value, ok := torch.Component[animation.AnimatedSprite](g.World())
 		if !ok {
 			t.Fatal("animated sprite lost its playback component")
 		}
 		return value
+	}
+	regionOf := func(value animation.AnimatedSprite) string {
+		t.Helper()
+		frame, ok, err := value.CurrentFrame()
+		if err != nil || !ok {
+			t.Fatalf("CurrentFrame = %v, %v, %v", frame, ok, err)
+		}
+		return string(frame.Region)
+	}
+	if got := regionOf(read()); got != "torch_light_0" {
+		t.Fatalf("initial frame=%s, want the file-backed first frame", got)
+	}
+	if err := g.Startup(); err != nil {
+		t.Fatal(err)
 	}
 	tick := func(count int) {
 		t.Helper()
@@ -128,53 +134,52 @@ func TestAnimationControlsAndCompletion(t *testing.T) {
 		}
 	}
 	tick(12)
-	before := read()
-	if before.Current == 0 {
+	before := regionOf(read())
+	if before == "torch_light_0" {
 		t.Fatal("looping animation did not advance")
 	}
 	press(input.KeySpace)
 	tick(12)
 	paused := read()
-	if !paused.Paused || paused.Current != before.Current || paused.Elapsed != before.Elapsed {
-		t.Fatalf("pause changed the playhead: before=%+v after=%+v", before, paused)
+	if !paused.Paused || regionOf(paused) != before {
+		t.Fatalf("pause changed the playhead: before=%s after=%s", before, regionOf(paused))
 	}
 	press(input.KeySpace)
 	tick(12)
-	if got := read(); got.Paused || got.Current == paused.Current {
-		t.Fatalf("resume did not advance playback: %+v", got)
+	resumed := read()
+	if resumed.Paused || regionOf(resumed) == before {
+		t.Fatalf("resume did not advance playback: %s", regionOf(resumed))
 	}
 
 	press(input.Key1)
-	if got := read(); got.Loop != animation.LoopNone || got.Current != 0 || got.Paused {
-		t.Fatalf("play-once control did not restart: %+v", got)
+	if got := read(); got.Loop != animation.LoopNone || got.Paused || regionOf(got) != "torch_light_0" {
+		t.Fatalf("play-once control did not restart: frame=%s", regionOf(got))
 	}
 	for count := 0; count < 60 && !read().HasCompleted(); count++ {
 		tick(1)
 	}
 	completed := read()
-	if !completed.HasCompleted() || !completed.JustCompleted(g.Context().Tick) || !completed.Paused || completed.Current != 5 {
-		t.Fatalf("one-shot completion=%+v, want paused final frame and completion edge", completed)
+	if !completed.HasCompleted() || !completed.JustCompleted(g.Context().Tick) || !completed.Paused || regionOf(completed) != "torch_light_5" {
+		t.Fatalf("one-shot completion=%s, want paused final frame and completion edge", regionOf(completed))
 	}
 	panel := g.World().MustResource[*debug.Panel]()
 	if !slices.Contains(panel.Lines(), "finished - R restarts playback") {
 		t.Fatal("completion did not reach the example readout")
 	}
 	tick(12)
-	if got := read(); got.Current != completed.Current || got.CompletedOn != completed.CompletedOn {
-		t.Fatalf("completed animation did not hold: %+v", got)
-	}
-	sprite, _ = torch.Component[spr.Sprite](g.World())
-	if sprite.Drawable != (spr.SheetSource{Sheet: asset.FileSheet(sheetPath), Region: "torch_light_5"}) {
-		t.Fatalf("completed drawable=%+v, want file-backed final frame", sprite.Drawable)
+	held := read()
+	if regionOf(held) != "torch_light_5" || !held.Paused || !held.HasCompleted() {
+		t.Fatalf("completed animation did not hold: frame=%s", regionOf(held))
 	}
 	press(input.KeyR)
-	if got := read(); got.HasCompleted() || got.Paused || got.Current != 0 || got.Elapsed != 0 {
-		t.Fatalf("restart did not clear completion: %+v", got)
+	if got := read(); got.HasCompleted() || got.Paused || regionOf(got) != "torch_light_0" {
+		t.Fatalf("restart did not clear completion: frame=%s", regionOf(got))
 	}
 	press(input.Key2)
 	tick(60)
-	if got := read(); got.Loop != animation.LoopAll || got.Paused || got.HasCompleted() || got.CompletedOn == 0 {
-		t.Fatalf("loop mode did not wrap: %+v", got)
+	looped := read()
+	if looped.Loop != animation.LoopAll || looped.Paused || looped.HasCompleted() {
+		t.Fatalf("loop mode did not resume: frame=%s", regionOf(looped))
 	}
 	if !slices.Contains(panel.Lines(), "loop completed") {
 		t.Fatal("loop wrap did not reach the example readout")
