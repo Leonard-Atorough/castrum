@@ -314,7 +314,7 @@ const AssetMusic = "audio/arpmedia-retro-arcade-game-music-577821.mp3"
 music := audio.NewSource()
 music.Volume = 0.5
 music.Group = audio.GroupMusic
-music.Loop = audio.LoopForever
+music.Loop = audio.LoopAll
 music.Load = audio.LoadStream
 music.Pause = audio.PauseHolds
 if _, err := g.World().NewEntity(music, audio.Clip{Audio: AssetMusic}); err != nil {

@@ -43,10 +43,13 @@ func run() error {
 	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](audioassets.Magic); err != nil {
 		return err
 	}
-	music := audio.NewSource()
-	music.Load = audio.LoadStream
-	music.Loop = audio.LoopForever
-	entity, err := g.World().NewEntity(music, audio.Clip{Audio: audioassets.Music})
+	music, err := audio.NewPlayer(audio.Track(audioassets.Music), audio.Settings{
+		Volume: 1, Group: audio.GroupMusic, Load: audio.LoadStream, Loop: audio.LoopTrack,
+	})
+	if err != nil {
+		return err
+	}
+	entity, err := g.World().NewEntity(music)
 	if err != nil {
 		return err
 	}
@@ -62,7 +65,7 @@ func run() error {
 func playbackSystem(music *core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if ctx.Input.KeyPressed(input.KeySpace) {
-			if _, err := audio.OneShot(ctx.World, audio.NewSource(), audio.Clip{Audio: audioassets.Magic}); err != nil {
+			if _, err := audio.OneShot(ctx.World, audio.Track(audioassets.Magic), audio.DefaultSettings()); err != nil {
 				return err
 			}
 			panel.Message("OneShot playing")
@@ -70,7 +73,7 @@ func playbackSystem(music *core.Entity, panel *debug.Panel) core.System {
 		if !ctx.Input.KeyPressed(input.KeyP) && !ctx.Input.KeyPressed(input.KeyR) {
 			return nil
 		}
-		return music.Update(ctx.World, func(s *audio.Source) {
+		return music.Update(ctx.World, func(s *audio.Player) {
 			if ctx.Input.KeyPressed(input.KeyP) {
 				s.Paused = !s.Paused
 				panel.Message(fmt.Sprintf("music paused: %t", s.Paused))

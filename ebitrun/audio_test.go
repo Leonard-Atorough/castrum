@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,26 +19,17 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
-
+	"github.com/Leonard-Atorough/castrum/signal"
 	ebitaudio "github.com/hajimehoshi/ebiten/v2/audio"
 )
 
 func TestNewRegistersAudioCodecs(t *testing.T) {
-	r, err := New(mustGame(t))
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	loader, err := r.g.World().Resource[*asset.Loader]()
-	if err != nil {
-		t.Fatalf("asset loader: %v", err)
-	}
-	noop := func(r io.Reader) (asset.AudioData, error) {
-		return asset.AudioData{}, nil
-	}
+	r := mustRunner(t, mustGame(t))
+	loader := r.g.World().MustResource[*asset.Loader]()
+	noop := func(io.Reader) (asset.AudioData, error) { return asset.AudioData{}, nil }
 	for _, format := range []asset.Format{asset.FormatMP3, asset.FormatWAV, asset.FormatOGG} {
-		err := loader.RegisterDecoder(format, noop)
-		if err == nil || !strings.Contains(err.Error(), "already exists") {
-			t.Errorf("format %s: RegisterDecoder = %v, want already-exists error (codec not registered)", format, err)
+		if err := loader.RegisterDecoder(format, noop); err == nil || !strings.Contains(err.Error(), "already exists") {
+			t.Errorf("register %s: %v, want already-registered error", format, err)
 		}
 	}
 }
@@ -62,7 +54,7 @@ func TestRunnerAudioCodecsAreLoaderLocal(t *testing.T) {
 		t.Fatal(err)
 	}
 	if data.SampleRate != ebitaudio.CurrentContext().SampleRate() {
-		t.Fatalf("decoded rate = %d, want effective audio-context rate", data.SampleRate)
+		t.Fatalf("decoded rate = %d, want %d", data.SampleRate, ebitaudio.CurrentContext().SampleRate())
 	}
 	fresh, err := asset.NewLoader(nil, asset.LoaderOptions{Codecs: codecs})
 	if err != nil {
@@ -70,10 +62,10 @@ func TestRunnerAudioCodecsAreLoaderLocal(t *testing.T) {
 	}
 	for _, format := range []asset.Format{asset.FormatMP3, asset.FormatWAV, asset.FormatOGG} {
 		if _, err := standalone.LoadReader[asset.AudioData](bytes.NewReader(testWAV()), format); err == nil {
-			t.Fatalf("runner codec %q escaped into standalone loader", format)
+			t.Errorf("runner codec %q escaped into standalone loader", format)
 		}
 		if _, err := fresh.LoadReader[asset.AudioData](bytes.NewReader(testWAV()), format); err == nil {
-			t.Fatalf("runner codec %q escaped into configuration", format)
+			t.Errorf("runner codec %q escaped into configuration", format)
 		}
 	}
 }
@@ -90,12 +82,12 @@ func TestNewReportsAudioCodecConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := New(game); err == nil || !strings.Contains(err.Error(), "wav") {
-		t.Fatalf("audio codec conflict = %v, want explicit WAV error", err)
+		t.Fatalf("codec conflict = %v, want WAV error", err)
 	}
 	loader := game.World().MustResource[*asset.Loader]()
 	value, err := loader.LoadReader[asset.AudioData](bytes.NewReader(nil), asset.FormatWAV)
 	if err != nil || value.SampleRate != 123 {
-		t.Fatalf("runner replaced custom codec: %+v, %v", value, err)
+		t.Fatalf("custom decoder = %+v, %v", value, err)
 	}
 	if game.World().MustResource[*audio.Backend]().Controller() != nil {
 		t.Fatal("failed runner attached an audio controller")
@@ -106,16 +98,18 @@ func TestNewReportsAudioCodecConflict(t *testing.T) {
 }
 
 func testWAV() []byte {
-	const sampleRate = 44100
-	pcm := make([]byte, 64*4) // 64 stereo frames, 16-bit
+	sampleRate := 44100
+	if ctx := ebitaudio.CurrentContext(); ctx != nil {
+		sampleRate = ctx.SampleRate()
+	}
+	pcm := make([]byte, 64*4)
 	for i := range pcm {
 		pcm[i] = byte(i)
 	}
 	var buf bytes.Buffer
 	buf.WriteString("RIFF")
 	binary.Write(&buf, binary.LittleEndian, uint32(36+len(pcm)))
-	buf.WriteString("WAVE")
-	buf.WriteString("fmt ")
+	buf.WriteString("WAVEfmt ")
 	binary.Write(&buf, binary.LittleEndian, uint32(16))
 	binary.Write(&buf, binary.LittleEndian, uint16(1))
 	binary.Write(&buf, binary.LittleEndian, uint16(2))
@@ -129,816 +123,520 @@ func testWAV() []byte {
 	return buf.Bytes()
 }
 
-func newStreamTestProvider(t *testing.T) (*audioProvider, string) {
-	t.Helper()
-	dir := t.TempDir()
-	name := filepath.Join(dir, "tone.wav")
-	if err := os.WriteFile(name, testWAV(), 0o644); err != nil {
-		t.Fatalf("write wav: %v", err)
-	}
-	audioCtx := ebitaudio.CurrentContext()
-	if audioCtx == nil {
-		audioCtx = ebitaudio.NewContext(44100)
-	}
-	loader, err := asset.NewLoader(os.DirFS(dir), asset.LoaderOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider, err := newAudioProvider(audioCtx, loader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return provider, "tone.wav"
-}
-
-func TestCreatePlayerEager(t *testing.T) {
-	p, source := newStreamTestProvider(t)
-	s, err := p.createPlayer(asset.ID(source), audio.Playback{
-		Playing: true, Volume: 1, Rate: 1, Loop: audio.LoopForever,
-	})
-	if err != nil {
-		t.Fatalf("createPlayer eager: %v", err)
-	}
-	if s.player == nil {
-		t.Fatal("eager session has no player")
-	}
-	if s.source != nil {
-		t.Fatal("eager session must not hold an open file")
-	}
-	if s.loop != audio.LoopForever || s.load != audio.LoadEager {
-		t.Fatalf("session = %+v, want loop/load recorded", s)
-	}
-}
-
-func TestCreatePlayerStream(t *testing.T) {
-	p, source := newStreamTestProvider(t)
-	s, err := p.createPlayer(asset.ID(source), audio.Playback{
-		Playing: true, Volume: 1, Rate: 1, Load: audio.LoadStream,
-	})
-	if err != nil {
-		t.Fatalf("createPlayer stream: %v", err)
-	}
-	if s.player == nil {
-		t.Fatal("stream session has no player")
-	}
-	if s.source == nil {
-		t.Fatal("stream session must park its open file for Close")
-	}
-	if s.load != audio.LoadStream {
-		t.Fatalf("session load = %v, want LoadStream", s.load)
-	}
-
-	s.player.PauseAndStopReading()
-	if err := s.source.Close(); err != nil {
-		t.Fatalf("close parked source: %v", err)
-	}
-}
-
-func TestCreatePlayerErrors(t *testing.T) {
-	p, _ := newStreamTestProvider(t)
-	if _, err := p.createPlayer("unknown.bin", audio.Playback{
-		Playing: true, Volume: 1, Rate: 1, Load: audio.LoadStream,
-	}); err == nil {
-		t.Error("unknown format: want error")
-	}
-	if _, err := p.createPlayer("missing.wav", audio.Playback{
-		Playing: true, Volume: 1, Rate: 1, Load: audio.LoadEager,
-	}); err == nil {
-		t.Error("missing file: want error")
-	}
-}
-
-func TestCreatePlayerBalance(t *testing.T) {
-	for _, load := range []audio.LoadMode{audio.LoadEager, audio.LoadStream} {
-		for _, loop := range []audio.LoopMode{audio.LoopNone, audio.LoopForever} {
-			for _, balance := range []float64{-1, 0, 0.5, 1} {
-				t.Run(fmt.Sprintf("load=%d/loop=%d/balance=%g", load, loop, balance), func(t *testing.T) {
-					p, source := newStreamTestProvider(t)
-					s, err := p.createPlayer(asset.ID(source), audio.Playback{
-						Volume: 0.25, Rate: 1, Load: load, Loop: loop, Balance: balance,
-					})
-					if err != nil {
-						t.Fatal(err)
-					}
-					t.Cleanup(func() {
-						s.player.PauseAndStopReading()
-						if s.source != nil {
-							if err := s.source.Close(); err != nil {
-								t.Error(err)
-							}
-						}
-					})
-					if s.player.Volume() != 0.25 {
-						t.Fatalf("player volume = %v, want 0.25", s.player.Volume())
-					}
-					// The player has not started, so its source can be read safely.
-					original := testWAV()[44:]
-					want := bytes.Clone(original)
-					for i := 0; i < len(want); i += stereoFrameBytes {
-						left := int16(binary.LittleEndian.Uint16(original[i:]))
-						right := int16(binary.LittleEndian.Uint16(original[i+2:]))
-						binary.LittleEndian.PutUint16(want[i:], uint16(int16(float64(left)*math.Sqrt(1-math.Max(balance, 0)))))
-						binary.LittleEndian.PutUint16(want[i+2:], uint16(int16(float64(right)*math.Sqrt(1-math.Max(-balance, 0)))))
-					}
-					if loop == audio.LoopForever {
-						want = bytes.Repeat(want, 3)
-					}
-					got := make([]byte, len(want))
-					if _, err := io.ReadFull(s.balance, got); err != nil {
-						t.Fatal(err)
-					}
-					if !bytes.Equal(got, want) {
-						t.Fatal("session reader returned incorrect balanced PCM")
-					}
-					if loop == audio.LoopNone {
-						if n, err := s.balance.Read(make([]byte, 4)); n != 0 || err != io.EOF {
-							t.Fatalf("end of play = %d, %v; want 0, EOF", n, err)
-						}
-					}
-					if load == audio.LoadEager {
-						data, err := p.loader.Load[asset.AudioData](source)
-						if err != nil {
-							t.Fatal(err)
-						}
-						if !bytes.Equal(data.PCM, original) {
-							t.Fatal("balance modified cached PCM")
-						}
-					}
-				})
-			}
-		}
-	}
-}
-
-func TestSyncBalanceUpdatesAndRebuilds(t *testing.T) {
-	for _, load := range []audio.LoadMode{audio.LoadEager, audio.LoadStream} {
-		t.Run(fmt.Sprintf("load=%d", load), func(t *testing.T) {
-			p, source := newStreamTestProvider(t)
-			t.Cleanup(func() {
-				clear(p.touched)
-				if err := p.Sweep(); err != nil {
-					t.Error(err)
-				}
-			})
-			id := core.EntityID(42)
-			want := audio.Playback{Volume: 1, Rate: 1, Load: load, Loop: audio.LoopForever, Restart: true}
-			if live, err := p.Sync(id, asset.ID(source), want); err != nil || !live {
-				t.Fatalf("create held: live=%v, err=%v", live, err)
-			}
-			first := p.players[id]
-			want.Restart = false
-			for _, playing := range []bool{false, true, false} {
-				want.Playing = playing
-				want.Balance = 0.5
-				want.Volume = 0.25
-				if live, err := p.Sync(id, asset.ID(source), want); err != nil || !live {
-					t.Fatalf("update: live=%v, err=%v", live, err)
-				}
-				s := p.players[id]
-				if s != first || s.held == playing {
-					t.Fatal("balance update replaced session or changed pause behavior")
-				}
-				reader, ok := s.balance.(*seekableBalanceReader)
-				if !ok {
-					t.Fatalf("reader = %T, want seekable balance reader", s.balance)
-				}
-				if got := math.Float64frombits(reader.balance.Load()); got != want.Balance {
-					t.Fatalf("balance = %v, want %v", got, want.Balance)
-				}
-				if got := s.player.Volume(); got != want.Volume {
-					t.Fatalf("volume = %v, want %v", got, want.Volume)
-				}
-			}
-			firstSource := first.source
-			want.Restart = true
-			want.Balance = -1
-			if live, err := p.Sync(id, asset.ID(source), want); err != nil || !live {
-				t.Fatalf("restart: live=%v, err=%v", live, err)
-			}
-			s := p.players[id]
-			if s == first {
-				t.Fatal("restart did not replace session")
-			}
-			if got := math.Float64frombits(s.balance.(*seekableBalanceReader).balance.Load()); got != -1 {
-				t.Fatalf("restart balance = %v, want -1", got)
-			}
-			if load == audio.LoadStream {
-				if err := firstSource.Close(); err == nil {
-					t.Fatal("restart did not close old stream")
-				}
-			}
-			for _, rebuild := range []string{"load", "loop"} {
-				old := s
-				want.Restart = false
-				if rebuild == "load" {
-					if want.Load == audio.LoadEager {
-						want.Load = audio.LoadStream
-					} else {
-						want.Load = audio.LoadEager
-					}
-				} else {
-					want.Loop = audio.LoopNone
-				}
-				if live, err := p.Sync(id, asset.ID(source), want); err != nil || !live {
-					t.Fatalf("%s rebuild: live=%v, err=%v", rebuild, live, err)
-				}
-				s = p.players[id]
-				if s == old || math.Float64frombits(s.balance.(*seekableBalanceReader).balance.Load()) != -1 {
-					t.Fatalf("%s rebuild did not preserve balance in a fresh session", rebuild)
-				}
-			}
-			s.finished = true
-			want.Restart = false
-			want.Playing = true
-			want.Balance = 1
-			if live, err := p.Sync(id, asset.ID(source), want); err != nil || live {
-				t.Fatalf("finished update: live=%v, err=%v", live, err)
-			}
-			if p.players[id] != s || !s.finished {
-				t.Fatal("balance resurrected a completed play")
-			}
-		})
-	}
-}
-
-func TestSessionBalanceErrors(t *testing.T) {
-	p, source := newStreamTestProvider(t)
-	for _, load := range []audio.LoadMode{audio.LoadEager, audio.LoadStream} {
-		for _, balance := range []float64{math.NaN(), math.Inf(1), -2, 2} {
-			if _, err := p.createPlayer(asset.ID(source), audio.Playback{
-				Volume: 1, Rate: 1, Load: load, Balance: balance,
-			}); err == nil || !strings.Contains(err.Error(), "balance") {
-				t.Fatalf("load=%d balance=%v: error = %v", load, balance, err)
-			}
-		}
-	}
-	id := core.EntityID(43)
-	want := audio.Playback{Volume: 1, Rate: 1, Restart: true}
-	if _, err := p.Sync(id, asset.ID(source), want); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		clear(p.touched)
-		if err := p.Sweep(); err != nil {
-			t.Error(err)
-		}
-	})
-	want.Restart = false
-	want.Balance = math.NaN()
-	if _, err := p.Sync(id, asset.ID(source), want); err == nil || !strings.Contains(err.Error(), source) {
-		t.Fatalf("invalid update error = %v, want source-specific error", err)
-	}
-}
-
-func TestInvalidBalanceClosesStream(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "tone.wav"), testWAV(), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	var opens, closes int
-	p, _ := newStreamTestProvider(t)
-	loader, err := asset.NewLoader(closeTrackingFS{fsys: os.DirFS(dir), opens: &opens, closes: &closes}, asset.LoaderOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.loader = loader
-	if err := registerAudioCodecs(p.loader, p.audioCtx.SampleRate()); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.createPlayer("tone.wav", audio.Playback{
-		Volume: 1, Rate: 1, Load: audio.LoadStream, Balance: math.NaN(),
-	}); err == nil {
-		t.Fatal("invalid balance accepted")
-	}
-	if opens == 0 || opens != closes {
-		t.Fatalf("opens=%d, closes=%d; want all opened files closed", opens, closes)
-	}
-}
-
-func TestSyncLifecycle(t *testing.T) {
-	p, source := newStreamTestProvider(t)
-	id := core.EntityID(7)
-
-	live, err := p.Sync(id, asset.ID(source), audio.Playback{Playing: false, Volume: 1, Rate: 1})
-	if err != nil || live {
-		t.Fatalf("absent, not playing, no restart: live=%v err=%v, want false nil", live, err)
-	}
-	if p.players[id] != nil {
-		t.Fatal("nothing should have been created")
-	}
-
-	live, err = p.Sync(id, asset.ID(source), audio.Playback{Playing: false, Volume: 1, Rate: 1, Restart: true})
-	if err != nil || !live {
-		t.Fatalf("restart while paused: live=%v err=%v, want true nil", live, err)
-	}
-	s := p.players[id]
-	if s == nil || !s.held || s.finished {
-		t.Fatalf("created session = %+v, want held and not finished", s)
-	}
-
-	live, err = p.Sync(id, asset.ID(source), audio.Playback{Playing: true, Volume: 1, Rate: 1})
-	if err != nil || !live {
-		t.Fatalf("resume: live=%v err=%v, want true nil", live, err)
-	}
-	if s.held {
-		t.Fatal("resume left the session held")
-	}
-
-	live, err = p.Sync(id, asset.ID(source), audio.Playback{Playing: false, Volume: 1, Rate: 1})
-	if err != nil || !live {
-		t.Fatalf("pause: live=%v err=%v, want true (held is live)", live, err)
-	}
-	if !s.held {
-		t.Fatal("pause left the session unheld")
-	}
-
-	// A finished play is a tombstone: nothing but a rebuild touches it.
-	s.finished = true
-	live, err = p.Sync(id, asset.ID(source), audio.Playback{Playing: true, Volume: 1, Rate: 1})
-	if err != nil || live {
-		t.Fatalf("finished tombstone with Playing: live=%v err=%v, want false nil", live, err)
-	}
-	if !s.finished {
-		t.Fatal("a finished play must not resurrect")
-
-	}
-
-	old := s
-	live, err = p.Sync(id, asset.ID(source), audio.Playback{Playing: false, Volume: 1, Rate: 1, Restart: true})
-	if err != nil || !live {
-		t.Fatalf("restart over tombstone: live=%v err=%v, want true nil", live, err)
-	}
-	if p.players[id] == old {
-		t.Fatal("restart must replace the session")
-	}
-	if s := p.players[id]; !s.held || s.finished {
-		t.Fatalf("rebuilt session = %+v, want held and fresh", s)
-	}
-}
-
-func TestSyncRejectsUnsupportedRates(t *testing.T) {
-	for _, state := range []string{"absent idle", "absent playing", "playing", "paused", "finished", "restart", "loop change", "load change"} {
-		t.Run(state, func(t *testing.T) {
-			for _, rate := range []float64{2, math.NaN(), math.Inf(1)} {
-				t.Run(fmt.Sprint(rate), func(t *testing.T) {
-					p, source := newStreamTestProvider(t)
-					t.Cleanup(func() {
-						clear(p.touched)
-						if err := p.Sweep(); err != nil {
-							t.Error(err)
-						}
-					})
-					id := core.EntityID(44)
-					want := audio.Playback{Playing: state != "paused", Volume: 1, Rate: 1, Load: audio.LoadStream, Loop: audio.LoopForever}
-					if state != "absent idle" && state != "absent playing" {
-						want.Restart = true
-						if _, err := p.Sync(id, asset.ID(source), want); err != nil {
-							t.Fatal(err)
-						}
-						want.Restart = false
-						if state == "finished" {
-							if err := p.players[id].release(); err != nil {
-								t.Fatal(err)
-							}
-						}
-					}
-					switch state {
-					case "absent idle":
-						want.Playing = false
-					case "restart":
-						want.Restart = true
-					case "loop change":
-						want.Loop = audio.LoopNone
-					case "load change":
-						want.Load = audio.LoadEager
-					}
-					old := p.players[id]
-					var snapshot audioSession
-					if old != nil {
-						snapshot = *old
-					}
-					want.Rate = rate
-					if _, err := p.Sync(id, asset.ID(source), want); err == nil ||
-						!strings.Contains(err.Error(), "playback rate") || !strings.Contains(err.Error(), source) {
-						t.Errorf("Sync rate %v: error = %v, want source-specific rate error", rate, err)
-					}
-					if p.players[id] != old || (old != nil && *old != snapshot) {
-						t.Fatal("invalid rate changed the existing session")
-					}
-				})
-			}
-		})
-	}
-}
-
-func TestPlaylistEditsReleasePlayback(t *testing.T) {
-	for _, edit := range []string{"clear", "remove last"} {
-		for _, paused := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/paused=%v", edit, paused), func(t *testing.T) {
-				p, source := newStreamTestProvider(t)
-				t.Cleanup(func() {
-					clear(p.touched)
-					if err := p.Sweep(); err != nil {
-						t.Error(err)
-					}
-				})
-				g := mustGame(t)
-				w := g.World()
-				s := audio.NewSource()
-				s.Load, s.Loop, s.Paused = audio.LoadStream, audio.LoopForever, paused
-				entity, err := w.NewEntity(s, audio.NewPlaylist([]asset.ID{asset.ID(source)}))
-				if err != nil {
-					t.Fatal(err)
-				}
-				healthy, err := w.NewEntity(s, audio.Clip{Audio: asset.ID(source)})
-				if err != nil {
-					t.Fatal(err)
-				}
-				sys := audio.NewAudioSystem(p, audio.NewMixer())
-				ctx := &core.Context{World: w}
-				run := func() {
-					t.Helper()
-					if err := sys.Update(ctx); err != nil {
-						t.Fatal(err)
-					}
-				}
-				run()
-				old := p.players[entity.ID()]
-				oldPlayer, oldSource := old.player, old.source
-				healthySession := p.players[healthy.ID()]
-				var editErr error
-				if err := entity.Update(w, func(pl *audio.Playlist) {
-					if edit == "clear" {
-						pl.Clear()
-					} else {
-						editErr = pl.RemoveTrack(0)
-					}
-				}); err != nil || editErr != nil {
-					t.Fatalf("empty playlist update: validation=%v edit=%v", err, editErr)
-				}
-				pl, ok := entity.Component[audio.Playlist](w)
-				if !ok || pl.Len() != 0 || pl.Current() != "" {
-					t.Fatalf("stored playlist = %+v, want empty", pl)
-				}
-				run()
-				run()
-				if p.players[entity.ID()] != nil || old.player != nil || oldPlayer.IsPlaying() {
-					t.Fatal("empty playlist retained or replayed old playback")
-				}
-				if err := oldSource.Close(); err == nil {
-					t.Fatal("empty playlist did not close the old stream")
-				}
-				if p.players[healthy.ID()] != healthySession {
-					t.Fatal("empty playlist disrupted healthy playback")
-				}
-				stored, _ := entity.Component[audio.Source](w)
-				if stored.Completed {
-					t.Fatal("empty playlist marked completed")
-				}
-				if err := entity.Update(w, func(pl *audio.Playlist) {
-					editErr = pl.AddTrack(asset.ID(source))
-				}); err != nil || editErr != nil {
-					t.Fatalf("refill playlist: validation=%v edit=%v", err, editErr)
-				}
-				run()
-				fresh := p.players[entity.ID()]
-				if fresh == nil || fresh == old || fresh.finished || fresh.held != paused || fresh.player.IsPlaying() == paused {
-					t.Fatalf("refilled playlist session = %+v, want fresh playback preserving pause=%v", fresh, paused)
-				}
-			})
-		}
-	}
-}
-
-func TestSyncRebuildsOnLoopChange(t *testing.T) {
-	p, source := newStreamTestProvider(t)
-	id := core.EntityID(9)
-
-	if _, err := p.Sync(id, asset.ID(source), audio.Playback{Playing: false, Volume: 1, Rate: 1, Restart: true}); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	old := p.players[id]
-
-	if _, err := p.Sync(id, asset.ID(source), audio.Playback{
-		Playing: false, Volume: 1, Rate: 1, Loop: audio.LoopForever,
-	}); err != nil {
-		t.Fatalf("loop change: %v", err)
-	}
-	if p.players[id] == old {
-		t.Fatal("a loop change must rebuild the session")
-	}
-	if p.players[id].loop != audio.LoopForever {
-		t.Fatal("rebuilt session did not record the new loop mode")
-	}
-}
-
-func TestSweepReleasesUnsyncedSessions(t *testing.T) {
-	p, source := newStreamTestProvider(t)
-	id1, id2 := core.EntityID(1), core.EntityID(2)
-
-	for _, id := range []core.EntityID{id1, id2} {
-		if _, err := p.Sync(id, asset.ID(source), audio.Playback{
-			Playing: false, Volume: 1, Rate: 1, Restart: true, Load: audio.LoadStream,
-		}); err != nil {
-			t.Fatalf("create %d: %v", id, err)
-		}
-	}
-	if err := p.Sweep(); err != nil {
-		t.Fatalf("sweep 1: %v", err)
-	}
-	if p.players[id1] == nil || p.players[id2] == nil {
-		t.Fatal("both sessions were synced; sweep must keep both")
-	}
-
-	staleSource := p.players[id2].source
-	if _, err := p.Sync(id1, asset.ID(source), audio.Playback{Playing: false, Volume: 1, Rate: 1}); err != nil {
-		t.Fatalf("touch id1: %v", err)
-	}
-	if err := p.Sweep(); err != nil {
-		t.Fatalf("sweep 2: %v", err)
-	}
-	if p.players[id2] != nil {
-		t.Fatal("untouched session must be swept")
-	}
-	if p.players[id1] == nil {
-		t.Fatal("synced session must survive the sweep")
-	}
-	if err := staleSource.Close(); err == nil {
-		t.Fatal("sweep must have closed the swept session's parked file")
-	}
-}
-
-// closeTrackingFS counts file opens and closes over a real directory,
-// so the streaming path's parked file is observable.
 type closeTrackingFS struct {
-	fsys   fs.FS
-	opens  *int
-	closes *int
+	fsys     fs.FS
+	opens    atomic.Int64
+	closes   atomic.Int64
+	closeErr error
 }
 
-func (c closeTrackingFS) Open(name string) (fs.File, error) {
+func (c *closeTrackingFS) Open(name string) (fs.File, error) {
 	f, err := c.fsys.Open(name)
 	if err != nil {
 		return nil, err
 	}
-	*c.opens++
-	return &trackingFile{File: f, closes: c.closes}, nil
+	c.opens.Add(1)
+	return &trackingFile{File: f, owner: c, closeErr: c.closeErr}, nil
 }
 
 type trackingFile struct {
 	fs.File
-	closes   *int
+	owner    *closeTrackingFS
 	closeErr error
 }
 
 func (f *trackingFile) Close() error {
-	*f.closes++
+	f.owner.closes.Add(1)
 	return errors.Join(f.File.Close(), f.closeErr)
 }
 
-// Seek forwards to the wrapped file so the streaming path sees the
-// underlying directory file's seekability.
 func (f *trackingFile) Seek(offset int64, whence int) (int64, error) {
 	seeker, ok := f.File.(io.Seeker)
 	if !ok {
-		return 0, fmt.Errorf("trackingFile: wrapped file %T is not seekable", f.File)
+		return 0, fmt.Errorf("tracking file %T is not seekable", f.File)
 	}
 	return seeker.Seek(offset, whence)
 }
 
-// TestDefaultRunnerAudioPlaybackAndCleanup regression-checks the
-// default runner's audio path end to end: both load modes play
-// through the engine's audio system, a paused play holds, and
-// destroying a playing entity releases its player and closes the
-// streaming file on the next sweep.
-func TestDefaultRunnerAudioPlaybackAndCleanup(t *testing.T) {
+type audioProviderHarness struct {
+	provider *audioProvider
+	files    *closeTrackingFS
+	dir      string
+}
+
+func newAudioProviderHarness(t *testing.T) *audioProviderHarness {
+	t.Helper()
+	ctx := ebitaudio.CurrentContext()
+	if ctx == nil {
+		ctx = ebitaudio.NewContext(44100)
+	}
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "tone.wav"), testWAV(), 0o644); err != nil {
-		t.Fatalf("write wav: %v", err)
+		t.Fatal(err)
 	}
-	var opens, closes int
-	fsys := closeTrackingFS{fsys: os.DirFS(dir), opens: &opens, closes: &closes}
-
-	g, err := castrum.New(castrum.WithFilesystem(fsys))
-	if err != nil {
-		t.Fatalf("castrum.New: %v", err)
-	}
-	if _, err := New(g); err != nil { // default wiring: codecs, provider, engine.audio
-		t.Fatalf("ebitrun.New: %v", err)
-	}
-	world := g.World()
-
-	// One eager play and one streaming loop, as games build them.
-	shot := audio.NewSource()
-	shot.Load = audio.LoadEager
-	shot.Balance = -1
-	shotEntity, err := world.NewEntity(shot, audio.Clip{Audio: "tone.wav"})
+	files := &closeTrackingFS{fsys: os.DirFS(dir)}
+	loader, err := asset.NewLoader(files, asset.LoaderOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	music := audio.NewSource()
-	music.Load = audio.LoadStream
-	music.Loop = audio.LoopForever
-	music.Balance = 0.5
-	musicEntity, err := world.NewEntity(music, audio.Clip{Audio: "tone.wav"})
+	provider, err := newAudioProvider(ctx, loader)
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	if err := g.Startup(); err != nil {
-		t.Fatal(err)
-	}
-	advance := func(frames int) {
-		t.Helper()
-		for range frames {
-			if err := g.Advance(17 * time.Millisecond); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	advance(3)
-
-	controller := world.MustResource[*audio.Backend]().Controller()
-	provider, ok := controller.(*audioProvider)
-	if !ok {
-		t.Fatalf("controller = %T, want the runner's audioProvider", controller)
 	}
 	t.Cleanup(func() {
 		clear(provider.touched)
 		if err := provider.Sweep(); err != nil {
-			t.Error(err)
+			t.Errorf("cleanup audio sessions: %v", err)
 		}
 	})
+	return &audioProviderHarness{provider: provider, files: files, dir: dir}
+}
 
-	// Both load modes play: the eager session owns no file, the
-	// streaming session parks its open one.
-	shotSession := provider.players[shotEntity.ID()]
-	if shotSession == nil || shotSession.load != audio.LoadEager || shotSession.source != nil {
-		t.Fatalf("eager session = %+v, want live with no open file", shotSession)
-	}
-	if !shotSession.player.IsPlaying() {
-		t.Error("eager play should be playing")
-	}
-	musicSession := provider.players[musicEntity.ID()]
-	if musicSession == nil || musicSession.load != audio.LoadStream || musicSession.source == nil {
-		t.Fatalf("stream session = %+v, want live with its open file", musicSession)
-	}
-	if !musicSession.player.IsPlaying() {
-		t.Error("stream play should be playing")
-	}
-	for _, tt := range []struct {
-		session *audioSession
-		want    float64
-	}{{shotSession, -1}, {musicSession, 0.5}} {
-		if got := math.Float64frombits(tt.session.balance.(*seekableBalanceReader).balance.Load()); got != tt.want {
-			t.Errorf("resolved balance = %v, want %v", got, tt.want)
+func TestAudioLoadingAndCaching(t *testing.T) {
+	h := newAudioProviderHarness(t)
+	want := audio.Playback{Volume: 1, Rate: 1, Restart: true}
+	for _, id := range []core.EntityID{1, 2} {
+		if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || !live {
+			t.Fatalf("eager sync %d: live=%v, err=%v", id, live, err)
+		}
+		if h.provider.players[id].source != nil {
+			t.Fatal("eager player retained an open file")
 		}
 	}
-	if open := opens - closes; open != 1 {
-		t.Errorf("open files = %d during playback, want the stream's one", open)
+	if h.files.opens.Load() != 1 || h.files.closes.Load() != 1 {
+		t.Fatalf("eager opens=%d closes=%d, want one cached decode", h.files.opens.Load(), h.files.closes.Load())
 	}
-
-	// A paused play holds its session.
-	if err := musicEntity.Update(world, func(s *audio.Source) {
-		s.Paused = true
-		s.Balance = -0.5
-	}); err != nil {
+	want.Load = audio.LoadStream
+	if live, err := h.provider.Sync(3, "tone.wav", want); err != nil || !live {
+		t.Fatalf("stream sync: live=%v, err=%v", live, err)
+	}
+	if h.provider.players[3].source == nil || h.files.opens.Load() != 2 || h.files.closes.Load() != 1 {
+		t.Fatal("stream did not retain its own open file")
+	}
+	if err := h.provider.Sweep(); err != nil {
 		t.Fatal(err)
 	}
-	advance(2)
-	if !musicSession.held {
-		t.Error("a paused play should hold its session")
-	}
-	if provider.players[musicEntity.ID()] != musicSession {
-		t.Fatal("paused balance update replaced session")
-	}
-	if got := math.Float64frombits(musicSession.balance.(*seekableBalanceReader).balance.Load()); got != -0.5 {
-		t.Errorf("paused balance = %v, want -0.5", got)
-	}
-	if err := musicEntity.Update(world, func(s *audio.Source) { s.Restart() }); err != nil {
+	if err := h.provider.Sweep(); err != nil {
 		t.Fatal(err)
 	}
-	advance(1)
-	restarted := provider.players[musicEntity.ID()]
-	if restarted == musicSession || math.Float64frombits(restarted.balance.(*seekableBalanceReader).balance.Load()) != -0.5 {
-		t.Fatal("source restart did not preserve balance in a new session")
+	if h.files.opens.Load() != h.files.closes.Load() {
+		t.Fatalf("stream not closed: opens=%d closes=%d", h.files.opens.Load(), h.files.closes.Load())
 	}
+}
 
-	// Destroying the streaming entity cleans up: the session goes
-	// and the parked file closes on the next sweep.
-	if err := world.DestroyEntity(musicEntity); err != nil {
+func TestAudioLoadFailuresCloseStreams(t *testing.T) {
+	h := newAudioProviderHarness(t)
+	if err := os.WriteFile(filepath.Join(h.dir, "bad.wav"), []byte("not a wav"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	advance(2)
-	if _, still := provider.players[musicEntity.ID()]; still {
-		t.Error("destroyed stream play should release its session")
-	}
-	if open := opens - closes; open != 0 {
-		t.Errorf("open files = %d after destroy, want the stream file closed", open)
-	}
-
-	// The eager play survives the music's death and releases when
-	// its own entity goes.
-	if _, still := provider.players[shotEntity.ID()]; !still {
-		t.Fatal("the eager play should still be live")
-	}
-	if err := world.DestroyEntity(shotEntity); err != nil {
+	if err := os.WriteFile(filepath.Join(h.dir, "unknown.bin"), []byte("unknown"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	advance(2)
-	if _, still := provider.players[shotEntity.ID()]; still {
-		t.Error("destroyed eager play should release its session")
+	for _, tc := range []struct {
+		name string
+		id   asset.ID
+		want audio.Playback
+	}{
+		{"missing eager", "missing.wav", audio.Playback{Volume: 1, Rate: 1, Restart: true}},
+		{"invalid stream", "bad.wav", audio.Playback{Volume: 1, Rate: 1, Restart: true, Load: audio.LoadStream}},
+		{"unknown format", "unknown.bin", audio.Playback{Volume: 1, Rate: 1, Restart: true, Load: audio.LoadStream}},
+		{"invalid balance", "tone.wav", audio.Playback{Volume: 1, Rate: 1, Restart: true, Load: audio.LoadStream, Balance: math.NaN()}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := h.provider.Sync(1, tc.id, tc.want); err == nil {
+				t.Fatal("invalid source or playback was accepted")
+			}
+			if h.files.opens.Load() != h.files.closes.Load() {
+				t.Fatalf("failed creation leaked a file: opens=%d closes=%d", h.files.opens.Load(), h.files.closes.Load())
+			}
+			if h.provider.players[1] != nil {
+				t.Fatal("failed creation retained a session")
+			}
+		})
 	}
+}
 
-	stream := audio.NewSource()
-	stream.Load = audio.LoadStream
-	stream.Balance = -0.5
-	persistent, err := world.NewEntity(stream, audio.Clip{Audio: "tone.wav"})
+func TestAudioTrackLoopAndBalance(t *testing.T) {
+	h := newAudioProviderHarness(t)
+	want := audio.Playback{Volume: 0.25, Rate: 1, Restart: true, Loop: audio.LoopTrack, Balance: -1}
+	if live, err := h.provider.Sync(1, "tone.wav", want); err != nil || !live {
+		t.Fatalf("sync: live=%v, err=%v", live, err)
+	}
+	session := h.provider.players[1]
+	pcm := testWAV()[44:]
+	got := make([]byte, len(pcm)*2)
+	if _, err := io.ReadFull(session.balance, got); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got[:len(pcm)], got[len(pcm):]) {
+		t.Fatal("track loop did not repeat the decoded samples")
+	}
+	if !bytes.Equal(got[:2], pcm[:2]) || got[2] != 0 || got[3] != 0 {
+		t.Fatalf("left balance did not preserve left and mute right: %v", got[:4])
+	}
+	data, err := h.provider.loader.Load[asset.AudioData]("tone.wav")
 	if err != nil {
 		t.Fatal(err)
 	}
-	oneShot, err := audio.OneShot(world, stream, audio.Clip{Audio: "tone.wav"})
-	if err != nil {
+	if !bytes.Equal(data.PCM, pcm) || session.player.Volume() != 0.25 {
+		t.Fatal("balance modified cached PCM or lost volume")
+	}
+}
+
+func TestAudioSyncLifecycle(t *testing.T) {
+	h := newAudioProviderHarness(t)
+	id := core.EntityID(1)
+	want := audio.Playback{Volume: 1, Rate: 1}
+	if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || live {
+		t.Fatalf("absent paused play: live=%v, err=%v", live, err)
+	}
+	want.Restart, want.Loop = true, audio.LoopTrack
+	if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || !live {
+		t.Fatalf("paused start: live=%v, err=%v", live, err)
+	}
+	session := h.provider.players[id]
+	if !session.held {
+		t.Fatal("paused start did not hold playback")
+	}
+	want.Restart, want.Playing = false, true
+	if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || !live || session.held {
+		t.Fatalf("resume: live=%v, held=%v, err=%v", live, session.held, err)
+	}
+	want.Playing = false
+	if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || !live || !session.held {
+		t.Fatalf("pause: live=%v, held=%v, err=%v", live, session.held, err)
+	}
+	want.Loop = audio.LoopNone
+	if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || !live {
+		t.Fatalf("switch to non-looping: live=%v, err=%v", live, err)
+	}
+	session = h.provider.players[id]
+	want.Playing = true
+	if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || !live {
+		t.Fatalf("start non-looping: live=%v, err=%v", live, err)
+	}
+	session.player.PauseAndStopReading()
+	if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || live {
+		t.Fatalf("completion: live=%v, err=%v", live, err)
+	}
+	if !session.finished || session.player != nil || session.balance != nil {
+		t.Fatalf("completed session retained resources: %+v", session)
+	}
+	if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || live || h.provider.players[id] != session {
+		t.Fatalf("completed session replayed: live=%v, err=%v", live, err)
+	}
+	want.Restart, want.Playing = true, false
+	if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || !live || h.provider.players[id] == session {
+		t.Fatalf("restart: live=%v, err=%v", live, err)
+	}
+}
+
+func TestAudioLiveUpdatesAndRebuilds(t *testing.T) {
+	h := newAudioProviderHarness(t)
+	id := core.EntityID(1)
+	want := audio.Playback{Volume: 1, Rate: 1, Restart: true, Load: audio.LoadStream, Loop: audio.LoopTrack}
+	if _, err := h.provider.Sync(id, "tone.wav", want); err != nil {
 		t.Fatal(err)
 	}
-	g.Pause()
-	tick := g.Context().Tick
-	advance(1)
-	sessions := make(map[core.EntityID]*audioSession)
-	for _, entity := range []*core.Entity{persistent, oneShot} {
-		s := provider.players[entity.ID()]
-		if s == nil || s.held || !s.player.IsPlaying() || s.source == nil {
-			t.Fatalf("simulation pause held or prevented audio: %+v", s)
+	session := h.provider.players[id]
+	want.Restart, want.Volume, want.Balance = false, 0.25, 0.5
+	for _, playing := range []bool{false, true, false} {
+		want.Playing = playing
+		if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || !live {
+			t.Fatalf("live update: live=%v, err=%v", live, err)
 		}
-		sessions[entity.ID()] = s
-		// Simulate the backend reporting playback stopped, without waiting
-		// for an audio device or depending on wall-clock playback.
-		s.player.PauseAndStopReading()
-	}
-	advance(1)
-	if source, ok := persistent.Component[audio.Source](world); !ok || !source.Completed || !persistent.IsAlive() {
-		t.Fatalf("completed persistent source = %+v, present=%v", source, ok)
-	}
-	if oneShot.IsAlive() {
-		t.Fatal("completed one-shot was not reclaimed during simulation pause")
-	}
-	for id, s := range sessions {
-		if provider.players[id] != s || !s.finished || s.player != nil || s.balance != nil || s.source != nil {
-			t.Fatalf("completed session %d retained playback resources or lost its tombstone: %+v", id, s)
+		if h.provider.players[id] != session || session.held == playing || session.player.Volume() != 0.25 {
+			t.Fatalf("live update replaced or misconfigured session: %+v", session)
+		}
+		balance := session.balance.(*seekableBalanceReader)
+		if got := math.Float64frombits(balance.balance.Load()); got != 0.5 {
+			t.Fatalf("balance = %v, want 0.5", got)
 		}
 	}
-	if open := opens - closes; open != 0 {
-		t.Fatalf("open files after completion = %d, want 0", open)
+	for _, change := range []string{"restart", "loop", "load"} {
+		old := session
+		switch change {
+		case "restart":
+			want.Restart = true
+		case "loop":
+			want.Restart = false
+			want.Loop = audio.LoopNone
+		case "load":
+			want.Load = audio.LoadEager
+		}
+		if live, err := h.provider.Sync(id, "tone.wav", want); err != nil || !live {
+			t.Fatalf("%s rebuild: live=%v, err=%v", change, live, err)
+		}
+		session = h.provider.players[id]
+		if session == old || !session.held || session.player.Volume() != 0.25 {
+			t.Fatalf("%s did not rebuild the held session", change)
+		}
+		balance := session.balance.(*seekableBalanceReader)
+		if got := math.Float64frombits(balance.balance.Load()); got != 0.5 {
+			t.Fatalf("%s lost balance: %v", change, got)
+		}
+		if old.source != nil {
+			t.Fatalf("%s retained the old streaming source", change)
+		}
 	}
-	completedOpens, completedCloses := opens, closes
-	advance(1)
-	if provider.players[oneShot.ID()] != nil {
-		t.Fatal("one-shot tombstone was not swept on the next frame")
+}
+
+func TestAudioSyncRejectsUnsupportedRates(t *testing.T) {
+	h := newAudioProviderHarness(t)
+	id := core.EntityID(1)
+	want := audio.Playback{Volume: 1, Rate: 2, Restart: true, Load: audio.LoadStream}
+	if _, err := h.provider.Sync(id, "tone.wav", want); err == nil || !strings.Contains(err.Error(), "tone.wav") {
+		t.Fatalf("unsupported initial rate = %v", err)
 	}
-	if provider.players[persistent.ID()] != sessions[persistent.ID()] ||
-		opens != completedOpens || closes != completedCloses {
-		t.Fatal("completed source replayed or its resources were released twice")
-	}
-	if g.Context().Tick != tick {
-		t.Fatal("audio completion required simulation ticks")
-	}
-	if err := persistent.Update(world, func(s *audio.Source) { s.Restart() }); err != nil {
+	want.Rate = 1
+	if _, err := h.provider.Sync(id, "tone.wav", want); err != nil {
 		t.Fatal(err)
 	}
-	advance(1)
-	fresh := provider.players[persistent.ID()]
-	if fresh == nil || fresh == sessions[persistent.ID()] || fresh.finished ||
-		fresh.source == nil || !fresh.player.IsPlaying() {
-		t.Fatalf("restart did not create fresh streaming playback: %+v", fresh)
+	old := h.provider.players[id]
+	closes := h.files.closes.Load()
+	want.Rate, want.Loop = math.NaN(), audio.LoopTrack
+	if _, err := h.provider.Sync(id, "tone.wav", want); err == nil || !strings.Contains(err.Error(), "playback rate") {
+		t.Fatalf("unsupported update rate = %v", err)
 	}
-	if source, _ := persistent.Component[audio.Source](world); source.Completed {
-		t.Fatal("restart left the persistent source completed")
+	if h.provider.players[id] != old || old.source == nil || h.files.closes.Load() != closes {
+		t.Fatal("unsupported rate changed the existing session")
 	}
-	if got := math.Float64frombits(fresh.balance.(*seekableBalanceReader).balance.Load()); got != stream.Balance {
-		t.Fatalf("restart balance = %v, want %v", got, stream.Balance)
+}
+
+func TestAudioSweepReleasesUntouchedSessions(t *testing.T) {
+	h := newAudioProviderHarness(t)
+	want := audio.Playback{Volume: 1, Rate: 1, Restart: true, Load: audio.LoadStream}
+	for _, id := range []core.EntityID{1, 2} {
+		if _, err := h.provider.Sync(id, "tone.wav", want); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if opens != completedOpens+1 || opens-closes != 1 {
-		t.Fatalf("restart opens=%d closes=%d, want one new open stream", opens, closes)
-	}
-	closeErr := errors.New("stream close failed")
-	file, ok := fresh.source.(*trackingFile)
-	if !ok {
-		t.Fatalf("stream source = %T, want trackingFile", fresh.source)
-	}
-	file.closeErr = closeErr
-	fresh.player.PauseAndStopReading()
-	if err := g.Advance(17 * time.Millisecond); !errors.Is(err, closeErr) || !strings.Contains(err.Error(), "tone.wav") {
-		t.Fatalf("completion close error = %v, want wrapped source-specific error", err)
-	}
-	advance(1)
-	if err := world.DestroyEntity(persistent); err != nil {
+	first := h.provider.players[1]
+	if err := h.provider.Sweep(); err != nil {
 		t.Fatal(err)
 	}
-	advance(1)
-	if opens != closes {
-		t.Fatalf("open files after restarted source destruction = %d, want 0", opens-closes)
+	want.Restart = false
+	if _, err := h.provider.Sync(1, "tone.wav", want); err != nil {
+		t.Fatal(err)
 	}
-	if closes != completedCloses+1 {
+	if err := h.provider.Sweep(); err != nil {
+		t.Fatal(err)
+	}
+	if h.provider.players[1] != first || h.provider.players[2] != nil {
+		t.Fatal("sweep did not preserve the touched session and remove the untouched session")
+	}
+	if h.files.opens.Load() != 2 || h.files.closes.Load() != 1 {
+		t.Fatalf("sweep opens=%d closes=%d, want one live stream", h.files.opens.Load(), h.files.closes.Load())
+	}
+}
+
+func TestAudioCloseErrorsPropagate(t *testing.T) {
+	h := newAudioProviderHarness(t)
+	closeErr := errors.New("close failed")
+	h.files.closeErr = closeErr
+	want := audio.Playback{Volume: 1, Rate: 1, Restart: true, Load: audio.LoadStream, Balance: math.NaN()}
+	if _, err := h.provider.Sync(1, "tone.wav", want); !errors.Is(err, closeErr) || !strings.Contains(err.Error(), "balance") {
+		t.Fatalf("creation error = %v, want balance and close errors", err)
+	}
+	if h.files.opens.Load() != h.files.closes.Load() {
+		t.Fatal("failed creation did not close its stream")
+	}
+	want.Balance = 0
+	if _, err := h.provider.Sync(1, "tone.wav", want); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.provider.Sweep(); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.provider.Sweep(); !errors.Is(err, closeErr) {
+		t.Fatalf("sweep error = %v, want close error", err)
+	}
+	if err := h.provider.Sweep(); err != nil {
+		t.Fatalf("retry sweep: %v", err)
+	}
+	if h.files.opens.Load() != h.files.closes.Load() {
 		t.Fatal("failed close was attempted more than once")
+	}
+}
+
+func TestRunnerAudioEntityRemoval(t *testing.T) {
+	ctx := ebitaudio.CurrentContext()
+	if ctx == nil {
+		ebitaudio.NewContext(44100)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "tone.wav"), testWAV(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files := &closeTrackingFS{fsys: os.DirFS(dir)}
+	game, err := castrum.New(castrum.WithFilesystem(files))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(game); err != nil {
+		t.Fatal(err)
+	}
+	provider, ok := game.World().MustResource[*audio.Backend]().Controller().(*audioProvider)
+	if !ok {
+		t.Fatal("runner did not attach its audio provider")
+	}
+	t.Cleanup(func() {
+		clear(provider.touched)
+		if err := provider.Sweep(); err != nil {
+			t.Errorf("cleanup audio sessions: %v", err)
+		}
+	})
+	settings := audio.DefaultSettings()
+	settings.Load, settings.Loop = audio.LoadStream, audio.LoopTrack
+	player, err := audio.NewPlayer(audio.Track("tone.wav"), settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := game.World().NewEntity(player)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := game.World().NewEntity(player)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := game.Startup(); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.Advance(17 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	survivor := provider.players[second.ID()]
+	if provider.players[first.ID()] == nil || survivor == nil || files.opens.Load()-files.closes.Load() != 2 {
+		t.Fatal("runner did not start both streaming sessions")
+	}
+	if err := game.World().DestroyEntity(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.Advance(17 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if provider.players[first.ID()] != nil || provider.players[second.ID()] != survivor {
+		t.Fatal("entity removal did not release only the removed player's session")
+	}
+	if files.opens.Load()-files.closes.Load() != 1 {
+		t.Fatal("entity removal did not close its stream")
+	}
+}
+
+func TestRunnerAudioCompletionReclaimsOneShot(t *testing.T) {
+	ctx := ebitaudio.CurrentContext()
+	if ctx == nil {
+		ebitaudio.NewContext(44100)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "tone.wav"), testWAV(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files := &closeTrackingFS{fsys: os.DirFS(dir)}
+	game, err := castrum.New(castrum.WithFilesystem(files))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(game); err != nil {
+		t.Fatal(err)
+	}
+	world := game.World()
+	provider, ok := world.MustResource[*audio.Backend]().Controller().(*audioProvider)
+	if !ok {
+		t.Fatal("runner did not attach its audio provider")
+	}
+	t.Cleanup(func() {
+		clear(provider.touched)
+		if err := provider.Sweep(); err != nil {
+			t.Errorf("cleanup audio sessions: %v", err)
+		}
+	})
+	finished := world.MustResource[*signal.Hub]().NewReader[audio.Finished]()
+	var observed []audio.Finished
+	if err := game.AddSystem(core.PhasePostFrame, "record finished", core.SystemFunc(func(ctx *core.Context) error {
+		for event, ok := finished.Next(); ok; event, ok = finished.Next() {
+			observed = append(observed, event)
+		}
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+
+	streamSettings := audio.DefaultSettings()
+	streamSettings.Load = audio.LoadStream
+	streamed, err := audio.NewPlayer(audio.Track("tone.wav"), streamSettings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	persistent, err := world.NewEntity(streamed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oneshot, err := audio.OneShot(world, audio.Track("tone.wav"), audio.DefaultSettings())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := game.Startup(); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.Advance(17 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	streamSession := provider.players[persistent.ID()]
+	shotSession := provider.players[oneshot.ID()]
+	if streamSession == nil || shotSession == nil || !streamSession.player.IsPlaying() || !shotSession.player.IsPlaying() {
+		t.Fatal("runner did not start both plays")
+	}
+	if files.opens.Load() != 2 || files.closes.Load() != 1 {
+		t.Fatalf("opens=%d closes=%d, want a closed eager read and one live stream", files.opens.Load(), files.closes.Load())
+	}
+
+	streamSession.player.PauseAndStopReading()
+	shotSession.player.PauseAndStopReading()
+	if err := game.Advance(17 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	if !persistent.IsAlive() {
+		t.Fatal("completed persistent play was destroyed")
+	}
+	if player, ok := persistent.Component[audio.Player](world); !ok || !player.Completed() {
+		t.Fatalf("completed player = %+v, present=%v", player, ok)
+	}
+	if oneshot.IsAlive() {
+		t.Fatal("completed one-shot was not reclaimed")
+	}
+	signals := make(map[core.EntityID]asset.ID)
+	for _, event := range observed {
+		signals[event.Entity] = event.Audio
+	}
+	if len(signals) != 2 || signals[persistent.ID()] != "tone.wav" || signals[oneshot.ID()] != "tone.wav" {
+		t.Fatalf("finished signals = %v from %d events", signals, len(observed))
+	}
+	if got := provider.players[persistent.ID()]; got != streamSession || !got.finished || got.player != nil || got.balance != nil || got.source != nil {
+		t.Fatalf("completed stream session = %+v, want a released tombstone", got)
+	}
+	if files.opens.Load() != files.closes.Load() {
+		t.Fatal("completion did not close the streamed file")
+	}
+
+	opens := files.opens.Load()
+	closes := files.closes.Load()
+	if err := game.Advance(17 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if provider.players[oneshot.ID()] != nil {
+		t.Fatal("one-shot session was not swept after reclamation")
+	}
+	if provider.players[persistent.ID()] != streamSession {
+		t.Fatal("completed persistent play replayed or lost its tombstone")
+	}
+	if files.opens.Load() != opens || files.closes.Load() != closes {
+		t.Fatal("completed plays reopened or closed files a second time")
+	}
+	if len(observed) != 2 {
+		t.Fatal("completion signals were emitted more than once")
 	}
 }

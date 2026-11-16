@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -10,11 +11,12 @@ import (
 )
 
 // Finished is the signal the audio system emits on the update that observes
-// a [LoopNone] play finishing, the same update that sets [Source.Completed].
+// a track finishing. [Player.Completed] reports when the player has no next
+// track. A [LoopTrack] play does not finish.
 //
 // The game reconciles audio after frame systems when a controller is attached.
 // Read Finished in the post-frame phase before the frame window closes, or poll
-// [Source.Completed] when the exact frame does not matter.
+// [Player.Completed] when the exact frame does not matter.
 type Finished struct {
 	// Entity is the entity whose Source finished. A [OneShot]'s entity is
 	// destroyed on the same update, so its ID identifies the play only.
@@ -24,20 +26,21 @@ type Finished struct {
 }
 
 // Playback is the resolved state that a [Controller] applies to a play.
-// [NewAudioSystem] derives it from a [Source], a [Mixer], and optionally a [Listener].
+// [NewAudioSystem] derives it from a [Player], a [Mixer], and optionally a [Listener].
 type Playback struct {
 	// Playing reports whether playback should advance. False holds its position.
 	Playing bool
 	// Restart requests a fresh player from the beginning. The audio system
-	// sets it on the first sync, a clip or playlist selection change, or
-	// [Source.Restart].
+	// sets it on the first sync, a track selection change, or
+	// [Player.Restart].
 	Restart bool
 	// Volume is the final mix, including spatial attenuation, in [0, 1].
 	// Zero is silence: runtime fade targets are safe here.
 	Volume float64
 	// Rate is the resolved playback multiplier; 1 is the normal rate.
 	Rate float64
-	// Loop is the play's repeat behavior after the last sample.
+	// Loop is LoopTrack to repeat this track, or LoopNone to play it once.
+	// Sequence repetition is managed by the audio system.
 	Loop LoopMode
 	// Load selects eager decode or per-play streaming.
 	Load LoadMode
@@ -45,14 +48,18 @@ type Playback struct {
 	Balance float64
 }
 
-func fold(s Source, mixer *Mixer) Playback {
+func fold(s Player, mixer *Mixer) Playback {
+	loop := LoopNone
+	if s.Settings.Loop == LoopTrack {
+		loop = LoopTrack
+	}
 	return Playback{
-		Playing: !s.Paused && (!mixer.Paused() || s.Pause == PauseContinues),
-		Volume:  s.Volume * mixer.Master() * mixer.GroupVolume(s.Group),
-		Rate:    resolveMultiplier(s.PlaybackMultiplier),
-		Loop:    s.Loop,
-		Load:    s.Load,
-		Balance: s.Balance,
+		Playing: !s.Paused && (!mixer.Paused() || s.Settings.Pause == PauseContinues),
+		Volume:  s.Settings.Volume * mixer.Master() * mixer.GroupVolume(s.Settings.Group),
+		Rate:    resolveMultiplier(s.Settings.PlaybackMultiplier),
+		Loop:    loop,
+		Load:    s.Settings.Load,
+		Balance: s.Settings.Balance,
 	}
 }
 
@@ -72,162 +79,125 @@ type Controller interface {
 	//
 	// A finished play must not resume merely because want.Playing is true;
 	// want.Restart requests an explicit restart. The audio system calls Sync
-	// for each [Source] on every run.
+	// for each [Player] on every run.
 	Sync(entityID core.EntityID, source asset.ID, want Playback) (live bool, err error)
 	// Sweep releases players for entities not passed to Sync since the
-	// previous sweep. The audio system calls it after each reconciliation pass.
+	// previous sweep. The audio system calls it after each reconciliation
+	// pass in which all players were synced, including spatial-error passes.
 	Sweep() error
 }
 
-// NewAudioSystem returns a [core.System] that reconciles [Source] components
-// with controller and mixer, emits a [Finished] signal when a [LoopNone] play
-// completes, and destroys completed [OneShot] entities. Without an audio
-// system, sources do not play.
-//
-// Spatial sources require a [*Listener] resource. An enabled listener also
-// requires a [core.Transform] on each spatial source. Invalid listener state,
-// transforms, and attenuation results are reported during reconciliation.
+// NewAudioSystem returns a system that reconciles players with the controller.
+// It validates each player's settings before applying them to the controller.
 func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
-	var sourceQuery, oneshotQuery, playlistQuery, ambiguousSelectorQuery *core.Query
-	var hub *signal.Hub
-	var camera *render.CameraResolver
-	return core.SystemFunc(func(ctx *core.Context) error {
-		if camera == nil {
-			camera = render.NewCameraResolver(ctx.World)
-		}
-		spatial := spatialPass{ctx: ctx, camera: camera}
-		var spatialErr error
-		if sourceQuery == nil {
-			sourceQuery = core.NewQuery(ctx.World).With(Source{}, Clip{}).Without(Playlist{})
-		}
-		if oneshotQuery == nil {
-			oneshotQuery = core.NewQuery(ctx.World).With(Source{}, oneshot{})
-		}
-		if playlistQuery == nil {
-			playlistQuery = core.NewQuery(ctx.World).With(Source{}, Playlist{}).Without(Clip{})
-		}
-		if ambiguousSelectorQuery == nil {
-			ambiguousSelectorQuery = core.NewQuery(ctx.World).With(Source{}, Clip{}, Playlist{})
-		}
-		if hub == nil {
-			resolved, err := ctx.World.Resource[*signal.Hub]()
-			if err != nil {
-				return fmt.Errorf("audio system: resolve signal hub: %w; provide *signal.Hub to the world, typically signal.NewHub() through World.Provide, or construct the game with castrum.New", err)
-			}
-			hub = resolved
-		}
-		for e := range ambiguousSelectorQuery.Execute() {
-			return fmt.Errorf("audio: entity %d has both Clip and Playlist selectors", e.ID())
-		}
-		for e := range sourceQuery.Execute() {
-			s, _ := e.Component[Source]()
-			cl, _ := e.Component[Clip]()
+	return &system{
+		controller: controller,
+		mixer:      mixer,
+	}
+}
 
-			restart := s.syncedRestarts != s.restarts ||
-				s.syncedPlaylist || s.syncedAudio != cl.Audio
-			if restart {
-				s.Completed = false
-				s.syncedRestarts = s.restarts
-				s.syncedAudio = cl.Audio
-				s.syncedPlaylist = false
-			}
+type system struct {
+	controller Controller
+	mixer      *Mixer
 
-			want := fold(s, mixer)
-			if err := spatial.apply(e.ID(), s, &want); err != nil {
-				if spatialErr == nil {
-					spatialErr = err
-				}
-				continue
+	players  *core.Query
+	oneshots *core.Query
+	hub      *signal.Hub
+	camera   *render.CameraResolver
+}
+
+func (s *system) Update(ctx *core.Context) error {
+	if s.camera == nil {
+		s.camera = render.NewCameraResolver(ctx.World)
+	}
+	spatial := spatialPass{ctx: ctx, camera: s.camera}
+	var spatialErr error
+	if s.players == nil {
+		s.players = core.NewQuery(ctx.World).With(Player{})
+	}
+	if s.oneshots == nil {
+		s.oneshots = core.NewQuery(ctx.World).With(Player{}, oneshot{})
+	}
+	if s.hub == nil {
+		resolved, err := ctx.World.Resource[*signal.Hub]()
+		if err != nil {
+			return fmt.Errorf("audio system: resolve signal hub: %w; provide *signal.Hub to the world, typically signal.NewHub() through World.Provide, or construct the game with castrum.New", err)
+		}
+		s.hub = resolved
+	}
+
+	var done []*core.Entity
+
+	for e := range s.players.Execute() {
+		p, _ := e.Component[Player]()
+		if err := p.Settings.Validate(); err != nil {
+			return fmt.Errorf("audio: entity %d: %w", e.ID(), err)
+		}
+		if p.current < 0 || p.current >= p.source.Len() {
+			return fmt.Errorf("audio: entity %d: track index %d out of range for %d tracks", e.ID(), p.current, p.source.Len())
+		}
+		audio := p.source.At(p.current)
+
+		restart := !p.synced || p.syncedRestarts != p.restarts ||
+			p.syncedSelection != p.selectionVersion ||
+			p.syncedAudio != audio
+
+		want := fold(p, s.mixer)
+		if err := spatial.apply(e.ID(), p.Settings, &want); err != nil {
+			if spatialErr == nil {
+				spatialErr = err
 			}
-			want.Restart = restart
-			live, err := controller.Sync(e.ID(), cl.Audio, want)
-			if err != nil {
+			want.Playing = false
+			want.Restart = false
+			if _, err := s.controller.Sync(e.ID(), audio, want); err != nil {
 				return fmt.Errorf("audio: entity %d: %w", e.ID(), err)
 			}
-
-			changed := restart
-			if !live && s.Loop == LoopNone && !s.Completed {
-				s.Completed = true
-				changed = true
-				hub.Emit(Finished{Entity: e.ID(), Audio: cl.Audio})
-			}
-			if changed {
-				e.SetComponent(s)
-			}
+			continue
+		}
+		want.Restart = restart
+		live, err := s.controller.Sync(e.ID(), audio, want)
+		if err != nil {
+			return fmt.Errorf("audio: entity %d: %w", e.ID(), err)
 		}
 
-		for e := range playlistQuery.Execute() {
-			s, _ := e.Component[Source]()
-			pl, _ := e.Component[Playlist]()
-
-			current := pl.Current()
-			if current == "" {
-				if s.syncedPlaylist {
-					s.Completed = false
-					s.syncedAudio = ""
-					s.syncedPlaylist = false
-					s.syncedPlaylistVersion = 0
-					e.SetComponent(s)
-				}
-				continue
-			}
-			restart := s.syncedRestarts != s.restarts ||
-				!s.syncedPlaylist || s.syncedPlaylistVersion != pl.selectionVersion ||
-				s.syncedAudio != current
-			if restart {
-				s.Completed = false
-				s.syncedRestarts = s.restarts
-				s.syncedAudio = current
-				s.syncedPlaylist = true
-				s.syncedPlaylistVersion = pl.selectionVersion
-			}
-
-			want := fold(s, mixer)
-			if err := spatial.apply(e.ID(), s, &want); err != nil {
-				if spatialErr == nil {
-					spatialErr = err
-				}
-				continue
-			}
-			want.Restart = restart
-			live, err := controller.Sync(e.ID(), current, want)
-			if err != nil {
-				return fmt.Errorf("audio: entity %d: %w", e.ID(), err)
-			}
-
-			changed := restart
-			if !live && s.Loop == LoopNone && !s.Completed {
-				s.Completed = true
-				changed = true
-				hub.Emit(Finished{Entity: e.ID(), Audio: current})
-				if pl.advanceAfterCompletion() {
-					e.SetComponent(pl)
-					s.Completed = false
-				}
-			}
-			if changed {
-				e.SetComponent(s)
+		if restart {
+			p.completed = false
+			p.synced = true
+			p.syncedRestarts = p.restarts
+			p.syncedSelection = p.selectionVersion
+			p.syncedAudio = audio
+		}
+		changed := restart
+		if !live && p.Settings.Loop != LoopTrack && !p.completed {
+			p.completed = true
+			changed = true
+			s.hub.Emit(Finished{Entity: e.ID(), Audio: audio})
+			if p.current+1 < p.source.Len() || p.Settings.Loop == LoopAll {
+				p.Next()
+				p.completed = false
 			}
 		}
+		if changed {
+			e.SetComponent(p)
+		}
+	}
 
-		var done []*core.Entity
-		for e := range oneshotQuery.Execute() {
-			s, _ := e.Component[Source]()
-			if !s.Completed {
-				continue
-			}
-			shot, _ := e.Component[oneshot]()
-			done = append(done, shot.self)
+	for e := range s.oneshots.Execute() {
+		p, _ := e.Component[Player]()
+		if !p.completed {
+			continue
 		}
-		for _, entity := range done {
-			if err := ctx.World.DestroyEntity(entity); err != nil {
-				return fmt.Errorf("audio: destroy one-shot: %w", err)
-			}
+		shot, _ := e.Component[oneshot]()
+		done = append(done, shot.self)
+	}
+	for _, entity := range done {
+		if err := ctx.World.DestroyEntity(entity); err != nil {
+			return fmt.Errorf("audio: destroy one-shot: %w", err)
 		}
+	}
 
-		if err := controller.Sweep(); err != nil {
-			return fmt.Errorf("audio: sweep: %w", err)
-		}
-		return spatialErr
-	})
+	if err := s.controller.Sweep(); err != nil {
+		return errors.Join(spatialErr, fmt.Errorf("audio: sweep: %w", err))
+	}
+	return spatialErr
 }

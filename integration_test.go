@@ -26,34 +26,39 @@ import (
 
 type integrationAudioController struct {
 	playbacks []audio.Playback
+	entity    core.EntityID
+	source    asset.ID
+	finished  bool
+	err       error
 }
 
-func (c *integrationAudioController) Sync(_ core.EntityID, _ asset.ID, want audio.Playback) (bool, error) {
+func (c *integrationAudioController) Sync(entity core.EntityID, source asset.ID, want audio.Playback) (bool, error) {
 	c.playbacks = append(c.playbacks, want)
-	return true, nil
+	c.entity, c.source = entity, source
+	return !c.finished, c.err
 }
 
 func (c *integrationAudioController) Sweep() error { return nil }
 
-type finishedAudioController struct {
-	playback audio.Playback
+func newTestAudioEntity(t *testing.T, g *Game, settings audio.Settings, components ...any) *core.Entity {
+	t.Helper()
+	player, err := audio.NewPlayer(audio.Track("sound"), settings)
+	if err != nil {
+		t.Fatalf("NewPlayer: %v", err)
+	}
+	entity, err := g.World().NewEntity(append([]any{player}, components...)...)
+	if err != nil {
+		t.Fatalf("NewEntity: %v", err)
+	}
+	return entity
 }
-
-func (c *finishedAudioController) Sync(_ core.EntityID, _ asset.ID, want audio.Playback) (bool, error) {
-	c.playback = want
-	return false, nil
-}
-
-func (c *finishedAudioController) Sweep() error { return nil }
 
 func TestRunnerAudioRunsAfterFrameAndSignalsPostFrame(t *testing.T) {
 	g := newTestGame(t)
-	controller := &finishedAudioController{}
-	if _, err := g.World().NewEntity(audio.NewSource(), audio.Clip{Audio: "sound"}); err != nil {
-		t.Fatal(err)
-	}
+	controller := &integrationAudioController{finished: true}
+	entity := newTestAudioEntity(t, g, audio.DefaultSettings())
 	hub := g.World().MustResource[*signal.Hub]()
-	frame, post, fixed := hub.NewReader[audio.Finished](), hub.NewReader[audio.Finished](), hub.NewReader[audio.Finished]()
+	frame, post, fixed, nextFrame := hub.NewReader[audio.Finished](), hub.NewReader[audio.Finished](), hub.NewReader[audio.Finished](), hub.NewReader[audio.Finished]()
 	addTestSystem(t, g, core.PhaseFrame, "configure", core.SystemFunc(func(*core.Context) error {
 		if _, ok := frame.Next(); ok {
 			t.Fatal("audio finished before frame work")
@@ -63,20 +68,43 @@ func TestRunnerAudioRunsAfterFrameAndSignalsPostFrame(t *testing.T) {
 	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
 		t.Fatal(err)
 	}
-	var finished bool
+	var finished audio.Finished
+	var received bool
 	addTestSystem(t, g, core.PhasePostFrame, "finished", core.SystemFunc(func(*core.Context) error {
-		_, finished = post.Next()
+		if signal, ok := post.Next(); ok {
+			finished, received = signal, true
+		}
 		return nil
 	}))
+	var fixedTicks int
 	addTestSystem(t, g, core.PhasePreFixed, "check expiration", core.SystemFunc(func(*core.Context) error {
+		fixedTicks++
 		if _, ok := fixed.Next(); ok {
 			t.Fatal("frame signal survived into fixed tick")
 		}
 		return nil
 	}))
 	advanceTestGame(t, g, g.Options().FixedDT())
-	if !finished || controller.playback.Volume != 0.5 {
-		t.Fatalf("finished = %t, playback = %+v", finished, controller.playback)
+	if !received || finished.Entity != entity.ID() || finished.Audio != "sound" {
+		t.Fatalf("finished = %+v, received = %t; want entity %d and audio sound", finished, received, entity.ID())
+	}
+	if fixedTicks != 1 || len(controller.playbacks) != 1 || controller.playbacks[0].Volume != 0.5 {
+		t.Fatalf("fixed ticks = %d, playbacks = %+v", fixedTicks, controller.playbacks)
+	}
+	if controller.entity != entity.ID() || controller.source != "sound" {
+		t.Fatalf("controller synced entity %d and audio %q; want entity %d and audio sound", controller.entity, controller.source, entity.ID())
+	}
+	checkedNextFrame := false
+	addTestSystem(t, g, core.PhasePreFrame, "check next frame", core.SystemFunc(func(*core.Context) error {
+		checkedNextFrame = true
+		if _, ok := nextFrame.Next(); ok {
+			t.Fatal("frame signal survived into the next frame")
+		}
+		return nil
+	}))
+	advanceTestGame(t, g, time.Millisecond)
+	if !checkedNextFrame {
+		t.Fatal("next-frame signal check did not run")
 	}
 }
 
@@ -109,9 +137,7 @@ func TestAudioBackendAttachmentTiming(t *testing.T) {
 		t.Run(phase.String(), func(t *testing.T) {
 			g := newTestGame(t)
 			controller := &integrationAudioController{}
-			if _, err := g.World().NewEntity(audio.NewSource(), audio.Clip{Audio: "sound"}); err != nil {
-				t.Fatal(err)
-			}
+			newTestAudioEntity(t, g, audio.DefaultSettings())
 			attached := false
 			addTestSystem(t, g, phase, "attach audio", core.SystemFunc(func(*core.Context) error {
 				if attached {
@@ -136,30 +162,26 @@ func TestAudioBackendAttachmentTiming(t *testing.T) {
 	}
 }
 
-type failingAudioController struct{ err error }
-
-func (c failingAudioController) Sync(core.EntityID, asset.ID, audio.Playback) (bool, error) {
-	return false, c.err
-}
-
-func (c failingAudioController) Sweep() error { return nil }
-
 func TestAudioBackendHeadlessAndErrors(t *testing.T) {
 	g := newTestGame(t)
-	if _, err := g.World().NewEntity(audio.NewSource(), audio.Clip{Audio: "sound"}); err != nil {
-		t.Fatal(err)
-	}
+	newTestAudioEntity(t, g, audio.DefaultSettings())
 	advanceTestGame(t, g, time.Millisecond)
 	if _, err := g.World().Resource[audio.Controller](); !errors.Is(err, core.ErrResourceNotRegistered) {
 		t.Fatalf("legacy audio.Controller resource error = %v, want not registered", err)
 	}
 	wantErr := errors.New("backend failed")
-	if err := g.World().MustResource[*audio.Backend]().Attach(failingAudioController{err: wantErr}); err != nil {
+	controller := &integrationAudioController{err: wantErr}
+	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
 		t.Fatal(err)
 	}
 	err := g.Advance(time.Millisecond)
 	if !errors.Is(err, wantErr) || !strings.Contains(err.Error(), audio.SystemName) {
 		t.Fatalf("Advance error = %v, want backend failure from %s", err, audio.SystemName)
+	}
+	controller.err = nil
+	advanceTestGame(t, g, time.Millisecond)
+	if len(controller.playbacks) != 2 || !controller.playbacks[0].Restart || !controller.playbacks[1].Restart {
+		t.Fatalf("playbacks = %+v; headless and failed syncs must not consume the initial restart", controller.playbacks)
 	}
 }
 
@@ -228,37 +250,22 @@ func TestEngineTickSignalsAndPreFixedMovement(t *testing.T) {
 }
 
 func TestSpatialAudioFrameAndFixedOrder(t *testing.T) {
-	g, err := New(WithFixedTPS(4))
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := newTestGame(t, WithFixedTPS(4))
 	listener := g.World().MustResource[*audio.Listener]()
 	listener.Enabled, listener.Mode, listener.Range = true, audio.FixedPosition, 100
-	source := audio.NewSource()
-	source.Spatial = true
-	entity, err := g.World().NewEntity(source, audio.Clip{Audio: "sound.wav"}, core.Transform{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	settings := audio.DefaultSettings()
+	settings.Spatial = true
+	entity := newTestAudioEntity(t, g, settings, core.Transform{})
 	controller := &integrationAudioController{}
-	if err := g.AddSystem(core.PhaseFrame, "audio", audio.NewAudioSystem(controller, g.World().MustResource[*audio.Mixer]())); err != nil {
+	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.AddSystem(core.PhaseFixed, "move", core.SystemFunc(func(ctx *core.Context) error {
+	addTestSystem(t, g, core.PhaseFixed, "move", core.SystemFunc(func(ctx *core.Context) error {
 		return entity.Update(ctx.World, func(tr *core.Transform) { tr.Position.X += 50 })
-	})); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Startup(); err != nil {
-		t.Fatal(err)
-	}
-	if err := g.Advance(250 * time.Millisecond); err != nil {
-		t.Fatal(err)
-	}
+	}))
+	advanceTestGame(t, g, 250*time.Millisecond)
 	g.Pause()
-	if err := g.Advance(250 * time.Millisecond); err != nil {
-		t.Fatal(err)
-	}
+	advanceTestGame(t, g, 250*time.Millisecond)
 	if len(controller.playbacks) != 2 || controller.playbacks[0].Volume != 1 ||
 		controller.playbacks[1].Volume != 0.5 || !controller.playbacks[1].Playing || controller.playbacks[1].Restart {
 		t.Fatalf("frame playbacks = %+v, want initial position then fixed movement during game pause", controller.playbacks)
@@ -310,13 +317,6 @@ func TestSettingsWorldAndFrameApplication(t *testing.T) {
 	}
 	mixer := game.World().MustResource[*audio.Mixer]()
 	actions := game.World().MustResource[*input.ActionMap]()
-	controller := &integrationAudioController{}
-	if _, err := game.World().NewEntity(audio.NewSource(), audio.Clip{Audio: asset.ID("sound")}); err != nil {
-		t.Fatal(err)
-	}
-	if err := game.AddSystem(core.PhaseFrame, "audio.reconcile", audio.NewAudioSystem(controller, mixer)); err != nil {
-		t.Fatal(err)
-	}
 	var volumes, axes []float64
 	if err := game.AddSystem(core.PhaseFrame, "observe", core.SystemFunc(func(ctx *core.Context) error {
 		volumes = append(volumes, mixer.Master())
@@ -343,7 +343,7 @@ func TestSettingsWorldAndFrameApplication(t *testing.T) {
 	if err := game.Advance(time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
-	if mixer.Master() != 1 || len(controller.playbacks) != 2 || controller.playbacks[1].Volume != 1 {
+	if mixer.Master() != 1 {
 		t.Fatal("changing audio preferences applied them without game code")
 	}
 	if actions.Axis("move") != 1 {
@@ -371,9 +371,6 @@ func TestSettingsWorldAndFrameApplication(t *testing.T) {
 	}
 	if len(volumes) != 3 || volumes[0] != 1 || volumes[1] != 1 || volumes[2] != 0.4 {
 		t.Fatalf("volumes = %v", volumes)
-	}
-	if len(controller.playbacks) != 3 || controller.playbacks[0].Volume != 1 || controller.playbacks[1].Volume != 1 || controller.playbacks[2].Volume != 0.4 {
-		t.Fatalf("playbacks = %v; explicitly applied preferences should reach the reconciler", controller.playbacks)
 	}
 	if len(axes) != 3 || axes[0] != 1 || axes[1] != 1 || axes[2] != 0 {
 		t.Fatalf("axes = %v; bindings should affect the next input update", axes)

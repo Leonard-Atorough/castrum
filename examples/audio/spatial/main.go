@@ -62,13 +62,14 @@ func run() error {
 	listener.Mode = audio.FixedPosition
 	listener.Position = playerStart
 
-	source := audio.NewSource()
-	source.Spatial = true
-	source.Attenuation = geom.EaseInOutCubic
-	source.Loop = audio.LoopForever
+	source, err := audio.NewPlayer(audio.Track(audioassets.Music), audio.Settings{
+		Volume: 1, Spatial: true, Attenuation: geom.EaseInOutCubic, Loop: audio.LoopTrack,
+	})
+	if err != nil {
+		return err
+	}
 	_, err = game.World().NewEntity(
 		source,
-		audio.Clip{Audio: audioassets.Music},
 		core.Transform{},
 		render.Sprite{
 			Drawable: render.RectShape{Size: geom.Vector2{X: 80, Y: 80}},

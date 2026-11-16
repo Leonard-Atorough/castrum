@@ -304,7 +304,7 @@ For short repeated effects, use `audio.LoadEager`, the default on `audio.Source`
 ```go
 source := audio.NewSource()
 source.Load = audio.LoadStream
-source.Loop = audio.LoopForever
+source.Loop = audio.LoopAll
 clip := audio.Clip{Audio: "assets/audio/music.ogg"}
 _, err := g.World().NewEntity(source, clip)
 if err != nil {

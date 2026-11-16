@@ -253,7 +253,7 @@ hero, err := g.World().NewEntity(
 	}},
 	animation.Animation{
 		Clip: "hero_idle",
-		Loop: animation.LoopForever,
+		Loop: animation.LoopAll,
 	},
 )
 if err != nil {
@@ -265,7 +265,7 @@ if err != nil {
 
 Two entities can share a clip without sharing playback state. Each entity has its own current frame, elapsed time, pause state, playback speed, and loop mode.
 
-An empty `Animation` is not playable. Component validation requires a non-empty `Clip`, a non-negative `Current`, finite non-negative `Elapsed` and `PlaybackMultiplier`, and either `LoopNone` or `LoopForever`. The animation system checks that the clip exists and that `Current` fits its frame slice, even when paused.
+An empty `Animation` is not playable. Component validation requires a non-empty `Clip`, a non-negative `Current`, finite non-negative `Elapsed` and `PlaybackMultiplier`, and either `LoopNone` or `LoopAll`. The animation system checks that the clip exists and that `Current` fits its frame slice, even when paused.
 
 ### Control playback
 
@@ -284,7 +284,7 @@ The fields you will use most often are:
 
 - `Paused` stops advancement and leaves `Sprite.Drawable` unchanged. Setting it back to false resumes from the stored frame and elapsed time.
 - `PlaybackMultiplier` scales the clip's rate. Both `0` and `1` mean the authored rate; `2` plays twice as fast. Use `Paused`, not a zero multiplier, to stop playback. Negative values are invalid.
-- `Loop` selects `LoopNone` or `LoopForever`.
+- `Loop` selects `LoopNone` or `LoopAll`.
 
 `Restart` rewinds the frame and elapsed time to zero, resumes playback, and clears the completion state. It preserves the clip, loop mode, and multiplier. Write the changed component back; the drawable updates on the next animation-system update.
 
@@ -293,7 +293,7 @@ The fields you will use most often are:
 Looping belongs to the entity, on the `Animation` component:
 
 - `animation.LoopNone` plays the clip once, then holds the last frame paused.
-- `animation.LoopForever` wraps from the last frame back to the first.
+- `animation.LoopAll` wraps from the last frame back to the first.
 
 `LoopNone` is the zero value, so a spawned animation plays once unless it says otherwise.
 
@@ -315,7 +315,7 @@ Use `JustCompleted` with running fixed ticks, not tick zero during setup: it com
 
 A completed `LoopNone` animation holds its last frame and remains on the entity. Unpausing it does not replay it: on the next frame crossing, it completes again and pauses. Call `Restart` to replay.
 
-For `LoopForever`, `HasCompleted` is always false, but `CompletedOn` and `JustCompleted` record loop boundaries. If one fixed update crosses several loops, only that tick is recorded and only one signal is emitted.
+For `LoopAll`, `HasCompleted` is always false, but `CompletedOn` and `JustCompleted` record loop boundaries. If one fixed update crosses several loops, only that tick is recorded and only one signal is emitted.
 
 ### Signals
 
