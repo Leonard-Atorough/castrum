@@ -163,16 +163,19 @@ var triggerTable = map[input.PadAxis]ebiten.StandardGamepadButton{
 // frame's device state.
 type poller struct {
 	snapshot input.Snapshot
-	ids      []ebiten.GamepadID
+	pads     gamepadSource
+	slots    [input.MaxPads]ebiten.GamepadID
+	occupied [input.MaxPads]bool
 }
 
 // poll clears and updates the input snapshot for the current frame.
 // the snapshot is reused across frames, so it must be cleared and repopulated each frame.
 func (p *poller) poll() {
+	previous := p.snapshot.Pads
 	p.snapshot = input.Snapshot{}
 	p.pollKeys()
 	p.pollMouse()
-	p.pollPads()
+	p.pollPads(previous)
 }
 
 // snapshotPtr returns a pointer to the current input snapshot.
@@ -204,26 +207,85 @@ func (p *poller) pollMouse() {
 	}
 }
 
-func (p *poller) pollPads() {
-	p.ids = ebiten.AppendGamepadIDs(p.ids[:0])
-	for slot, id := range p.ids {
-		if slot >= input.MaxPads {
-			break
+type gamepadSource interface {
+	gamepads() []ebiten.GamepadID
+	button(id ebiten.GamepadID, button ebiten.StandardGamepadButton) input.State
+	axis(id ebiten.GamepadID, axis input.PadAxis) float64
+}
+
+type ebitenGamepads struct {
+	ids []ebiten.GamepadID
+}
+
+func (g *ebitenGamepads) gamepads() []ebiten.GamepadID {
+	g.ids = ebiten.AppendGamepadIDs(g.ids[:0])
+	return g.ids
+}
+
+func (g *ebitenGamepads) button(id ebiten.GamepadID, button ebiten.StandardGamepadButton) input.State {
+	return input.State{
+		Pressed:  inpututil.IsStandardGamepadButtonJustPressed(id, button),
+		Held:     ebiten.IsStandardGamepadButtonPressed(id, button),
+		Released: inpututil.IsStandardGamepadButtonJustReleased(id, button),
+	}
+}
+
+func (g *ebitenGamepads) axis(id ebiten.GamepadID, axis input.PadAxis) float64 {
+	if eaxis, ok := padAxisTable[axis]; ok {
+		return ebiten.StandardGamepadAxisValue(id, eaxis)
+	}
+	return ebiten.StandardGamepadButtonValue(id, triggerTable[axis])
+}
+
+func (p *poller) gamepadSource() gamepadSource {
+	if p.pads == nil {
+		p.pads = &ebitenGamepads{}
+	}
+	return p.pads
+}
+
+func (p *poller) claim(id ebiten.GamepadID) (int, bool) {
+	for slot := range p.slots {
+		if p.occupied[slot] && p.slots[slot] == id {
+			return slot, true
 		}
+	}
+	for slot := range p.slots {
+		if !p.occupied[slot] {
+			p.slots[slot] = id
+			p.occupied[slot] = true
+			return slot, true
+		}
+	}
+	return 0, false
+}
+
+func (p *poller) pollPads(previous [input.MaxPads]input.PadSnapshot) {
+	present := [input.MaxPads]bool{}
+	source := p.gamepadSource()
+	for _, id := range source.gamepads() {
+		slot, ok := p.claim(id)
+		if !ok {
+			continue
+		}
+		present[slot] = true
 		pad := &p.snapshot.Pads[slot]
 		pad.Connected = true
 		for button, ebutton := range padButtonTable {
-			pad.Buttons[button] = input.State{
-				Pressed:  inpututil.IsStandardGamepadButtonJustPressed(id, ebutton),
-				Held:     ebiten.IsStandardGamepadButtonPressed(id, ebutton),
-				Released: inpututil.IsStandardGamepadButtonJustReleased(id, ebutton),
+			pad.Buttons[button] = source.button(id, ebutton)
+		}
+		for axis := range input.NumPadAxes {
+			pad.Axes[axis] = source.axis(id, axis)
+		}
+	}
+	for slot := range p.slots {
+		if previous[slot].Connected && !present[slot] {
+			p.occupied[slot] = false
+			for button, was := range previous[slot].Buttons {
+				if was.Held {
+					p.snapshot.Pads[slot].Buttons[button] = input.State{Released: true}
+				}
 			}
-		}
-		for axis, eaxis := range padAxisTable {
-			pad.Axes[axis] = ebiten.StandardGamepadAxisValue(id, eaxis)
-		}
-		for axis, ebutton := range triggerTable {
-			pad.Axes[axis] = ebiten.StandardGamepadButtonValue(id, ebutton)
 		}
 	}
 }
