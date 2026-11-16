@@ -96,7 +96,7 @@ func TestSystemCompletionAndRestart(t *testing.T) {
 	h.update()
 	h.controller.setLive(entity.ID(), false)
 	h.update()
-	if !h.player(entity).Completed {
+	if !h.player(entity).Completed() {
 		t.Fatal("finished player was not marked completed")
 	}
 	if got, ok := reader.Next(); !ok || got != (Finished{Entity: entity.ID(), Audio: "sound"}) {
@@ -114,8 +114,8 @@ func TestSystemCompletionAndRestart(t *testing.T) {
 	}
 	h.controller.setLive(entity.ID(), true)
 	h.update()
-	if got := h.lastSync(entity.ID()).want; !got.Restart || !got.Playing || h.player(entity).Completed {
-		t.Fatalf("restart playback = %+v, completed = %t", got, h.player(entity).Completed)
+	if got := h.lastSync(entity.ID()).want; !got.Restart || !got.Playing || h.player(entity).Completed() {
+		t.Fatalf("restart playback = %+v, completed = %t", got, h.player(entity).Completed())
 	}
 }
 
@@ -139,7 +139,7 @@ func TestSystemSequenceModes(t *testing.T) {
 			if _, ok := reader.Next(); ok {
 				t.Fatal("unexpected extra completion")
 			}
-			if player := h.player(entity); player.Index() != 1 || player.Completed {
+			if player := h.player(entity); player.Index() != 1 || player.Completed() {
 				t.Fatalf("after first track = %+v", player)
 			}
 			h.controller.setLive(entity.ID(), true)
@@ -154,11 +154,11 @@ func TestSystemSequenceModes(t *testing.T) {
 			}
 			player := h.player(entity)
 			if mode == LoopNone {
-				if !player.Completed || player.Index() != 1 {
+				if !player.Completed() || player.Index() != 1 {
 					t.Fatalf("exhausted sequence = %+v", player)
 				}
 			} else {
-				if player.Completed || player.Index() != 0 {
+				if player.Completed() || player.Index() != 0 {
 					t.Fatalf("wrapped sequence = %+v", player)
 				}
 				h.controller.setLive(entity.ID(), true)

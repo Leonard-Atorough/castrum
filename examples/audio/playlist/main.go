@@ -113,7 +113,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 		lines := []string{
 			"N: next   P: previous   R: repeat sequence   SPACE: pause",
 			fmt.Sprintf("Selected: %s", p.Current()),
-			fmt.Sprintf("Repeat: %s | Paused: %t | Exhausted: %t", repeat, p.Paused, p.Completed),
+			fmt.Sprintf("Repeat: %s | Paused: %t | Exhausted: %t", repeat, p.Paused, p.Completed()),
 			fmt.Sprintf("Completed tracks: %d | Last: %s", d.completions, d.last),
 		}
 		for i, label := range labels {

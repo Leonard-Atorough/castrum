@@ -11,7 +11,7 @@ import (
 )
 
 // Finished is the signal the audio system emits on the update that observes
-// a track finishing. [Player.Completed] is set when the player has no next
+// a track finishing. [Player.Completed] reports when the player has no next
 // track. A [LoopTrack] play does not finish.
 //
 // The game reconciles audio after frame systems when a controller is attached.
@@ -88,6 +88,7 @@ type Controller interface {
 }
 
 // NewAudioSystem returns a system that reconciles players with the controller.
+// It validates each player's settings before applying them to the controller.
 func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
 	return &system{
 		controller: controller,
@@ -129,6 +130,9 @@ func (s *system) Update(ctx *core.Context) error {
 
 	for e := range s.players.Execute() {
 		p, _ := e.Component[Player]()
+		if err := p.Settings.Validate(); err != nil {
+			return fmt.Errorf("audio: entity %d: %w", e.ID(), err)
+		}
 		if p.current < 0 || p.current >= p.source.Len() {
 			return fmt.Errorf("audio: entity %d: track index %d out of range for %d tracks", e.ID(), p.current, p.source.Len())
 		}
@@ -157,20 +161,20 @@ func (s *system) Update(ctx *core.Context) error {
 		}
 
 		if restart {
-			p.Completed = false
+			p.completed = false
 			p.synced = true
 			p.syncedRestarts = p.restarts
 			p.syncedSelection = p.selectionVersion
 			p.syncedAudio = audio
 		}
 		changed := restart
-		if !live && p.Settings.Loop != LoopTrack && !p.Completed {
-			p.Completed = true
+		if !live && p.Settings.Loop != LoopTrack && !p.completed {
+			p.completed = true
 			changed = true
 			s.hub.Emit(Finished{Entity: e.ID(), Audio: audio})
 			if p.current+1 < p.source.Len() || p.Settings.Loop == LoopAll {
 				p.Next()
-				p.Completed = false
+				p.completed = false
 			}
 		}
 		if changed {
@@ -180,7 +184,7 @@ func (s *system) Update(ctx *core.Context) error {
 
 	for e := range s.oneshots.Execute() {
 		p, _ := e.Component[Player]()
-		if !p.Completed {
+		if !p.completed {
 			continue
 		}
 		shot, _ := e.Component[oneshot]()

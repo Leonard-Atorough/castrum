@@ -160,14 +160,10 @@ func (s Settings) Validate() error {
 type Player struct {
 	// Settings controls playback and may be updated while the player is active.
 	Settings Settings
-	// Paused requests that playback hold its position. The mixer can also
-	// hold playback.
+	// Paused holds playback independently of the mixer's pause.
 	Paused bool
-	// Completed is set by the audio system when the last track finishes
-	// without repeating the sequence. Restart clears it immediately; the
-	// audio system clears it when advancing or syncing a selection.
-	Completed bool
 
+	completed        bool
 	source           Source
 	current          int
 	selectionVersion uint64
@@ -208,6 +204,10 @@ func (p Player) Validate() error {
 // Source returns the player's track sequence.
 func (p Player) Source() Source { return p.source }
 
+// Completed reports whether the sequence has finished without repeating.
+// Restart clears it immediately; selecting a track clears it on the next sync.
+func (p Player) Completed() bool { return p.completed }
+
 // Current returns the selected audio ID, whether or not it has been synced.
 func (p Player) Current() asset.ID { return p.source.At(p.current) }
 
@@ -218,7 +218,7 @@ func (p Player) Index() int { return p.current }
 // and requests a restart on the next audio system update. A mixer-wide pause
 // can still hold playback.
 func (p *Player) Restart() {
-	p.Completed = false
+	p.completed = false
 	p.Paused = false
 	p.current = 0
 	p.restarts++
