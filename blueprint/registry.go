@@ -8,10 +8,6 @@
 // from that point on. Registering a component also installs JSON for it on
 // the game's codecs, making the type loadable and saveable through the
 // asset system wherever the codecs are used.
-//
-// The registry is not safe for concurrent use; register during
-// construction and use from the game loop, matching the signal hub's
-// contract.
 package blueprint
 
 import (
@@ -27,9 +23,12 @@ import (
 // Registry maps stable keys to the component and resource types that cross
 // the data boundary. Keys are wire identities: do not rename them across
 // releases.
+//
+// A Registry is not safe for concurrent use. Register during construction,
+// then use it from the game loop.
 type Registry struct {
 	world      *core.World
-	codecs     *asset.Codecs
+	codecs     *asset.Codecs // resolved on first use; nil until then
 	components map[string]*componentEntry
 	resources  map[string]*resourceEntry
 }
@@ -59,8 +58,6 @@ func NewRegistry(world *core.World) *Registry {
 	}
 }
 
-// codecsOrError resolves the game's codecs from the world lazily and caches
-// the resource.
 func (r *Registry) codecsOrError() (*asset.Codecs, error) {
 	if r.codecs != nil {
 		return r.codecs, nil
@@ -75,8 +72,7 @@ func (r *Registry) codecsOrError() (*asset.Codecs, error) {
 
 // Component registers T as spawnable from data under key. JSON is installed
 // for T on the game's codecs; replace it through the codecs resource for a
-// custom format. The key is the stable wire identity; renaming it is a
-// breaking change.
+// custom format. It returns an error if key is empty or already registered.
 func (r *Registry) Component[T any](key string) error {
 	if key == "" {
 		return fmt.Errorf("blueprint: component key must not be empty")

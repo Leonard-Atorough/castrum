@@ -129,24 +129,24 @@ func isNilPointer(value any) bool {
 	return v.Kind() == reflect.Pointer && v.IsNil()
 }
 
-// Decode reads one value of type T in format from rd using the registered
+// Decode reads one value of type T in format from reader using the registered
 // decoder. It returns an error naming the type and format when none is
 // registered.
-func (c *Codecs) Decode[T any](rd io.Reader, format Format) (T, error) {
+func (c *Codecs) Decode[T any](reader io.Reader, format Format) (T, error) {
 	d, err := c.decoder[T](format)
 	if err != nil {
 		var zero T
 		return zero, err
 	}
-	return d(rd)
+	return d(reader)
 }
 
 // Encode writes value in format using the registered encoder. It returns an
 // error naming the type and format when none is registered.
-func (c *Codecs) Encode[T any](w io.Writer, value T, format Format) error {
+func (c *Codecs) Encode[T any](writer io.Writer, value T, format Format) error {
 	e, err := c.encoder[T](format)
 	if err != nil {
 		return err
 	}
-	return e(w, value)
+	return e(writer, value)
 }
