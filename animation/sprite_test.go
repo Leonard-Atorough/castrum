@@ -9,6 +9,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
+var animSheet = asset.FileSheet("atlas.json")
+
 func TestNewSpriteClipRejectsInvalidMetadata(t *testing.T) {
 	tests := []struct {
 		name   string

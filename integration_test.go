@@ -19,7 +19,6 @@ import (
 	"github.com/Leonard-Atorough/castrum/scene"
 	"github.com/Leonard-Atorough/castrum/settings"
 	"github.com/Leonard-Atorough/castrum/signal"
-	spr "github.com/Leonard-Atorough/castrum/sprite"
 	"github.com/Leonard-Atorough/castrum/state"
 	"github.com/Leonard-Atorough/castrum/tween"
 )
@@ -122,7 +121,7 @@ func TestEngineSystemsRejectRelativeInsertion(t *testing.T) {
 		{core.PhaseFrame, scene.FrameSystemName}, {core.PhaseFrame, audio.SystemName},
 		{core.PhasePreFixed, core.PrevTransformSystemName},
 		{core.PhasePreFixed, input.TickSystemName}, {core.PhaseFixed, gametime.TimerSystemName},
-		{core.PhaseFixed, animation.SystemName}, {core.PhaseFixed, collision.SystemName},
+		{core.PhaseFixed, animation.SpriteAnimationSystem}, {core.PhaseFixed, collision.SystemName},
 	} {
 		for _, option := range []SystemOption{Before(entry.name), After(entry.name)} {
 			if err := g.AddSystem(entry.phase, "relative", system, option); err == nil {
@@ -212,12 +211,15 @@ func TestEngineTickSignalsAndPreFixedMovement(t *testing.T) {
 	if _, err := g.World().NewEntity(gametime.NewTimer(250*time.Millisecond, false)); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.World().MustResource[*animation.ClipStore]().Add("clip", animation.Clip{
-		Source: asset.FileSheet("sprites.json"), Frames: []string{"frame"}, FPS: 4,
-	}); err != nil {
+	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"frame"}, 4)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := g.World().NewEntity(animation.Animation{Clip: "clip"}, spr.Sprite{}, core.Transform{}); err != nil {
+	animated, err := animation.NewAnimatedSprite(clip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.World().NewEntity(animated, core.Transform{}); err != nil {
 		t.Fatal(err)
 	}
 	shape, err := collision.NewCollider(collision.Circle{Radius: 1})
@@ -524,24 +526,33 @@ func TestAnimationSystemAlwaysRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := g.World().MustResource[*animation.ClipStore]().Add("clip", animation.Clip{
-		Source: asset.FileSheet("sprites.json"), Frames: []string{"frame_0", "frame_1"}, FPS: 60,
-	}); err != nil {
-		t.Fatalf("Add clip: %v", err)
+	// 120 FPS on 60 ticks per second: one fixed tick advances one frame, so a
+	// single Advance proves the engine registered the system without an option.
+	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"frame_0", "frame_1"}, 120)
+	if err != nil {
+		t.Fatalf("clip: %v", err)
 	}
-	entity, err := g.World().NewEntity(animation.Animation{Clip: "clip"}, spr.Sprite{}, core.Transform{})
+	animated, err := animation.NewAnimatedSprite(clip)
+	if err != nil {
+		t.Fatalf("animated sprite: %v", err)
+	}
+	entity, err := g.World().NewEntity(animated, core.Transform{})
 	if err != nil {
 		t.Fatalf("spawn animated sprite: %v", err)
 	}
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	sprite, ok := entity.Component[spr.Sprite](g.World())
+	value, ok := entity.Component[animation.AnimatedSprite](g.World())
 	if !ok {
-		t.Fatal("animated entity has no sprite")
+		t.Fatal("animated entity lost its component")
 	}
-	if _, ok := sprite.Drawable.(spr.SheetSource); !ok {
-		t.Errorf("drawable = %#v, want an atlas source without any option", sprite.Drawable)
+	frame, ok, err := value.CurrentFrame()
+	if err != nil || !ok {
+		t.Fatalf("CurrentFrame = %v, %v, %v, want the current frame", frame, ok, err)
+	}
+	if frame.Region != "frame_1" {
+		t.Errorf("frame region = %q, want frame_1 advanced without any option", frame.Region)
 	}
 }
 

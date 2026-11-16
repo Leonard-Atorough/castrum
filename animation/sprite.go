@@ -1,7 +1,10 @@
+// Package animation provides reusable sprite clips and per-entity playback.
+// Its fixed-tick system advances animated sprites and emits completion signals.
 package animation
 
 import (
 	"fmt"
+	"math"
 	"slices"
 
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -9,6 +12,29 @@ import (
 	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/sprite"
 )
+
+// LoopMode controls what happens after an animation reaches its final frame.
+type LoopMode int
+
+const (
+	// LoopNone plays the clip once, then pauses on its final frame. It is the
+	// zero value, so animations play once by default.
+	LoopNone LoopMode = iota
+	// LoopAll wraps from the final frame back to the first.
+	LoopAll
+)
+
+// Completed is emitted when an [AnimatedSprite] reaches the end of its clip.
+// The system emits one signal per sprite per update, even if a looping clip
+// wraps multiple times.
+type Completed struct {
+	// Entity is the entity whose clip completed.
+	Entity core.EntityID
+	// Tick is the fixed tick of the completion.
+	Tick uint64
+	// Loops is the number of wraps in this update; 1 for a LoopNone completion.
+	Loops uint64
+}
 
 // SpriteClip is a reusable sequence of named sheet regions and a playback rate.
 // Its frames are copied on construction and can be shared by animated sprites.
@@ -35,7 +61,9 @@ func (c SpriteClip) Validate() error {
 }
 
 // NewSpriteClip returns a clip that plays frames in order at fps. It copies
-// frames and reports an error if the source, frame names, or rate is invalid.
+// frames but does not load the sheet or check that the named regions exist.
+// It returns an error if source is invalid, frames is empty or contains an
+// empty name, or fps is not finite and positive.
 func NewSpriteClip(source asset.SheetRef, frames []string, fps float64) (SpriteClip, error) {
 	clip := SpriteClip{source: source, frames: frames, fps: fps}
 	if err := clip.Validate(); err != nil {
@@ -52,10 +80,14 @@ func NewSpriteClip(source asset.SheetRef, frames []string, fps float64) (SpriteC
 
 // AnimatedSprite is a sprite with its own animation state.
 // Its zero value has no clip and draws nothing.
+//
+// An entity needs a [core.Transform] to be rendered and must not also have a
+// [sprite.Sprite].
 type AnimatedSprite struct {
 	// Loop selects what happens after the clip's final frame.
 	Loop LoopMode
 	// PlaybackMultiplier scales the clip's rate; zero means normal speed.
+	// It must be finite and non-negative.
 	PlaybackMultiplier float64
 	// Paused prevents the current frame from advancing.
 	Paused bool
@@ -108,7 +140,8 @@ func (a AnimatedSprite) Validate() error {
 	return nil
 }
 
-// CurrentFrame returns the frame to draw. It reports false for a clipless sprite.
+// CurrentFrame returns the frame to draw. It reports false for a clipless
+// sprite and an error if the sprite is invalid.
 func (a AnimatedSprite) CurrentFrame() (sprite.SheetSource, bool, error) {
 	if err := a.Validate(); err != nil {
 		return sprite.SheetSource{}, false, err
@@ -122,8 +155,8 @@ func (a AnimatedSprite) CurrentFrame() (sprite.SheetSource, bool, error) {
 	}, true, nil
 }
 
-// JustCompleted reports whether the clip completed on tick. Pass the current
-// fixed tick to check whether it completed during that update.
+// JustCompleted reports whether the clip completed on tick. Pass
+// [core.Context.Tick] to check whether it completed during the current update.
 func (a AnimatedSprite) JustCompleted(tick uint64) bool {
 	return a.hasClip && a.completedOn != 0 && a.completedOn == tick
 }
@@ -158,11 +191,21 @@ func (a *AnimatedSprite) Restart() {
 	a.Paused = false
 }
 
+// SpriteAnimationSystem is the animation system's fixed-phase registration name.
+const SpriteAnimationSystem = "engine.animation"
+
 type animationSystem struct {
 	animations *core.Query
 	hub        *signal.Hub
 }
 
+// NewSpriteAnimationSystem returns a system that advances [AnimatedSprite]
+// components and emits [Completed] signals.
+//
+// Games created by castrum.New register it in [core.PhaseFixed] automatically.
+// When registering it manually, provide a [*signal.Hub] resource and run it
+// in the fixed phase. Update returns an error if the hub is missing, a sprite
+// is invalid, or a frame advance cannot be represented.
 func NewSpriteAnimationSystem() core.System {
 	return &animationSystem{}
 }
@@ -226,4 +269,8 @@ func (s *animationSystem) Update(ctx *core.Context) error {
 		e.SetComponent(anim)
 	}
 	return nil
+}
+
+func isFinite(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
