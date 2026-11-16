@@ -49,7 +49,7 @@ func run() error {
 		core.Transform{Position: playerStart},
 		render.Sprite{
 			Drawable: render.CircleShape{Radii: geom.Vector2{X: 20, Y: 20}},
-			Color:    color.RGBA{G: 200, B: 255, A: 255},
+			Style:    render.SpriteStyle{Color: color.RGBA{G: 200, B: 255, A: 255}},
 		},
 	)
 	if err != nil {
@@ -73,7 +73,7 @@ func run() error {
 		core.Transform{},
 		render.Sprite{
 			Drawable: render.RectShape{Size: geom.Vector2{X: 80, Y: 80}},
-			Color:    color.RGBA{R: 220, G: 100, A: 255},
+			Style:    render.SpriteStyle{Color: color.RGBA{R: 220, G: 100, A: 255}},
 		},
 	)
 	if err != nil {

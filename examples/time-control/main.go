@@ -119,7 +119,7 @@ func run() error {
 	if _, err := g.World().NewEntity(
 		render.Sprite{
 			Drawable: render.CircleShape{Radii: geom.Vector2{X: 12, Y: 12}},
-			Color:    color.NRGBA{R: 255, G: 200, B: 80, A: 255},
+			Style:    render.SpriteStyle{Color: color.NRGBA{R: 255, G: 200, B: 80, A: 255}},
 		},
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: screenH / 2}},
 	); err != nil {
@@ -128,7 +128,7 @@ func run() error {
 	inner, err := g.World().NewEntity(
 		render.Sprite{
 			Drawable: render.CircleShape{Radii: geom.Vector2{X: 20, Y: 20}},
-			Color:    color.NRGBA{R: 120, G: 220, B: 120, A: 255},
+			Style:    render.SpriteStyle{Color: color.NRGBA{R: 120, G: 220, B: 120, A: 255}},
 		},
 		core.Transform{},
 	)
@@ -138,7 +138,7 @@ func run() error {
 	outer, err := g.World().NewEntity(
 		render.Sprite{
 			Drawable: render.CircleShape{Radii: geom.Vector2{X: 32, Y: 32}},
-			Color:    color.NRGBA{R: 120, G: 160, B: 220, A: 255},
+			Style:    render.SpriteStyle{Color: color.NRGBA{R: 120, G: 160, B: 220, A: 255}},
 		},
 		core.Transform{},
 	)

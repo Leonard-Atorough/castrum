@@ -10,22 +10,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// Sprite is a drawable component with shared style and an optional drawable.
-//
-// The zero value is visible but draws nothing until [Sprite.Drawable] is set.
-type Sprite struct {
-	// Layer orders sprites from back to front, from 0 through 31.
-	Layer uint8
-	// SortOrder orders sprites within a layer; higher values draw on top.
-	// Equal values are ordered by world Y.
-	SortOrder int8
-	// Hidden excludes the sprite from collection.
-	Hidden bool
-	// FlipH and FlipV mirror texture-backed drawables horizontally and
-	// vertically; shapes are not flipped.
-	FlipH, FlipV bool
-	// Drawable is the image, text, or shape to draw. A nil value draws nothing.
-	Drawable Drawable
+// SpriteStyle is the shared visual style of a [Sprite]: ordering, color,
+// outline, flips, and visibility. The zero value is a visible, plain sprite on
+// layer 0.
+type SpriteStyle struct {
 	// Outline strokes a shape's border instead of filling it. It requires a
 	// positive StrokeWidth and has no effect on non-shape drawables.
 	Outline bool
@@ -36,21 +24,41 @@ type Sprite struct {
 	// controls opacity. A nil value leaves textures untinted, defaults text
 	// to white, and defaults shapes to black.
 	Color color.Color
+	// Layer orders sprites from back to front, from 0 through 31.
+	Layer uint8
+	// SortOrder orders sprites within a layer; higher values draw on top.
+	// Equal values are ordered by world Y.
+	SortOrder int8
+	// Hidden excludes the sprite from collection.
+	Hidden bool
+	// FlipH and FlipV mirror texture-backed drawables horizontally and
+	// vertically; shapes are not flipped.
+	FlipH, FlipV bool
+}
+
+// Sprite is a drawable component with shared style and an optional drawable.
+//
+// The zero value is visible but draws nothing until [Sprite.Drawable] is set.
+type Sprite struct {
+	// Drawable is the image, text, or shape to draw. A nil value draws nothing.
+	Drawable Drawable
+	// Style holds the sprite's visual style.
+	Style SpriteStyle
 }
 
 // Validate reports whether the sprite's style and drawable parameters are
 // valid. It does not resolve referenced assets.
 func (s Sprite) Validate() error {
-	if s.Layer > 31 {
+	if s.Style.Layer > 31 {
 		return fmt.Errorf("layer must be between 0 and 31")
 	}
-	if !isFinite(s.StrokeWidth) {
+	if !isFinite(s.Style.StrokeWidth) {
 		return fmt.Errorf("stroke width must be finite")
 	}
-	if s.Outline && s.StrokeWidth <= 0 {
+	if s.Style.Outline && s.Style.StrokeWidth <= 0 {
 		return fmt.Errorf("outline requires a positive stroke width")
 	}
-	if s.StrokeWidth < 0 {
+	if s.Style.StrokeWidth < 0 {
 		return fmt.Errorf("stroke width must not be negative")
 	}
 	switch d := s.Drawable.(type) {

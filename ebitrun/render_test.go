@@ -254,13 +254,13 @@ func TestEngineDrawShapeSmoke(t *testing.T) {
 	g, r := newSpriteGame(t)
 	spawns := []render.Sprite{
 		{Drawable: render.RectShape{Size: geom.Vector2{X: 10, Y: 20}}},
-		{Drawable: render.RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Outline: true, StrokeWidth: 2},
+		{Drawable: render.RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 2}},
 		{Drawable: render.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}},
-		{Drawable: render.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Outline: true, StrokeWidth: 1},
-		{Drawable: render.LineShape{To: geom.Vector2{X: 30, Y: 0}}, Outline: true, StrokeWidth: 2},
+		{Drawable: render.CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 1}},
+		{Drawable: render.LineShape{To: geom.Vector2{X: 30, Y: 0}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 2}},
 	}
 	for i, sprite := range spawns {
-		sprite.Layer = uint8(i)
+		sprite.Style.Layer = uint8(i)
 		if _, err := g.World().NewEntity(
 			sprite,
 			core.Transform{
@@ -276,7 +276,8 @@ func TestEngineDrawShapeSmoke(t *testing.T) {
 	// Béziers.
 	if _, err := g.World().NewEntity(
 		render.Sprite{
-			Drawable: render.CircleShape{Radii: geom.Vector2{X: 15, Y: 5}}, Outline: true, StrokeWidth: 1, Layer: 5,
+			Drawable: render.CircleShape{Radii: geom.Vector2{X: 15, Y: 5}},
+			Style:    render.SpriteStyle{Outline: true, StrokeWidth: 1, Layer: 5},
 		},
 		core.Transform{
 			Position: geom.Vector2{X: 50, Y: 50},

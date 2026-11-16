@@ -113,9 +113,8 @@ func run() error {
 			if _, err := g.World().NewEntity(
 				core.Transform{Position: geom.Vector2{X: float64(x), Y: float64(y)}},
 				render.Sprite{
-					Drawable:  render.CircleShape{Radii: geom.Vector2{X: dotRadius, Y: dotRadius}},
-					Color:     dotColor,
-					SortOrder: -1,
+					Drawable: render.CircleShape{Radii: geom.Vector2{X: dotRadius, Y: dotRadius}},
+					Style:    render.SpriteStyle{Color: dotColor, SortOrder: -1},
 				},
 			); err != nil {
 				return err
@@ -134,10 +133,8 @@ func run() error {
 		if _, err := g.World().NewEntity(
 			core.Transform{Position: pos},
 			render.Sprite{
-				Drawable:    edges[i],
-				Outline:     true,
-				StrokeWidth: edgeWidth,
-				Color:       edgeColor,
+				Drawable: edges[i],
+				Style:    render.SpriteStyle{Outline: true, StrokeWidth: edgeWidth, Color: edgeColor},
 			},
 		); err != nil {
 			return err

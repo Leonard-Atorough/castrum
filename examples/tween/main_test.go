@@ -64,7 +64,7 @@ func TestTweenExamplePauseAndRestart(t *testing.T) {
 	if !ok {
 		t.Fatal("swatch lost its Sprite")
 	}
-	if tinted.Color == initial.Color {
+	if tinted.Style.Color == initial.Style.Color {
 		t.Error("frame tint did not change while paused")
 	}
 
@@ -79,7 +79,7 @@ func TestTweenExamplePauseAndRestart(t *testing.T) {
 		t.Error("restart did not reset both playheads")
 	}
 	tinted, _ = d.swatch.Component[render.Sprite](g.World())
-	if got := tinted.Color; got != (color.NRGBA{R: 255, G: 180, B: 60, A: 255}) {
+	if got := tinted.Style.Color; got != (color.NRGBA{R: 255, G: 180, B: 60, A: 255}) {
 		t.Errorf("restarted tint = %v, want initial orange", got)
 	}
 	after, _ = d.body.Component[core.Transform](g.World())
@@ -128,7 +128,7 @@ func TestTweenExampleEndpoints(t *testing.T) {
 	if !ok {
 		t.Fatal("swatch has no Sprite")
 	}
-	if got := swatch.Color; got != (color.NRGBA{R: 80, G: 160, B: 255, A: 255}) {
+	if got := swatch.Style.Color; got != (color.NRGBA{R: 80, G: 160, B: 255, A: 255}) {
 		t.Errorf("completed tint = %v, want final blue", got)
 	}
 }

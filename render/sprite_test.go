@@ -14,16 +14,14 @@ import (
 func TestSpriteValidate(t *testing.T) {
 	valid := Sprite{
 		Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"},
-		Layer:    31,
-		Color:    color.White,
+		Style:    SpriteStyle{Layer: 31, Color: color.White},
 	}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid Sprite rejected: %v", err)
 	}
 	outlined := Sprite{
-		Drawable:    CircleShape{Radii: geom.Vector2{X: 5, Y: 5}},
-		Outline:     true,
-		StrokeWidth: 2,
+		Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}},
+		Style:    SpriteStyle{Outline: true, StrokeWidth: 2},
 	}
 	if err := outlined.Validate(); err != nil {
 		t.Fatalf("outlined shape Sprite rejected: %v", err)
@@ -43,11 +41,11 @@ func TestSpriteValidate(t *testing.T) {
 	}
 
 	for name, sprite := range map[string]Sprite{
-		"layer over 31":           {Layer: 32},
-		"negative stroke width":   {StrokeWidth: -1},
-		"NaN stroke width":        {StrokeWidth: math.NaN()},
-		"infinite stroke width":   {StrokeWidth: math.Inf(1)},
-		"outline without width":   {Outline: true},
+		"layer over 31":           {Style: SpriteStyle{Layer: 32}},
+		"negative stroke width":   {Style: SpriteStyle{StrokeWidth: -1}},
+		"NaN stroke width":        {Style: SpriteStyle{StrokeWidth: math.NaN()}},
+		"infinite stroke width":   {Style: SpriteStyle{StrokeWidth: math.Inf(1)}},
+		"outline without width":   {Style: SpriteStyle{Outline: true}},
 		"sheet without reference": {Drawable: SheetSource{Region: "player"}},
 		"sheet without region":    {Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json")}},
 		"texture without ID":      {Drawable: TextureSource{}},
@@ -81,7 +79,7 @@ func TestComponentValidationAtSpawn(t *testing.T) {
 	w := core.NewWorld()
 
 	if _, err := w.NewEntity(
-		Sprite{Layer: 32},
+		Sprite{Style: SpriteStyle{Layer: 32}},
 		core.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
 	); err == nil || !strings.Contains(err.Error(), "Sprite") {
 		t.Errorf("invalid layer at spawn = %v, want an error naming Sprite", err)
