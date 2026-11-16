@@ -658,3 +658,34 @@ func TestChordUpdateAllocations(t *testing.T) {
 		t.Fatal("opposing key-pair keys should cancel and release the chord")
 	}
 }
+
+func TestPadDisconnectReleasesButtonActions(t *testing.T) {
+	am := mustMap(t, Bindings{
+		"p1":  []Input{PadButtonInput{Pad: 1, Button: PadSouth}.Binding()},
+		"any": []Input{PadButtonInput{Button: PadSouth}.Binding()},
+	}, 0)
+
+	s := &Snapshot{}
+	s.Pads[0] = PadSnapshot{Connected: true}
+	s.Pads[0].Buttons[PadSouth] = State{Held: true}
+	am.Update(s, 0.016)
+	if !am.Held("p1") || !am.Held("any") {
+		t.Fatal("the held pad should drive the explicit and any-pad actions")
+	}
+
+	s = &Snapshot{}
+	s.Pads[0].Buttons[PadSouth] = State{Released: true}
+	am.Update(s, 0.016)
+	if am.Held("p1") || am.Held("any") {
+		t.Fatal("a disconnected pad must read as not held")
+	}
+	if !am.JustReleased("p1") || !am.JustReleased("any") {
+		t.Fatal("the disconnect must produce a frame release edge for button actions")
+	}
+
+	am.Update(&Snapshot{}, 0.016)
+	am.Tick()
+	if !am.Released("p1") || !am.Released("any") {
+		t.Fatal("the release edge must latch until the next fixed tick")
+	}
+}

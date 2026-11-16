@@ -494,16 +494,18 @@ func padState(s *Snapshot, pad int, button PadButton) State {
 		if pad != 0 && padIndex != pad-1 {
 			continue
 		}
-		if !s.PadConnected(padIndex) {
-			continue
-		}
-		if s.PadPressed(padIndex, button) {
-			state.Pressed = true
-		}
-		if s.PadHeld(padIndex, button) {
-			state.Held = true
-		}
-		if s.PadReleased(padIndex, button) {
+		switch {
+		case s.PadConnected(padIndex):
+			if s.PadPressed(padIndex, button) {
+				state.Pressed = true
+			}
+			if s.PadHeld(padIndex, button) {
+				state.Held = true
+			}
+			if s.PadReleased(padIndex, button) {
+				state.Released = true
+			}
+		case s.PadReleased(padIndex, button):
 			state.Released = true
 		}
 	}
