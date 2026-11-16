@@ -19,6 +19,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/signal"
 	ebitaudio "github.com/hajimehoshi/ebiten/v2/audio"
 )
 
@@ -520,5 +521,116 @@ func TestRunnerAudioEntityRemoval(t *testing.T) {
 	}
 	if files.opens.Load()-files.closes.Load() != 1 {
 		t.Fatal("entity removal did not close its stream")
+	}
+}
+
+func TestRunnerAudioCompletionReclaimsOneShot(t *testing.T) {
+	ctx := ebitaudio.CurrentContext()
+	if ctx == nil {
+		ebitaudio.NewContext(44100)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "tone.wav"), testWAV(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files := &closeTrackingFS{fsys: os.DirFS(dir)}
+	game, err := castrum.New(castrum.WithFilesystem(files))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(game); err != nil {
+		t.Fatal(err)
+	}
+	world := game.World()
+	provider, ok := world.MustResource[*audio.Backend]().Controller().(*audioProvider)
+	if !ok {
+		t.Fatal("runner did not attach its audio provider")
+	}
+	t.Cleanup(func() {
+		clear(provider.touched)
+		if err := provider.Sweep(); err != nil {
+			t.Errorf("cleanup audio sessions: %v", err)
+		}
+	})
+	finished := world.MustResource[*signal.Hub]().NewReader[audio.Finished]()
+
+	streamSettings := audio.DefaultSettings()
+	streamSettings.Load = audio.LoadStream
+	streamed, err := audio.NewPlayer(audio.Track("tone.wav"), streamSettings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	persistent, err := world.NewEntity(streamed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oneshot, err := audio.OneShot(world, audio.Track("tone.wav"), audio.DefaultSettings())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := game.Startup(); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.Advance(17 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	streamSession := provider.players[persistent.ID()]
+	shotSession := provider.players[oneshot.ID()]
+	if streamSession == nil || shotSession == nil || !streamSession.player.IsPlaying() || !shotSession.player.IsPlaying() {
+		t.Fatal("runner did not start both plays")
+	}
+	if files.opens.Load() != 1 || files.closes.Load() != 0 {
+		t.Fatalf("opens=%d closes=%d, want one live stream", files.opens.Load(), files.closes.Load())
+	}
+
+	streamSession.player.PauseAndStopReading()
+	shotSession.player.PauseAndStopReading()
+	if err := game.Advance(17 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	if !persistent.IsAlive() {
+		t.Fatal("completed persistent play was destroyed")
+	}
+	if player, ok := persistent.Component[audio.Player](world); !ok || !player.Completed() {
+		t.Fatalf("completed player = %+v, present=%v", player, ok)
+	}
+	if oneshot.IsAlive() {
+		t.Fatal("completed one-shot was not reclaimed")
+	}
+	signals := make(map[core.EntityID]asset.ID)
+	id := core.EntityID(0)
+	for event, ok := finished.Next(); ok; event, ok = finished.Next() {
+		signals[event.Entity] = event.Audio
+		id = event.Entity
+	}
+	_ = id
+	if len(signals) != 2 || signals[persistent.ID()] != "tone.wav" || signals[oneshot.ID()] != "tone.wav" {
+		t.Fatalf("finished signals = %v", signals)
+	}
+	if got := provider.players[persistent.ID()]; got != streamSession || !got.finished || got.player != nil || got.balance != nil || got.source != nil {
+		t.Fatalf("completed stream session = %+v, want a released tombstone", got)
+	}
+	if files.opens.Load() != files.closes.Load() {
+		t.Fatal("completion did not close the streamed file")
+	}
+
+	opens := files.opens.Load()
+	closes := files.closes.Load()
+	if err := game.Advance(17 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if provider.players[oneshot.ID()] != nil {
+		t.Fatal("one-shot session was not swept after reclamation")
+	}
+	if provider.players[persistent.ID()] != streamSession {
+		t.Fatal("completed persistent play replayed or lost its tombstone")
+	}
+	if files.opens.Load() != opens || files.closes.Load() != closes {
+		t.Fatal("completed plays reopened or closed files a second time")
+	}
+	if _, ok := finished.Next(); ok {
+		t.Fatal("completion signals were emitted more than once")
 	}
 }
