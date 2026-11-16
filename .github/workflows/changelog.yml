@@ -1,0 +1,57 @@
+name: Changelog
+
+# Keep the [Unreleased] section of CHANGELOG.md current after merges instead
+# of regenerating it only at release time (see release.yaml).
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: changelog
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Refresh unreleased changelog
+    # The bot's own refresh commit lands on main and triggers this again;
+    # there is nothing further to fold in.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(changelog):') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Regenerate CHANGELOG.md
+        # No tag input: git-cliff writes the [Unreleased] section from
+        # commits since the latest tag, then the released sections below it.
+        uses: ./.github/actions/generate-changelog
+
+      - name: Mint app installation token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Commit and push
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          git config user.name "github-castrum[bot]"
+          git config user.email "41898282+github-castrum[bot]@users.noreply.github.com"
+          if git diff --quiet -- CHANGELOG.md; then
+            echo "CHANGELOG.md already current."
+            exit 0
+          fi
+          git add CHANGELOG.md
+          git commit -m "chore(changelog): refresh unreleased section"
+          # Rebase onto anything that landed while this job ran so a
+          # mid-merge push cannot fail this step.
+          git pull --rebase "https://x-access-token:${APP_TOKEN}@github.com/${{ github.repository }}.git" main
+          git push "https://x-access-token:${APP_TOKEN}@github.com/${{ github.repository }}.git" main

@@ -26,6 +26,9 @@ func (e Entry) ID() EntityID {
 
 // SetComponent overwrites the visited entity's component of type T. Only
 // types listed in [Query.With] are available; other types cause a panic.
+// The write bypasses [Validatable] so iteration stays error-free; systems
+// whose components can be written by other systems mid-loop should
+// re-validate before consuming them.
 func (e Entry) SetComponent[T any](value T) {
 	typ := reflect.TypeFor[T]()
 	column, ok := e.columns[typ]
@@ -37,7 +40,7 @@ func (e Entry) SetComponent[T any](value T) {
 
 // Update applies fn to the visited entity's component of type T and writes
 // the result back. Only types listed in [Query.With] are available; other
-// types cause a panic.
+// types cause a panic. Like SetComponent, the write bypasses [Validatable].
 func (e Entry) Update[T any](fn func(*T)) {
 	typ := reflect.TypeFor[T]()
 	column, ok := e.columns[typ]

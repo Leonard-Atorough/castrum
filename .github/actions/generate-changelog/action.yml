@@ -1,0 +1,30 @@
+name: Generate changelog
+description: Install git-cliff and regenerate CHANGELOG.md from commit history.
+
+inputs:
+  tag:
+    description: >-
+      Release tag to render the newest section under (e.g. v0.4.0). Leave
+      empty to render the commit range since the latest tag as
+      [Unreleased].
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install git-cliff
+      uses: taiki-e/install-action@v2
+      with:
+        tool: git-cliff
+
+    - name: Regenerate CHANGELOG.md
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+      run: |
+        args=(--skip-tags 'v0\.0\.' --output CHANGELOG.md)
+        if [[ -n "$TAG" ]]; then
+          args=(--tag "$TAG" "${args[@]}")
+        fi
+        git-cliff "${args[@]}"
