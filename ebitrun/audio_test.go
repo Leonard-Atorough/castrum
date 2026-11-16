@@ -553,6 +553,15 @@ func TestRunnerAudioCompletionReclaimsOneShot(t *testing.T) {
 		}
 	})
 	finished := world.MustResource[*signal.Hub]().NewReader[audio.Finished]()
+	var observed []audio.Finished
+	if err := game.AddSystem(core.PhasePostFrame, "record finished", core.SystemFunc(func(ctx *core.Context) error {
+		for event, ok := finished.Next(); ok; event, ok = finished.Next() {
+			observed = append(observed, event)
+		}
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
 
 	streamSettings := audio.DefaultSettings()
 	streamSettings.Load = audio.LoadStream
@@ -580,8 +589,8 @@ func TestRunnerAudioCompletionReclaimsOneShot(t *testing.T) {
 	if streamSession == nil || shotSession == nil || !streamSession.player.IsPlaying() || !shotSession.player.IsPlaying() {
 		t.Fatal("runner did not start both plays")
 	}
-	if files.opens.Load() != 1 || files.closes.Load() != 0 {
-		t.Fatalf("opens=%d closes=%d, want one live stream", files.opens.Load(), files.closes.Load())
+	if files.opens.Load() != 2 || files.closes.Load() != 1 {
+		t.Fatalf("opens=%d closes=%d, want a closed eager read and one live stream", files.opens.Load(), files.closes.Load())
 	}
 
 	streamSession.player.PauseAndStopReading()
@@ -600,14 +609,11 @@ func TestRunnerAudioCompletionReclaimsOneShot(t *testing.T) {
 		t.Fatal("completed one-shot was not reclaimed")
 	}
 	signals := make(map[core.EntityID]asset.ID)
-	id := core.EntityID(0)
-	for event, ok := finished.Next(); ok; event, ok = finished.Next() {
+	for _, event := range observed {
 		signals[event.Entity] = event.Audio
-		id = event.Entity
 	}
-	_ = id
 	if len(signals) != 2 || signals[persistent.ID()] != "tone.wav" || signals[oneshot.ID()] != "tone.wav" {
-		t.Fatalf("finished signals = %v", signals)
+		t.Fatalf("finished signals = %v from %d events", signals, len(observed))
 	}
 	if got := provider.players[persistent.ID()]; got != streamSession || !got.finished || got.player != nil || got.balance != nil || got.source != nil {
 		t.Fatalf("completed stream session = %+v, want a released tombstone", got)
@@ -630,7 +636,7 @@ func TestRunnerAudioCompletionReclaimsOneShot(t *testing.T) {
 	if files.opens.Load() != opens || files.closes.Load() != closes {
 		t.Fatal("completed plays reopened or closed files a second time")
 	}
-	if _, ok := finished.Next(); ok {
+	if len(observed) != 2 {
 		t.Fatal("completion signals were emitted more than once")
 	}
 }
