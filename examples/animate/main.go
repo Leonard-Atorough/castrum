@@ -27,8 +27,6 @@ const (
 	TorchLightFPS  = 10
 	TorchLightLoop = animation.LoopAll
 
-	ClipFlickeringTorch = "flickering_torch"
-
 	Scale = 4
 )
 
