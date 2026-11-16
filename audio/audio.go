@@ -145,14 +145,19 @@ func (s Settings) Validate() error {
 	return nil
 }
 
-// Player describes a play of a [Source] on an entity. Construct one with
-// [NewPlayer]; its zero value is not valid.
+// Player describes playback of a [Source] on an entity. The audio system
+// reconciles it with a [Controller].
+//
+// Construct a player with [NewPlayer]; its zero value is not valid.
 type Player struct {
 	// Settings controls playback and may be updated while the player is active.
 	Settings Settings
-	// Paused holds playback at its current position.
+	// Paused requests that playback hold its position. The mixer can also
+	// hold playback.
 	Paused bool
-	// Completed is set by the audio system when a non-looping sequence ends.
+	// Completed is set by the audio system when the last track finishes
+	// without repeating the sequence. Restart clears it immediately; the
+	// audio system clears it when advancing or syncing a selection.
 	Completed bool
 
 	source           Source
@@ -201,8 +206,9 @@ func (p Player) Current() asset.ID { return p.source.At(p.current) }
 // Index returns the selected track's index in the source.
 func (p Player) Index() int { return p.current }
 
-// Restart selects the first track, clears completion, and resumes playback
-// from the beginning on the next audio system update.
+// Restart selects the first track, clears completion and the player's pause,
+// and requests a restart on the next audio system update. A mixer-wide pause
+// can still hold playback.
 func (p *Player) Restart() {
 	p.Completed = false
 	p.Paused = false
@@ -222,8 +228,9 @@ func (p *Player) Prev() {
 	p.selectionVersion++
 }
 
-// Seek selects track i and requests a restart. It returns an error without
-// changing the selection if i is out of range.
+// Seek selects track i and requests a restart. The index selects a track, not
+// a position within one. It returns an error without changing the selection
+// if i is out of range.
 func (p *Player) Seek(i int) error {
 	if i >= 0 && i < len(p.source.tracks) {
 		p.current = i
