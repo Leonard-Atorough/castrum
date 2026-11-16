@@ -38,7 +38,7 @@ func New() (*castrum.Game, error) {
 		core.Transform{},
 		render.Sprite{
 			Drawable: render.RectShape{Size: geom.Vector2{X: 48, Y: 48}},
-			Color:    color.RGBA{R: 80, G: 180, B: 240, A: 255},
+			Style:    render.SpriteStyle{Color: color.RGBA{R: 80, G: 180, B: 240, A: 255}},
 		},
 	)
 	if err != nil {

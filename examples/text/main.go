@@ -91,7 +91,7 @@ func run() error {
 		},
 		render.Sprite{
 			Drawable: render.TextSource{Font: goFont, Text: "text culls, sorts, and fades like any drawable", Size: 24},
-			Color:    color.NRGBA{R: 120, G: 200, B: 255, A: 255},
+			Style:    render.SpriteStyle{Color: color.NRGBA{R: 120, G: 200, B: 255, A: 255}},
 		},
 	); err != nil {
 		return err

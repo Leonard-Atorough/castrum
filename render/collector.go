@@ -91,7 +91,7 @@ func NewCollector(world *core.World) *Collector {
 			if !ok {
 				return false
 			}
-			return !s.Hidden
+			return !s.Style.Hidden
 		})
 
 	return &Collector{
@@ -220,7 +220,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 				return DrawList{}, fmt.Errorf("castrum: collect: font %q: %w", drawable.Font, err)
 			}
 			textWidth, textHeight := font.Measure(drawable.Size, drawable.Text)
-			fill := sprite.Color
+			fill := sprite.Style.Color
 			if fill == nil {
 				fill = color.White
 			}
@@ -268,7 +268,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			// Unreachable: the sum is sealed and Validate covers it.
 			continue
 		}
-		c.stage(viewport, ctx.Alpha, sprite.Layer, sprite.SortOrder,
+		c.stage(viewport, ctx.Alpha, sprite.Style.Layer, sprite.Style.SortOrder,
 			prev.Position, transform.Position, offset, size, item)
 	}
 
@@ -355,14 +355,14 @@ func textureItem(sprite Sprite, rotation float64, scale geom.Vector2, texture as
 		Rect:     region,
 		Rotation: rotation,
 		Scale:    scale,
-		FlipH:    sprite.FlipH,
-		FlipV:    sprite.FlipV,
-		Color:    sprite.Color,
+		FlipH:    sprite.Style.FlipH,
+		FlipV:    sprite.Style.FlipV,
+		Color:    sprite.Style.Color,
 	}
 }
 
 func shapeItem(sprite Sprite, rotation float64, scale geom.Vector2, shape Shape) DrawItem {
-	fill := sprite.Color
+	fill := sprite.Style.Color
 	if fill == nil {
 		fill = color.Black
 	}
@@ -371,7 +371,7 @@ func shapeItem(sprite Sprite, rotation float64, scale geom.Vector2, shape Shape)
 		Rotation:    rotation,
 		Scale:       scale,
 		Color:       fill,
-		Outline:     sprite.Outline,
-		StrokeWidth: sprite.StrokeWidth,
+		Outline:     sprite.Style.Outline,
+		StrokeWidth: sprite.Style.StrokeWidth,
 	}
 }

@@ -111,7 +111,7 @@ func spawnTextureSprite(t *testing.T, w *core.World, texture asset.ID, prev, cur
 func spawnTextSprite(t *testing.T, w *core.World, text string, fill color.Color, pos geom.Vector2) *core.Entity {
 	t.Helper()
 	entity, err := w.NewEntity(
-		Sprite{Drawable: TextSource{Font: "fonts/go.ttf", Text: text, Size: 16}, Color: fill},
+		Sprite{Drawable: TextSource{Font: "fonts/go.ttf", Text: text, Size: 16}, Style: SpriteStyle{Color: fill}},
 		core.Transform{Position: pos, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	if err != nil {
@@ -146,19 +146,19 @@ func TestCollectNeverDraws(t *testing.T) {
 		{"hidden texture sprite", newCollectorWorld, func(t *testing.T, w *core.World) {
 			spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 			spawnTextureSprite(t, w, "tex.png", geom.Vector2{}, geom.Vector2{}, Sprite{})
-			spawnTextureSprite(t, w, "tex2.png", geom.Vector2{}, geom.Vector2{}, Sprite{Hidden: true})
+			spawnTextureSprite(t, w, "tex2.png", geom.Vector2{}, geom.Vector2{}, Sprite{Style: SpriteStyle{Hidden: true}})
 		}, 1, "tex.png", nil},
 		{"hidden shape", newCollectorWorld, func(t *testing.T, w *core.World) {
 			spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 			spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 				Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, core.Transform{})
 			spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
-				Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Hidden: true}, core.Transform{})
+				Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Style: SpriteStyle{Hidden: true}}, core.Transform{})
 		}, 1, "", RectShape{Size: geom.Vector2{X: 10, Y: 10}}},
 		// Style without a picture is legal and must not draw.
 		{"nil drawable", newCollectorWorld, func(t *testing.T, w *core.World) {
 			spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-			spawnSprite(t, w, geom.Vector2{}, geom.Vector2{}, Sprite{Layer: 3}, core.Transform{})
+			spawnSprite(t, w, geom.Vector2{}, geom.Vector2{}, Sprite{Style: SpriteStyle{Layer: 3}}, core.Transform{})
 			spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 				Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}}, core.Transform{})
 		}, 1, "", RectShape{Size: geom.Vector2{X: 10, Y: 10}}},
@@ -229,7 +229,7 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnTextureSprite(t, w, "tex.png",
 		geom.Vector2{}, geom.Vector2{X: 10, Y: 20},
-		Sprite{FlipH: true, Color: color.NRGBA{R: 255, A: 128}})
+		Sprite{Style: SpriteStyle{FlipH: true, Color: color.NRGBA{R: 255, A: 128}}})
 
 	collector := NewCollector(w)
 	for _, tc := range []struct {
@@ -605,13 +605,13 @@ func TestCollectSortsLayerThenOrderThenY(t *testing.T) {
 		spawnTextureSprite(t, w, "tex.png", pos, pos, sprite)
 	}
 
-	at(1, -10, Sprite{SortOrder: 1})
-	at(2, 0, Sprite{Layer: 2})
-	at(3, -10, Sprite{Layer: 1})
+	at(1, -10, Sprite{Style: SpriteStyle{SortOrder: 1}})
+	at(2, 0, Sprite{Style: SpriteStyle{Layer: 2}})
+	at(3, -10, Sprite{Style: SpriteStyle{Layer: 1}})
 	at(4, -10, Sprite{})
-	at(5, 10, Sprite{SortOrder: -1})
+	at(5, 10, Sprite{Style: SpriteStyle{SortOrder: -1}})
 	at(6, 10, Sprite{})
-	at(7, 0, Sprite{Layer: 2})
+	at(7, 0, Sprite{Style: SpriteStyle{Layer: 2}})
 
 	want := []float64{5, 4, 6, 1, 3, 2, 7}
 
@@ -660,14 +660,14 @@ func TestCollectStagesShapeSprites(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{X: 10, Y: 0},
-		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 20}}, Layer: 1}, core.Transform{})
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 20}}, Style: SpriteStyle{Layer: 1}}, core.Transform{})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
-		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Color: color.RGBA{R: 255, A: 255}},
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}}, Style: SpriteStyle{Color: color.RGBA{R: 255, A: 255}}},
 		core.Transform{Rotation: 0.5, Scale: geom.Vector2{X: 2, Y: 2}})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 		Sprite{Drawable: LineShape{From: geom.Vector2{X: -10, Y: 0}, To: geom.Vector2{X: 30, Y: 0}}}, core.Transform{})
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
-		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Outline: true, StrokeWidth: 2},
+		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 6, Y: 6}}, Style: SpriteStyle{Outline: true, StrokeWidth: 2}},
 		core.Transform{})
 
 	list := collect(t, NewCollector(w), drawContext(w, 0.5))
@@ -727,13 +727,13 @@ func TestCollectStagesShapeSprites(t *testing.T) {
 func TestCollectOrdersShapesWithSprites(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-	spawnTextureSprite(t, w, "tex.png", geom.Vector2{Y: 10}, geom.Vector2{Y: 10}, Sprite{Layer: 1})
+	spawnTextureSprite(t, w, "tex.png", geom.Vector2{Y: 10}, geom.Vector2{Y: 10}, Sprite{Style: SpriteStyle{Layer: 1}})
 	spawnSprite(t, w, geom.Vector2{Y: -10}, geom.Vector2{Y: -10},
 		Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 4}}}, core.Transform{})
 	spawnSprite(t, w, geom.Vector2{Y: -10}, geom.Vector2{Y: -10},
-		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}, Layer: 1}, core.Transform{})
+		Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}, Style: SpriteStyle{Layer: 1}}, core.Transform{})
 	spawnSprite(t, w, geom.Vector2{Y: 10}, geom.Vector2{Y: 10},
-		Sprite{Drawable: LineShape{To: geom.Vector2{X: 8, Y: 0}}, Layer: 1}, core.Transform{})
+		Sprite{Drawable: LineShape{To: geom.Vector2{X: 8, Y: 0}}, Style: SpriteStyle{Layer: 1}}, core.Transform{})
 
 	list := collect(t, NewCollector(w), drawContext(w, 0))
 	if len(list.Items) != 4 {
@@ -819,9 +819,9 @@ func TestCollectKeepsRotatedAndStrokedGeometry(t *testing.T) {
 	}{
 		{"rotated rect", Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 40}}}, geom.Vector2{X: 60}, math.Pi / 2, unitScale, 1},
 		{"rotated ellipse", Sprite{Drawable: CircleShape{Radii: geom.Vector2{X: 2, Y: 20}}}, geom.Vector2{X: 60}, math.Pi / 2, unitScale, 1},
-		{"rotated offset line", Sprite{Drawable: LineShape{To: geom.Vector2{Y: 20}}, StrokeWidth: 2}, geom.Vector2{X: 60}, math.Pi / 2, unitScale, 1},
-		{"outlined rect", Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}, Outline: true, StrokeWidth: 4}, geom.Vector2{X: 56}, 0, unitScale, 1},
-		{"thick line", Sprite{Drawable: LineShape{From: geom.Vector2{Y: -5}, To: geom.Vector2{Y: 5}}, StrokeWidth: 6}, geom.Vector2{X: 52}, 0, unitScale, 1},
+		{"rotated offset line", Sprite{Drawable: LineShape{To: geom.Vector2{Y: 20}}, Style: SpriteStyle{StrokeWidth: 2}}, geom.Vector2{X: 60}, math.Pi / 2, unitScale, 1},
+		{"outlined rect", Sprite{Drawable: RectShape{Size: geom.Vector2{X: 10, Y: 10}}, Style: SpriteStyle{Outline: true, StrokeWidth: 4}}, geom.Vector2{X: 56}, 0, unitScale, 1},
+		{"thick line", Sprite{Drawable: LineShape{From: geom.Vector2{Y: -5}, To: geom.Vector2{Y: 5}}, Style: SpriteStyle{StrokeWidth: 6}}, geom.Vector2{X: 52}, 0, unitScale, 1},
 		{"reflected texture", Sprite{Drawable: TextureSource{Texture: "tex.png"}}, geom.Vector2{X: 60}, math.Pi / 2, geom.Vector2{X: -1, Y: 10}, 1},
 		{"rotated sheet", Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}}, geom.Vector2{X: 60}, math.Pi / 2, geom.Vector2{X: 1, Y: 20}, 1},
 		{"outside", Sprite{Drawable: RectShape{Size: geom.Vector2{X: 4, Y: 40}}}, geom.Vector2{X: 80}, math.Pi / 2, unitScale, 0},

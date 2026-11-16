@@ -305,13 +305,13 @@ func (s *sequence) flashColor() color.Color {
 func barSprite(fill color.Color) render.Sprite {
 	return render.Sprite{
 		Drawable: render.RectShape{Size: geom.Vector2{X: injectorW, Y: injectorH}},
-		Color:    fill,
+		Style:    render.SpriteStyle{Color: fill},
 	}
 }
 
 func coreSprite(size float64, fill color.Color) render.Sprite {
 	return render.Sprite{
 		Drawable: render.RectShape{Size: geom.Vector2{X: size, Y: size}},
-		Color:    fill,
+		Style:    render.SpriteStyle{Color: fill},
 	}
 }

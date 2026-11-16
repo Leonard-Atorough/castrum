@@ -72,10 +72,10 @@ func run() error {
 			color: color.RGBA{G: 200, A: 255},
 			cells: []cell{
 				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}},
-				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}, Outline: true, StrokeWidth: 3}},
+				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 3}}},
 				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}, spin: true},
 				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}, scale: stretch},
-				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}, Color: color.NRGBA{G: 200, A: 128}}},
+				{sprite: render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 100, Y: 50}}, Style: render.SpriteStyle{Color: color.NRGBA{G: 200, A: 128}}}},
 			},
 		},
 		{
@@ -83,14 +83,14 @@ func run() error {
 			color: color.RGBA{R: 220, A: 255},
 			cells: []cell{
 				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}}},
-				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}, Outline: true, StrokeWidth: 3}},
+				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 3}}},
 				// Unequal radii declare the ellipse in the shape
 				// itself; the spin shows rotation is meaningful.
 				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 80, Y: 50}}}, spin: true},
 				// Equal radii stretched by the transform: the other
 				// road to an ellipse, composed per axis.
 				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}}, scale: stretch},
-				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}, Color: color.NRGBA{R: 220, A: 128}}},
+				{sprite: render.Sprite{Drawable: render.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}, Style: render.SpriteStyle{Color: color.NRGBA{R: 220, A: 128}}}},
 			},
 		},
 		{
@@ -98,14 +98,14 @@ func run() error {
 			color: color.RGBA{B: 220, A: 255},
 			cells: []cell{
 				// A zero From anchors the segment at the position.
-				{sprite: render.Sprite{Drawable: render.LineShape{To: geom.Vector2{X: 80, Y: 0}}, Outline: true, StrokeWidth: 4}},
+				{sprite: render.Sprite{Drawable: render.LineShape{To: geom.Vector2{X: 80, Y: 0}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 4}}},
 				// Symmetric endpoints pivot at the segment's middle.
-				{sprite: render.Sprite{Drawable: render.LineShape{From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}}, Outline: true, StrokeWidth: 4}},
+				{sprite: render.Sprite{Drawable: render.LineShape{From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 4}}},
 				// The anchored line spins around its endpoint.
-				{sprite: render.Sprite{Drawable: render.LineShape{To: geom.Vector2{X: 80, Y: 0}}, Outline: true, StrokeWidth: 4}, spin: true},
+				{sprite: render.Sprite{Drawable: render.LineShape{To: geom.Vector2{X: 80, Y: 0}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 4}}, spin: true},
 				// Scale tilts a diagonal segment into a new slope.
-				{sprite: render.Sprite{Drawable: render.LineShape{From: geom.Vector2{X: -40, Y: -40}, To: geom.Vector2{X: 40, Y: 40}}, Outline: true, StrokeWidth: 4}, scale: stretch},
-				{sprite: render.Sprite{Drawable: render.LineShape{From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}}, Outline: true, StrokeWidth: 4, Color: color.NRGBA{B: 220, A: 128}}},
+				{sprite: render.Sprite{Drawable: render.LineShape{From: geom.Vector2{X: -40, Y: -40}, To: geom.Vector2{X: 40, Y: 40}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 4}}, scale: stretch},
+				{sprite: render.Sprite{Drawable: render.LineShape{From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}}, Style: render.SpriteStyle{Outline: true, StrokeWidth: 4, Color: color.NRGBA{B: 220, A: 128}}}},
 			},
 		},
 	}
@@ -116,8 +116,8 @@ func run() error {
 			// The color's alpha channel is the drawable's opacity:
 			// the half-faded column declares its own color at half
 			// alpha, everyone else takes the row's hue.
-			if variant.sprite.Color == nil {
-				variant.sprite.Color = row.color
+			if variant.sprite.Style.Color == nil {
+				variant.sprite.Style.Color = row.color
 			}
 			// A zero scale reads as unscaled; only the stretched
 			// variants declare one.

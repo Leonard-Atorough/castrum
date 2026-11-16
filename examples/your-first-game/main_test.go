@@ -85,7 +85,7 @@ func newTestGame(t *testing.T) (*castrum.Game, *core.Entity, *core.Entity) {
 	}
 	banner, err := world.NewEntity(
 		core.Transform{Position: geom.Vector2{X: 200, Y: 360}},
-		render.Sprite{Hidden: true, Layer: 10},
+		render.Sprite{Style: render.SpriteStyle{Hidden: true, Layer: 10}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -322,7 +322,7 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 
 	advance(t, g, 3)
 	// Idle: hidden.
-	if sprite, _ := readout.Component[render.Sprite](world); !sprite.Hidden {
+	if sprite, _ := readout.Component[render.Sprite](world); !sprite.Style.Hidden {
 		t.Error("idle gun should hide the reload text")
 	}
 
@@ -332,7 +332,7 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 	}
 	advance(t, g, 3)
 	sprite, _ := readout.Component[render.Sprite](world)
-	if sprite.Hidden {
+	if sprite.Style.Hidden {
 		t.Fatal("cooling gun should show the reload text")
 	}
 	text, ok := sprite.Drawable.(render.TextSource)
@@ -342,7 +342,7 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 
 	// Once the cooldown completes the readout hides again.
 	advance(t, g, 120)
-	if sprite, _ := readout.Component[render.Sprite](world); !sprite.Hidden {
+	if sprite, _ := readout.Component[render.Sprite](world); !sprite.Style.Hidden {
 		t.Error("ready gun should hide the reload text")
 	}
 }

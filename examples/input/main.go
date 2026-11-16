@@ -101,7 +101,7 @@ func run() error {
 		},
 		render.Sprite{
 			Drawable: render.RectShape{Size: geom.Vector2{X: 64, Y: 96}},
-			Color:    color.RGBA{G: 200},
+			Style:    render.SpriteStyle{Color: color.RGBA{G: 200}},
 		},
 	)
 	if err != nil {
@@ -112,10 +112,8 @@ func run() error {
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 		},
 		render.Sprite{
-			Drawable:    render.LineShape{To: geom.Vector2{X: 0, Y: -barrelLen}},
-			Outline:     true,
-			StrokeWidth: barrelWidth,
-			Color:       color.RGBA{R: 120, A: 255},
+			Drawable: render.LineShape{To: geom.Vector2{X: 0, Y: -barrelLen}},
+			Style:    render.SpriteStyle{Outline: true, StrokeWidth: barrelWidth, Color: color.RGBA{R: 120, A: 255}},
 		},
 	)
 	if err != nil {
@@ -134,7 +132,7 @@ func run() error {
 				},
 				render.Sprite{
 					Drawable: render.CircleShape{Radii: geom.Vector2{X: circleRadii, Y: circleRadii}},
-					Color:    color.RGBA{R: 255},
+					Style:    render.SpriteStyle{Color: color.RGBA{R: 255}},
 				},
 			); err != nil {
 				return err

@@ -52,7 +52,7 @@ func run() error {
 		core.Transform{Position: origin},
 		render.Sprite{
 			Drawable: render.CircleShape{Radii: geom.Vector2{X: 9, Y: 9}},
-			Color:    markerColor,
+			Style:    render.SpriteStyle{Color: markerColor},
 		},
 	); err != nil {
 		return err
@@ -98,9 +98,8 @@ func run() error {
 	beam, err := world.NewEntity(
 		core.Transform{Position: origin},
 		render.Sprite{
-			Drawable:    render.LineShape{To: geom.Vector2{X: 1}},
-			StrokeWidth: 3,
-			Color:       missColor,
+			Drawable: render.LineShape{To: geom.Vector2{X: 1}},
+			Style:    render.SpriteStyle{StrokeWidth: 3, Color: missColor},
 		},
 	)
 	if err != nil {
@@ -139,9 +138,8 @@ func run() error {
 			panel.Status("hit", "No hit.")
 		}
 		return beam.SetComponent(ctx.World, render.Sprite{
-			Drawable:    render.LineShape{To: lineEnd},
-			StrokeWidth: 3,
-			Color:       lineColor,
+			Drawable: render.LineShape{To: lineEnd},
+			Style:    render.SpriteStyle{StrokeWidth: 3, Color: lineColor},
 		})
 	})); err != nil {
 		return err
@@ -170,7 +168,7 @@ func addTarget(
 	_, err = world.NewEntity(
 		core.Transform{Position: position},
 		collider,
-		render.Sprite{Drawable: drawable, Color: tint},
+		render.Sprite{Drawable: drawable, Style: render.SpriteStyle{Color: tint}},
 	)
 	return err
 }

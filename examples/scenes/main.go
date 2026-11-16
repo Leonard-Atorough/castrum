@@ -74,7 +74,7 @@ func newGame() (*castrum.Game, error) {
 				Name: "ship",
 				Components: []any{
 					core.Transform{Position: geom.Vector2{X: 640, Y: 400}},
-					render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 120, Y: 60}}, Color: color.NRGBA{R: 90, G: 210, B: 240, A: 255}, Layer: 1},
+					render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: 120, Y: 60}}, Style: render.SpriteStyle{Color: color.NRGBA{R: 90, G: 210, B: 240, A: 255}, Layer: 1}},
 					spin{speed: 0.6},
 				},
 			},
@@ -113,8 +113,8 @@ func newGame() (*castrum.Game, error) {
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: 640, Y: 400}},
 				render.Sprite{
-					Drawable: render.CircleShape{Radii: geom.Vector2{X: 190, Y: 190}}, Layer: 2,
-					Outline: true, StrokeWidth: 3, Color: color.NRGBA{R: 90, G: 240, B: 130, A: 255},
+					Drawable: render.CircleShape{Radii: geom.Vector2{X: 190, Y: 190}},
+					Style:    render.SpriteStyle{Layer: 2, Outline: true, StrokeWidth: 3, Color: color.NRGBA{R: 90, G: 240, B: 130, A: 255}},
 				},
 			},
 		}},
@@ -182,7 +182,7 @@ func shape(name string, x, y, width, height float64, layer uint8, tint color.NRG
 		Name: name,
 		Components: []any{
 			core.Transform{Position: geom.Vector2{X: x, Y: y}},
-			render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: width, Y: height}}, Color: tint, Layer: layer},
+			render.Sprite{Drawable: render.RectShape{Size: geom.Vector2{X: width, Y: height}}, Style: render.SpriteStyle{Color: tint, Layer: layer}},
 		},
 	}
 }

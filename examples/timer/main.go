@@ -278,6 +278,6 @@ func spawnBar(world *core.World, y float64, duration time.Duration, repeating bo
 func barSprite(fill color.Color) render.Sprite {
 	return render.Sprite{
 		Drawable: render.RectShape{Size: geom.Vector2{X: barWidth, Y: barHeight}},
-		Color:    fill,
+		Style:    render.SpriteStyle{Color: fill},
 	}
 }

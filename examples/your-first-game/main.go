@@ -164,9 +164,8 @@ func run() error {
 	if _, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
 		render.Sprite{
-			Drawable:  render.RectShape{Size: geom.Vector2{X: TileSize, Y: TileSize}},
-			Color:     tileColor,
-			SortOrder: -1,
+			Drawable: render.RectShape{Size: geom.Vector2{X: TileSize, Y: TileSize}},
+			Style:    render.SpriteStyle{Color: tileColor, SortOrder: -1},
 		},
 	); err != nil {
 		return err
@@ -193,7 +192,7 @@ func run() error {
 	// Start it paused: a stopped timer means the gun is ready to fire.
 	turret, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
-		render.Sprite{Drawable: render.TextureSource{Texture: AssetTurret}, Layer: 1},
+		render.Sprite{Drawable: render.TextureSource{Texture: AssetTurret}, Style: render.SpriteStyle{Layer: 1}},
 		gametime.NewTimer(FireCooldown, false),
 	)
 	if err != nil {
@@ -231,7 +230,7 @@ func run() error {
 	// the game world.
 	banner, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
-		render.Sprite{Hidden: true, Layer: 10},
+		render.Sprite{Style: render.SpriteStyle{Hidden: true, Layer: 10}},
 	)
 	if err != nil {
 		return err
@@ -445,7 +444,7 @@ func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (*core.En
 		core.Transform{Position: at, Rotation: rotation, Scale: geom.Vector2{X: 1, Y: 1}},
 		render.Sprite{
 			Drawable: render.CircleShape{Radii: geom.Vector2{X: BulletRadius, Y: BulletRadius}},
-			Color:    bulletColor,
+			Style:    render.SpriteStyle{Color: bulletColor},
 		},
 		collider,
 		bullet{},
@@ -613,7 +612,7 @@ func resultSystem(banner, hull, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		run, _ := stats.Component[game](ctx.World)
 		if !run.Won && !run.Lost {
-			return banner.Update(ctx.World, func(s *render.Sprite) { s.Hidden = true })
+			return banner.Update(ctx.World, func(s *render.Sprite) { s.Style.Hidden = true })
 		}
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		if err := banner.Update(ctx.World, func(t *core.Transform) {
@@ -626,7 +625,7 @@ func resultSystem(banner, hull, stats *core.Entity) core.System {
 			text = "YOU WIN"
 		}
 		return banner.Update(ctx.World, func(s *render.Sprite) {
-			s.Hidden = false
+			s.Style.Hidden = false
 			s.Drawable = render.TextSource{Font: AssetFont, Text: text, Size: 48}
 		})
 	})
@@ -637,7 +636,7 @@ func resultSystem(banner, hull, stats *core.Entity) core.System {
 func reloadReadoutSystem(readout, turret, stats *core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if over(stats, ctx) {
-			return readout.Update(ctx.World, func(s *render.Sprite) { s.Hidden = true })
+			return readout.Update(ctx.World, func(s *render.Sprite) { s.Style.Hidden = true })
 		}
 		gun, _ := turret.Component[gametime.Timer](ctx.World)
 		turretTransform, _ := turret.Component[core.Transform](ctx.World)
@@ -648,14 +647,14 @@ func reloadReadoutSystem(readout, turret, stats *core.Entity) core.System {
 		}
 		return readout.Update(ctx.World, func(s *render.Sprite) {
 			if gun.Running {
-				s.Hidden = false
+				s.Style.Hidden = false
 				s.Drawable = render.TextSource{
 					Font: AssetFont,
 					Text: fmt.Sprintf("reloading %.1fs", (gun.Duration - gun.Elapsed).Seconds()),
 					Size: 18,
 				}
 			} else {
-				s.Hidden = true
+				s.Style.Hidden = true
 			}
 		})
 	})

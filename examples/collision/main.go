@@ -147,7 +147,7 @@ func run() error {
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: 0 + wallThickness*2}},
 		render.Sprite{
 			Drawable: render.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
-			Color:    playerColor,
+			Style:    render.SpriteStyle{Color: playerColor},
 		},
 		playerCollider,
 		stats,
@@ -210,7 +210,7 @@ func run() error {
 			core.Transform{Position: randomPosition()},
 			render.Sprite{
 				Drawable: render.CircleShape{Radii: geom.Vector2{X: pickupRadius, Y: pickupRadius}},
-				Color:    pickupColor,
+				Style:    render.SpriteStyle{Color: pickupColor},
 			},
 			collider,
 		)
@@ -255,7 +255,7 @@ func run() error {
 		}
 		return player.SetComponent(ctx.World, render.Sprite{
 			Drawable: render.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
-			Color:    tint,
+			Style:    render.SpriteStyle{Color: tint},
 		})
 	})); err != nil {
 		return err
@@ -377,7 +377,7 @@ func spawnRect(world *core.World, position, min, max geom.Vector2, fill color.Co
 	size := max.Sub(min)
 	return world.NewEntity(append([]any{
 		core.Transform{Position: position},
-		render.Sprite{Drawable: render.RectShape{Size: size}, Color: fill},
+		render.Sprite{Drawable: render.RectShape{Size: size}, Style: render.SpriteStyle{Color: fill}},
 		collider,
 	}, extra...)...)
 }
