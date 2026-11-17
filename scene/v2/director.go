@@ -1,15 +1,14 @@
 package scenev2
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
-// Director queues scene requests but does not yet execute them.
-//
-// [Director.Switch] and [Director.Load] currently return the next ID, not
-// the ID reserved for the queued request.
+// Director queues scene requests but does not execute them immediately.
+// It manages scene instances and their lifecycle.
 type Director struct {
 	nextID    InstanceID
 	pending   []request
@@ -18,13 +17,15 @@ type Director struct {
 }
 
 type request struct {
-	kind  requestKind
-	id    InstanceID
-	name  string
-	scene Scene
-	props any
-	hooks Hooks
-	tree  Node
+	kind     requestKind
+	id       InstanceID
+	name     string
+	nameSet  bool
+	hooks    Hooks
+	hooksSet bool
+	scene    Scene
+	props    any
+	tree     Node
 }
 
 type requestKind uint8
@@ -36,6 +37,8 @@ const (
 	requestUnload
 )
 
+func (k requestKind) needsScene() bool { return k != requestUnload }
+
 // NewDirector creates an empty [Director].
 func NewDirector() *Director {
 	return &Director{
@@ -46,50 +49,111 @@ func NewDirector() *Director {
 
 // Switch builds and validates scene and queues a switch request.
 func (d *Director) Switch(scene Scene, props any, opts ...Option) (InstanceID, error) {
-	return d.queue(scene, props, requestSwitch, "switch", opts...)
+	return d.queue(0, scene, props, requestSwitch, "switch", opts...)
 }
 
 // Load builds and validates scene and queues a load request.
 func (d *Director) Load(scene Scene, props any, opts ...Option) (InstanceID, error) {
-	return d.queue(scene, props, requestLoad, "load", opts...)
+	return d.queue(0, scene, props, requestLoad, "load", opts...)
 }
 
-// Update builds and validates scene and queues an update request.
-//
-// The id parameter is not yet used.
+// Update builds and validates scene and queues a request to rebuild the
+// instance id from props when the request executes. It returns an error if
+// id is zero or the tree is invalid.
 func (d *Director) Update(id InstanceID, scene Scene, props any, opts ...Option) error {
-	_, err := d.queue(scene, props, requestUpdate, "update", opts...)
+	if id == 0 {
+		return fmt.Errorf("scene: update: invalid instance id 0")
+	}
+	_, err := d.queue(id, scene, props, requestUpdate, "update", opts...)
 	return err
 }
 
-// Remove is reserved for removing an instance. It is not yet implemented.
-func (d *Director) Remove(id InstanceID) error
+// Remove queues a request to unload the specified instance. It returns an
+// error if id is zero.
+func (d *Director) Remove(id InstanceID) error {
+	if id == 0 {
+		return fmt.Errorf("scene: remove: invalid instance id 0")
+	}
+	_, err := d.queue(id, nil, nil, requestUnload, "remove")
+	return err
+}
 
 // Spawn is reserved for creating an instance-owned entity. It is not yet implemented.
-func (d *Director) Spawn(ctx *core.Context, owner InstanceID, components ...any) (core.Entity, error)
+func (d *Director) Spawn(ctx *core.Context, owner InstanceID, components ...any) (core.Entity, error) {
+	return core.Entity{}, errors.New("scene: spawn: not implemented")
+}
 
-func (d *Director) queue(scene Scene, props any, kind requestKind, operation string, opts ...Option) (InstanceID, error) {
+func (d *Director) queue(target InstanceID, scene Scene, props any, kind requestKind, operation string, opts ...Option) (InstanceID, error) {
 	req := request{}
 	for _, opt := range opts {
 		opt(&req)
 	}
-	if scene == nil {
-		return 0, fmt.Errorf("%s: load %q: nil scene", operation, req.name)
-	}
-	tree, err := validate(scene, props)
-	if err != nil {
-		return 0, err
+	if kind.needsScene() {
+		if scene == nil {
+			return 0, fmt.Errorf("scene: %s %q: nil scene", operation, req.name)
+		}
+		tree, err := validate(scene, props)
+		if err != nil {
+			return 0, err
+		}
+		req.tree = tree
 	}
 
 	req.kind = kind
 	req.scene = scene
 	req.props = props
-	req.tree = tree
-	req.id = d.nextID
+	if target == 0 {
+		target = d.nextID
+		d.nextID++
+	}
+	req.id = target
 
-	d.nextID++
-	d.pending = append(d.pending, req)
-	return d.nextID, nil
+	if !d.coalesce(req) {
+		d.pending = append(d.pending, req)
+	}
+	return req.id, nil
+}
+
+// coalesce keeps pending as the batch's end state: one pending request per
+// id and at most one switch, so the last request for an id wins. Slots are
+// updated in place to keep execution order stable. It reports whether req
+// was absorbed into a pending request and must not be queued.
+func (d *Director) coalesce(req request) bool {
+	if req.kind == requestLoad {
+		return false
+	}
+	for i := range d.pending {
+		p := &d.pending[i]
+		switch {
+		case req.kind == requestSwitch && p.kind == requestSwitch:
+			*p = req
+			return true
+		case req.kind == requestSwitch || p.id != req.id:
+			continue
+		case p.kind == requestUnload && req.kind == requestUnload:
+			return true
+		case req.kind == requestUnload && p.kind != requestUpdate:
+			// a load or switch that has not entered has nothing to unload,
+			// so it is cancelled instead
+			d.pending = append(d.pending[:i], d.pending[i+1:]...)
+			return true
+		default:
+			// an update replaces queued content, and update and exit flip
+			// one slot; both keep any name and hooks earlier requests set
+			if req.nameSet {
+				p.name, p.nameSet = req.name, true
+			}
+			if req.hooksSet {
+				p.hooks, p.hooksSet = req.hooks, true
+			}
+			p.scene, p.props, p.tree = req.scene, req.props, req.tree
+			if p.kind != requestLoad && p.kind != requestSwitch {
+				p.kind = req.kind
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // Option configures a scene request before it is queued.
@@ -99,6 +163,7 @@ type Option func(*request)
 func WithName(name string) Option {
 	return func(r *request) {
 		r.name = name
+		r.nameSet = true
 	}
 }
 
@@ -106,5 +171,6 @@ func WithName(name string) Option {
 func WithHooks(h Hooks) Option {
 	return func(r *request) {
 		r.hooks = h
+		r.hooksSet = true
 	}
 }
