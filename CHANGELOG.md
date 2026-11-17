@@ -11,9 +11,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Implement gamepad disconnect handling and release button actions (#221)
+- Add animated sprite collection and conflict resolution (#216)
+- Implement AnimatedSprite and SpriteClip (#215)
+- Add loop count to Completed signal and update tests (#214)
+- Implement new documentation website and migrate old v0.3.0 documentation (#205) (#206)
+- Demonstrate relative system ordering (#199)
+- Demonstrate playlist controls (#198)
+- Add persistent rebinding workflow (#196)
+- Demonstrate queued state transitions (#195)
+- Support display preference persistence (#194)
+- **breaking:** Persist bindings and global deadzone (#193)
+- Support preference persistence (#192)
+- Complete persistence workflows for v0.4.0 (#191)
+- Enhance example documentation and add new systems for… (#190)
+- Add scripts for example validation and module pinning; upda… (#189)
+- **breaking:** Replace atlas registration with serializable spritesheets (#188)
+- Implement directory-backed storage and associated tests (#187)
+- Enhance asset loading with cache policies (#186)
+- **breaking:** Add strict paired JSON codecs (#184)
+- Save typed values through stores or writers (#183)
+- **breaking:** Scope decoder configuration per loader (#182)
+- Enhance scheduling system with new phase management and entry methods (#180)
+- Implement Reader.Consume for processing all unread signals (#179)
+- Add audio, input, and display preferences (#162)
+- Simulation time resource and the unified gametime package (#158)
+- Add settings package for managing game preferences with validation and cloning (#148)
+- Implement raycast functionality and improve collision detection tests (#147)
+- **breaking:** Implement and enhance spatial audio system with listener support (#146)
+- **breaking:** Add playlists and separate source controls (#143)
+- Version documentation by release (#142)
+- Implement state machine and state system, allowing for world-wide state management (#134)
+- Implement pre-startup and pre-frame phases for improved system execution order (#133)
+- Spawn entities owned by scene instances (#132)
+
+### Changed
+- **breaking:** Simplify entity struct to a comparable handle wih world-owned lifetime. (#222)
+- **breaking:** Replace animation with new AnimatedSprite component and system (#218)
+- **breaking:** Move sprite from render package to standalone package (#213)
+- Streamline sprite styling by introducing SpriteStyle (#212)
+- **breaking:** Implement simplified audio API with unified player (#210)
+- **breaking:** Protect engine system ordering (#181)
+- Replace receiver name 's' with 'l' for consistency (#178)
+- **breaking:** Registration strategy - declaration-driven systems, instance-driven features (#159)
+- Make runnable examples standalone (#139)
+
+### Documentation
+- Remove old v0.3.0 archive (#208)
+- Provide unified, correct documentation on time-control and "time" in castrum (#161)
+- Document the unreleased playlist API (#144)
+
 ### Fixed
-- Keep contained circle/box contact normals consistent with exterior contacts, retaining the nearest-face point and full escape depth. Games compensating for the old reversed normal should remove that workaround.
-- Attach collision contacts only to entities with both a collider and a transform, avoiding repeated component migrations for collider-only entities.
+- Release the texture cache write lock on duplicate misses (#220)
+- Correct normals and contact lifecycles (#172)
+- Prevent scaled clock and timer overflow (#171)
+- Stabilize large-coordinate geometry queries (#169)
+- Preserve rotated and stroked drawable visibility (#168)
+- Honor playlist edits and playback validation (#166)
+- Harden storage cleanup and resource resolution (#167)
+- Bound grid cell expansion (#165)
+- Reject unsafe frame indices (#164)
+- Reserve director ownership records (#163)
+- Improve query update performance and fix invalid query cache (#138)
+- Batch archetype insertion and streamline entity creation (#137)
+- Prevent out-of-bounds overflow in region validation (#136)
+- Improve NaN and infinite value validation (#135)
+
+### Internal
+- Implement guide skill (#200)
+- Restore supported development commands (#170)
+- Test standalone example modules (#140)
 
 ## [0.3.0] - 2026-10-30
 
