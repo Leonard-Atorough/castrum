@@ -148,7 +148,7 @@ func newGame() (*castrum.Game, error) {
 	return g, nil
 }
 
-func playbackSystem(torch *core.Entity) core.System {
+func playbackSystem(torch core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		pause := ctx.Actions.JustPressed("pause")
 		restart := ctx.Actions.JustPressed("restart")

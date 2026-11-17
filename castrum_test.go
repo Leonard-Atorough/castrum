@@ -181,7 +181,7 @@ func TestMainCamera(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	camera := g.MainCamera()
-	if camera == nil {
+	if !g.World().HasEntity(camera) {
 		t.Fatal("MainCamera should return the engine camera")
 	}
 	cam, ok := camera.Component[render.Camera](g.World())

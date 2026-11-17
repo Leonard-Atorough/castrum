@@ -20,7 +20,7 @@ import (
 type Finished struct {
 	// Entity is the entity whose Source finished. A [OneShot]'s entity is
 	// destroyed on the same update, so its ID identifies the play only.
-	Entity core.EntityID
+	Entity core.Entity
 	// Audio is the asset ID of the finished play.
 	Audio asset.ID
 }
@@ -126,7 +126,7 @@ func (s *system) Update(ctx *core.Context) error {
 		s.hub = resolved
 	}
 
-	var done []*core.Entity
+	var done []core.Entity
 
 	for e := range s.players.Execute() {
 		p, _ := e.Component[Player]()
@@ -143,7 +143,7 @@ func (s *system) Update(ctx *core.Context) error {
 			p.syncedAudio != audio
 
 		want := fold(p, s.mixer)
-		if err := spatial.apply(e.ID(), p.Settings, &want); err != nil {
+		if err := spatial.apply(e.Entity(), p.Settings, &want); err != nil {
 			if spatialErr == nil {
 				spatialErr = err
 			}
@@ -171,7 +171,7 @@ func (s *system) Update(ctx *core.Context) error {
 		if !live && p.Settings.Loop != LoopTrack && !p.completed {
 			p.completed = true
 			changed = true
-			s.hub.Emit(Finished{Entity: e.ID(), Audio: audio})
+			s.hub.Emit(Finished{Entity: e.Entity(), Audio: audio})
 			if p.current+1 < p.source.Len() || p.Settings.Loop == LoopAll {
 				p.Next()
 				p.completed = false
@@ -187,8 +187,7 @@ func (s *system) Update(ctx *core.Context) error {
 		if !p.completed {
 			continue
 		}
-		shot, _ := e.Component[oneshot]()
-		done = append(done, shot.self)
+		done = append(done, e.Entity())
 	}
 	for _, entity := range done {
 		if err := ctx.World.DestroyEntity(entity); err != nil {

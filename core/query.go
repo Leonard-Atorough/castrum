@@ -12,7 +12,7 @@ import (
 
 // Entry is a query result for one entity. Its component data is backed by
 // iteration storage and may refer to another row after iteration advances.
-// Retain [Entry.ID] instead; the ID is safe to keep after the query pass.
+// Retain [Entry.Entity] instead; the handle is safe to keep after the query pass.
 type Entry struct {
 	entityID EntityID
 	index    int
@@ -22,6 +22,11 @@ type Entry struct {
 // ID returns the identifier of the entity associated with this entry.
 func (e Entry) ID() EntityID {
 	return e.entityID
+}
+
+// Entity returns the handle for the visited entity.
+func (e Entry) Entity() Entity {
+	return NewEntity(e.entityID)
 }
 
 // SetComponent overwrites the visited entity's component of type T. Only

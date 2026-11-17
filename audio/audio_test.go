@@ -88,7 +88,7 @@ func newAudioHarnessWithWorld(t *testing.T, world *core.World) *harness {
 	}
 }
 
-func (h *harness) spawn(source Source, settings Settings) *core.Entity {
+func (h *harness) spawn(source Source, settings Settings) core.Entity {
 	h.t.Helper()
 	player, err := NewPlayer(source, settings)
 	if err != nil {
@@ -114,7 +114,7 @@ func (h *harness) update() {
 	}
 }
 
-func (h *harness) player(entity *core.Entity) Player {
+func (h *harness) player(entity core.Entity) Player {
 	h.t.Helper()
 	player, ok := entity.Component[Player](h.world)
 	if !ok {
@@ -289,7 +289,7 @@ func TestOneShotValidation(t *testing.T) {
 	}
 	world := core.NewWorld()
 	settings := Settings{Volume: 1, Spatial: true}
-	if entity, err := OneShot(world, Track("sound"), settings); err == nil || entity != nil {
+	if entity, err := OneShot(world, Track("sound"), settings); err == nil || entity != (core.Entity{}) {
 		t.Fatalf("OneShot() = %v, %v; want spatial error", entity, err)
 	}
 	pos := geom.Vector2{X: 25, Y: 40}

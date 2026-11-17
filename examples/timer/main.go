@@ -264,7 +264,7 @@ func run() error {
 // entity carries both the sprite and the timer - the bar's position
 // and color are the whole presentation. A non-empty group puts the
 // timer under that group's pause and scale state.
-func spawnBar(world *core.World, y float64, duration time.Duration, repeating bool, group string) (*core.Entity, error) {
+func spawnBar(world *core.World, y float64, duration time.Duration, repeating bool, group string) (core.Entity, error) {
 	timer := gametime.NewTimer(duration, repeating)
 	timer.Group = group
 	return world.NewEntity(

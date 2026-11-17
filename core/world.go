@@ -53,9 +53,10 @@ type World struct {
 // NewWorld creates an empty world.
 func NewWorld() *World {
 	return &World{
-		entries:    make(map[reflect.Type]*resourceEntry[any]),
-		eager:      make([]reflect.Type, 0, defaultEagerCapacity),
-		archetypes: ecs.NewService(),
+		entries:      make(map[reflect.Type]*resourceEntry[any]),
+		eager:        make([]reflect.Type, 0, defaultEagerCapacity),
+		nextEntityID: 1,
+		archetypes:   ecs.NewService(),
 	}
 }
 
@@ -161,17 +162,20 @@ func (w *World) resolve(key reflect.Type) error {
 // validation.
 // Adding a [Transform] also adds its initial [PrevTransform] unless one is
 // provided.
-func (w *World) NewEntity(components ...any) (*Entity, error) {
+func (w *World) NewEntity(components ...any) (Entity, error) {
 	components = createPreviousTransformComponents(components)
 
 	if err := validateComponents(components); err != nil {
-		return nil, fmt.Errorf("castrum: NewEntity: %w", err)
+		return Entity{}, fmt.Errorf("castrum: NewEntity: %w", err)
 	}
-	id := w.getNextID()
+	id, err := w.getNextID()
+	if err != nil {
+		return Entity{}, err
+	}
 	entity := NewEntity(id)
 
 	if err := w.archetypes.Create(entity.id, componentTypes(components), components); err != nil {
-		return nil, err
+		return Entity{}, err
 	}
 	return entity, nil
 }
@@ -180,7 +184,7 @@ func (w *World) NewEntity(components ...any) (*Entity, error) {
 // their handles. Count must be positive. If creation fails, it returns
 // the error and no handles, and creates no entities. Components must be
 // non-nil, non-pointer values.
-func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
+func (w *World) NewEntities(count int, components ...any) ([]Entity, error) {
 	if count <= 0 {
 		return nil, fmt.Errorf("castrum: NewEntities: count must be positive, got %d", count)
 	}
@@ -189,11 +193,15 @@ func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
 	if err := validateComponents(components); err != nil {
 		return nil, fmt.Errorf("castrum: NewEntities: %w", err)
 	}
+	if w.nextEntityID == 0 || uint64(count-1) > ^uint64(0)-uint64(w.nextEntityID) {
+		return nil, fmt.Errorf("castrum: entity IDs exhausted")
+	}
 	types := componentTypes(components)
-	entities := make([]*Entity, count)
+	entities := make([]Entity, count)
 	ids := make([]EntityID, count)
 	for i := range entities {
-		id := w.getNextID()
+		id := w.nextEntityID
+		w.nextEntityID++
 		entities[i] = NewEntity(id)
 		ids[i] = id
 	}
@@ -204,21 +212,21 @@ func (w *World) NewEntities(count int, components ...any) ([]*Entity, error) {
 	return entities, nil
 }
 
-// DestroyEntity removes the entity from the world and kills entity's handle.
-func (w *World) DestroyEntity(entity *Entity) error {
-	res := w.archetypes.Destroy(entity.id)
-	if res.Error != nil {
-		return res.Error
-	}
-
-	entity.Kill()
-	return nil
+// HasEntity reports whether entity exists in the world.
+func (w *World) HasEntity(entity Entity) bool {
+	return w.archetypes.HasEntity(entity.id)
 }
 
-// DestroyEntities removes the given entities and kills their handles,
-// stopping at the first error. Entities removed before an error remain
-// destroyed.
-func (w *World) DestroyEntities(entities []*Entity) error {
+// DestroyEntity removes entity and its components from the world.
+// It returns an error if entity does not exist.
+func (w *World) DestroyEntity(entity Entity) error {
+	res := w.archetypes.Destroy(entity.id)
+	return res.Error
+}
+
+// DestroyEntities removes entities, stopping at the first error. Entities
+// removed before an error remain destroyed.
+func (w *World) DestroyEntities(entities []Entity) error {
 	for _, entity := range entities {
 		if err := w.DestroyEntity(entity); err != nil {
 			return err
@@ -227,10 +235,13 @@ func (w *World) DestroyEntities(entities []*Entity) error {
 	return nil
 }
 
-func (w *World) getNextID() EntityID {
+func (w *World) getNextID() (EntityID, error) {
+	if w.nextEntityID == 0 {
+		return 0, fmt.Errorf("castrum: entity IDs exhausted")
+	}
 	id := w.nextEntityID
 	w.nextEntityID++
-	return id
+	return id, nil
 }
 
 func createPreviousTransformComponents(components []any) []any {

@@ -12,7 +12,7 @@ import (
 // Point is representative of the overlap, not a contact manifold.
 type Contact struct {
 	// Other is the entity this contact is with.
-	Other core.EntityID
+	Other core.Entity
 	// Point is the pair's representative contact point.
 	Point geom.Vector2
 	// Normal points from this collider toward Other. Moving this collider
@@ -30,14 +30,14 @@ type Contact struct {
 // [NewSystem] writes it for entities with both a [Collider] and a
 // [core.Transform] during fixed updates. [Contacts.Current] contains the
 // contacts detected in the latest update; [Contacts.Previous] contains
-// those from the update before it. Comparing their [Contact.Other] IDs
+// those from the update before it. Comparing their [Contact.Other] handles
 // identifies contacts that began, continued, or ended:
 //
 //	enter: in Current, not in Previous
 //	stay:  in both
 //	exit:  in Previous, not in Current
 //
-// Both slices are sorted by [Contact.Other]. For enter and exit edges,
+// Both slices are sorted by the ID of [Contact.Other]. For enter and exit edges,
 // games can also consume [Entered] and [Exited]; Contacts remains the
 // source of truth for current contacts and stay state. The slices are
 // read-only and valid until the next collision update. Copy them to keep
@@ -47,10 +47,9 @@ type Contact struct {
 // either [Collider] or [core.Transform] is removed. Game code reads it
 // but does not write or remove it.
 type Contacts struct {
-	// Current is this tick's contacts, sorted by Other.
+	// Current is this tick's contacts, sorted by Other.ID().
 	Current []Contact
-	// Previous is the contacts of the tick before this one, sorted
-	// by Other.
+	// Previous is the contacts of the tick before this one, sorted by Other.ID().
 	Previous []Contact
 }
 
@@ -62,9 +61,9 @@ type Contacts struct {
 // the new record in [Contacts.Current].
 type Entered struct {
 	// Entity is the collider whose Contacts gained the pair.
-	Entity core.EntityID
+	Entity core.Entity
 	// Other is the entity it began overlapping.
-	Other core.EntityID
+	Other core.Entity
 	// Point is the pair's representative contact point.
 	Point geom.Vector2
 	// Normal points from Entity toward Other.
@@ -82,13 +81,13 @@ type Entered struct {
 //
 // The collision system emits one signal per perspective, like [Entered].
 // Since the pair no longer has contact geometry, the signal carries only
-// the entity IDs and tick. A collider removed during the update does not
+// the entity handles and tick. A collider removed during the update does not
 // emit its own exits; any remaining collider's signal reports the pair.
 type Exited struct {
 	// Entity is the collider whose Contacts lost the pair.
-	Entity core.EntityID
+	Entity core.Entity
 	// Other is the entity it stopped overlapping.
-	Other core.EntityID
+	Other core.Entity
 	// Tick is the fixed tick the pair ended on.
 	Tick uint64
 }

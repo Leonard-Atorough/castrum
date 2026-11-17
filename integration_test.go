@@ -39,7 +39,7 @@ func (c *integrationAudioController) Sync(entity core.EntityID, source asset.ID,
 
 func (c *integrationAudioController) Sweep() error { return nil }
 
-func newTestAudioEntity(t *testing.T, g *Game, settings audio.Settings, components ...any) *core.Entity {
+func newTestAudioEntity(t *testing.T, g *Game, settings audio.Settings, components ...any) core.Entity {
 	t.Helper()
 	player, err := audio.NewPlayer(audio.Track("sound"), settings)
 	if err != nil {
@@ -84,7 +84,7 @@ func TestRunnerAudioRunsAfterFrameAndSignalsPostFrame(t *testing.T) {
 		return nil
 	}))
 	advanceTestGame(t, g, g.Options().FixedDT())
-	if !received || finished.Entity != entity.ID() || finished.Audio != "sound" {
+	if !received || finished.Entity != entity || finished.Audio != "sound" {
 		t.Fatalf("finished = %+v, received = %t; want entity %d and audio sound", finished, received, entity.ID())
 	}
 	if fixedTicks != 1 || len(controller.playbacks) != 1 || controller.playbacks[0].Volume != 0.5 {
@@ -498,7 +498,7 @@ func TestCollisionSystemAlwaysRegistered(t *testing.T) {
 	if _, ok := queries.Raycast(geom.Segment{Start: geom.Vector2{X: -10}, End: geom.Vector2{X: 10}}, collision.RaycastFilter{Mask: ^uint32(0)}); ok {
 		t.Fatal("raycast hit before the first collision update")
 	}
-	var entities []*core.Entity
+	var entities []core.Entity
 	for _, x := range []float64{0, 1} {
 		collider, err := collision.NewCollider(collision.Circle{Radius: 8})
 		if err != nil {
@@ -878,7 +878,7 @@ func TestTimerEmitsCompletedSignal(t *testing.T) {
 			t.Fatalf("Advance: %v", err)
 		}
 	}
-	if len(got) != 1 || got[0] != (gametime.Completed{Entity: entity.ID(), Tick: 2}) {
+	if len(got) != 1 || got[0] != (gametime.Completed{Entity: entity, Tick: 2}) {
 		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
 	}
 }
@@ -928,7 +928,7 @@ func TestCollisionEmitsEnteredSignal(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("entered signals = %v, want two (one per perspective)", got)
 	}
-	if got[0].Entity != left.ID() && got[1].Entity != left.ID() {
+	if got[0].Entity != left && got[1].Entity != left {
 		t.Fatalf("no entered signal for entity %d: %v", left.ID(), got)
 	}
 }

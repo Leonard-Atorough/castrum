@@ -40,6 +40,12 @@ func NewService() *Service {
 	}
 }
 
+// HasEntity reports whether entityID exists in the service.
+func (s *Service) HasEntity(entityID EntityID) bool {
+	_, ok := s.locations[entityID]
+	return ok
+}
+
 // Create adds an entity with the given component types and values.
 // types and values must have the same length, and each value must be assignable
 // to the type at the corresponding index. An entity ID already in use is an

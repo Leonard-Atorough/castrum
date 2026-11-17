@@ -316,12 +316,12 @@ func run() error {
 }
 
 // over reports whether the run has reached a win or loss state.
-func over(stats *core.Entity, ctx *core.Context) bool {
+func over(stats core.Entity, ctx *core.Context) bool {
 	run, _ := stats.Component[game](ctx.World)
 	return run.Won || run.Lost
 }
 
-func moveSystem(hull, stats *core.Entity) core.System {
+func moveSystem(hull, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if over(stats, ctx) {
 			return nil
@@ -345,7 +345,7 @@ func moveSystem(hull, stats *core.Entity) core.System {
 	})
 }
 
-func turretSystem(turret, hull *core.Entity) core.System {
+func turretSystem(turret, hull core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		view, err := ctx.World.Resource[*render.CameraView]()
@@ -367,7 +367,7 @@ func turretSystem(turret, hull *core.Entity) core.System {
 	})
 }
 
-func scoreSystem(hud, camera, stats *core.Entity) core.System {
+func scoreSystem(hud, camera, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		run, _ := stats.Component[game](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
@@ -392,7 +392,7 @@ func scoreSystem(hud, camera, stats *core.Entity) core.System {
 
 // cameraSystem centers the camera on the hull. The renderer interpolates
 // its transform to smooth the view between fixed ticks.
-func cameraSystem(camera, hull *core.Entity) core.System {
+func cameraSystem(camera, hull core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		return camera.Update(ctx.World, func(t *core.Transform) {
@@ -404,7 +404,7 @@ func cameraSystem(camera, hull *core.Entity) core.System {
 // fireSystem fires on a tick-latched press when the cooldown is idle. It
 // spawns a bullet at the muzzle and restarts the cooldown. Pressed preserves
 // taps that occur between fixed ticks.
-func fireSystem(turret, stats *core.Entity) core.System {
+func fireSystem(turret, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if over(stats, ctx) {
 			return nil
@@ -434,10 +434,10 @@ func fireSystem(turret, stats *core.Entity) core.System {
 
 // spawnBullet creates a projectile at at with the given rotation. Its
 // collision mask includes enemies only, so it cannot hit the player.
-func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (*core.Entity, error) {
+func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (core.Entity, error) {
 	collider, err := collision.NewCollider(collision.Circle{Radius: BulletRadius})
 	if err != nil {
-		return nil, err
+		return core.Entity{}, err
 	}
 	collider.Layers = collision.Layers(bulletLayer)
 	collider.Mask = collision.Mask(enemyLayer)
@@ -456,7 +456,7 @@ func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (*core.En
 // camera view. Bullets contact enemies only, so each hit can be scored as a
 // kill. Process hits from the bullet side: an enemy's contacts also include
 // the player, and scoring those would reward a ramming enemy.
-func bulletsSystem(camera, stats *core.Entity) core.System {
+func bulletsSystem(camera, stats core.Entity) core.System {
 	var live *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if live == nil {
@@ -473,11 +473,11 @@ func bulletsSystem(camera, stats *core.Entity) core.System {
 
 		for e := range live.Execute() {
 			// The query only prefetches Transform and bullet; fetch Contacts
-			// from the world through the entity ID.
-			contacts, hasContacts := core.NewEntity(e.ID()).Component[collision.Contacts](ctx.World)
+			// from the world through the entity handle.
+			contacts, hasContacts := e.Entity().Component[collision.Contacts](ctx.World)
 			if hasContacts && len(contacts.Current) > 0 {
 				for _, hit := range contacts.Current {
-					other := core.NewEntity(hit.Other)
+					other := hit.Other
 					if _, ok := other.Component[enemy](ctx.World); !ok {
 						continue // Another bullet may have destroyed it this tick.
 					}
@@ -493,7 +493,7 @@ func bulletsSystem(camera, stats *core.Entity) core.System {
 						return err
 					}
 				}
-				if err := ctx.World.DestroyEntity(core.NewEntity(e.ID())); err != nil {
+				if err := ctx.World.DestroyEntity(e.Entity()); err != nil {
 					return err
 				}
 				continue
@@ -507,7 +507,7 @@ func bulletsSystem(camera, stats *core.Entity) core.System {
 			dx := math.Abs(p.Position.X - cameraTransform.Position.X)
 			dy := math.Abs(p.Position.Y - cameraTransform.Position.Y)
 			if dx > halfW+CullMargin || dy > halfH+CullMargin {
-				if err := ctx.World.DestroyEntity(core.NewEntity(e.ID())); err != nil {
+				if err := ctx.World.DestroyEntity(e.Entity()); err != nil {
 					return err
 				}
 			}
@@ -519,7 +519,7 @@ func bulletsSystem(camera, stats *core.Entity) core.System {
 // spawnSystem shortens the interval as the score rises, down to
 // MinSpawnEvery. Each timer completion spawns one enemy at a random point
 // just outside the camera view.
-func spawnSystem(spawner, hull, camera, stats *core.Entity) core.System {
+func spawnSystem(spawner, hull, camera, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if over(stats, ctx) {
 			return nil
@@ -557,10 +557,10 @@ func spawnSystem(spawner, hull, camera, stats *core.Entity) core.System {
 // spawnEnemy creates one enemy tank on the enemy layer, with collisions
 // enabled for bullets and the player. Each enemy is a single hull entity;
 // adding a separate turret would require entity hierarchies.
-func spawnEnemy(world *core.World, at geom.Vector2) (*core.Entity, error) {
+func spawnEnemy(world *core.World, at geom.Vector2) (core.Entity, error) {
 	collider, err := collision.NewCollider(collision.Circle{Radius: EnemyRadius})
 	if err != nil {
-		return nil, err
+		return core.Entity{}, err
 	}
 	collider.Layers = collision.Layers(enemyLayer)
 	collider.Mask = collision.Mask(bulletLayer, playerLayer)
@@ -573,7 +573,7 @@ func spawnEnemy(world *core.World, at geom.Vector2) (*core.Entity, error) {
 }
 
 // enemiesSystem moves each enemy toward the tank.
-func enemiesSystem(hull, stats *core.Entity) core.System {
+func enemiesSystem(hull, stats core.Entity) core.System {
 	var targets *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if targets == nil {
@@ -597,7 +597,7 @@ func enemiesSystem(hull, stats *core.Entity) core.System {
 }
 
 // dangerSystem marks the run lost when the hull contacts an enemy.
-func dangerSystem(hull, stats *core.Entity) core.System {
+func dangerSystem(hull, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		contacts, has := hull.Component[collision.Contacts](ctx.World)
 		if !has || len(contacts.Current) == 0 {
@@ -609,7 +609,7 @@ func dangerSystem(hull, stats *core.Entity) core.System {
 
 // resultSystem hides the banner during play and displays the result over
 // the tank when the run ends.
-func resultSystem(banner, hull, stats *core.Entity) core.System {
+func resultSystem(banner, hull, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		run, _ := stats.Component[game](ctx.World)
 		if !run.Won && !run.Lost {
@@ -634,7 +634,7 @@ func resultSystem(banner, hull, stats *core.Entity) core.System {
 
 // reloadReadoutSystem shows the remaining time while the cooldown runs and
 // hides the readout when the gun is ready.
-func reloadReadoutSystem(readout, turret, stats *core.Entity) core.System {
+func reloadReadoutSystem(readout, turret, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if over(stats, ctx) {
 			return readout.Update(ctx.World, func(s *sprite.Sprite) { s.Style.Hidden = true })

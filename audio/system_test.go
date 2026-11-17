@@ -76,7 +76,7 @@ func TestSystemMixAndPause(t *testing.T) {
 	h.mixer.PauseAll()
 	h.update()
 	for _, tc := range []struct {
-		entity  *core.Entity
+		entity  core.Entity
 		playing bool
 	}{
 		{held, false},
@@ -99,7 +99,7 @@ func TestSystemCompletionAndRestart(t *testing.T) {
 	if !h.player(entity).Completed() {
 		t.Fatal("finished player was not marked completed")
 	}
-	if got, ok := reader.Next(); !ok || got != (Finished{Entity: entity.ID(), Audio: "sound"}) {
+	if got, ok := reader.Next(); !ok || got != (Finished{Entity: entity, Audio: "sound"}) {
 		t.Fatalf("completion signal = %+v, %v", got, ok)
 	}
 	if _, ok := reader.Next(); ok {
@@ -133,7 +133,7 @@ func TestSystemSequenceModes(t *testing.T) {
 			}
 			h.controller.setLive(entity.ID(), false)
 			h.update()
-			if got, ok := reader.Next(); !ok || got != (Finished{Entity: entity.ID(), Audio: "a"}) {
+			if got, ok := reader.Next(); !ok || got != (Finished{Entity: entity, Audio: "a"}) {
 				t.Fatalf("first completion = %+v, %v", got, ok)
 			}
 			if _, ok := reader.Next(); ok {
@@ -149,7 +149,7 @@ func TestSystemSequenceModes(t *testing.T) {
 			}
 			h.controller.setLive(entity.ID(), false)
 			h.update()
-			if got, ok := reader.Next(); !ok || got != (Finished{Entity: entity.ID(), Audio: "b"}) {
+			if got, ok := reader.Next(); !ok || got != (Finished{Entity: entity, Audio: "b"}) {
 				t.Fatalf("second completion = %+v, %v", got, ok)
 			}
 			player := h.player(entity)
@@ -200,17 +200,17 @@ func TestSystemOneShotLifecycle(t *testing.T) {
 	h.update()
 	h.controller.setLive(shot.ID(), false)
 	h.update()
-	if !shot.IsAlive() || h.player(shot).Index() != 1 {
+	if !h.world.HasEntity(shot) || h.player(shot).Index() != 1 {
 		t.Fatal("one-shot did not advance to its second track")
 	}
 	h.controller.setLive(shot.ID(), true)
 	h.update()
 	h.controller.setLive(shot.ID(), false)
 	h.update()
-	if shot.IsAlive() {
+	if h.world.HasEntity(shot) {
 		t.Fatal("finished one-shot was not destroyed")
 	}
-	if !persistent.IsAlive() {
+	if !h.world.HasEntity(persistent) {
 		t.Fatal("completion destroyed another player")
 	}
 }

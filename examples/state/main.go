@@ -94,7 +94,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 	}); err != nil {
 		return nil, nil, err
 	}
-	labels := make([]*core.Entity, 10)
+	labels := make([]core.Entity, 10)
 	for line := range labels {
 		label, err := g.World().NewEntity(
 			core.Transform{Position: geom.Vector2{X: 480, Y: float64(36 + line*46)}},

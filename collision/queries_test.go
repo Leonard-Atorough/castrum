@@ -10,7 +10,7 @@ import (
 
 func TestQueriesRaycastUsesBroadphaseAndTargetLayers(t *testing.T) {
 	world := newCollisionWorld(t)
-	makeCollider := func(position geom.Vector2, layer int, mask uint32) *core.Entity {
+	makeCollider := func(position geom.Vector2, layer int, mask uint32) core.Entity {
 		t.Helper()
 		collider, err := NewCollider(Circle{Radius: 1})
 		if err != nil {
@@ -38,7 +38,7 @@ func TestQueriesRaycastUsesBroadphaseAndTargetLayers(t *testing.T) {
 
 	segment := geom.Segment{Start: geom.Vector2{X: -3}, End: geom.Vector2{X: 10}}
 	hit, ok := queries.Raycast(segment, RaycastFilter{Mask: Mask(2)})
-	if !ok || hit.Entity != far.ID() || hit.Distance != 6 {
+	if !ok || hit.Entity != far || hit.Distance != 6 {
 		t.Fatalf("layer-filtered hit = %+v, %t; want entity %d at distance 6", hit, ok, far.ID())
 	}
 	if hit.Collider.Layers != Layers(2) || hit.Collider.Mask != math.MaxUint32 {
@@ -49,13 +49,13 @@ func TestQueriesRaycastUsesBroadphaseAndTargetLayers(t *testing.T) {
 		t.Fatalf("hit collider shape = %#v; want Circle with radius 1", hit.Collider.Shape)
 	}
 	hit, ok = queries.Raycast(segment, RaycastFilter{Mask: Mask(1)})
-	if !ok || hit.Entity != near.ID() {
+	if !ok || hit.Entity != near {
 		t.Fatalf("raycast should hit layer-matched collider with empty Collider.Mask: %+v, %t", hit, ok)
 	}
 	if _, ok := queries.Raycast(segment, RaycastFilter{}); ok {
 		t.Fatal("raycast with empty mask should miss")
 	}
-	if _, ok := queries.Raycast(segment, RaycastFilter{Mask: Mask(2), Exclude: []core.EntityID{far.ID()}}); ok {
+	if _, ok := queries.Raycast(segment, RaycastFilter{Mask: Mask(2), Exclude: []core.Entity{far}}); ok {
 		t.Fatal("raycast hit excluded collider")
 	}
 }
@@ -85,7 +85,7 @@ func TestQueriesRaycastLongSegment(t *testing.T) {
 			RaycastFilter{Mask: math.MaxUint32},
 		)
 		want := test.center - test.radius
-		if !ok || hit.Entity != entity.ID() || math.Abs(hit.Distance-want) > 1e-6 ||
+		if !ok || hit.Entity != entity || math.Abs(hit.Distance-want) > 1e-6 ||
 			math.Abs(hit.Point.X-want) > 1e-6 || hit.Normal != (geom.Vector2{X: -1}) {
 			t.Fatalf("long-segment hit = %+v, %t; want entity %d at %v", hit, ok, entity.ID(), want)
 		}

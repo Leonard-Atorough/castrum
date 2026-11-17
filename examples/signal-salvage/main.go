@@ -237,10 +237,10 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 					return nil
 				}
 				return coreEvents.Consume(ctx, func(_ *core.Context, event collision.Entered) error {
-					if !state.active || state.finished || event.Entity != player.ID() {
+					if !state.active || state.finished || event.Entity != player.Entity() {
 						return nil
 					}
-					other := core.NewEntity(event.Other)
+					other := event.Other
 					if other.HasComponent[dataCore](world) {
 						coreState, _ := other.Component[dataCore](world)
 						if coreState.collected {
@@ -288,7 +288,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 			name: "round.clock",
 			run: hub.Consumer(func(_ *core.Context, event gametime.Completed) error {
 				if !state.active || state.finished ||
-					!core.NewEntity(event.Entity).HasComponent[roundClock](world) {
+					!event.Entity.HasComponent[roundClock](world) {
 					return nil
 				}
 				hub.Emit(roundEnded{})

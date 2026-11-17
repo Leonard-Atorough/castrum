@@ -92,7 +92,7 @@ func TestAnimationControlsAndCompletion(t *testing.T) {
 	if !ok {
 		t.Fatal("setup did not spawn an animated sprite")
 	}
-	torch := core.NewEntity(entry.ID())
+	torch := entry.Entity()
 	read := func() animation.AnimatedSprite {
 		t.Helper()
 		value, ok := torch.Component[animation.AnimatedSprite](g.World())

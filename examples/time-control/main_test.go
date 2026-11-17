@@ -45,7 +45,7 @@ func TestTimeControlsPauseScaleAndResumeOrbit(t *testing.T) {
 		t.Helper()
 		center := geom.Vector2{X: screenW / 2, Y: screenH / 2}
 		for _, orbit := range []struct {
-			entity *core.Entity
+			entity core.Entity
 			want   geom.Vector2
 		}{
 			{inner, center.Add(geom.Vector2{X: 140 * math.Cos(angle), Y: 140 * math.Sin(angle)})},

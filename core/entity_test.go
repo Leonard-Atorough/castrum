@@ -19,21 +19,13 @@ func (r rating) Validate() error {
 	return nil
 }
 
-func TestNewEntityAliveWithID(t *testing.T) {
+func TestNewEntityHandle(t *testing.T) {
 	e := NewEntity(42)
 	if e.ID() != 42 {
 		t.Errorf("ID() = %d, want 42", e.ID())
 	}
-	if !e.IsAlive() {
-		t.Error("new entity should be alive")
-	}
-}
-
-func TestKillMarksEntityDead(t *testing.T) {
-	e := NewEntity(0)
-	e.Kill()
-	if e.IsAlive() {
-		t.Error("killed entity should not be alive")
+	if NewWorld().HasEntity(e) {
+		t.Error("constructing a handle must not create an entity")
 	}
 }
 

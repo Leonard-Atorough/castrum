@@ -23,14 +23,14 @@ type RaycastFilter struct {
 	// Mask selects colliders whose Layers intersect this mask. Collider.Mask
 	// does not filter raycasts; it controls pairwise collider interactions.
 	Mask uint32
-	// Exclude lists entity IDs to ignore.
-	Exclude []core.EntityID
+	// Exclude lists entities to ignore.
+	Exclude []core.Entity
 }
 
 // RaycastHit describes the closest collider hit by a raycast.
 type RaycastHit struct {
 	// Entity identifies the entity whose collider was hit.
-	Entity core.EntityID
+	Entity core.Entity
 	// Collider is the collider data from the synchronized snapshot that produced the hit.
 	Collider Collider
 	// Point is the hit location in world coordinates.
@@ -84,8 +84,8 @@ func (q *Queries) Raycast(segment geom.Segment, filter RaycastFilter) (RaycastHi
 			continue
 		}
 		excluded := false
-		for _, excludedID := range filter.Exclude {
-			if id == excludedID {
+		for _, entity := range filter.Exclude {
+			if id == entity.ID() {
 				excluded = true
 				break
 			}
@@ -95,13 +95,13 @@ func (q *Queries) Raycast(segment geom.Segment, filter RaycastFilter) (RaycastHi
 		}
 
 		hit := segmentShapeHit(segment, proxy.shape)
-		if !hit.hit || (found && (hit.t > bestT || (hit.t == bestT && id >= best.Entity))) {
+		if !hit.hit || (found && (hit.t > bestT || (hit.t == bestT && id >= best.Entity.ID()))) {
 			continue
 		}
 		bestT = hit.t
 		found = true
 		best = RaycastHit{
-			Entity:   id,
+			Entity:   core.NewEntity(id),
 			Collider: proxy.collider,
 			Point:    hit.point,
 			Normal:   hit.normal,

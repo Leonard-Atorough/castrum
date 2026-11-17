@@ -285,17 +285,17 @@ func (d *Director) Remove(id InstanceID) error {
 // operations. It returns an error if ctx or its world is nil, owner is not a
 // live instance, or components are invalid. OwnershipRecord is managed by the
 // director and must not be supplied by callers.
-func (d *Director) Spawn(ctx *core.Context, owner InstanceID, components ...any) (*core.Entity, error) {
+func (d *Director) Spawn(ctx *core.Context, owner InstanceID, components ...any) (core.Entity, error) {
 	if ctx == nil || ctx.World == nil {
-		return nil, fmt.Errorf("scene: Spawn: context and world must not be nil")
+		return core.Entity{}, fmt.Errorf("scene: Spawn: context and world must not be nil")
 	}
 	inst, ok := d.findInstance(owner)
 	if !ok || !inst.live {
-		return nil, fmt.Errorf("scene: Spawn: instance %d is not live", owner)
+		return core.Entity{}, fmt.Errorf("scene: Spawn: instance %d is not live", owner)
 	}
 	for _, component := range components {
 		if _, ok := component.(OwnershipRecord); ok {
-			return nil, fmt.Errorf("scene: Spawn: OwnershipRecord is managed by the director")
+			return core.Entity{}, fmt.Errorf("scene: Spawn: OwnershipRecord is managed by the director")
 		}
 	}
 	return newOwnedEntity(ctx.World, owner, components...)

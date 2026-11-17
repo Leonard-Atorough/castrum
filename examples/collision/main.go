@@ -197,7 +197,7 @@ func run() error {
 	// Pickups live on their own layer, listening for the player, and
 	// carry the trigger flag - detection without any response
 	// implication.
-	pickups := make([]*core.Entity, pickupCount)
+	pickups := make([]core.Entity, pickupCount)
 	for i := range pickups {
 		collider, err := collision.NewCollider(collision.Circle{Radius: pickupRadius})
 		if err != nil {
@@ -304,7 +304,7 @@ func run() error {
 	return g.Run(runner)
 }
 
-func hazardSystem(player *core.Entity, panel *debug.Panel) core.System {
+func hazardSystem(player core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		contacts, ok := player.Component[collision.Contacts](ctx.World)
 		if !ok {
@@ -315,7 +315,7 @@ func hazardSystem(player *core.Entity, panel *debug.Panel) core.System {
 			if hit.Trigger {
 				continue
 			}
-			other, ok := core.NewEntity(hit.Other).Component[collision.Collider](ctx.World)
+			other, ok := hit.Other.Component[collision.Collider](ctx.World)
 			if ok && other.Layers&hazardLayers != 0 {
 				hits++
 			}
@@ -335,7 +335,7 @@ func hazardSystem(player *core.Entity, panel *debug.Panel) core.System {
 	})
 }
 
-func pickupSystem(player *core.Entity, pickups []*core.Entity, score *int, panel *debug.Panel) core.System {
+func pickupSystem(player core.Entity, pickups []core.Entity, score *int, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		for _, pickup := range pickups {
 			contacts, ok := pickup.Component[collision.Contacts](ctx.World)
@@ -367,10 +367,10 @@ func pickupSystem(player *core.Entity, pickups []*core.Entity, score *int, panel
 // matching collider on the given layer bitmask, used for walls and
 // spinning bars. The collider's mask admits only the player's layer.
 // extra attaches more components - the bars add their rotation.
-func spawnRect(world *core.World, position, min, max geom.Vector2, fill color.Color, layers uint32, extra ...any) (*core.Entity, error) {
+func spawnRect(world *core.World, position, min, max geom.Vector2, fill color.Color, layers uint32, extra ...any) (core.Entity, error) {
 	collider, err := collision.NewCollider(collision.Box{Min: min, Max: max})
 	if err != nil {
-		return nil, err
+		return core.Entity{}, err
 	}
 	collider.Layers = layers
 	collider.Mask = collision.Mask(playerLayer)

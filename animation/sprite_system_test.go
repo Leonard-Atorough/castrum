@@ -20,7 +20,7 @@ func newTestClip(t *testing.T, frames ...string) SpriteClip {
 	return clip
 }
 
-func newAnimatedSystemWorld(t *testing.T, animated AnimatedSprite, dt time.Duration) (*core.Entity, core.System, *core.Context, *signal.Reader[Completed]) {
+func newAnimatedSystemWorld(t *testing.T, animated AnimatedSprite, dt time.Duration) (core.Entity, core.System, *core.Context, *signal.Reader[Completed]) {
 	t.Helper()
 	w := core.NewWorld()
 	if err := w.Provide(func(*core.World) (*signal.Hub, error) {
@@ -36,7 +36,7 @@ func newAnimatedSystemWorld(t *testing.T, animated AnimatedSprite, dt time.Durat
 		w.MustResource[*signal.Hub]().NewReader[Completed]()
 }
 
-func readAnimated(t *testing.T, e *core.Entity, w *core.World) AnimatedSprite {
+func readAnimated(t *testing.T, e core.Entity, w *core.World) AnimatedSprite {
 	t.Helper()
 	anim, ok := e.Component[AnimatedSprite](w)
 	if !ok {
@@ -45,7 +45,7 @@ func readAnimated(t *testing.T, e *core.Entity, w *core.World) AnimatedSprite {
 	return anim
 }
 
-func animatedRegion(t *testing.T, e *core.Entity, w *core.World) string {
+func animatedRegion(t *testing.T, e core.Entity, w *core.World) string {
 	t.Helper()
 	frame, ok, err := readAnimated(t, e, w).CurrentFrame()
 	if err != nil || !ok {
@@ -121,7 +121,7 @@ func TestSpriteAnimationSystemOneShot(t *testing.T) {
 	if got := animatedRegion(t, entity, ctx.World); got != "c" || !anim.Paused || !anim.HasCompleted() || !anim.JustCompleted(3) {
 		t.Fatalf("completion: region %q, state %+v", got, anim)
 	}
-	if got := drainCompleted(reader); len(got) != 1 || got[0] != (Completed{Entity: entity.ID(), Tick: 3, Loops: 1}) {
+	if got := drainCompleted(reader); len(got) != 1 || got[0] != (Completed{Entity: entity, Tick: 3, Loops: 1}) {
 		t.Fatalf("completion signals = %v", got)
 	}
 	tickAt(t, sys, ctx, 4)
@@ -140,7 +140,7 @@ func TestSpriteAnimationSystemOneShot(t *testing.T) {
 	if anim := readAnimated(t, entity, ctx.World); !anim.Paused || !anim.JustCompleted(5) {
 		t.Fatalf("after unpausing: %+v, want completion again", anim)
 	}
-	if got := drainCompleted(reader); len(got) != 1 || got[0] != (Completed{Entity: entity.ID(), Tick: 5, Loops: 1}) {
+	if got := drainCompleted(reader); len(got) != 1 || got[0] != (Completed{Entity: entity, Tick: 5, Loops: 1}) {
 		t.Fatalf("signals after unpausing = %v", got)
 	}
 }
@@ -174,7 +174,7 @@ func TestSpriteAnimationSystemLooping(t *testing.T) {
 			if len(got) != 0 {
 				t.Fatalf("tick %d: unexpected signals %v", tick, got)
 			}
-		} else if len(got) != 1 || got[0] != (Completed{Entity: entity.ID(), Tick: tick, Loops: tt.loops}) {
+		} else if len(got) != 1 || got[0] != (Completed{Entity: entity, Tick: tick, Loops: tt.loops}) {
 			t.Fatalf("tick %d: signals = %v, want %d loops", tick, got, tt.loops)
 		}
 	}
