@@ -109,8 +109,7 @@ type instance struct {
 	id       InstanceID
 	name     string
 	tree     Node
-	entities map[string]core.Entity
-	order    []string
+	entities []core.Entity
 	children []InstanceID
 	live     bool
 }
@@ -123,48 +122,44 @@ func enter(world *core.World, loader *asset.Loader, inst *instance, tree Node) e
 		return err
 	}
 
-	entities := make(map[string]core.Entity)
-	order, err := spawnTree(world, entities, nil, "", tree)
+	entities, err := spawnTree(world, nil, "", tree)
 	if err != nil {
-		return errors.Join(err, destroy(world, entities, order))
+		return errors.Join(err, destroy(world, entities))
 	}
 	inst.tree = tree
 	inst.entities = entities
-	inst.order = order
 	inst.live = true
 	return nil
 }
 
-func spawnTree(world *core.World, entities map[string]core.Entity, order []string, path string, n Node) ([]string, error) {
+func spawnTree(world *core.World, entities []core.Entity, path string, n Node) ([]core.Entity, error) {
 	entity, err := world.NewEntity(n.Components...)
 	if err != nil {
-		return order, fmt.Errorf("scene: spawn node %q: %w", join(path, n.Key), err)
+		return entities, fmt.Errorf("scene: spawn node %q: %w", join(path, n.Key), err)
 	}
+	entities = append(entities, entity)
 	nodePath := join(path, n.Key)
-	entities[nodePath] = entity
-	order = append(order, nodePath)
 	for _, c := range n.Children {
-		if order, err = spawnTree(world, entities, order, nodePath, c); err != nil {
-			return order, err
+		if entities, err = spawnTree(world, entities, nodePath, c); err != nil {
+			return entities, err
 		}
 	}
-	return order, nil
+	return entities, nil
 }
 
 func exit(world *core.World, inst *instance) error {
-	errs := errors.Join(destroy(world, inst.entities, inst.order))
+	errs := destroy(world, inst.entities)
 	inst.live = false
 	inst.entities = nil
-	inst.order = nil
 	inst.tree = Node{}
 	return errs
 }
 
-func destroy(world *core.World, entities map[string]core.Entity, order []string) error {
+func destroy(world *core.World, entities []core.Entity) error {
 	var errs []error
-	for _, path := range order {
-		if err := world.DestroyEntity(entities[path]); err != nil {
-			errs = append(errs, fmt.Errorf("scene: destroy node %q: %w", path, err))
+	for _, ent := range entities {
+		if err := world.DestroyEntity(ent); err != nil {
+			errs = append(errs, fmt.Errorf("scene: destroy entity %d: %w", ent.ID(), err))
 		}
 	}
 	return errors.Join(errs...)

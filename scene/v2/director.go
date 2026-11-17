@@ -1,7 +1,6 @@
 package scenev2
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/Leonard-Atorough/castrum/core"
@@ -78,9 +77,27 @@ func (d *Director) Remove(id InstanceID) error {
 	return err
 }
 
-// Spawn is reserved for creating an instance-owned entity. It is not yet implemented.
+// Spawn creates an entity owned by the instance owner. The entity is
+// destroyed along with the instance when it unloads. It returns an error if
+// ctx is nil, owner does not identify a live instance, or the entity cannot
+// be created.
 func (d *Director) Spawn(ctx *core.Context, owner InstanceID, components ...any) (core.Entity, error) {
-	return core.Entity{}, errors.New("scene: spawn: not implemented")
+	if ctx == nil || ctx.World == nil {
+		return core.Entity{}, fmt.Errorf("scene: spawn: context and world must not be nil")
+	}
+	inst, ok := d.instances[owner]
+	if !ok {
+		return core.Entity{}, fmt.Errorf("scene: spawn: invalid owner instance id %d", owner)
+	}
+	if !inst.live {
+		return core.Entity{}, fmt.Errorf("scene: spawn: owner instance id %d is not live", owner)
+	}
+	ent, err := ctx.World.NewEntity(components...)
+	if err != nil {
+		return core.Entity{}, err
+	}
+	inst.entities = append(inst.entities, ent)
+	return ent, nil
 }
 
 func (d *Director) queue(target InstanceID, scene Scene, props any, kind requestKind, operation string, opts ...Option) (InstanceID, error) {
