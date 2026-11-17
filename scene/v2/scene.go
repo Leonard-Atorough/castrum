@@ -48,14 +48,14 @@ func (w warm[T]) warm(loader *asset.Loader) error {
 }
 
 // Assets is a placeholder for scene asset preloading, which is not yet implemented.
-type Assets struct{ preload []Preload }
+type Assets struct{ Preload []Preload }
 
 // Node describes an entity and its children in a scene tree.
 type Node struct {
 	// Key identifies the node among its siblings; it must be nonempty and contain no "/".
 	Key string
 	// Assets lists preloaded assets.
-	Assets []Preload
+	Assets Assets
 	// Components are the non-nil, non-pointer values attached to the entity.
 	Components []any
 	// Children are the node's child entities.
@@ -94,12 +94,9 @@ func validateNode(path string, n Node, seen map[string]bool) error {
 	return nil
 }
 
-// Validate builds a scene, checks its node keys, and rejects nil or pointer components.
-//
-// It does not validate nested [Node.Scenes] or component-specific constraints.
-func Validate(scene Scene, props any) error {
+func validate(scene Scene, props any) (Node, error) {
 	tree := scene(props)
-	return validateNode(tree.Key, tree, map[string]bool{})
+	return tree, validateNode(tree.Key, tree, map[string]bool{})
 }
 
 // InstanceID identifies a scene instance.
@@ -174,13 +171,27 @@ func join(path, key string) string {
 var ErrAssetsNotReady = errors.New("scene: assets not ready")
 
 func preload(loader *asset.Loader, tree Node) error {
-	// Walk the tree collecting Assets.Preload declarations, then resolve
-	// each through the loader. Missing or unreadable -> wrap ErrAssetsNotReady
-	// with the asset ID named.
-	return nil
+	return walkAssets(tree, func(p Preload) error {
+		if err := p.warm(loader); err != nil {
+			return fmt.Errorf("%w: %s: %w", ErrAssetsNotReady, p.id(), err)
+		}
+		return nil
+	})
 }
 
-type Director struct{}
+func walkAssets(n Node, visit func(Preload) error) error {
+	for _, p := range n.Assets.Preload {
+		if err := visit(p); err != nil {
+			return err
+		}
+	}
+	for _, child := range n.Children {
+		if err := walkAssets(child, visit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 type Handle struct {
 	id       InstanceID
