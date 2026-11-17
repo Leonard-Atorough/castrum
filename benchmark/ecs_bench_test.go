@@ -61,7 +61,7 @@ func BenchmarkSpawnEntitiesBatch(b *testing.B) {
 // destruction alone.
 func BenchmarkDestroyEntity(b *testing.B) {
 	world := core.NewWorld()
-	pool := make([]*core.Entity, 0, 10000)
+	pool := make([]core.Entity, 0, 10000)
 	next := 0
 	refill := func() {
 		pool = pool[:0]
@@ -94,7 +94,7 @@ func BenchmarkDestroyEntity(b *testing.B) {
 // the world, the per-tick cost systems pay for state access.
 func BenchmarkComponentRead(b *testing.B) {
 	world := core.NewWorld()
-	pool := make([]*core.Entity, 0, 10000)
+	pool := make([]core.Entity, 0, 10000)
 	for range 10000 {
 		e, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: 3, Y: 4}})
 		if err != nil {

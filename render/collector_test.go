@@ -89,7 +89,7 @@ func spawnCamera(t *testing.T, w *core.World, prev, curr geom.Vector2, zoom floa
 	}
 }
 
-func spawnSprite(t *testing.T, w *core.World, prev, curr geom.Vector2, sprite spr.Sprite, transform core.Transform) *core.Entity {
+func spawnSprite(t *testing.T, w *core.World, prev, curr geom.Vector2, sprite spr.Sprite, transform core.Transform) core.Entity {
 	t.Helper()
 	transform.Position = curr
 	if transform.Scale == (geom.Vector2{}) {
@@ -104,13 +104,13 @@ func spawnSprite(t *testing.T, w *core.World, prev, curr geom.Vector2, sprite sp
 	return e
 }
 
-func spawnTextureSprite(t *testing.T, w *core.World, texture asset.ID, prev, curr geom.Vector2, sprite spr.Sprite) *core.Entity {
+func spawnTextureSprite(t *testing.T, w *core.World, texture asset.ID, prev, curr geom.Vector2, sprite spr.Sprite) core.Entity {
 	t.Helper()
 	sprite.Drawable = spr.TextureSource{Texture: texture}
 	return spawnSprite(t, w, prev, curr, sprite, core.Transform{})
 }
 
-func spawnTextSprite(t *testing.T, w *core.World, text string, fill color.Color, pos geom.Vector2) *core.Entity {
+func spawnTextSprite(t *testing.T, w *core.World, text string, fill color.Color, pos geom.Vector2) core.Entity {
 	t.Helper()
 	entity, err := w.NewEntity(
 		spr.Sprite{Drawable: spr.TextSource{Font: "fonts/go.ttf", Text: text, Size: 16}, Style: spr.Style{Color: fill}},

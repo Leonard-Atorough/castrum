@@ -29,7 +29,7 @@ const (
 // wraps multiple times.
 type Completed struct {
 	// Entity is the entity whose clip completed.
-	Entity core.EntityID
+	Entity core.Entity
 	// Tick is the fixed tick of the completion.
 	Tick uint64
 	// Loops is the number of wraps in this update; 1 for a LoopNone completion.
@@ -257,13 +257,13 @@ func (s *animationSystem) Update(ctx *core.Context) error {
 			case anim.Loop == LoopAll:
 				anim.completedOn = ctx.Tick
 				anim.frame = total % frameCount
-				s.hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick, Loops: uint64(total / frameCount)})
+				s.hub.Emit(Completed{Entity: e.Entity(), Tick: ctx.Tick, Loops: uint64(total / frameCount)})
 			default:
 				anim.completedOn = ctx.Tick
 				anim.completed = true
 				anim.Paused = true
 				anim.frame = frameCount - 1
-				s.hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick, Loops: 1})
+				s.hub.Emit(Completed{Entity: e.Entity(), Tick: ctx.Tick, Loops: 1})
 			}
 		}
 		e.SetComponent(anim)

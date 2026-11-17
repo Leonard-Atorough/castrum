@@ -106,12 +106,12 @@ func advanceTestFrame(t *testing.T, game *castrum.Game, snapshot *input.Snapshot
 	}
 }
 
-func findEntity(t *testing.T, world *core.World, components ...any) *core.Entity {
+func findEntity(t *testing.T, world *core.World, components ...any) core.Entity {
 	t.Helper()
 	query := core.NewQuery(world).With(components...)
 	entry, ok := query.First()
 	if !ok {
 		t.Fatalf("no entity with components %v", components)
 	}
-	return core.NewEntity(entry.ID())
+	return entry.Entity()
 }

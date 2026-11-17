@@ -110,7 +110,7 @@ func run() error {
 		},
 	}
 
-	var spinners []*core.Entity
+	var spinners []core.Entity
 	for r, row := range spectrum {
 		for c, variant := range row.cells {
 			// The color's alpha channel is the drawable's opacity:

@@ -169,7 +169,7 @@ func run() error {
 	// countdown's completion is translated into the launched signal.
 	if err := g.AddSystem(core.PhaseFixed, "core.charge", hub.Consumer(func(ctx *core.Context, c gametime.Completed) error {
 		switch c.Entity {
-		case injector.ID():
+		case injector:
 			state.flash = flashTicks
 			state.injections++
 			if state.phase == charging {
@@ -179,7 +179,7 @@ func run() error {
 					hub.Emit(coreCharged{})
 				}
 			}
-		case countdownTimer.ID():
+		case countdownTimer:
 			if state.phase == countdown {
 				hub.Emit(launched{tick: ctx.Tick})
 			}
@@ -290,9 +290,9 @@ type sequence struct {
 	flash      int
 	injections int
 
-	injector  *core.Entity
-	countdown *core.Entity
-	core      *core.Entity
+	injector  core.Entity
+	countdown core.Entity
+	core      core.Entity
 }
 
 func (s *sequence) flashColor() color.Color {

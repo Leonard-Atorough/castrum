@@ -9,7 +9,7 @@ type queryPos struct{ X, Y float64 }
 type queryVel struct{ X, Y float64 }
 type queryTag struct{}
 
-func mustQueryEntity(t *testing.T, w *World, components ...any) *Entity {
+func mustQueryEntity(t *testing.T, w *World, components ...any) Entity {
 	t.Helper()
 	entity, err := w.NewEntity(components...)
 	if err != nil {
@@ -47,6 +47,25 @@ func TestQueryFirst(t *testing.T) {
 	}
 	if len(ids) != 2 || ids[0] != first.ID() || ids[1] != second.ID() {
 		t.Fatalf("Execute after First = %v, want [%d %d]", ids, first.ID(), second.ID())
+	}
+}
+
+func TestQueryEntityHandle(t *testing.T) {
+	w := NewWorld()
+	first := mustQueryEntity(t, w, queryPos{})
+	second := mustQueryEntity(t, w, queryPos{})
+	var handles []Entity
+	for entry := range NewQuery(w).With(queryPos{}).Execute() {
+		handles = append(handles, entry.Entity())
+	}
+	if len(handles) != 2 || handles[0] != first || handles[1] != second || !w.HasEntity(handles[0]) {
+		t.Fatalf("query handles = %v, want live entities %v and %v", handles, first, second)
+	}
+	if err := w.DestroyEntity(handles[0]); err != nil {
+		t.Fatal(err)
+	}
+	if w.HasEntity(first) || !w.HasEntity(handles[1]) {
+		t.Fatal("query handle did not destroy only the intended entity")
 	}
 }
 
@@ -194,7 +213,7 @@ func TestQueryGenerationInvalidation(t *testing.T) {
 	}
 
 	generation := w.archetypes.Generation()
-	for i, entity := range []*Entity{first, second} {
+	for i, entity := range []Entity{first, second} {
 		if err := w.DestroyEntity(entity); err != nil {
 			t.Fatalf("DestroyEntity: %v", err)
 		}

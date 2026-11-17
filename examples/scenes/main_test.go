@@ -138,19 +138,19 @@ func ownedEntities(g *castrum.Game, id scene.InstanceID) int {
 	return count
 }
 
-func ownedMovingEntity(t *testing.T, g *castrum.Game, id scene.InstanceID, marker any) *core.Entity {
+func ownedMovingEntity(t *testing.T, g *castrum.Game, id scene.InstanceID, marker any) core.Entity {
 	t.Helper()
 	for entry := range core.NewQuery(g.World()).With(scene.OwnershipRecord{}, marker).Execute() {
 		owner, _ := entry.Component[scene.OwnershipRecord]()
 		if owner.Instance == id {
-			return core.NewEntity(entry.ID())
+			return entry.Entity()
 		}
 	}
 	t.Fatalf("scene %d has no entity with %T", id, marker)
-	return nil
+	return core.Entity{}
 }
 
-func rotation(t *testing.T, g *castrum.Game, entity *core.Entity) float64 {
+func rotation(t *testing.T, g *castrum.Game, entity core.Entity) float64 {
 	t.Helper()
 	transform, ok := entity.Component[core.Transform](g.World())
 	if !ok {
@@ -159,7 +159,7 @@ func rotation(t *testing.T, g *castrum.Game, entity *core.Entity) float64 {
 	return transform.Rotation
 }
 
-func position(t *testing.T, g *castrum.Game, entity *core.Entity) float64 {
+func position(t *testing.T, g *castrum.Game, entity core.Entity) float64 {
 	t.Helper()
 	transform, ok := entity.Component[core.Transform](g.World())
 	if !ok {

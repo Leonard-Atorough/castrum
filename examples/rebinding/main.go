@@ -42,7 +42,7 @@ func newGame(directory *asset.Directory) (*castrum.Game, *editor, error) {
 	if err := g.AddSystem(core.PhaseFrame, "edit controls", core.SystemFunc(e.update)); err != nil {
 		return nil, nil, err
 	}
-	labels := make([]*core.Entity, 4)
+	labels := make([]core.Entity, 4)
 	for line := range labels {
 		label, err := g.World().NewEntity(
 			core.Transform{Position: geom.Vector2{X: 560, Y: float64(80 + line*70)}},

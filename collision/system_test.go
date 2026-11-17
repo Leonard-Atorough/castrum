@@ -18,7 +18,7 @@ func tick(t *testing.T, world *core.World, sys core.System) {
 	}
 }
 
-func contactsOf(t *testing.T, world *core.World, entity *core.Entity) Contacts {
+func contactsOf(t *testing.T, world *core.World, entity core.Entity) Contacts {
 	t.Helper()
 	contacts, ok := entity.Component[Contacts](world)
 	if !ok {
@@ -30,7 +30,7 @@ func contactsOf(t *testing.T, world *core.World, entity *core.Entity) Contacts {
 // playerAndWall spawns a circle collider at the origin and a rect
 // collider covering world x [1, 3]: the pair overlaps with the circle
 // penetrating the rect's near edge by exactly one unit.
-func playerAndWall(t *testing.T, world *core.World) (player, wall *core.Entity) {
+func playerAndWall(t *testing.T, world *core.World) (player, wall core.Entity) {
 	t.Helper()
 	playerCollider, err := NewCollider(Circle{Radius: 2})
 	if err != nil {
@@ -86,7 +86,7 @@ func TestSystem_ContactLifecycle(t *testing.T) {
 
 	playerHit := playerContacts.Current[0]
 	wallHit := wallContacts.Current[0]
-	if playerHit.Other != wall.ID() || wallHit.Other != player.ID() {
+	if playerHit.Other != wall || wallHit.Other != player {
 		t.Fatalf("contact others = %d / %d", playerHit.Other, wallHit.Other)
 	}
 	if math.Abs(playerHit.Penetration-1) > 1e-9 {
@@ -257,7 +257,7 @@ func TestSystem_MovingColliderEntersNewPair(t *testing.T) {
 	if len(playerContacts.Current) != 1 || len(playerContacts.Previous) != 0 {
 		t.Fatalf("moved-in player contacts = %v / %v, want enter", playerContacts.Current, playerContacts.Previous)
 	}
-	if playerContacts.Current[0].Other != wall.ID() {
+	if playerContacts.Current[0].Other != wall {
 		t.Errorf("contact other = %d, want wall %d", playerContacts.Current[0].Other, wall.ID())
 	}
 }
@@ -293,7 +293,7 @@ func TestSystem_ContactsSortedByOther(t *testing.T) {
 		t.Fatalf("player contacts = %v, want 3", playerContacts.Current)
 	}
 	for i := 1; i < len(playerContacts.Current); i++ {
-		if playerContacts.Current[i-1].Other >= playerContacts.Current[i].Other {
+		if playerContacts.Current[i-1].Other.ID() >= playerContacts.Current[i].Other.ID() {
 			t.Errorf("contacts not sorted by Other: %v", playerContacts.Current)
 			break
 		}
@@ -365,7 +365,7 @@ func TestSystem_GeometryAndFilterChanges(t *testing.T) {
 				t.Fatal(err)
 			}
 			tick(t, world, sys)
-			for _, entity := range []*core.Entity{player, wall} {
+			for _, entity := range []core.Entity{player, wall} {
 				c := contactsOf(t, world, entity)
 				if (len(c.Current) == 1) != test.hit || len(c.Previous) != 1 {
 					t.Fatalf("contacts = %v / %v, want hit %v and previous contact", c.Current, c.Previous, test.hit)
@@ -404,7 +404,7 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 				}
 			}
 			tick(t, world, sys)
-			for _, entity := range []*core.Entity{player, wall} {
+			for _, entity := range []core.Entity{player, wall} {
 				c := contactsOf(t, world, entity)
 				if len(c.Current) != 1 || len(c.Previous) != 0 {
 					t.Fatalf("want initial enter, got %v", c)
@@ -458,14 +458,14 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			tick(t, world, sys)
-			for _, entity := range []*core.Entity{player, wall} {
+			for _, entity := range []core.Entity{player, wall} {
 				c = contactsOf(t, world, entity)
 				if len(c.Current) != 1 || len(c.Previous) != 0 {
 					t.Fatalf("want fresh enter, got %v", c)
 				}
 			}
 			tick(t, world, sys)
-			for _, entity := range []*core.Entity{player, wall} {
+			for _, entity := range []core.Entity{player, wall} {
 				c = contactsOf(t, world, entity)
 				if len(c.Current) != 1 || !slices.Equal(c.Current, c.Previous) {
 					t.Fatalf("want stay after reactivation, got %v", c)
@@ -498,7 +498,7 @@ func TestSystem_StaticFiltersCanCreateAndChangeContacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	tick(t, world, sys)
-	for _, entity := range []*core.Entity{player, wall} {
+	for _, entity := range []core.Entity{player, wall} {
 		c := contactsOf(t, world, entity)
 		if !c.Current[0].Trigger || c.Previous[0].Trigger {
 			t.Fatalf("trigger change overwrote history: %v", c)

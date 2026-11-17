@@ -27,11 +27,11 @@ func TestSystem_EnteredSignals(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("entered signals = %v, want two (one per perspective)", got)
 	}
-	wantPlayer := Entered{Entity: player.ID(), Other: wall.ID(),
+	wantPlayer := Entered{Entity: player, Other: wall,
 		Point: geom.Vector2{X: 1, Y: 0}, Normal: geom.Vector2{X: 1, Y: 0},
 		Penetration: 1, Tick: 1}
 	wantWall := wantPlayer
-	wantWall.Entity, wantWall.Other = wall.ID(), player.ID()
+	wantWall.Entity, wantWall.Other = wall, player
 	wantWall.Normal = geom.Vector2{X: -1, Y: 0}
 	if got[0] != wantPlayer && got[1] != wantPlayer {
 		t.Fatalf("player's entered signal = %v, want %v", got, wantPlayer)
@@ -89,11 +89,11 @@ func TestSystem_ContainedCircleContactSignals(t *testing.T) {
 		hit.Point != mirrored.Point || hit.Penetration != mirrored.Penetration {
 		t.Fatalf("contained contacts not symmetric: %v / %v", hit, mirrored)
 	}
-	got := make(map[core.EntityID]Entered)
+	got := make(map[core.Entity]Entered)
 	for event, ok := reader.Next(); ok; event, ok = reader.Next() {
 		got[event.Entity] = event
 	}
-	if len(got) != 2 || got[a.ID()] != enteredSignal(a.ID(), hit, 0) || got[b.ID()] != enteredSignal(b.ID(), mirrored, 0) {
+	if len(got) != 2 || got[a] != enteredSignal(a.ID(), hit, 0) || got[b] != enteredSignal(b.ID(), mirrored, 0) {
 		t.Fatalf("entered signals do not match contact geometry: %v", got)
 	}
 }
@@ -123,8 +123,8 @@ func TestSystem_ExitedSignals(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("exited signals = %v, want two (one per perspective)", got)
 	}
-	wantPlayer := Exited{Entity: player.ID(), Other: wall.ID(), Tick: 2}
-	wantWall := Exited{Entity: wall.ID(), Other: player.ID(), Tick: 2}
+	wantPlayer := Exited{Entity: player, Other: wall, Tick: 2}
+	wantWall := Exited{Entity: wall, Other: player, Tick: 2}
 	if got[0] != wantPlayer && got[1] != wantPlayer {
 		t.Fatalf("player's exited signal = %v, want %v", got, wantPlayer)
 	}

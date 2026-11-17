@@ -11,7 +11,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-func collisionGame(t *testing.T, stats playerStats) (*castrum.Game, *core.Entity) {
+func collisionGame(t *testing.T, stats playerStats) (*castrum.Game, core.Entity) {
 	t.Helper()
 	g, err := castrum.New(castrum.WithFixedTPS(100))
 	if err != nil {
@@ -99,7 +99,7 @@ func TestPickupsHealAndScoreOnlyOnEntry(t *testing.T) {
 	}
 	score := 0
 	if err := g.AddSystem(core.PhaseFixed, "pickups",
-		pickupSystem(player, []*core.Entity{pickup}, &score, debug.NewPanel())); err != nil {
+		pickupSystem(player, []core.Entity{pickup}, &score, debug.NewPanel())); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.Startup(); err != nil {

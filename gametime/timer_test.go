@@ -33,7 +33,7 @@ func tick(t *testing.T, world *core.World, sys core.System, number uint64, dt ti
 	}
 }
 
-func timerOf(t *testing.T, world *core.World, entity *core.Entity) Timer {
+func timerOf(t *testing.T, world *core.World, entity core.Entity) Timer {
 	t.Helper()
 	timer, ok := entity.Component[Timer](world)
 	if !ok {
@@ -345,7 +345,7 @@ func TestSystem_GroupPauseHoldsAndResumeContinues(t *testing.T) {
 		t.Fatal(err)
 	}
 	dt := 100 * time.Millisecond
-	spawn := func(group string, running bool) *core.Entity {
+	spawn := func(group string, running bool) core.Entity {
 		timer := NewTimer(time.Second, false)
 		timer.Group = group
 		timer.Running = running
@@ -364,7 +364,7 @@ func TestSystem_GroupPauseHoldsAndResumeContinues(t *testing.T) {
 	for tickNumber := range 5 {
 		tick(t, world, sys, uint64(tickNumber+1), dt)
 	}
-	for name, e := range map[string]*core.Entity{
+	for name, e := range map[string]core.Entity{
 		"combat": combat, "stopped in combat": stopped,
 	} {
 		if got := timerOf(t, world, e); got.Elapsed != 0 {
@@ -559,7 +559,7 @@ func TestSystemEmitsCompletedSignal(t *testing.T) {
 	for event, ok := reader.Next(); ok; event, ok = reader.Next() {
 		got = append(got, event)
 	}
-	if len(got) != 1 || got[0] != (Completed{Entity: entity.ID(), Tick: 2}) {
+	if len(got) != 1 || got[0] != (Completed{Entity: entity, Tick: 2}) {
 		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
 	}
 }

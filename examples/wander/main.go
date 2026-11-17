@@ -102,7 +102,7 @@ func run() error {
 	return g.Run(runner)
 }
 
-func wanderSystem(sprite *core.Entity, nextTarget func() geom.Vector2) core.System {
+func wanderSystem(sprite core.Entity, nextTarget func() geom.Vector2) core.System {
 	target := nextTarget()
 	return core.SystemFunc(func(ctx *core.Context) error {
 		return sprite.Update(ctx.World, func(t *core.Transform) {

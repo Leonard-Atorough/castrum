@@ -169,7 +169,7 @@ func run() error {
 	return g.Run(runner)
 }
 
-func orbitSystem(inner, outer *core.Entity) core.System {
+func orbitSystem(inner, outer core.Entity) core.System {
 	angle := 0.0
 	return core.SystemFunc(func(ctx *core.Context) error {
 		angle += orbitSpeed * ctx.DeltaTime.Seconds()
@@ -183,7 +183,7 @@ func orbitSystem(inner, outer *core.Entity) core.System {
 	})
 }
 
-func timeControlSystem(g *castrum.Game, state *core.Entity) core.System {
+func timeControlSystem(g *castrum.Game, state core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if ctx.Actions.JustPressed("pause") {
 			if g.Paused() {

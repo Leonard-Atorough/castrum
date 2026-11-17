@@ -92,7 +92,7 @@ func run() error {
 	return game.Run(runner)
 }
 
-func movementSystem(l *audio.Listener, p *core.Entity) core.System {
+func movementSystem(l *audio.Listener, p core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		dir := geom.Vector2{
 			X: ctx.Actions.Axis("move_x"),

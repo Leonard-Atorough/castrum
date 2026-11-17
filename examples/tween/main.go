@@ -32,8 +32,8 @@ const (
 type demo struct {
 	motion tween.Tween
 	tint   tween.Tween
-	body   *core.Entity
-	swatch *core.Entity
+	body   core.Entity
+	swatch core.Entity
 }
 
 func main() {

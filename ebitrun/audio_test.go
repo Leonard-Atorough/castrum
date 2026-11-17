@@ -599,20 +599,20 @@ func TestRunnerAudioCompletionReclaimsOneShot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !persistent.IsAlive() {
+	if !world.HasEntity(persistent) {
 		t.Fatal("completed persistent play was destroyed")
 	}
 	if player, ok := persistent.Component[audio.Player](world); !ok || !player.Completed() {
 		t.Fatalf("completed player = %+v, present=%v", player, ok)
 	}
-	if oneshot.IsAlive() {
+	if world.HasEntity(oneshot) {
 		t.Fatal("completed one-shot was not reclaimed")
 	}
-	signals := make(map[core.EntityID]asset.ID)
+	signals := make(map[core.Entity]asset.ID)
 	for _, event := range observed {
 		signals[event.Entity] = event.Audio
 	}
-	if len(signals) != 2 || signals[persistent.ID()] != "tone.wav" || signals[oneshot.ID()] != "tone.wav" {
+	if len(signals) != 2 || signals[persistent] != "tone.wav" || signals[oneshot] != "tone.wav" {
 		t.Fatalf("finished signals = %v from %d events", signals, len(observed))
 	}
 	if got := provider.players[persistent.ID()]; got != streamSession || !got.finished || got.player != nil || got.balance != nil || got.source != nil {

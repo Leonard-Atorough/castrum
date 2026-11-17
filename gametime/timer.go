@@ -93,7 +93,7 @@ func (t Timer) HasCompleted() bool {
 // one completion and emits one signal. Tick equals [Timer.CompletedOn].
 type Completed struct {
 	// Entity is the entity whose Timer completed.
-	Entity core.EntityID
+	Entity core.Entity
 	// Tick is the fixed tick of the completion.
 	Tick uint64
 }
@@ -277,7 +277,7 @@ func (s *timerSystem) Update(ctx *core.Context) error {
 				t.Elapsed += dt
 			}
 			if t.CompletedOn == ctx.Tick {
-				s.hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick})
+				s.hub.Emit(Completed{Entity: e.Entity(), Tick: ctx.Tick})
 			}
 		})
 	}

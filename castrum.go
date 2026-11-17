@@ -29,7 +29,7 @@ type Game struct {
 	schedules   map[core.Phase]*runtime.Schedule
 	groupStates map[string]bool
 
-	mainCamera *core.Entity
+	mainCamera core.Entity
 	hub        *signal.Hub
 
 	acc     time.Duration
@@ -238,7 +238,7 @@ func (g *Game) World() *core.World {
 // MainCamera returns the default camera created by [New], positioned at the
 // world origin with zoom 1. Set its [core.Transform] to move it. A user-spawned
 // primary camera takes precedence.
-func (g *Game) MainCamera() *core.Entity {
+func (g *Game) MainCamera() core.Entity {
 	return g.mainCamera
 }
 

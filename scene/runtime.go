@@ -113,7 +113,7 @@ func enter(d *Director, ctx *core.Context, id InstanceID, bp *Blueprint) error {
 	if inst.live {
 		return fmt.Errorf("scene: enter: instance %d is already live", inst.id)
 	}
-	spawned := []*core.Entity{}
+	spawned := []core.Entity{}
 	for _, spec := range bp.EntityList {
 		if err := spawnSpec(ctx.World, spec, inst.id, &spawned); err != nil {
 			rollbackEnter(d, ctx.World, inst, spawned)
@@ -161,7 +161,7 @@ func enterSubscenes(d *Director, ctx *core.Context, inst *instance, specs []Enti
 	return nil
 }
 
-func spawnSpec(world *core.World, spec EntitySpec, owner InstanceID, spawned *[]*core.Entity) error {
+func spawnSpec(world *core.World, spec EntitySpec, owner InstanceID, spawned *[]core.Entity) error {
 	entity, err := newOwnedEntity(world, owner, spec.Components...)
 	if err != nil {
 		return fmt.Errorf("entity %q: %w", spec.Name, err)
@@ -175,14 +175,14 @@ func spawnSpec(world *core.World, spec EntitySpec, owner InstanceID, spawned *[]
 	return nil
 }
 
-func newOwnedEntity(world *core.World, owner InstanceID, components ...any) (*core.Entity, error) {
+func newOwnedEntity(world *core.World, owner InstanceID, components ...any) (core.Entity, error) {
 	ownedComponents := make([]any, 0, len(components)+1)
 	ownedComponents = append(ownedComponents, OwnershipRecord{Instance: owner})
 	ownedComponents = append(ownedComponents, components...)
 	return world.NewEntity(ownedComponents...)
 }
 
-func rollbackEnter(d *Director, world *core.World, inst *instance, spawned []*core.Entity) {
+func rollbackEnter(d *Director, world *core.World, inst *instance, spawned []core.Entity) {
 	for _, s := range slices.Backward(spawned) {
 		world.DestroyEntity(s)
 	}
@@ -240,7 +240,7 @@ func destroyOwnedEntities(world *core.World, owners []InstanceID) {
 	for _, owner := range owners {
 		ids[owner] = struct{}{}
 	}
-	doomed := []*core.Entity{}
+	doomed := []core.Entity{}
 	q := core.NewQuery(world).With(OwnershipRecord{}).Where(func(e core.Entry) bool {
 		rec, ok := e.Component[OwnershipRecord]()
 		if !ok {
@@ -250,7 +250,7 @@ func destroyOwnedEntities(world *core.World, owners []InstanceID) {
 		return owned
 	})
 	for e := range q.Execute() {
-		doomed = append(doomed, core.NewEntity(e.ID()))
+		doomed = append(doomed, e.Entity())
 	}
 	for _, e := range doomed {
 		world.DestroyEntity(e) // best-effort, like rollback
