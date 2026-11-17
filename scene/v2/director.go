@@ -1,6 +1,10 @@
 package scenev2
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/Leonard-Atorough/castrum/core"
+)
 
 type Director struct {
 	nextID    InstanceID
@@ -36,28 +40,44 @@ func NewDirector() *Director {
 }
 
 func (d *Director) Switch(scene Scene, props any, opts ...Option) (InstanceID, error) {
+	return d.queue(scene, props, requestSwitch, "switch", opts...)
+}
+
+func (d *Director) Load(scene Scene, props any, opts ...Option) (InstanceID, error) {
+	return d.queue(scene, props, requestLoad, "load", opts...)
+}
+
+func (d *Director) Update(id InstanceID, scene Scene, props any, opts ...Option) error {
+	_, err := d.queue(scene, props, requestUpdate, "update", opts...)
+	return err
+}
+
+func (d *Director) Remove(id InstanceID) error
+
+func (d *Director) Spawn(ctx *core.Context, owner InstanceID, components ...any) (core.Entity, error)
+
+func (d *Director) queue(scene Scene, props any, kind requestKind, operation string, opts ...Option) (InstanceID, error) {
 	req := request{}
 	for _, opt := range opts {
 		opt(&req)
 	}
 	if scene == nil {
-		return 0, fmt.Errorf("scene: switch %q: nil scene", req.name)
+		return 0, fmt.Errorf("%s: load %q: nil scene", operation, req.name)
 	}
-
 	tree, err := validate(scene, props)
 	if err != nil {
-		return 0, fmt.Errorf("scene: switch %q: %w", req.name, err)
+		return 0, err
 	}
 
-	req.kind = requestSwitch
-	req.id = d.nextID
+	req.kind = kind
 	req.scene = scene
 	req.props = props
 	req.tree = tree
+	req.id = d.nextID
 
 	d.nextID++
 	d.pending = append(d.pending, req)
-	return req.id, nil
+	return d.nextID, nil
 }
 
 type Option func(*request)
