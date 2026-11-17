@@ -108,6 +108,7 @@ type InstanceID uint64
 type instance struct {
 	id       InstanceID
 	name     string
+	hooks    Hooks
 	tree     Node
 	entities []core.Entity
 	children []InstanceID
@@ -204,7 +205,10 @@ type Handle struct {
 	director *Director
 }
 
-// Hooks contains scene lifecycle callbacks. The director does not yet invoke them.
+// ID returns the id of the handle's scene instance.
+func (h Handle) ID() InstanceID { return h.id }
+
+// Hooks contains scene lifecycle callbacks.
 type Hooks struct {
 	// Enter is the callback for scene entry.
 	Enter func(ctx *core.Context, handle *Handle)
