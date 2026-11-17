@@ -1,11 +1,10 @@
-// Package scenev2 provides scene builders, node trees, and a director for
-// queuing scene requests.
-package scenev2
+package scene
 
 import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -62,8 +61,6 @@ type Node struct {
 	Components []any
 	// Children are nested scene nodes, not a transform hierarchy.
 	Children []Node
-	// Persistent marks the node for persistence. It currently has no effect.
-	Persistent bool
 }
 
 func validateNode(path string, n Node, seen map[string]bool) error {
@@ -111,7 +108,6 @@ type instance struct {
 	hooks    Hooks
 	tree     Node
 	entities []core.Entity
-	children []InstanceID
 	live     bool
 }
 
@@ -211,9 +207,20 @@ func (h Handle) ID() InstanceID { return h.id }
 // Hooks contains scene lifecycle callbacks.
 type Hooks struct {
 	// Enter is the callback for scene entry.
-	Enter func(ctx *core.Context, handle *Handle)
+	Enter func(ctx *core.Context, handle *Handle) error
 	// Exit is the callback for scene exit.
-	Exit func(ctx *core.Context, handle *Handle)
-	// Ready is the callback for scene readiness.
-	Ready func(ctx *core.Context, handle *Handle)
+	Exit func(ctx *core.Context, handle *Handle) error
+}
+
+// cloneTree returns a deep copy of n with fresh slices, so a queued tree
+// cannot change through slices the builder still holds.
+func cloneTree(n Node) Node {
+	c := n
+	c.Components = slices.Clone(n.Components)
+	c.Assets = slices.Clone(n.Assets)
+	c.Children = make([]Node, len(n.Children))
+	for i := range n.Children {
+		c.Children[i] = cloneTree(n.Children[i])
+	}
+	return c
 }

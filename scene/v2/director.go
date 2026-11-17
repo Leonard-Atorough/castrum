@@ -1,7 +1,8 @@
-package scenev2
+package scene
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/Leonard-Atorough/castrum/core"
 )
@@ -100,6 +101,31 @@ func (d *Director) Spawn(ctx *core.Context, owner InstanceID, components ...any)
 	return ent, nil
 }
 
+// Live reports whether id identifies a live instance.
+func (d *Director) Live(id InstanceID) bool {
+	inst, ok := d.instances[id]
+	return ok && inst.live
+}
+
+// Name returns the name of the instance id. It reports false if id is unknown.
+func (d *Director) Name(id InstanceID) (string, bool) {
+	inst, ok := d.instances[id]
+	if !ok {
+		return "", false
+	}
+	return inst.name, true
+}
+
+// Entities returns a copy of the entities owned by the instance id, or nil
+// if id is unknown.
+func (d *Director) Entities(id InstanceID) []core.Entity {
+	inst, ok := d.instances[id]
+	if !ok {
+		return nil
+	}
+	return slices.Clone(inst.entities)
+}
+
 func (d *Director) queue(target InstanceID, scene Scene, props any, kind requestKind, operation string, opts ...Option) (InstanceID, error) {
 	req := request{}
 	for _, opt := range opts {
@@ -113,7 +139,7 @@ func (d *Director) queue(target InstanceID, scene Scene, props any, kind request
 		if err != nil {
 			return 0, err
 		}
-		req.tree = tree
+		req.tree = cloneTree(tree)
 	}
 
 	req.kind = kind
