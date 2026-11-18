@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -15,6 +16,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
+	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
@@ -205,17 +207,25 @@ func TestNewProvidesResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if loader, err := g.World().Resource[*asset.Loader](); err != nil || loader == nil {
-		t.Errorf("asset loader = %v, error %v", loader, err)
+	cases := []struct {
+		name    string
+		resolve func(*Game) error
+	}{
+		{"asset loader", resolveResource[*asset.Loader]},
+		{"audio mixer", resolveResource[*audio.Mixer]},
+		{"signal hub", resolveResource[*signal.Hub]},
+		{"scheduler", resolveResource[*gametime.Scheduler]},
 	}
-	if mixer, err := g.World().Resource[*audio.Mixer](); err != nil || mixer == nil {
-		t.Errorf("audio mixer = %v, error %v", mixer, err)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if err := c.resolve(g); err != nil {
+				t.Fatalf("%s: %v", c.name, err)
+			}
+		})
 	}
-	if listener, err := g.World().Resource[*audio.Listener](); err != nil || listener == nil || listener.Enabled {
+	listener, err := g.World().Resource[*audio.Listener]()
+	if err != nil || listener == nil || listener.Enabled {
 		t.Errorf("audio listener = %v, error %v, want disabled listener", listener, err)
-	}
-	if hub, err := g.World().Resource[*signal.Hub](); err != nil || hub == nil {
-		t.Errorf("signal hub = %v, error %v", hub, err)
 	}
 	panel, err := g.World().Resource[*debug.Panel]()
 	if err != nil || panel == nil {
@@ -227,6 +237,17 @@ func TestNewProvidesResources(t *testing.T) {
 	if g.World() == nil || g.Context().World != g.World() {
 		t.Error("Context.World should be the game world")
 	}
+}
+
+func resolveResource[T any](g *Game) error {
+	value, err := g.World().Resource[T]()
+	if err != nil {
+		return err
+	}
+	if reflect.ValueOf(&value).Elem().IsZero() {
+		return errors.New("nil resource")
+	}
+	return nil
 }
 
 func TestQuit(t *testing.T) {

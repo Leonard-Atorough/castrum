@@ -782,3 +782,19 @@ func TestTweenClocksFollowPauseAndTimeScale(t *testing.T) {
 		})
 	}
 }
+
+func TestSchedulerWiredIntoEngine(t *testing.T) {
+	g := newTestGame(t)
+	scheduler := g.World().MustResource[*gametime.Scheduler]()
+	var ran int
+	if err := scheduler.Every("wired", 1, core.SystemFunc(func(*core.Context) error {
+		ran++
+		return nil
+	})); err != nil {
+		t.Fatalf("Every: %v", err)
+	}
+	advanceTestGame(t, g, 2*g.Options().FixedDT())
+	if ran != 2 {
+		t.Fatalf("scheduled entries ran %d times in two ticks, want 2", ran)
+	}
+}

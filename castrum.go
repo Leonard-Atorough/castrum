@@ -115,6 +115,16 @@ func New(opts ...option) (*Game, error) {
 		return nil, err
 	}
 
+	scheduler := gametime.NewScheduler(g.world)
+	if err := g.world.Provide(func(*core.World) (*gametime.Scheduler, error) {
+		return scheduler, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide scheduler: %w", err)
+	}
+	if err := g.addEngineFirst(core.PhasePreFixed, gametime.SchedulerSystemName, gametime.NewSchedulerSystem(scheduler)); err != nil {
+		return nil, err
+	}
+
 	if err := g.world.Provide(func(*core.World) (*gametime.Groups, error) {
 		return gametime.NewGroups(), nil
 	}); err != nil {
