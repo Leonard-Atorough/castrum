@@ -122,10 +122,10 @@ type tickPair struct {
 // change ticks.
 type Archetype struct {
 	archetypeID
-	key key
+	key       key
 	entityIDs []EntityID
-	columns map[reflect.Type][]any
-	tracks map[reflect.Type]*changeTicks
+	columns   map[reflect.Type][]any
+	tracks    map[reflect.Type]*changeTicks
 }
 
 func newArchetype(id archetypeID, key key) *Archetype {
@@ -255,8 +255,6 @@ func (a *Archetype) stampAddedRange(typ reflect.Type, start, end int, tick uint6
 	}
 }
 
-// StampChanged records tick as the row's latest write time for a tracked
-// type. Untracked types and out-of-range rows are ignored.
 func (a *Archetype) StampChanged(typ reflect.Type, index int, tick uint64) {
 	if tr, ok := a.tracks[typ]; ok && index >= 0 && index < len(tr.changed) {
 		tr.changed[index] = tick
@@ -273,7 +271,6 @@ func (a *Archetype) Ticks(typ reflect.Type, index int) (added, changed uint64, o
 	return tr.added[index], tr.changed[index], true
 }
 
-// tickPairAt preserves stamps when a row moves between archetypes.
 func (a *Archetype) tickPairAt(typ reflect.Type, index int) tickPair {
 	added, changed, _ := a.Ticks(typ, index)
 	return tickPair{added: added, changed: changed}
@@ -333,9 +330,9 @@ func (a *Archetype) EachEntity(yield func(index int, entityID EntityID) bool) {
 
 type store struct {
 	archetypes map[archetypeID]*Archetype
-	byHash map[hash]archetypeID
+	byHash     map[hash]archetypeID
 	generation uint64
-	nextID archetypeID
+	nextID     archetypeID
 }
 
 func newArchetypes() *store {

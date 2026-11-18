@@ -38,13 +38,14 @@ type Service struct {
 	store *store
 	// locations maps each live entity to its archetype row.
 	locations map[EntityID]Location
-	// tick is the current change tick, advanced by AdvanceTick. Writes stamp
+	// tick is the current change tick, advanced by [Service.AdvanceTick]. Writes stamp
 	// tracked rows with it.
 	tick uint64
 	// removals holds per-type removal records for the current tick window,
-	// created lazily on the first tracked removal. prevRemovals holds the
-	// previous tick window's records; both rotate on AdvanceTick.
-	removals     map[reflect.Type][]Removal
+	// created lazily on the first tracked removal. Rotates on [Service.AdvanceTick].
+	removals map[reflect.Type][]Removal
+	// prevRemovals holds the previous tick window's removals. Rotates on
+	// [Service.AdvanceTick].
 	prevRemovals map[reflect.Type][]Removal
 }
 
@@ -66,9 +67,7 @@ func (s *Service) Tick() uint64 {
 // advance, then are dropped.
 func (s *Service) AdvanceTick() {
 	s.tick++
-	// Swap wholesale so an empty current window still retires the previous
-	// one; clear drops the two-tick-old records without aliasing them.
-	// Nil maps (no tracked removals yet) swap and clear as no-ops.
+	// rotate removals, drop old ones
 	s.prevRemovals, s.removals = s.removals, s.prevRemovals
 	clear(s.removals)
 }
@@ -88,8 +87,6 @@ func (s *Service) Removals(typ reflect.Type) []Removal {
 	return out
 }
 
-// logRemoval records a removal of typ on entityID at the current tick.
-// Untracked types are not recorded.
 func (s *Service) logRemoval(typ reflect.Type, entityID EntityID) {
 	if !isTracked(typ) {
 		return
@@ -107,9 +104,9 @@ func (s *Service) HasEntity(entityID EntityID) bool {
 }
 
 // Create adds an entity with the given component types and values.
-// types and values must have the same length, and each value must be assignable
-// to the type at the corresponding index. An entity ID already in use is an
-// error.
+// Types and values must have the same length; each value must be assignable
+// to its corresponding type and pass validation. An entity ID already in use
+// is an error.
 func (s *Service) Create(entityID EntityID, types []reflect.Type, values []any) error {
 	if err := validateComponentInput(types, values); err != nil {
 		return err
@@ -139,8 +136,8 @@ func (s *Service) Create(entityID EntityID, types []reflect.Type, values []any) 
 }
 
 // CreateBatch adds multiple entities with the same component types and values.
-// The same validation rules as [Service.Create] apply. IDs must be distinct.
-// Invalid input leaves the service unchanged.
+// The same validation rules as [Service.Create] apply. IDs must be nonempty,
+// distinct, and not already in use. Invalid input leaves the service unchanged.
 func (s *Service) CreateBatch(ids []EntityID, types []reflect.Type, values []any) error {
 	if len(ids) <= 0 {
 		return fmt.Errorf("count must be positive")
@@ -186,7 +183,8 @@ func (s *Service) CreateBatch(ids []EntityID, types []reflect.Type, values []any
 
 // Destroy removes an entity and its components. If removing its row moves
 // another entity within the archetype, the result identifies that entity in
-// MovedID. Destroy reports an error in Result.Error if entityID does not exist.
+// [Result.MovedID]. Destroy reports an error in [Result.Error] if entityID
+// does not exist. Tracked component removals are recorded in [Service.Removals].
 func (s *Service) Destroy(entityID EntityID) Result {
 	loc, err := s.location(entityID)
 	if err != nil {
@@ -222,15 +220,14 @@ func (s *Service) Destroy(entityID EntityID) Result {
 }
 
 // AddComponents attaches or replaces components on an existing entity.
-// Existing component values are preserved when the entity migrates to the
-// archetype for the resulting type set. If all specified types are already
-// present, their values are replaced without migration. Component values
-// must be assignable to their corresponding types and pass validation; an
+// Existing values for unspecified types are preserved. If all specified types
+// are already present, their values are replaced without migration. Component
+// values must be assignable to their corresponding types and pass validation;
 // invalid input leaves the entity unchanged.
 //
-// The result reports errors in Error. Moved and MovedID identify the target
-// entity when it migrates; they do not report any other entity moved by
-// swap-removal.
+// The result reports errors in [Result.Error]. [Result.Moved] and
+// [Result.MovedID] identify the target entity when it migrates; they do not
+// report any other entity moved by swap-removal.
 func (s *Service) AddComponents(entityID EntityID, types []reflect.Type, values []any) Result {
 	if err := validateComponentInput(types, values); err != nil {
 		return Result{
@@ -324,11 +321,12 @@ func (s *Service) AddComponents(entityID EntityID, types []reflect.Type, values 
 // RemoveComponents detaches the specified component types from an existing
 // entity. Types the entity does not have are ignored; remaining values are
 // preserved when it migrates to the archetype for its remaining types.
-// Removing all components leaves the entity in an empty archetype.
+// Removing all components leaves the entity in an empty archetype. Tracked
+// component removals are recorded in [Service.Removals].
 //
-// The result reports errors in Error. Moved and MovedID identify the target
-// entity when it migrates; they do not report any other entity moved by
-// swap-removal.
+// The result reports errors in [Result.Error]. [Result.Moved] and
+// [Result.MovedID] identify the target entity when it migrates; they do not
+// report any other entity moved by swap-removal.
 func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Result {
 	if err := validateTypes(types); err != nil {
 		return Result{
@@ -412,8 +410,8 @@ func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Resu
 	}
 }
 
-// Component returns the value of type t on entityID. The second result is
-// false if the entity or component does not exist.
+// Component returns the value of type t on entityID. It reports false if the
+// entity or component does not exist.
 func (s *Service) Component(entityID EntityID, t reflect.Type) (any, bool) {
 	val, err := s.resolveComponent(entityID, t)
 	if err != nil {
