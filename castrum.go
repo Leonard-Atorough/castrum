@@ -10,7 +10,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
-	"github.com/Leonard-Atorough/castrum/blueprint"
+	"github.com/Leonard-Atorough/castrum/serialization"
+
 	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
@@ -100,11 +101,11 @@ func New(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide asset codecs: %w", err)
 	}
 
-	reg := blueprint.NewRegistry(g.world)
+	reg := serialization.NewRegistry(g.world)
 	if err := gametime.RegisterBlueprints(reg); err != nil {
 		return nil, fmt.Errorf("castrum: engine blueprints: %w", err)
 	}
-	if err := g.world.Provide(func(*core.World) (*blueprint.Registry, error) {
+	if err := g.world.Provide(func(*core.World) (*serialization.Registry, error) {
 		return reg, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide blueprint registry: %w", err)
