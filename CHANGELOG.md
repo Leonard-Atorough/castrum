@@ -85,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improve NaN and infinite value validation (#135)
 
 ### Internal
+- Pin entity-vs-query write validation matrix (#231)
 - Implement guide skill (#200)
 - Restore supported development commands (#170)
 - Test standalone example modules (#140)
