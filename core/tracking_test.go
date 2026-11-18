@@ -20,7 +20,7 @@ func queryIDs(q *Query) []EntityID {
 	return ids
 }
 
-func TestQueryAddedFirstPassSeesEveryMatch(t *testing.T) {
+func TestQueryAddedFirstPassAndPerTick(t *testing.T) {
 	w := NewWorld()
 	a := mustQueryEntity(t, w, trackHealth{Amount: 1})
 	b := mustQueryEntity(t, w, trackHealth{Amount: 2})
@@ -33,23 +33,13 @@ func TestQueryAddedFirstPassSeesEveryMatch(t *testing.T) {
 	if got := queryIDs(q); len(got) != 0 {
 		t.Fatalf("second Added pass = %v, want none", got)
 	}
-}
-
-func TestQueryAddedDetectsNewEntitiesPerTick(t *testing.T) {
-	w := NewWorld()
-	old := mustQueryEntity(t, w, trackHealth{})
-	q := NewQuery(w).With(trackHealth{}).Added()
-	if got := queryIDs(q); len(got) != 1 || got[0] != old.ID() {
-		t.Fatalf("first pass = %v, want [%d]", got, old.ID())
-	}
 
 	w.AdvanceTick()
 	fresh := mustQueryEntity(t, w, trackHealth{})
-	got := queryIDs(q)
+	got = queryIDs(q)
 	if len(got) != 1 || got[0] != fresh.ID() {
-		t.Fatalf("pass after spawn = %v, want only %d (old %d must not reappear)", got, fresh.ID(), old.ID())
+		t.Fatalf("pass after spawn = %v, want only %d (earlier entities must not reappear)", got, fresh.ID())
 	}
-
 	w.AdvanceTick()
 	if got := queryIDs(q); len(got) != 0 {
 		t.Fatalf("pass with no new entities = %v, want none", got)
@@ -271,32 +261,18 @@ func TestWorldRemovals(t *testing.T) {
 	if got := w.Removals[trackMana](); got != nil {
 		t.Fatalf("Removals after window = %v, want nil", got)
 	}
-}
 
-func TestWorldRemovalsOnDestroy(t *testing.T) {
-	w := NewWorld()
-	e := mustQueryEntity(t, w, trackHealth{}, queryPos{})
+	// Destroying the entity records a removal for each tracked type it
+	// still had, carrying a handle that no longer resolves as live.
 	w.AdvanceTick()
 	if err := w.DestroyEntity(e); err != nil {
 		t.Fatal(err)
 	}
-	removals := w.Removals[trackHealth]()
-	if len(removals) != 1 || removals[0].Entity != e || removals[0].Tick != 1 {
-		t.Fatalf("Removals after destroy = %+v, want one removal of %v at tick 1", removals, e)
+	removals = w.Removals[trackHealth]()
+	if len(removals) != 1 || removals[0].Entity != e || removals[0].Tick != 4 {
+		t.Fatalf("Removals[trackHealth] after destroy = %+v, want one removal of %v at tick 4", removals, e)
 	}
 	if w.HasEntity(removals[0].Entity) {
 		t.Fatal("destroyed entity still reported live")
-	}
-}
-
-func TestWorldAdvanceTickAndTick(t *testing.T) {
-	w := NewWorld()
-	if got := w.Tick(); got != 0 {
-		t.Fatalf("fresh world Tick = %d, want 0", got)
-	}
-	w.AdvanceTick()
-	w.AdvanceTick()
-	if got := w.Tick(); got != 2 {
-		t.Fatalf("Tick after two advances = %d, want 2", got)
 	}
 }

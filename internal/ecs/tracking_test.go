@@ -218,51 +218,40 @@ func TestServiceDestroyLogsAllTrackedTypes(t *testing.T) {
 
 func TestServiceAdvanceTickRotatesRemovalWindow(t *testing.T) {
 	svc := NewService()
-	if err := svc.Create(1, []reflect.Type{reflect.TypeFor[TrackedHealth]()}, []any{TrackedHealth{}}); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if res := svc.RemoveComponents(1, []reflect.Type{reflect.TypeFor[TrackedHealth]()}); res.Error != nil {
-		t.Fatalf("RemoveComponents: %v", res.Error)
-	}
-
-	// Tick 0 removal: readable during tick 0 and tick 1.
-	if got := len(svc.Removals(reflect.TypeFor[TrackedHealth]())); got != 1 {
-		t.Fatalf("tick 0 removals = %d, want 1", got)
-	}
-	svc.AdvanceTick()
-	if got := len(svc.Removals(reflect.TypeFor[TrackedHealth]())); got != 1 {
-		t.Fatalf("tick 1 removals = %d, want 1 (previous window still readable)", got)
-	}
-	svc.AdvanceTick()
-	if got := svc.Removals(reflect.TypeFor[TrackedHealth]()); got != nil {
-		t.Fatalf("tick 2 removals = %+v, want nil (window expired)", got)
-	}
-	if svc.Tick() != 2 {
-		t.Fatalf("Tick = %d, want 2", svc.Tick())
-	}
-}
-
-func TestServiceRemovalWindowAccumulatesBothTicks(t *testing.T) {
-	svc := NewService()
 	create := func(id EntityID) {
 		if err := svc.Create(id, []reflect.Type{reflect.TypeFor[TrackedHealth]()}, []any{TrackedHealth{}}); err != nil {
 			t.Fatalf("Create(%d): %v", id, err)
 		}
 	}
+	remove := func(id EntityID) {
+		if res := svc.RemoveComponents(id, []reflect.Type{reflect.TypeFor[TrackedHealth]()}); res.Error != nil {
+			t.Fatalf("RemoveComponents(%d): %v", id, res.Error)
+		}
+	}
+	health := reflect.TypeFor[TrackedHealth]()
 	create(1)
-	create(2)
-	if res := svc.RemoveComponents(1, []reflect.Type{reflect.TypeFor[TrackedHealth]()}); res.Error != nil {
-		t.Fatalf("RemoveComponents: %v", res.Error)
+	remove(1)
+
+	// A removal is readable during its tick and the next, oldest first.
+	if got := svc.Removals(health); len(got) != 1 || got[0].Entity != 1 || got[0].Tick != 0 {
+		t.Fatalf("tick 0 removals = %+v, want [{Entity:1 Tick:0}]", got)
 	}
 	svc.AdvanceTick()
-	create(3)
-	if res := svc.RemoveComponents(2, []reflect.Type{reflect.TypeFor[TrackedHealth]()}); res.Error != nil {
-		t.Fatalf("RemoveComponents: %v", res.Error)
+	create(2)
+	remove(2)
+	if got := svc.Removals(health); len(got) != 2 || got[0].Entity != 1 || got[0].Tick != 0 || got[1].Entity != 2 || got[1].Tick != 1 {
+		t.Fatalf("tick 1 removals = %+v, want [{1 0} {2 1}] oldest first", got)
 	}
-
-	removals := svc.Removals(reflect.TypeFor[TrackedHealth]())
-	if len(removals) != 2 || removals[0].Entity != 1 || removals[0].Tick != 0 || removals[1].Entity != 2 || removals[1].Tick != 1 {
-		t.Fatalf("removals = %+v, want [{1 0} {2 1}] oldest first", removals)
+	svc.AdvanceTick()
+	if got := svc.Removals(health); len(got) != 1 || got[0].Entity != 2 {
+		t.Fatalf("tick 2 removals = %+v, want only [{Entity:2 Tick:1}] (tick 0 window expired)", got)
+	}
+	svc.AdvanceTick()
+	if got := svc.Removals(health); got != nil {
+		t.Fatalf("tick 3 removals = %+v, want nil (window expired)", got)
+	}
+	if svc.Tick() != 3 {
+		t.Fatalf("Tick = %d, want 3", svc.Tick())
 	}
 }
 
