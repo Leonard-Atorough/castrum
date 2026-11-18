@@ -423,7 +423,12 @@ func (g *Game) Startup() error {
 // time is accumulated and no fixed ticks run. Time scaling (see
 // [Game.SetTimeScale]) multiplies only the elapsed time contributed to the
 // fixed-loop accumulator; DeltaTime and the frame phase are unaffected.
-// Both controls take effect on the next call.
+//
+// Controls changed between calls take effect on the next call. The pre-frame
+// and frame phases run before pause and scale are read, so a control changed
+// in one of those systems affects this same call's fixed work. The scaled
+// contribution is computed once when fixed processing starts; controls changed
+// during a fixed tick affect later calls only.
 // An unrepresentable scaled contribution or accumulator sum returns an error
 // without changing the accumulator; frame systems have already run.
 func (g *Game) Advance(elapsed time.Duration) error {
@@ -498,7 +503,9 @@ func (g *Game) Alpha() float64 {
 
 // Pause stops fixed updates and stops adding time to the fixed-loop
 // accumulator. Frame updates still run, so input and rendering can continue.
-// The change takes effect on the next [Game.Advance] call.
+// The change takes effect on the next [Game.Advance] call when made between
+// calls; called from a pre-frame or frame system, it takes effect within that
+// same call, before any fixed tick runs.
 //
 // Pausing does not change [Game.TimeScale] or discard the accumulator.
 // [Game.Resume] continues from where the game stopped. Audio is not paused
@@ -508,7 +515,9 @@ func (g *Game) Pause() {
 }
 
 // Resume clears the paused state. The next [Game.Advance] continues fixed
-// updates from the accumulator position preserved by [Game.Pause].
+// updates from the accumulator position preserved by [Game.Pause]; called
+// from a pre-frame or frame system, the resumed state applies within that
+// same call.
 func (g *Game) Resume() {
 	g.sim.Resume()
 }
@@ -530,7 +539,9 @@ func (g *Game) TimeScale() float64 {
 //
 // The scale multiplies only the accumulator's time contribution; the frame
 // phase and [core.Context.DeltaTime] during frame updates are unaffected.
-// The new scale takes effect on the next [Game.Advance] call.
+// The new scale takes effect on the next [Game.Advance] call when set between
+// calls; set from a pre-frame or frame system, it applies to that same call's
+// accumulator contribution.
 func (g *Game) SetTimeScale(scale float64) error {
 	if err := g.sim.SetScale(scale); err != nil {
 		return fmt.Errorf("castrum: %w", err)

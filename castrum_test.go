@@ -381,6 +381,104 @@ func TestPauseStopsFixedOnlyFrameContinues(t *testing.T) {
 	}
 }
 
+func TestFrameSystemPauseAppliesWithinSameAdvance(t *testing.T) {
+	// FixedTPS 4 => fixedDT = 250ms. The frame phase runs before Advance
+	// reads the paused flag, so a frame-system Pause skips this call's
+	// fixed work.
+	g := newTestGame(t, WithFixedTPS(4))
+	var ticks, frames int
+	addTestSystem(t, g, core.PhaseFrame, "pauser", core.SystemFunc(func(*core.Context) error {
+		frames++
+		g.Pause()
+		return nil
+	}))
+	addTestSystem(t, g, core.PhaseFixed, "tick counter", core.SystemFunc(func(*core.Context) error {
+		ticks++
+		return nil
+	}))
+
+	advanceTestGame(t, g, 250*time.Millisecond)
+	if frames != 1 || ticks != 0 {
+		t.Fatalf("frame-system Pause: frames=%d ticks=%d, want 1/0 (same-call boundary)", frames, ticks)
+	}
+	advanceTestGame(t, g, 250*time.Millisecond)
+	if frames != 2 || ticks != 0 {
+		t.Fatalf("while paused: frames=%d ticks=%d, want 2/0", frames, ticks)
+	}
+}
+
+func TestFrameSystemResumeAppliesWithinSameAdvance(t *testing.T) {
+	// Started paused; a frame-system Resume lets the same call accumulate
+	// and run its due fixed tick.
+	g := newTestGame(t, WithFixedTPS(4))
+	g.Pause()
+	var ticks, frames int
+	addTestSystem(t, g, core.PhaseFrame, "resumer", core.SystemFunc(func(*core.Context) error {
+		frames++
+		g.Resume()
+		return nil
+	}))
+	addTestSystem(t, g, core.PhaseFixed, "tick counter", core.SystemFunc(func(*core.Context) error {
+		ticks++
+		return nil
+	}))
+
+	advanceTestGame(t, g, 250*time.Millisecond)
+	if frames != 1 || ticks != 1 {
+		t.Fatalf("frame-system Resume: frames=%d ticks=%d, want 1/1 (resume applies to the same call)", frames, ticks)
+	}
+}
+
+func TestFrameSystemTimeScaleAppliesWithinSameAdvance(t *testing.T) {
+	// FixedTPS 10 => fixedDT = 100ms; scale 2 turns a 100ms frame into a
+	// 200ms contribution, so the same call runs two ticks.
+	g := newTestGame(t, WithFixedTPS(10))
+	var ticks, frames int
+	addTestSystem(t, g, core.PhaseFrame, "scaler", core.SystemFunc(func(*core.Context) error {
+		frames++
+		if err := g.SetTimeScale(2); err != nil {
+			t.Fatalf("SetTimeScale(2): %v", err)
+		}
+		return nil
+	}))
+	addTestSystem(t, g, core.PhaseFixed, "tick counter", core.SystemFunc(func(*core.Context) error {
+		ticks++
+		return nil
+	}))
+
+	advanceTestGame(t, g, 100*time.Millisecond)
+	if frames != 1 || ticks != 2 {
+		t.Fatalf("frame-system SetTimeScale(2): frames=%d ticks=%d, want 1/2 (scale applies to the same call's contribution)", frames, ticks)
+	}
+}
+
+func TestFixedPhaseControlChangeDoesNotInterruptCurrentAdvance(t *testing.T) {
+	// FixedTPS 4 => fixedDT = 250ms; one 500ms advance queues two ticks.
+	// Pausing from inside the first fixed tick must not stop the second:
+	// the contribution was already computed and the paused check already
+	// passed when fixed processing started.
+	g := newTestGame(t, WithFixedTPS(4), WithMaxFrameTime(time.Second))
+	var ticks int
+	pausedInTick := false
+	addTestSystem(t, g, core.PhaseFixed, "pauser", core.SystemFunc(func(*core.Context) error {
+		ticks++
+		if !pausedInTick {
+			pausedInTick = true
+			g.Pause()
+		}
+		return nil
+	}))
+
+	advanceTestGame(t, g, 500*time.Millisecond)
+	if ticks != 2 {
+		t.Fatalf("pause set during first fixed tick: ticks=%d, want 2 (catch-up not interrupted)", ticks)
+	}
+	advanceTestGame(t, g, 500*time.Millisecond)
+	if ticks != 2 {
+		t.Fatalf("later advance while paused: ticks=%d, want still 2", ticks)
+	}
+}
+
 func TestTimeScaleScalesAccumulationOnly(t *testing.T) {
 	// FixedTPS 10 => fixedDT = 100ms.
 	g := newTestGame(t, WithFixedTPS(10))
