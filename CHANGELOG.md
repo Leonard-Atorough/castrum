@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Implement resource and component registry (#225)
 - Implement gamepad disconnect handling and release button actions (#221)
 - Add animated sprite collection and conflict resolution (#216)
 - Implement AnimatedSprite and SpriteClip (#215)
