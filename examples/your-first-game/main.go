@@ -93,7 +93,10 @@ type bullet struct{}
 // enemy marks tanks that spawn outside the view and chase the player.
 type enemy struct{}
 
-// game stores the run's score and outcome on one entity.
+// game stores the run's score and outcome on one entity. It implements
+// [core.TrackChanges], so presentation reacts to writes instead of
+// polling: the result banner below uses a Changed query and rewrites
+// itself only when the run state actually changed.
 type game struct {
 	// Score is the number of enemies destroyed by bullets.
 	Score int
@@ -101,6 +104,10 @@ type game struct {
 	Won  bool
 	Lost bool
 }
+
+// TrackChanges opts game into per-row change tracking, powering the
+// Changed filter used by resultSystem.
+func (game) TrackChanges() {}
 
 // bulletColor is the fill color for bullet circles.
 var bulletColor = color.NRGBA{R: 245, G: 220, B: 130, A: 255}
@@ -305,7 +312,7 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFixed, "game.danger", dangerSystem(hull, stats)); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFixed, "game.result", resultSystem(banner, hull, stats)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "game.result", resultSystem(banner, hull)); err != nil {
 		return err
 	}
 	if err := g.AddSystem(core.PhaseFixed, "reload.readout", reloadReadoutSystem(cooldown, turret, stats)); err != nil {
@@ -607,28 +614,42 @@ func dangerSystem(hull, stats core.Entity) core.System {
 	})
 }
 
-// resultSystem hides the banner during play and displays the result over
-// the tank when the run ends.
-func resultSystem(banner, hull, stats core.Entity) core.System {
+// resultSystem displays the end-of-run banner. It holds a persistent
+// Changed query over game: the first pass sees the spawned state and
+// hides the banner, and later passes match only rows written since the
+// last pass - a kill or a loss rewrites the banner on that same tick,
+// because this system is registered after the writers in the fixed
+// phase. While nothing changes, the banner is left alone.
+func resultSystem(banner, hull core.Entity) core.System {
+	var changes *core.Query
 	return core.SystemFunc(func(ctx *core.Context) error {
-		run, _ := stats.Component[game](ctx.World)
-		if !run.Won && !run.Lost {
-			return banner.Update(ctx.World, func(s *sprite.Sprite) { s.Style.Hidden = true })
+		if changes == nil {
+			changes = core.NewQuery(ctx.World).With(game{}).Changed()
 		}
-		hullTransform, _ := hull.Component[core.Transform](ctx.World)
-		if err := banner.Update(ctx.World, func(t *core.Transform) {
-			t.Position = hullTransform.Position
-		}); err != nil {
-			return err
+		for e := range changes.Execute() {
+			run, _ := e.Component[game]()
+			if !run.Won && !run.Lost {
+				if err := banner.Update(ctx.World, func(s *sprite.Sprite) { s.Style.Hidden = true }); err != nil {
+					return err
+				}
+				continue
+			}
+			hullTransform, _ := hull.Component[core.Transform](ctx.World)
+			text := "GAME OVER"
+			if run.Won {
+				text = "YOU WIN"
+			}
+			if err := banner.Update(ctx.World, func(t *core.Transform) {
+				t.Position = hullTransform.Position
+			}); err != nil {
+				return err
+			}
+			return banner.Update(ctx.World, func(s *sprite.Sprite) {
+				s.Style.Hidden = false
+				s.Drawable = sprite.TextSource{Font: AssetFont, Text: text, Size: 48}
+			})
 		}
-		text := "GAME OVER"
-		if run.Won {
-			text = "YOU WIN"
-		}
-		return banner.Update(ctx.World, func(s *sprite.Sprite) {
-			s.Style.Hidden = false
-			s.Drawable = sprite.TextSource{Font: AssetFont, Text: text, Size: 48}
-		})
+		return nil
 	})
 }
 

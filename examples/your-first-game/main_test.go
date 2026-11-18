@@ -99,7 +99,7 @@ func newTestGame(t *testing.T) (*castrum.Game, core.Entity, core.Entity) {
 		{"enemy.spawn", spawnSystem(spawner, hull, g.MainCamera(), stats)},
 		{"enemies", enemiesSystem(hull, stats)},
 		{"game.danger", dangerSystem(hull, stats)},
-		{"game.result", resultSystem(banner, hull, stats)},
+		{"game.result", resultSystem(banner, hull)},
 		{"reload.readout", reloadReadoutSystem(readout, turret, stats)},
 	} {
 		if err := g.AddSystem(core.PhaseFixed, sys.name, sys.s); err != nil {

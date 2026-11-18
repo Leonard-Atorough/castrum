@@ -4,7 +4,9 @@
 // bar hits drain health and speed once per enter edge, pickups heal.
 // The engine registers the collision system in the fixed phase; this
 // program never registers it - it only spawns colliders and reads
-// Contacts.
+// Contacts. Stats changes are reported by a Changed query over a
+// TrackChanges component - reacting to state changes, the counterpart
+// to reacting to events.
 //
 // Detection only: nothing here is pushed out of a shape, because a
 // response is not the collision system's job. A game that wants the
@@ -82,12 +84,21 @@ var hazardLayers = collision.Layers(hazardLayer)
 // bar hits drain and pickups restore. A value component, like every
 // other component: systems write it through Entity.Update, which
 // re-validates on the way in, and queries can match it by type.
+//
+// It implements [core.TrackChanges], so the stats readout below reacts
+// to writes through a Changed query instead of polling: the hazard and
+// pickup systems just update it, and the panel is refreshed only when a
+// write actually happened since the readout's last pass.
 type playerStats struct {
 	maxHealth     int
 	currentHealth int
 	maxSpeed      int
 	currentSpeed  int
 }
+
+// TrackChanges opts playerStats into per-row change tracking, powering
+// the Changed filter used by statsReadoutSystem.
+func (playerStats) TrackChanges() {}
 
 func newPlayerStats(maxHealth, maxSpeed int) playerStats {
 	return playerStats{
@@ -266,7 +277,7 @@ func run() error {
 	// pair separates and re-enters, which a sweeping bar does on its
 	// own. The hit side is told from the wall by the other
 	// collider's layers: any overlap with the hazard mask counts.
-	if err := g.AddSystem(core.PhaseFixed, "hazard", hazardSystem(player, panel)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "hazard", hazardSystem(player)); err != nil {
 		return err
 	}
 
@@ -292,7 +303,13 @@ func run() error {
 	// a contact in Current that was not in Previous. The trigger flag
 	// says which contacts are pickups; collecting one heals the
 	// player, clamped by max health.
-	if err := g.AddSystem(core.PhaseFixed, "pickups", pickupSystem(player, pickups, &score, panel)); err != nil {
+	if err := g.AddSystem(core.PhaseFixed, "pickups", pickupSystem(player, pickups, &score)); err != nil {
+		return err
+	}
+
+	// The readout runs last in the fixed phase, so it sees this tick's
+	// stats writes: Changed matches rows written since its last pass.
+	if err := g.AddSystem(core.PhaseFixed, "stats.readout", statsReadoutSystem(panel)); err != nil {
 		return err
 	}
 
@@ -304,7 +321,9 @@ func run() error {
 	return g.Run(runner)
 }
 
-func hazardSystem(player core.Entity, panel *debug.Panel) core.System {
+// hazardSystem applies bar hits to the player's stats. It writes and
+// moves on - reporting the new stats is the readout system's job.
+func hazardSystem(player core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		contacts, ok := player.Component[collision.Contacts](ctx.World)
 		if !ok {
@@ -323,19 +342,14 @@ func hazardSystem(player core.Entity, panel *debug.Panel) core.System {
 		if hits == 0 {
 			return nil
 		}
-		if err := player.Update(ctx.World, func(s *playerStats) {
+		return player.Update(ctx.World, func(s *playerStats) {
 			s.currentHealth = max(s.currentHealth-hits*hitHealthLoss, 0)
 			s.currentSpeed = max(s.currentSpeed-hits*hitSpeedLoss, minMoveSpeed)
-			panel.Message(fmt.Sprintf("hazard hit: health %d/%d, speed %d",
-				s.currentHealth, s.maxHealth, s.currentSpeed))
-		}); err != nil {
-			return err
-		}
-		return nil
+		})
 	})
 }
 
-func pickupSystem(player core.Entity, pickups []core.Entity, score *int, panel *debug.Panel) core.System {
+func pickupSystem(player core.Entity, pickups []core.Entity, score *int) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		for _, pickup := range pickups {
 			contacts, ok := pickup.Component[collision.Contacts](ctx.World)
@@ -352,12 +366,31 @@ func pickupSystem(player core.Entity, pickups []core.Entity, score *int, panel *
 				}
 				if err := player.Update(ctx.World, func(s *playerStats) {
 					s.currentHealth = min(s.currentHealth+pickupHeal, s.maxHealth)
-					panel.Message(fmt.Sprintf("pickup: score %d, health %d/%d",
-						*score, s.currentHealth, s.maxHealth))
 				}); err != nil {
 					return err
 				}
 			}
+		}
+		return nil
+	})
+}
+
+// statsReadoutSystem reports health and speed on the debug panel, but
+// only when they changed: the Changed filter matches rows written since
+// the query's last pass, so an idle player costs no messages, and a
+// fresh query's first pass reports the spawn state once. Register it
+// after the systems that write playerStats in the same phase, so a
+// write is reported on the same tick.
+func statsReadoutSystem(panel *debug.Panel) core.System {
+	var changes *core.Query
+	return core.SystemFunc(func(ctx *core.Context) error {
+		if changes == nil {
+			changes = core.NewQuery(ctx.World).With(playerStats{}).Changed()
+		}
+		for e := range changes.Execute() {
+			stats, _ := e.Component[playerStats]()
+			panel.Message(fmt.Sprintf("health %d/%d, speed %d",
+				stats.currentHealth, stats.maxHealth, stats.currentSpeed))
 		}
 		return nil
 	})

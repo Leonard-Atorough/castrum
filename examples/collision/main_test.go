@@ -56,7 +56,10 @@ func TestHazardsDamageOnlyOnEntry(t *testing.T) {
 		if _, err := g.World().NewEntity(core.Transform{}, trigger); err != nil {
 			t.Fatal(err)
 		}
-		if err := g.AddSystem(core.PhaseFixed, "hazard", hazardSystem(player, debug.NewPanel())); err != nil {
+		if err := g.AddSystem(core.PhaseFixed, "hazard", hazardSystem(player)); err != nil {
+			t.Fatal(err)
+		}
+		if err := g.AddSystem(core.PhaseFixed, "stats.readout", statsReadoutSystem(debug.NewPanel())); err != nil {
 			t.Fatal(err)
 		}
 		if err := g.Startup(); err != nil {
@@ -99,7 +102,7 @@ func TestPickupsHealAndScoreOnlyOnEntry(t *testing.T) {
 	}
 	score := 0
 	if err := g.AddSystem(core.PhaseFixed, "pickups",
-		pickupSystem(player, []core.Entity{pickup}, &score, debug.NewPanel())); err != nil {
+		pickupSystem(player, []core.Entity{pickup}, &score)); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.Startup(); err != nil {
