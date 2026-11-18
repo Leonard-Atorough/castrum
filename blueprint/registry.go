@@ -102,7 +102,7 @@ func (r *Registry) Component[T any](key string) error {
 			if !ok {
 				return fmt.Errorf("value type %T, want %v", value, reflect.TypeFor[T]())
 			}
-			return codecs.Encode[T](w, v, asset.FormatJSON)
+			return codecs.Encode(w, v, asset.FormatJSON)
 		},
 	}
 	return nil
