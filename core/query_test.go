@@ -490,3 +490,51 @@ func TestEntryUpdateUnprefetchedPanics(t *testing.T) {
 		entry.Update(func(v *queryVel) { v.X = 1 })
 	}
 }
+
+// TestWritePathValidationMatrix pins the validation contract: spawn, add,
+// and entity replacement validate through [Validatable] and leave the stored
+// value unchanged when they reject, while query entry writes bypass
+// validation by design so iteration stays error-free.
+func TestWritePathValidationMatrix(t *testing.T) {
+	w := NewWorld()
+	if _, err := w.NewEntity(rating{n: 99}); err == nil {
+		t.Fatal("spawn with an invalid component should error")
+	}
+	e, err := w.NewEntity(rating{n: 5}, queryPos{})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	if err := e.AddComponent(w, rating{n: 99}); err == nil {
+		t.Fatal("AddComponent with an invalid value should error")
+	}
+
+	// Entity replacement validates and does not commit the invalid value.
+	if err := e.SetComponent(w, rating{n: 99}); err == nil {
+		t.Fatal("SetComponent with an invalid value should error")
+	}
+	if r, ok := e.Component[rating](w); !ok || r.n != 5 {
+		t.Fatalf("stored rating after rejected SetComponent = %v, %v; want 5, true", r, ok)
+	}
+	if err := e.Update(w, func(r *rating) { r.n = 99 }); err == nil {
+		t.Fatal("Update writing an invalid value should error")
+	}
+	if r, _ := e.Component[rating](w); r.n != 5 {
+		t.Fatalf("stored rating after rejected Update = %d; want 5 unchanged", r.n)
+	}
+
+	// Query entry writes bypass validation, per the contract on
+	// [Entry.SetComponent], [Entry.Update], and [Validatable].
+	q := NewQuery(w).With(rating{})
+	for entry := range q.Execute() {
+		entry.SetComponent(rating{n: 99})
+	}
+	if r, _ := e.Component[rating](w); r.n != 99 {
+		t.Fatalf("stored rating after Entry.SetComponent = %d; want 99 (query writes bypass validation)", r.n)
+	}
+	for entry := range q.Execute() {
+		entry.Update(func(r *rating) { r.n = -1 })
+	}
+	if r, _ := e.Component[rating](w); r.n != -1 {
+		t.Fatalf("stored rating after Entry.Update = %d; want -1 (query writes bypass validation)", r.n)
+	}
+}
