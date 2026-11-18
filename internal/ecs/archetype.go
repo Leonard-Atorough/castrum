@@ -96,31 +96,59 @@ func (k key) String() string {
 
 const initialColumnCapacity = 16
 
+// trackChangesType matches the core.TrackChanges marker structurally: a
+// component type opts into per-row change tracking by implementing
+// TrackChanges() with a value receiver.
+var trackChangesType = reflect.TypeOf((*interface{ TrackChanges() })(nil)).Elem()
+
+func isTracked(t reflect.Type) bool {
+	return t != nil && t.Implements(trackChangesType)
+}
+
+type changeTicks struct {
+	added   []uint64
+	changed []uint64
+}
+
+type tickPair struct {
+	added   uint64
+	changed uint64
+}
+
 // Archetype groups entities that share the same component types.
 //
 // Each component column has one value per entity, in the same row order as
-// the entity IDs.
+// the entity IDs. Tracked component types additionally carry row-aligned
+// change ticks.
 type Archetype struct {
-	// archetypeID uniquely identifies this archetype within its store.
 	archetypeID
-	// key is the component type set shared by every entity.
-	key key
-	// entityIDs lists the entities in row order.
+	key       key
 	entityIDs []EntityID
-	// columns stores each component type's values in the same row order.
-	columns map[reflect.Type][]any
+	columns   map[reflect.Type][]any
+	tracks    map[reflect.Type]*changeTicks
 }
 
 func newArchetype(id archetypeID, key key) *Archetype {
 	columns := make(map[reflect.Type][]any, len(key))
+	var tracks map[reflect.Type]*changeTicks
 	for _, typ := range key {
 		columns[typ] = make([]any, 0, initialColumnCapacity)
+		if isTracked(typ) {
+			if tracks == nil {
+				tracks = make(map[reflect.Type]*changeTicks, len(key))
+			}
+			tracks[typ] = &changeTicks{
+				added:   make([]uint64, 0, initialColumnCapacity),
+				changed: make([]uint64, 0, initialColumnCapacity),
+			}
+		}
 	}
 	return &Archetype{
 		archetypeID: id,
 		key:         key,
 		entityIDs:   make([]EntityID, 0, initialColumnCapacity),
 		columns:     columns,
+		tracks:      tracks,
 	}
 }
 
@@ -135,8 +163,7 @@ func (a *Archetype) Key() key {
 	return a.key
 }
 
-// EntityIDs returns a copy of the archetype's entity ID list. Hot paths
-// should prefer EachEntity, which iterates the list in place.
+// EntityIDs returns a copy of the entity IDs in row order.
 func (a *Archetype) EntityIDs() []EntityID {
 	return slices.Clone(a.entityIDs)
 }
@@ -151,6 +178,10 @@ func (a *Archetype) insertEntity(entityID EntityID) int {
 	for typ, col := range a.columns {
 		a.columns[typ] = append(col, nil)
 	}
+	for _, tr := range a.tracks {
+		tr.added = append(tr.added, 0)
+		tr.changed = append(tr.changed, 0)
+	}
 	return len(a.entityIDs) - 1
 }
 
@@ -162,6 +193,13 @@ func (a *Archetype) insertEntities(entityIDs []EntityID) int {
 		col = slices.Grow(col, len(entityIDs))
 		col = col[:oldLen+len(entityIDs)]
 		a.columns[typ] = col
+	}
+	for _, tr := range a.tracks {
+		oldLen := len(tr.added)
+		tr.added = slices.Grow(tr.added, len(entityIDs))[:oldLen+len(entityIDs)]
+		tr.changed = slices.Grow(tr.changed, len(entityIDs))[:oldLen+len(entityIDs)]
+		clear(tr.added[oldLen:])
+		clear(tr.changed[oldLen:])
 	}
 	return start
 }
@@ -185,8 +223,64 @@ func (a *Archetype) removeEntity(index int) (movedID EntityID, moved bool) {
 		col[lastIndex] = nil
 		a.columns[typ] = col[:lastIndex]
 	}
+	for _, tr := range a.tracks {
+		if index != lastIndex {
+			tr.added[index] = tr.added[lastIndex]
+			tr.changed[index] = tr.changed[lastIndex]
+		}
+		tr.added[lastIndex] = 0
+		tr.changed[lastIndex] = 0
+		tr.added = tr.added[:lastIndex]
+		tr.changed = tr.changed[:lastIndex]
+	}
 
 	return movedID, moved
+}
+
+func (a *Archetype) stampAdded(typ reflect.Type, index int, tick uint64) {
+	if tr, ok := a.tracks[typ]; ok && index >= 0 && index < len(tr.added) {
+		tr.added[index] = tick
+		tr.changed[index] = tick
+	}
+}
+
+func (a *Archetype) stampAddedRange(typ reflect.Type, start, end int, tick uint64) {
+	tr, ok := a.tracks[typ]
+	if !ok {
+		return
+	}
+	for i := max(start, 0); i < min(end, len(tr.added)); i++ {
+		tr.added[i] = tick
+		tr.changed[i] = tick
+	}
+}
+
+func (a *Archetype) StampChanged(typ reflect.Type, index int, tick uint64) {
+	if tr, ok := a.tracks[typ]; ok && index >= 0 && index < len(tr.changed) {
+		tr.changed[index] = tick
+	}
+}
+
+// Ticks returns when a tracked component was added and last written.
+// It reports false for untracked types and out-of-range rows.
+func (a *Archetype) Ticks(typ reflect.Type, index int) (added, changed uint64, ok bool) {
+	tr, ok := a.tracks[typ]
+	if !ok || index < 0 || index >= len(tr.added) {
+		return 0, 0, false
+	}
+	return tr.added[index], tr.changed[index], true
+}
+
+func (a *Archetype) tickPairAt(typ reflect.Type, index int) tickPair {
+	added, changed, _ := a.Ticks(typ, index)
+	return tickPair{added: added, changed: changed}
+}
+
+func (a *Archetype) setTicks(typ reflect.Type, index int, pair tickPair) {
+	if tr, ok := a.tracks[typ]; ok && index >= 0 && index < len(tr.added) {
+		tr.added[index] = pair.added
+		tr.changed[index] = pair.changed
+	}
 }
 
 func (a *Archetype) setComponent(index int, typ reflect.Type, value any) bool {
@@ -216,15 +310,16 @@ func (a *Archetype) component(index int, typ reflect.Type) any {
 	return col[index]
 }
 
-// Column returns the backing slice for typ, or nil if the archetype has no
-// such component type. The slice aliases archetype storage: do not append to
-// it or retain it across structural changes, which may reallocate the column.
+// Column returns the backing slice for typ, or nil if the type is absent.
+// The slice aliases archetype storage; do not append to it or retain it across
+// structural changes, which may move rows or reallocate the column. Writes
+// to tracked components must also call [Archetype.StampChanged].
 func (a *Archetype) Column(typ reflect.Type) []any {
 	return a.columns[typ]
 }
 
-// EachEntity calls yield for each entity's row index and ID. Iteration stops
-// when yield returns false.
+// EachEntity calls yield for each entity's row index and ID until yield
+// returns false. Do not structurally modify the archetype during iteration.
 func (a *Archetype) EachEntity(yield func(index int, entityID EntityID) bool) {
 	for i, entityID := range a.entityIDs {
 		if !yield(i, entityID) {
@@ -234,14 +329,10 @@ func (a *Archetype) EachEntity(yield func(index int, entityID EntityID) bool) {
 }
 
 type store struct {
-	// archetypes holds the live archetypes, keyed by ID.
 	archetypes map[archetypeID]*Archetype
-	// byHash maps component-set hashes to archetype IDs.
-	byHash map[hash]archetypeID
-	// generation tracks changes to the set of archetypes.
+	byHash     map[hash]archetypeID
 	generation uint64
-	// nextID is the next archetype ID to assign.
-	nextID archetypeID
+	nextID     archetypeID
 }
 
 func newArchetypes() *store {

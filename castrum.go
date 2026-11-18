@@ -465,6 +465,9 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	for g.acc >= g.sim.Delta {
 		g.sim.Tick++
 		g.ctx.Tick = g.sim.Tick
+		// Keep the world's change tick in step with the simulation tick so
+		// change-detection stamps are comparable with Context.Tick.
+		g.world.AdvanceTick()
 		g.ctx.DeltaTime = g.sim.Delta
 		if err := g.run(core.PhasePreFixed); err != nil {
 			return err
