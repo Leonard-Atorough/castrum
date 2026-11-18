@@ -196,4 +196,17 @@ func TestDirectorAccessors(t *testing.T) {
 	if d.Entities(id)[0] == (core.Entity{}) {
 		t.Error("Entities shares backing array")
 	}
+
+	second, _ := d.Load(lifeScene(), lifeProps{"b"})
+	flush(t, sys, ctx)
+	if roots := d.Roots(); len(roots) != 2 || roots[0] != id || roots[1] != second {
+		t.Fatalf("Roots = %v, want [%d %d]", roots, id, second)
+	}
+	if err := d.Remove(second); err != nil {
+		t.Fatal(err)
+	}
+	flush(t, sys, ctx)
+	if roots := d.Roots(); len(roots) != 1 || roots[0] != id {
+		t.Fatalf("Roots after remove = %v, want [%d]", roots, id)
+	}
 }

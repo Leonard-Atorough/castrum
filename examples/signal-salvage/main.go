@@ -74,12 +74,22 @@ type roundEnded struct {
 	won bool
 }
 
+type resultProps struct {
+	won   bool
+	score int
+}
+
 type runState struct {
 	active           bool
 	finished         bool
 	won              bool
 	score            int
 	displayedSeconds int
+
+	// scene ids the controls hand out; gates such as "the briefing is on
+	// screen" read the director instead of hunting for scene names
+	briefing scene.InstanceID
+	result   scene.InstanceID
 }
 
 func main() {
@@ -137,13 +147,20 @@ func newGame() (*castrum.Game, *runState, error) {
 	panel := game.World().MustResource[*debug.Panel]()
 	state := &runState{displayedSeconds: -1}
 
-	arena, scoreQuery, clockQuery, playerQuery, droneQuery, err := makeArenaBlueprint(game.World())
+	briefing := makeBriefingScene()
+	arena, err := makeArenaScene()
 	if err != nil {
 		return nil, nil, err
 	}
-	briefing := makeBriefingBlueprint()
+	result := makeResultScene()
 
-	if err := addRoundSystems(game, director, hub, panel, state, scoreQuery, clockQuery, playerQuery, droneQuery); err != nil {
+	world := game.World()
+	if err := addRoundSystems(game, director, hub, panel, state, result,
+		core.NewQuery(world).With(scoreLabel{}, spr.Sprite{}),
+		core.NewQuery(world).With(clockLabel{}, gametime.Timer{}, spr.Sprite{}),
+		core.NewQuery(world).With(pilot{}, core.Transform{}),
+		core.NewQuery(world).With(core.Transform{}, pulseDrone{}),
+	); err != nil {
 		return nil, nil, err
 	}
 	if err := game.SetGroupEnabled(roundGroup, false); err != nil {
@@ -151,24 +168,30 @@ func newGame() (*castrum.Game, *runState, error) {
 	}
 	if err := game.AddSystem(core.PhaseFrame, "demo.scene-controls", core.SystemFunc(func(ctx *core.Context) error {
 		if ctx.Actions.JustPressed("start") {
-			if _, ready := director.ByName("briefing"); ready {
-				state.active = true
-				state.finished = false
-				state.won = false
-				state.score = 0
-				state.displayedSeconds = -1
-				if err := game.SetGroupEnabled(roundGroup, true); err != nil {
-					return err
-				}
-				_, err := director.Switch(arena)
+			if !director.Live(state.briefing) {
+				return nil
+			}
+			state.active = true
+			state.finished = false
+			state.won = false
+			state.score = 0
+			state.displayedSeconds = -1
+			if err := game.SetGroupEnabled(roundGroup, true); err != nil {
+				return err
+			}
+			if _, err := director.Switch(arena, nil, scene.WithName("arena")); err != nil {
 				return err
 			}
 		}
 		if ctx.Actions.JustPressed("restart") {
-			if _, done := director.ByName("result"); done {
-				_, err := director.Switch(briefing)
+			if !director.Live(state.result) {
+				return nil
+			}
+			id, err := director.Switch(briefing, nil, scene.WithName("briefing"))
+			if err != nil {
 				return err
 			}
+			state.briefing = id
 		}
 		return nil
 	})); err != nil {
@@ -176,13 +199,15 @@ func newGame() (*castrum.Game, *runState, error) {
 	}
 	panel.Status("controls", "WASD / arrows: move   SPACE: start   ENTER: briefing")
 	panel.Status("objective", "Recover five cores. Avoid the red pulse.")
-	if _, err := director.Load(briefing); err != nil {
+	id, err := director.Load(briefing, nil, scene.WithName("briefing"))
+	if err != nil {
 		return nil, nil, err
 	}
+	state.briefing = id
 	return game, state, nil
 }
 
-func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.Hub, panel *debug.Panel, state *runState, scoreQuery, clockQuery, playerQuery, droneQuery *core.Query) error {
+func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.Hub, panel *debug.Panel, state *runState, result scene.Scene, scoreQuery, clockQuery, playerQuery, droneQuery *core.Query) error {
 	world := game.World()
 	coreEvents := hub.NewReader[collision.Entered]()
 
@@ -249,10 +274,10 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 						if err := other.Update(world, func(c *dataCore) { c.collected = true }); err != nil {
 							return err
 						}
-						if err := other.Update(world, func(s *spr.Sprite) { s.Style.Hidden = true }); err != nil {
+						if err := other.Update(world, func(c *collision.Collider) { c.Active = false }); err != nil {
 							return err
 						}
-						if err := other.Update(world, func(c *collision.Collider) { c.Active = false }); err != nil {
+						if err := other.Update(world, func(s *spr.Sprite) { s.Style.Hidden = true }); err != nil {
 							return err
 						}
 						hub.Emit(coreCollected{})
@@ -332,8 +357,12 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 				}
 				panel.Message(message)
 
-				_, err := director.Switch(makeResultBlueprint(state.won, state.score))
-				return err
+				id, err := director.Switch(result, resultProps{won: event.won, score: state.score}, scene.WithName("result"))
+				if err != nil {
+					return err
+				}
+				state.result = id
+				return nil
 			}),
 		},
 	}
@@ -346,138 +375,150 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 	return nil
 }
 
-func makeBriefingBlueprint() *scene.Blueprint {
-	return &scene.Blueprint{
-		Name: "briefing",
-		EntityList: []scene.EntitySpec{
-			rectSpec("briefing-background", geom.Vector2{X: screenWidth / 2, Y: screenHeight / 2}, screenWidth, screenHeight, backgroundColor, 0),
-			textSpec("title", geom.Vector2{X: screenWidth / 2, Y: 184}, "SIGNAL SALVAGE", 48, playerColor),
-			textSpec("objective", geom.Vector2{X: screenWidth / 2, Y: 252}, "RECOVER 5 CORES  /  AVOID THE PULSE", 20, coreColor),
-			textSpec("controls", geom.Vector2{X: screenWidth / 2, Y: 316}, "WASD OR ARROWS TO MOVE", 18, color.White),
-			textSpec("start", geom.Vector2{X: screenWidth / 2, Y: 408}, "PRESS SPACE TO DEPLOY", 22, playerColor),
-		},
-	}
+func makeBriefingScene() scene.Scene {
+	return scene.Scene(func(any) (scene.Node, error) {
+		return scene.Node{
+			Key: "briefing",
+			Components: []any{
+				core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: screenHeight / 2}},
+				spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: screenWidth, Y: screenHeight}}, Style: spr.Style{Color: backgroundColor}},
+			},
+			Children: []scene.Node{
+				textNode("title", geom.Vector2{X: screenWidth / 2, Y: 184}, "SIGNAL SALVAGE", 48, playerColor),
+				textNode("objective", geom.Vector2{X: screenWidth / 2, Y: 252}, "RECOVER 5 CORES  /  AVOID THE PULSE", 20, coreColor),
+				textNode("controls", geom.Vector2{X: screenWidth / 2, Y: 316}, "WASD OR ARROWS TO MOVE", 18, color.White),
+				textNode("start", geom.Vector2{X: screenWidth / 2, Y: 408}, "PRESS SPACE TO DEPLOY", 22, playerColor),
+			},
+		}, nil
+	})
 }
 
-func makeArenaBlueprint(world *core.World) (*scene.Blueprint, *core.Query, *core.Query, *core.Query, *core.Query, error) {
+func makeArenaScene() (scene.Scene, error) {
 	playerCollider, err := triggerCollider(16, playerLayer, coreLayer, droneLayer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, err
 	}
 	coreCollider, err := triggerCollider(14, coreLayer, playerLayer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, err
 	}
 	droneCollider, err := triggerCollider(26, droneLayer, playerLayer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, err
 	}
-
-	specs := []scene.EntitySpec{
-		rectSpec("field", geom.Vector2{X: screenWidth / 2, Y: screenHeight / 2}, screenWidth, screenHeight, backgroundColor, 0),
-		rectSpec("arena", geom.Vector2{X: screenWidth / 2, Y: 286}, 900, 428, fieldColor, 1),
-		{
-			Name: "arena-border",
-			Components: []any{
-				core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: 286}},
-				spr.Sprite{
-					Drawable: spr.RectShape{Size: geom.Vector2{X: 900, Y: 428}},
-					Style:    spr.Style{Outline: true, StrokeWidth: 2, Color: borderColor, Layer: 2},
+	return scene.Scene(func(any) (scene.Node, error) {
+		children := []scene.Node{
+			{
+				Key: "arena",
+				Components: []any{
+					core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: 286}},
+					spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: 900, Y: 428}}, Style: spr.Style{Color: fieldColor, Layer: 1}},
 				},
 			},
-		},
-		{
-			Name: "score",
-			Components: []any{
-				core.Transform{Position: geom.Vector2{X: 180, Y: 43}},
-				spr.Sprite{Drawable: textDrawable("CORES  0 / 5", 24), Style: spr.Style{Color: coreColor, Layer: 5}},
-				scoreLabel{},
-			},
-		},
-		{
-			Name: "round-clock",
-			Components: []any{
-				core.Transform{Position: geom.Vector2{X: 780, Y: 43}},
-				spr.Sprite{Drawable: textDrawable("TIME  20", 24), Style: spr.Style{Color: color.White, Layer: 5}},
-				clockLabel{},
-				roundClock{},
-				gametime.NewTimer(roundLength, false),
-			},
-		},
-		textSpec("instructions", geom.Vector2{X: screenWidth / 2, Y: 519}, "COLLECT GOLD  /  DODGE RED", 16, borderColor),
-		{
-			Name: "pilot",
-			Components: []any{
-				core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: 424}},
-				spr.Sprite{
-					Drawable: spr.CircleShape{Radii: geom.Vector2{X: 16, Y: 16}},
-					Style:    spr.Style{Color: playerColor, Layer: 4},
+			{
+				Key: "arena-border",
+				Components: []any{
+					core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: 286}},
+					spr.Sprite{
+						Drawable: spr.RectShape{Size: geom.Vector2{X: 900, Y: 428}},
+						Style:    spr.Style{Outline: true, StrokeWidth: 2, Color: borderColor, Layer: 2},
+					},
 				},
-				playerCollider,
-				pilot{},
 			},
-		},
-		{
-			Name: "pulse-drone",
-			Components: []any{
-				core.Transform{Position: geom.Vector2{X: screenWidth/2 + 235, Y: 275}},
-				spr.Sprite{
-					Drawable: spr.CircleShape{Radii: geom.Vector2{X: 26, Y: 26}},
-					Style:    spr.Style{Color: droneColor, Outline: true, StrokeWidth: 4, Layer: 4},
+			{
+				Key: "score",
+				Components: []any{
+					core.Transform{Position: geom.Vector2{X: 180, Y: 43}},
+					spr.Sprite{Drawable: textDrawable("CORES  0 / 5", 24), Style: spr.Style{Color: coreColor, Layer: 5}},
+					scoreLabel{},
 				},
-				droneCollider,
-				pulseDrone{},
 			},
-		},
-	}
-	for i, position := range []geom.Vector2{
-		{X: 164, Y: 156},
-		{X: 304, Y: 372},
-		{X: 654, Y: 150},
-		{X: 798, Y: 370},
-		{X: 480, Y: 266},
-	} {
-		specs = append(specs, scene.EntitySpec{
-			Name: fmt.Sprintf("core-%d", i+1),
-			Components: []any{
-				core.Transform{Position: position},
-				spr.Sprite{
-					Drawable: spr.CircleShape{Radii: geom.Vector2{X: 12, Y: 12}},
-					Style:    spr.Style{Color: coreColor, Outline: true, StrokeWidth: 3, Layer: 3},
+			{
+				Key: "round-clock",
+				Components: []any{
+					core.Transform{Position: geom.Vector2{X: 780, Y: 43}},
+					spr.Sprite{Drawable: textDrawable("TIME  20", 24), Style: spr.Style{Color: color.White, Layer: 5}},
+					clockLabel{},
+					roundClock{},
+					gametime.NewTimer(roundLength, false),
 				},
-				coreCollider,
-				dataCore{},
 			},
-		})
-	}
-
-	blueprint := &scene.Blueprint{Name: "arena", EntityList: specs}
-	if err := blueprint.Validate(); err != nil {
-		return nil, nil, nil, nil, nil, err
-	}
-
-	return blueprint,
-		core.NewQuery(world).With(scoreLabel{}, spr.Sprite{}),
-		core.NewQuery(world).With(clockLabel{}, gametime.Timer{}, spr.Sprite{}),
-		core.NewQuery(world).With(pilot{}, core.Transform{}),
-		core.NewQuery(world).With(core.Transform{}, pulseDrone{}),
-		nil
+			textNode("instructions", geom.Vector2{X: screenWidth / 2, Y: 519}, "COLLECT GOLD  /  DODGE RED", 16, borderColor),
+			{
+				Key: "pilot",
+				Components: []any{
+					core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: 424}},
+					spr.Sprite{
+						Drawable: spr.CircleShape{Radii: geom.Vector2{X: 16, Y: 16}},
+						Style:    spr.Style{Color: playerColor, Layer: 4},
+					},
+					playerCollider,
+					pilot{},
+				},
+			},
+			{
+				Key: "pulse-drone",
+				Components: []any{
+					core.Transform{Position: geom.Vector2{X: screenWidth/2 + 235, Y: 275}},
+					spr.Sprite{
+						Drawable: spr.CircleShape{Radii: geom.Vector2{X: 26, Y: 26}},
+						Style:    spr.Style{Color: droneColor, Outline: true, StrokeWidth: 4, Layer: 4},
+					},
+					droneCollider,
+					pulseDrone{},
+				},
+			},
+		}
+		for i, position := range []geom.Vector2{
+			{X: 164, Y: 156},
+			{X: 304, Y: 372},
+			{X: 654, Y: 150},
+			{X: 798, Y: 370},
+			{X: 480, Y: 266},
+		} {
+			children = append(children, scene.Node{
+				Key: fmt.Sprintf("core-%d", i+1),
+				Components: []any{
+					core.Transform{Position: position},
+					spr.Sprite{
+						Drawable: spr.CircleShape{Radii: geom.Vector2{X: 12, Y: 12}},
+						Style:    spr.Style{Color: coreColor, Outline: true, StrokeWidth: 3, Layer: 3},
+					},
+					coreCollider,
+					dataCore{},
+				},
+			})
+		}
+		return scene.Node{
+			Key: "field",
+			Components: []any{
+				core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: screenHeight / 2}},
+				spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: screenWidth, Y: screenHeight}}, Style: spr.Style{Color: backgroundColor}},
+			},
+			Children: children,
+		}, nil
+	}), nil
 }
 
-func makeResultBlueprint(won bool, score int) *scene.Blueprint {
-	title, tint := "SIGNAL LOST", droneColor
-	if won {
-		title, tint = "SIGNAL RECOVERED", playerColor
-	}
-	return &scene.Blueprint{
-		Name: "result",
-		EntityList: []scene.EntitySpec{
-			rectSpec("result-background", geom.Vector2{X: screenWidth / 2, Y: screenHeight / 2}, screenWidth, screenHeight, backgroundColor, 0),
-			textSpec("result-title", geom.Vector2{X: screenWidth / 2, Y: 208}, title, 42, tint),
-			textSpec("result-score", geom.Vector2{X: screenWidth / 2, Y: 278}, fmt.Sprintf("CORES RECOVERED  %d / %d", score, coreGoal), 20, coreColor),
-			textSpec("result-prompt", geom.Vector2{X: screenWidth / 2, Y: 378}, "PRESS ENTER FOR BRIEFING", 20, color.White),
-		},
-	}
+func makeResultScene() scene.Scene {
+	return scene.Of(func(p resultProps) scene.Node {
+		title, tint := "SIGNAL LOST", droneColor
+		if p.won {
+			title, tint = "SIGNAL RECOVERED", playerColor
+		}
+		return scene.Node{
+			Key: "result",
+			Components: []any{
+				core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: screenHeight / 2}},
+				spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: screenWidth, Y: screenHeight}}, Style: spr.Style{Color: backgroundColor}},
+			},
+			Children: []scene.Node{
+				textNode("result-title", geom.Vector2{X: screenWidth / 2, Y: 208}, title, 42, tint),
+				textNode("result-score", geom.Vector2{X: screenWidth / 2, Y: 278}, fmt.Sprintf("CORES RECOVERED  %d / %d", p.score, coreGoal), 20, coreColor),
+				textNode("result-prompt", geom.Vector2{X: screenWidth / 2, Y: 378}, "PRESS ENTER FOR BRIEFING", 20, color.White),
+			},
+		}
+	})
 }
 
 func triggerCollider(radius float64, layer int, masks ...int) (collision.Collider, error) {
@@ -491,22 +532,9 @@ func triggerCollider(radius float64, layer int, masks ...int) (collision.Collide
 	return collider, nil
 }
 
-func rectSpec(name string, position geom.Vector2, width, height float64, tint color.Color, layer uint8) scene.EntitySpec {
-	return scene.EntitySpec{
-		Name: name,
-		Components: []any{
-			core.Transform{Position: position},
-			spr.Sprite{
-				Drawable: spr.RectShape{Size: geom.Vector2{X: width, Y: height}},
-				Style:    spr.Style{Color: tint, Layer: layer},
-			},
-		},
-	}
-}
-
-func textSpec(name string, position geom.Vector2, text string, size float64, tint color.Color) scene.EntitySpec {
-	return scene.EntitySpec{
-		Name: name,
+func textNode(key string, position geom.Vector2, text string, size float64, tint color.Color) scene.Node {
+	return scene.Node{
+		Key: key,
 		Components: []any{
 			core.Transform{Position: position},
 			spr.Sprite{Drawable: textDrawable(text, size), Style: spr.Style{Color: tint, Layer: 5}},

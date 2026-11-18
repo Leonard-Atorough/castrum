@@ -126,6 +126,11 @@ func (d *Director) Entities(id InstanceID) []core.Entity {
 	return slices.Clone(inst.entities)
 }
 
+// Roots returns a copy of the live root instance ids, in entry order.
+func (d *Director) Roots() []InstanceID {
+	return slices.Clone(d.roots)
+}
+
 func (d *Director) queue(target InstanceID, scene Scene, props any, kind requestKind, operation string, opts ...Option) (InstanceID, error) {
 	req := request{}
 	for _, opt := range opts {
