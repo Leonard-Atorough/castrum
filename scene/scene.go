@@ -60,7 +60,8 @@ type Node struct {
 	// Component-specific validation runs when the entity is created.
 	Components []any
 	// Children are nested scene nodes, not a transform hierarchy.
-	Children []Node
+	Children   []Node
+	Persistent bool
 }
 
 func validateNode(path string, n Node, seen map[string]bool) error {
