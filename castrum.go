@@ -105,6 +105,9 @@ func New(opts ...option) (*Game, error) {
 	if err := gametime.RegisterBlueprints(reg); err != nil {
 		return nil, fmt.Errorf("castrum: engine blueprints: %w", err)
 	}
+	if err := registerEngine(reg); err != nil {
+		return nil, fmt.Errorf("castrum: engine components: %w", err)
+	}
 	if err := g.world.Provide(func(*core.World) (*serialization.Registry, error) {
 		return reg, nil
 	}); err != nil {
