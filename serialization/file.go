@@ -67,7 +67,7 @@ func (f File) open(reg *Registry, path string) (scene.Node, error) {
 		}
 		n.Children = append(n.Children, cn)
 	}
-	return scene.Node{}, nil
+	return n, nil
 }
 
 func (f File) Scene(reg *Registry) (scene.Scene, error) {
