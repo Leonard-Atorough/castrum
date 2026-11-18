@@ -256,8 +256,8 @@ func (d *demo) addDriftSystem() error {
 			motion, _ := entity.Component[drift]()
 			entity.Update(func(t *core.Transform) {
 				t.Position.X += motion.speed * ctx.DeltaTime.Seconds()
-				if t.Position.X > 1160 {
-					t.Position.X = 120
+				if t.Position.X > 1300 {
+					t.Position.X = -120
 				}
 			})
 		}
