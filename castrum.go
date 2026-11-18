@@ -10,15 +10,16 @@ import (
 	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
-	"github.com/Leonard-Atorough/castrum/serialization"
-
 	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
+	"github.com/Leonard-Atorough/castrum/engine"
 	"github.com/Leonard-Atorough/castrum/gametime"
+	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/serialization"
 	"github.com/Leonard-Atorough/castrum/signal"
 )
 
@@ -64,22 +65,17 @@ func New(opts ...option) (*Game, error) {
 	}
 	g.ctx.World = g.world
 
-	sim := gametime.NewSimulation(options.fixedDT)
-	if err := g.world.ProvideEager(func(*core.World) (*gametime.Simulation, error) {
-		return sim, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide simulation time: %w", err)
+	registrations := []engine.Registration{
+		coreWiring(),
+		gametime.Wiring(options.fixedDT, options.MaxFrameTime),
+		animation.Wiring(),
+		collision.Wiring(),
+		signal.Wiring(),
+		audio.Wiring(),
 	}
-	g.sim = sim
-
-	real := gametime.NewReal(options.MaxFrameTime)
-	if err := g.world.ProvideEager(func(*core.World) (*gametime.Real, error) {
-		return real, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide real time: %w", err)
+	if options.InputBindings != nil {
+		registrations = append(registrations, inputWiring(options.InputBindings, options.InputDeadzone))
 	}
-	g.real = real
-
 	codecs := options.AssetCodecs
 	if codecs == nil {
 		codecs = NewAssetCodecs()
@@ -102,82 +98,57 @@ func New(opts ...option) (*Game, error) {
 	}
 
 	reg := serialization.NewRegistry(g.world)
-	if err := gametime.RegisterBlueprints(reg); err != nil {
-		return nil, fmt.Errorf("castrum: engine blueprints: %w", err)
-	}
 	if err := g.world.Provide(func(*core.World) (*serialization.Registry, error) {
 		return reg, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide blueprint registry: %w", err)
 	}
 
-	if err := g.addEngineFirst(core.PhasePreFixed, core.PrevTransformSystemName, core.NewPrevTransformCapture()); err != nil {
-		return nil, err
+	for _, r := range registrations {
+		for _, provide := range r.Resources {
+			if err := provide(g.world); err != nil {
+				return nil, fmt.Errorf("castrum: %s: provide resources: %w", r.Name, err)
+			}
+		}
+	}
+	for _, r := range registrations {
+		if r.Blueprints != nil {
+			if err := r.Blueprints(reg); err != nil {
+				return nil, fmt.Errorf("castrum: %s: blueprints: %w", r.Name, err)
+			}
+		}
+	}
+	for _, r := range registrations {
+		for _, spec := range r.Systems {
+			if err := g.applySystem(spec); err != nil {
+				return nil, fmt.Errorf("castrum: %s: register system %q: %w", r.Name, spec.Name, err)
+			}
+		}
 	}
 
-	scheduler := gametime.NewScheduler(g.world)
-	if err := g.world.Provide(func(*core.World) (*gametime.Scheduler, error) {
-		return scheduler, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide scheduler: %w", err)
+	sim, err := g.world.Resource[*gametime.Simulation]()
+	if err != nil {
+		return nil, fmt.Errorf("castrum: resolve simulation time: %w", err)
 	}
-	if err := g.addEngineFirst(core.PhasePreFixed, gametime.SchedulerSystemName, gametime.NewSchedulerSystem(scheduler)); err != nil {
-		return nil, err
+	g.sim = sim
+	real, err := g.world.Resource[*gametime.Real]()
+	if err != nil {
+		return nil, fmt.Errorf("castrum: resolve real time: %w", err)
 	}
+	g.real = real
 
-	if err := g.world.Provide(func(*core.World) (*gametime.Groups, error) {
-		return gametime.NewGroups(), nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide timer groups: %w", err)
-	}
-	if err := g.addEngineFirst(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
-		return nil, err
-	}
-	if err := g.addEngineFirst(core.PhaseFixed, animation.SpriteAnimationSystem, animation.NewSpriteAnimationSystem()); err != nil {
-		return nil, err
-	}
-	if err := g.world.ProvideEager(func(*core.World) (*collision.Queries, error) {
-		return collision.NewQueries()
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide collision queries: %w", err)
-	}
-	if err := g.addEngineFirst(core.PhaseFixed, collision.SystemName, collision.NewSystem()); err != nil {
-		return nil, err
-	}
-
-	hub := signal.NewHub()
-	if err := g.world.Provide(func(*core.World) (*signal.Hub, error) {
-		return hub, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide signal hub: %w", err)
+	hub, err := g.world.Resource[*signal.Hub]()
+	if err != nil {
+		return nil, fmt.Errorf("castrum: resolve signal hub: %w", err)
 	}
 	g.hub = hub
-	if err := g.schedule(core.PhasePreFrame).SetOpening(runtime.Entry{
-		Name: "engine.signal-begin-frame",
-		System: core.SystemFunc(func(*core.Context) error {
-			hub.BeginFrame()
-			return nil
-		}),
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: register signal begin-frame system: %w", err)
-	}
-	if err := g.schedule(core.PhasePostFrame).SetClosing(runtime.Entry{
-		Name: "engine.signal-end-frame",
-		System: core.SystemFunc(func(*core.Context) error {
-			hub.EndFrame()
-			return nil
-		}),
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: register signal end-frame system: %w", err)
-	}
-	if err := g.schedule(core.PhasePostFixed).SetClosing(runtime.Entry{
-		Name: "engine.signal-end-tick",
-		System: core.SystemFunc(func(*core.Context) error {
-			hub.EndTick()
-			return nil
-		}),
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: register signal end-tick system: %w", err)
+
+	if options.InputBindings != nil {
+		am, err := g.world.Resource[*input.ActionMap]()
+		if err != nil {
+			return nil, fmt.Errorf("castrum: resolve action map: %w", err)
+		}
+		g.ctx.Actions = am
 	}
 
 	panel := debug.NewPanel()
@@ -185,51 +156,6 @@ func New(opts ...option) (*Game, error) {
 		return panel, nil
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide debug panel: %w", err)
-	}
-
-	mixer := audio.NewMixer()
-	if err := g.world.Provide(func(*core.World) (*audio.Mixer, error) {
-		return mixer, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide audio mixer: %w", err)
-	}
-	if err := g.world.Provide(func(*core.World) (*audio.Listener, error) {
-		return &audio.Listener{}, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide audio listener: %w", err)
-	}
-	backend := &audio.Backend{}
-	if err := g.world.Provide(func(*core.World) (*audio.Backend, error) {
-		return backend, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide audio backend: %w", err)
-	}
-	var reconciler core.System
-	// Capture before other frame systems so mid-phase attachments wait for the next pass.
-	if err := g.addEngineFirst(core.PhaseFrame, "engine.audio-prepare", core.SystemFunc(func(*core.Context) error {
-		if controller := backend.Controller(); reconciler == nil && controller != nil {
-			reconciler = audio.NewAudioSystem(controller, mixer)
-		}
-		return nil
-	})); err != nil {
-		return nil, err
-	}
-	if err := g.schedule(core.PhaseFrame).AddLast(runtime.Entry{
-		Name: audio.SystemName,
-		System: core.SystemFunc(func(ctx *core.Context) error {
-			if reconciler == nil {
-				return nil
-			}
-			return reconciler.Update(ctx)
-		}),
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: register audio system: %w", err)
-	}
-
-	if options.InputBindings != nil {
-		if err := g.wireInput(options.InputBindings, options.InputDeadzone); err != nil {
-			return nil, err
-		}
 	}
 
 	// Features are applied in registration order: the order options were
@@ -382,6 +308,42 @@ func (g *Game) schedule(phase core.Phase) *runtime.Schedule {
 	return sched
 }
 
+// applySystem registers one declared system spec in its phase and slot. Slot
+// boundaries (Opening, First, Last, Closing) sit outside the regular system
+// list, so runtime AddSystem anchors cannot target engine systems.
+func (g *Game) applySystem(spec engine.SystemSpec) error {
+	if spec.Phase < core.PhasePreStartup || spec.Phase > core.PhasePostFixed {
+		return fmt.Errorf("invalid phase %s", spec.Phase)
+	}
+	if spec.Name == "" {
+		return errors.New("system name must not be empty")
+	}
+	if spec.New == nil {
+		return fmt.Errorf("system %q has a nil New", spec.Name)
+	}
+	entry := runtime.Entry{Name: spec.Name, System: spec.New(), Group: spec.Group}
+	sched := g.schedule(spec.Phase)
+	var err error
+	switch spec.Slot {
+	case engine.Regular:
+		err = sched.Add(entry)
+	case engine.Opening:
+		err = sched.SetOpening(entry)
+	case engine.First:
+		err = sched.AddFirst(entry)
+	case engine.Last:
+		err = sched.AddLast(entry)
+	case engine.Closing:
+		err = sched.SetClosing(entry)
+	default:
+		err = fmt.Errorf("invalid slot %d", spec.Slot)
+	}
+	if err != nil {
+		return fmt.Errorf("phase %s: %w", spec.Phase, err)
+	}
+	return nil
+}
+
 func (g *Game) addEngineFirst(phase core.Phase, name string, system core.System) error {
 	if err := g.schedule(phase).AddFirst(runtime.Entry{Name: name, System: system}); err != nil {
 		return fmt.Errorf("castrum: register engine system %q in phase %s: %w", name, phase, err)
@@ -434,12 +396,7 @@ func (g *Game) Startup() error {
 // time is accumulated and no fixed ticks run. Time scaling (see
 // [Game.SetTimeScale]) multiplies only the elapsed time contributed to the
 // fixed-loop accumulator; DeltaTime and the frame phase are unaffected.
-//
-// Controls changed between calls take effect on the next call. The pre-frame
-// and frame phases run before pause and scale are read, so a control changed
-// in one of those systems affects this same call's fixed work. The scaled
-// contribution is computed once when fixed processing starts; controls changed
-// during a fixed tick affect later calls only.
+// Both controls take effect on the next call.
 // An unrepresentable scaled contribution or accumulator sum returns an error
 // without changing the accumulator; frame systems have already run.
 func (g *Game) Advance(elapsed time.Duration) error {
@@ -481,7 +438,6 @@ func (g *Game) Advance(elapsed time.Duration) error {
 	for g.acc >= g.sim.Delta {
 		g.sim.Tick++
 		g.ctx.Tick = g.sim.Tick
-		// Keep the world's change tick in step with the simulation tick so
 		// change-detection stamps are comparable with Context.Tick.
 		g.world.AdvanceTick()
 		g.ctx.DeltaTime = g.sim.Delta
@@ -514,9 +470,7 @@ func (g *Game) Alpha() float64 {
 
 // Pause stops fixed updates and stops adding time to the fixed-loop
 // accumulator. Frame updates still run, so input and rendering can continue.
-// The change takes effect on the next [Game.Advance] call when made between
-// calls; called from a pre-frame or frame system, it takes effect within that
-// same call, before any fixed tick runs.
+// The change takes effect on the next [Game.Advance] call.
 //
 // Pausing does not change [Game.TimeScale] or discard the accumulator.
 // [Game.Resume] continues from where the game stopped. Audio is not paused
@@ -526,9 +480,7 @@ func (g *Game) Pause() {
 }
 
 // Resume clears the paused state. The next [Game.Advance] continues fixed
-// updates from the accumulator position preserved by [Game.Pause]; called
-// from a pre-frame or frame system, the resumed state applies within that
-// same call.
+// updates from the accumulator position preserved by [Game.Pause].
 func (g *Game) Resume() {
 	g.sim.Resume()
 }
@@ -550,9 +502,7 @@ func (g *Game) TimeScale() float64 {
 //
 // The scale multiplies only the accumulator's time contribution; the frame
 // phase and [core.Context.DeltaTime] during frame updates are unaffected.
-// The new scale takes effect on the next [Game.Advance] call when set between
-// calls; set from a pre-frame or frame system, it applies to that same call's
-// accumulator contribution.
+// The new scale takes effect on the next [Game.Advance] call.
 func (g *Game) SetTimeScale(scale float64) error {
 	if err := g.sim.SetScale(scale); err != nil {
 		return fmt.Errorf("castrum: %w", err)
