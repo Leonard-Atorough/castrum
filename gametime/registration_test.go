@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/asset"
-	"github.com/Leonard-Atorough/castrum/blueprint"
+	"github.com/Leonard-Atorough/castrum/serialization"
+
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
-func newRegistry(t *testing.T) *blueprint.Registry {
+func newRegistry(t *testing.T) *serialization.Registry {
 	t.Helper()
 	world := core.NewWorld()
 	if err := world.Provide(func(*core.World) (*asset.Codecs, error) {
@@ -18,7 +19,7 @@ func newRegistry(t *testing.T) *blueprint.Registry {
 	}); err != nil {
 		t.Fatalf("provide codecs: %v", err)
 	}
-	return blueprint.NewRegistry(world)
+	return serialization.NewRegistry(world)
 }
 
 func TestRegisterBlueprints(t *testing.T) {

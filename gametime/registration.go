@@ -1,6 +1,6 @@
 package gametime
 
-import "github.com/Leonard-Atorough/castrum/blueprint"
+import "github.com/Leonard-Atorough/castrum/serialization"
 
 // Save keys are stable wire identities; renaming one is a breaking change.
 const (
@@ -13,7 +13,7 @@ const (
 // the simulation and real-time resources and the timer groups. All three
 // are value-shaped - Simulation and Real through their JSON tags, Groups
 // through its own JSON projection.
-func RegisterBlueprints(reg *blueprint.Registry) error {
+func RegisterBlueprints(reg *serialization.Registry) error {
 	if err := reg.Resource[Simulation](SimulationSaveKey); err != nil {
 		return err
 	}
