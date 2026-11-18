@@ -24,12 +24,28 @@ type Result struct {
 	Error error
 }
 
+// Removal records the removal of a tracked component type from an entity.
+type Removal struct {
+	// Entity identifies the entity that lost the component.
+	Entity EntityID
+	// Tick is the change tick at which the removal was recorded.
+	Tick uint64
+}
+
 // Service manages entities, their component values, and their archetype locations.
 type Service struct {
 	// store owns the entity archetypes.
 	store *store
 	// locations maps each live entity to its archetype row.
 	locations map[EntityID]Location
+	// tick is the current change tick, advanced by AdvanceTick. Writes stamp
+	// tracked rows with it.
+	tick uint64
+	// removals holds per-type removal records for the current tick window,
+	// created lazily on the first tracked removal. prevRemovals holds the
+	// previous tick window's records; both rotate on AdvanceTick.
+	removals     map[reflect.Type][]Removal
+	prevRemovals map[reflect.Type][]Removal
 }
 
 // NewService returns an empty entity service.
@@ -38,6 +54,50 @@ func NewService() *Service {
 		store:     newArchetypes(),
 		locations: make(map[EntityID]Location),
 	}
+}
+
+// Tick returns the current change tick.
+func (s *Service) Tick() uint64 {
+	return s.tick
+}
+
+// AdvanceTick advances the change tick by one and rotates the removal
+// window: records from the tick that just ended stay readable until the next
+// advance, then are dropped.
+func (s *Service) AdvanceTick() {
+	s.tick++
+	// Swap wholesale so an empty current window still retires the previous
+	// one; clear drops the two-tick-old records without aliasing them.
+	// Nil maps (no tracked removals yet) swap and clear as no-ops.
+	s.prevRemovals, s.removals = s.removals, s.prevRemovals
+	clear(s.removals)
+}
+
+// Removals returns the removal records for typ from the current and the
+// previous tick window, oldest first. The result is newly allocated, or nil
+// when the type is untracked or nothing was removed in either window.
+func (s *Service) Removals(typ reflect.Type) []Removal {
+	prev := s.prevRemovals[typ]
+	cur := s.removals[typ]
+	if len(prev) == 0 && len(cur) == 0 {
+		return nil
+	}
+	out := make([]Removal, 0, len(prev)+len(cur))
+	out = append(out, prev...)
+	out = append(out, cur...)
+	return out
+}
+
+// logRemoval records a removal of typ on entityID at the current tick.
+// Untracked types are not recorded.
+func (s *Service) logRemoval(typ reflect.Type, entityID EntityID) {
+	if !isTracked(typ) {
+		return
+	}
+	if s.removals == nil {
+		s.removals = make(map[reflect.Type][]Removal)
+	}
+	s.removals[typ] = append(s.removals[typ], Removal{Entity: entityID, Tick: s.tick})
 }
 
 // HasEntity reports whether entityID exists in the service.
@@ -68,6 +128,7 @@ func (s *Service) Create(entityID EntityID, types []reflect.Type, values []any) 
 	index := arch.insertEntity(entityID)
 	for i, t := range types {
 		arch.columns[t][index] = values[i]
+		arch.stampAdded(t, index, s.tick)
 	}
 	s.locations[entityID] = Location{
 		ArchetypeID: arch.ID(),
@@ -112,6 +173,7 @@ func (s *Service) CreateBatch(ids []EntityID, types []reflect.Type, values []any
 		for i := start; i < end; i++ {
 			col[i] = values[j]
 		}
+		arch.stampAddedRange(t, start, end, s.tick)
 	}
 	for i, id := range ids {
 		s.locations[id] = Location{
@@ -140,6 +202,9 @@ func (s *Service) Destroy(entityID EntityID) Result {
 		}
 	}
 
+	for _, t := range arch.key {
+		s.logRemoval(t, entityID)
+	}
 	movedID, moved := arch.removeEntity(loc.Index)
 	delete(s.locations, entityID)
 	if moved {
@@ -199,14 +264,24 @@ func (s *Service) AddComponents(entityID EntityID, types []reflect.Type, values 
 	if from.key.containsAll(types...) {
 		for i, t := range types {
 			from.setComponent(loc.Index, t, values[i])
+			from.StampChanged(t, loc.Index, s.tick)
 		}
 		return Result{}
 	}
 
 	oldKey := from.key
 	oldValues := make([]any, oldKey.Len())
+	// Ticks are snapshotted only when the archetype tracks anything, so
+	// untracked migrations allocate nothing extra.
+	var oldTicks []tickPair
+	if len(from.tracks) > 0 {
+		oldTicks = make([]tickPair, oldKey.Len())
+	}
 	for i, t := range oldKey {
 		oldValues[i] = from.component(loc.Index, t)
+		if oldTicks != nil {
+			oldTicks[i] = from.tickPairAt(t, loc.Index)
+		}
 	}
 
 	movedID, moved := from.removeEntity(loc.Index)
@@ -221,9 +296,17 @@ func (s *Service) AddComponents(entityID EntityID, types []reflect.Type, values 
 	newIndex := to.insertEntity(entityID)
 	for i, t := range oldKey {
 		to.setComponent(newIndex, t, oldValues[i])
+		if oldTicks != nil {
+			to.setTicks(t, newIndex, oldTicks[i])
+		}
 	}
 	for i, t := range types {
 		to.setComponent(newIndex, t, values[i])
+		if oldKey.contains(t) {
+			to.StampChanged(t, newIndex, s.tick)
+		} else {
+			to.stampAdded(t, newIndex, s.tick)
+		}
 	}
 	s.locations[entityID] = Location{
 		ArchetypeID: to.ID(),
@@ -272,6 +355,12 @@ func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Resu
 		return Result{}
 	}
 
+	for _, t := range types {
+		if from.key.contains(t) {
+			s.logRemoval(t, entityID)
+		}
+	}
+
 	remaining := make(key, 0, from.key.Len())
 	for _, t := range from.key {
 		if !slices.Contains(types, t) {
@@ -279,10 +368,19 @@ func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Resu
 		}
 	}
 
-	// Snapshot surviving values in type order before swap-removal reuses the row.
+	// Snapshot surviving values and change ticks in type order before
+	// swap-removal reuses the row. Ticks are snapshotted only when the
+	// archetype tracks anything.
 	oldValues := make([]any, remaining.Len())
+	var oldTicks []tickPair
+	if len(from.tracks) > 0 {
+		oldTicks = make([]tickPair, remaining.Len())
+	}
 	for i, t := range remaining {
 		oldValues[i] = from.component(loc.Index, t)
+		if oldTicks != nil {
+			oldTicks[i] = from.tickPairAt(t, loc.Index)
+		}
 	}
 
 	movedID, moved := from.removeEntity(loc.Index)
@@ -297,6 +395,9 @@ func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Resu
 	newIndex := to.insertEntity(entityID)
 	for i, t := range remaining {
 		to.setComponent(newIndex, t, oldValues[i])
+		if oldTicks != nil {
+			to.setTicks(t, newIndex, oldTicks[i])
+		}
 	}
 	s.locations[entityID] = Location{
 		ArchetypeID: to.ID(),
@@ -362,6 +463,7 @@ func (s *Service) SetComponent(entityID EntityID, t reflect.Type, value any) err
 	if !success {
 		return fmt.Errorf("failed to set component of type %v for entity with ID %d", t, entityID)
 	}
+	arch.StampChanged(t, loc.Index, s.tick)
 	return nil
 }
 

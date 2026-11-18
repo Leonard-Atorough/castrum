@@ -96,10 +96,35 @@ func (k key) String() string {
 
 const initialColumnCapacity = 16
 
+// trackChangesType matches the core.TrackChanges marker structurally: a
+// component type opts into per-row change tracking by implementing
+// TrackChanges() with a value receiver.
+var trackChangesType = reflect.TypeOf((*interface{ TrackChanges() })(nil)).Elem()
+
+// isTracked reports whether component type t opts into change tracking.
+func isTracked(t reflect.Type) bool {
+	return t != nil && t.Implements(trackChangesType)
+}
+
+// changeTicks holds the row-aligned change ticks of one tracked component
+// type. added records when the row's component was attached, changed when it
+// was last written; attaching stamps both.
+type changeTicks struct {
+	added   []uint64
+	changed []uint64
+}
+
+// tickPair is the added/changed stamp of one row.
+type tickPair struct {
+	added   uint64
+	changed uint64
+}
+
 // Archetype groups entities that share the same component types.
 //
 // Each component column has one value per entity, in the same row order as
-// the entity IDs.
+// the entity IDs. Tracked component types additionally carry row-aligned
+// change ticks.
 type Archetype struct {
 	// archetypeID uniquely identifies this archetype within its store.
 	archetypeID
@@ -109,18 +134,32 @@ type Archetype struct {
 	entityIDs []EntityID
 	// columns stores each component type's values in the same row order.
 	columns map[reflect.Type][]any
+	// tracks holds the change ticks of each tracked component type, in the
+	// same row order. Types absent from the map are not tracked.
+	tracks map[reflect.Type]*changeTicks
 }
 
 func newArchetype(id archetypeID, key key) *Archetype {
 	columns := make(map[reflect.Type][]any, len(key))
+	var tracks map[reflect.Type]*changeTicks
 	for _, typ := range key {
 		columns[typ] = make([]any, 0, initialColumnCapacity)
+		if isTracked(typ) {
+			if tracks == nil {
+				tracks = make(map[reflect.Type]*changeTicks, len(key))
+			}
+			tracks[typ] = &changeTicks{
+				added:   make([]uint64, 0, initialColumnCapacity),
+				changed: make([]uint64, 0, initialColumnCapacity),
+			}
+		}
 	}
 	return &Archetype{
 		archetypeID: id,
 		key:         key,
 		entityIDs:   make([]EntityID, 0, initialColumnCapacity),
 		columns:     columns,
+		tracks:      tracks,
 	}
 }
 
@@ -151,6 +190,10 @@ func (a *Archetype) insertEntity(entityID EntityID) int {
 	for typ, col := range a.columns {
 		a.columns[typ] = append(col, nil)
 	}
+	for _, tr := range a.tracks {
+		tr.added = append(tr.added, 0)
+		tr.changed = append(tr.changed, 0)
+	}
 	return len(a.entityIDs) - 1
 }
 
@@ -162,6 +205,13 @@ func (a *Archetype) insertEntities(entityIDs []EntityID) int {
 		col = slices.Grow(col, len(entityIDs))
 		col = col[:oldLen+len(entityIDs)]
 		a.columns[typ] = col
+	}
+	for _, tr := range a.tracks {
+		oldLen := len(tr.added)
+		tr.added = slices.Grow(tr.added, len(entityIDs))[:oldLen+len(entityIDs)]
+		tr.changed = slices.Grow(tr.changed, len(entityIDs))[:oldLen+len(entityIDs)]
+		clear(tr.added[oldLen:])
+		clear(tr.changed[oldLen:])
 	}
 	return start
 }
@@ -185,8 +235,73 @@ func (a *Archetype) removeEntity(index int) (movedID EntityID, moved bool) {
 		col[lastIndex] = nil
 		a.columns[typ] = col[:lastIndex]
 	}
+	for _, tr := range a.tracks {
+		if index != lastIndex {
+			tr.added[index] = tr.added[lastIndex]
+			tr.changed[index] = tr.changed[lastIndex]
+		}
+		tr.added[lastIndex] = 0
+		tr.changed[lastIndex] = 0
+		tr.added = tr.added[:lastIndex]
+		tr.changed = tr.changed[:lastIndex]
+	}
 
 	return movedID, moved
+}
+
+// stampAdded records tick as the row's attach and latest write time for a
+// tracked type. Untracked types and out-of-range rows are ignored.
+func (a *Archetype) stampAdded(typ reflect.Type, index int, tick uint64) {
+	if tr, ok := a.tracks[typ]; ok && index >= 0 && index < len(tr.added) {
+		tr.added[index] = tick
+		tr.changed[index] = tick
+	}
+}
+
+// stampAddedRange stamps rows [start, end) as attached and written at tick.
+func (a *Archetype) stampAddedRange(typ reflect.Type, start, end int, tick uint64) {
+	tr, ok := a.tracks[typ]
+	if !ok {
+		return
+	}
+	for i := max(start, 0); i < min(end, len(tr.added)); i++ {
+		tr.added[i] = tick
+		tr.changed[i] = tick
+	}
+}
+
+// StampChanged records tick as the row's latest write time for a tracked
+// type. Untracked types and out-of-range rows are ignored.
+func (a *Archetype) StampChanged(typ reflect.Type, index int, tick uint64) {
+	if tr, ok := a.tracks[typ]; ok && index >= 0 && index < len(tr.changed) {
+		tr.changed[index] = tick
+	}
+}
+
+// Ticks returns the added and changed ticks of the row for a tracked type.
+// The third result is false for untracked types and out-of-range rows.
+func (a *Archetype) Ticks(typ reflect.Type, index int) (added, changed uint64, ok bool) {
+	tr, ok := a.tracks[typ]
+	if !ok || index < 0 || index >= len(tr.added) {
+		return 0, 0, false
+	}
+	return tr.added[index], tr.changed[index], true
+}
+
+// tickPairAt returns the row's current stamp for typ, zero for untracked
+// types. Used to carry stamps across an archetype migration.
+func (a *Archetype) tickPairAt(typ reflect.Type, index int) tickPair {
+	added, changed, _ := a.Ticks(typ, index)
+	return tickPair{added: added, changed: changed}
+}
+
+// setTicks overwrites the row's stamp for a tracked type. Untracked types and
+// out-of-range rows are ignored.
+func (a *Archetype) setTicks(typ reflect.Type, index int, pair tickPair) {
+	if tr, ok := a.tracks[typ]; ok && index >= 0 && index < len(tr.added) {
+		tr.added[index] = pair.added
+		tr.changed[index] = pair.changed
+	}
 }
 
 func (a *Archetype) setComponent(index int, typ reflect.Type, value any) bool {
