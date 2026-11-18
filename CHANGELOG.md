@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document the unreleased playlist API (#144)
 
 ### Fixed
+- Document the pause/scale same-advance boundary (#232)
 - Release the texture cache write lock on duplicate misses (#220)
 - Correct normals and contact lifecycles (#172)
 - Prevent scaled clock and timer overflow (#171)
