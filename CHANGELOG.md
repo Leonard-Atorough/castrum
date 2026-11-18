@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spawn entities owned by scene instances (#132)
 
 ### Changed
+- Implement scene redesign (#224)
 - **breaking:** Simplify entity struct to a comparable handle wih world-owned lifetime. (#222)
 - **breaking:** Replace animation with new AnimatedSprite component and system (#218)
 - **breaking:** Move sprite from render package to standalone package (#213)
