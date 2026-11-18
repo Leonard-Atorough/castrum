@@ -108,11 +108,12 @@ func New(g *castrum.Game, opts ...option) (*Runner, error) {
 		return nil, fmt.Errorf("castrum/ebiten: audio controller already attached")
 	}
 	loader := g.World().MustResource[*asset.Loader]()
+	codecs := g.World().MustResource[*asset.Codecs]()
 	audioCtx := ebitaudio.CurrentContext()
 	if audioCtx == nil {
 		audioCtx = ebitaudio.NewContext(options.SampleRate)
 	}
-	controller, err := newAudioProvider(audioCtx, loader)
+	controller, err := newAudioProvider(audioCtx, loader, codecs)
 	if err != nil {
 		return nil, err
 	}

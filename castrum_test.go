@@ -98,7 +98,7 @@ func TestNewComposesBuiltinsWithProvidedFilesystem(t *testing.T) {
 	}
 }
 
-func TestNewSnapshotsAssetCodecs(t *testing.T) {
+func TestNewGamesSeeLaterAssetCodecs(t *testing.T) {
 	type levelFile struct{ Name string }
 	codecs := asset.NewCodecs()
 	if err := codecs.SetJSON[levelFile](); err != nil {
@@ -112,14 +112,11 @@ func TestNewSnapshotsAssetCodecs(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := newTestGame(t, WithFilesystem(files), WithAssetCodecs(codecs))
-	for _, tc := range []struct {
-		game *Game
-		want string
-	}{{first, "forest"}, {second, "new configuration"}} {
-		loader := tc.game.World().MustResource[*asset.Loader]()
+	for _, game := range []*Game{first, second} {
+		loader := game.World().MustResource[*asset.Loader]()
 		value, err := loader.Load[levelFile]("level.json")
-		if err != nil || value.Name != tc.want {
-			t.Fatalf("game codec snapshot = %+v, %v; want %q", value, err, tc.want)
+		if err != nil || value.Name != "new configuration" {
+			t.Fatalf("game codec = %+v, %v; want %q", value, err, "new configuration")
 		}
 		requireBuiltinFont(t, loader)
 	}

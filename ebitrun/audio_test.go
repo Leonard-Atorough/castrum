@@ -23,32 +23,21 @@ import (
 	ebitaudio "github.com/hajimehoshi/ebiten/v2/audio"
 )
 
-func TestNewRegistersAudioCodecs(t *testing.T) {
-	r := mustRunner(t, mustGame(t))
-	loader := r.g.World().MustResource[*asset.Loader]()
-	noop := func(io.Reader) (asset.AudioData, error) { return asset.AudioData{}, nil }
-	for _, format := range []asset.Format{asset.FormatMP3, asset.FormatWAV, asset.FormatOGG} {
-		if err := loader.RegisterDecoder(format, noop); err == nil || !strings.Contains(err.Error(), "already exists") {
-			t.Errorf("register %s: %v, want already-registered error", format, err)
-		}
-	}
-}
-
-func TestRunnerAudioCodecsAreLoaderLocal(t *testing.T) {
+func TestNewInstallsAudioCodecsOnSharedCodecs(t *testing.T) {
 	codecs := asset.NewCodecs()
-	standalone, err := asset.NewLoader(nil, asset.LoaderOptions{Codecs: codecs})
-	if err != nil {
-		t.Fatal(err)
-	}
 	game, err := castrum.New(castrum.WithAssetCodecs(codecs))
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := New(game)
-	if err != nil {
+	if _, err := New(game); err != nil {
 		t.Fatal(err)
 	}
-	loader := runner.g.World().MustResource[*asset.Loader]()
+	for _, format := range []asset.Format{asset.FormatMP3, asset.FormatWAV, asset.FormatOGG} {
+		if !codecs.HasDecoder[asset.AudioData](format) {
+			t.Errorf("runner did not install a decoder for %q on the shared codecs", format)
+		}
+	}
+	loader := game.World().MustResource[*asset.Loader]()
 	data, err := loader.LoadReader[asset.AudioData](bytes.NewReader(testWAV()), asset.FormatWAV)
 	if err != nil {
 		t.Fatal(err)
@@ -56,21 +45,9 @@ func TestRunnerAudioCodecsAreLoaderLocal(t *testing.T) {
 	if data.SampleRate != ebitaudio.CurrentContext().SampleRate() {
 		t.Fatalf("decoded rate = %d, want %d", data.SampleRate, ebitaudio.CurrentContext().SampleRate())
 	}
-	fresh, err := asset.NewLoader(nil, asset.LoaderOptions{Codecs: codecs})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, format := range []asset.Format{asset.FormatMP3, asset.FormatWAV, asset.FormatOGG} {
-		if _, err := standalone.LoadReader[asset.AudioData](bytes.NewReader(testWAV()), format); err == nil {
-			t.Errorf("runner codec %q escaped into standalone loader", format)
-		}
-		if _, err := fresh.LoadReader[asset.AudioData](bytes.NewReader(testWAV()), format); err == nil {
-			t.Errorf("runner codec %q escaped into configuration", format)
-		}
-	}
 }
 
-func TestNewReportsAudioCodecConflict(t *testing.T) {
+func TestNewKeepsUserAudioDecoder(t *testing.T) {
 	codecs := asset.NewCodecs()
 	if err := codecs.SetDecoder(asset.FormatWAV, func(io.Reader) (asset.AudioData, error) {
 		return asset.AudioData{SampleRate: 123}, nil
@@ -81,19 +58,13 @@ func TestNewReportsAudioCodecConflict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := New(game); err == nil || !strings.Contains(err.Error(), "wav") {
-		t.Fatalf("codec conflict = %v, want WAV error", err)
+	if _, err := New(game); err != nil {
+		t.Fatalf("New with a user WAV decoder: %v", err)
 	}
 	loader := game.World().MustResource[*asset.Loader]()
 	value, err := loader.LoadReader[asset.AudioData](bytes.NewReader(nil), asset.FormatWAV)
 	if err != nil || value.SampleRate != 123 {
-		t.Fatalf("custom decoder = %+v, %v", value, err)
-	}
-	if game.World().MustResource[*audio.Backend]().Controller() != nil {
-		t.Fatal("failed runner attached an audio controller")
-	}
-	if _, err := game.World().Resource[*TextureProvider](); !errors.Is(err, core.ErrResourceNotRegistered) {
-		t.Fatalf("failed codec registration published texture provider: %v", err)
+		t.Fatalf("user decoder was replaced: %+v, %v", value, err)
 	}
 }
 
@@ -175,11 +146,12 @@ func newAudioProviderHarness(t *testing.T) *audioProviderHarness {
 		t.Fatal(err)
 	}
 	files := &closeTrackingFS{fsys: os.DirFS(dir)}
-	loader, err := asset.NewLoader(files, asset.LoaderOptions{})
+	codecs := asset.NewCodecs()
+	loader, err := asset.NewLoader(files, asset.LoaderOptions{Codecs: codecs})
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider, err := newAudioProvider(ctx, loader)
+	provider, err := newAudioProvider(ctx, loader, codecs)
 	if err != nil {
 		t.Fatal(err)
 	}

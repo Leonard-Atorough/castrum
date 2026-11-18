@@ -39,7 +39,7 @@ func TestAudioPreferencesPersistence(t *testing.T) {
 	}
 }
 
-func TestPreferenceCodecOverridesAreScoped(t *testing.T) {
+func TestPreferenceCodecOverridesReachBuiltGames(t *testing.T) {
 	files := fstest.MapFS{"audio.json": {Data: []byte(`{"master":0.5,"music":0.25,"sfx":0}`)}}
 	codecs := NewAssetCodecs()
 	first, err := New(WithFilesystem(files), WithAssetCodecs(codecs))
@@ -64,13 +64,13 @@ func TestPreferenceCodecOverridesAreScoped(t *testing.T) {
 		game *Game
 		want audio.Preferences
 	}{
-		{first, audio.Preferences{Master: 0.5, Music: 0.25}},
+		{first, override},
 		{second, override},
 		{fresh, audio.Preferences{Master: 0.5, Music: 0.25}},
 	} {
 		got, err := tt.game.World().MustResource[*asset.Loader]().Load[audio.Preferences]("audio.json")
 		if err != nil || got != tt.want {
-			t.Fatalf("scoped preferences=%+v, error=%v; want %+v", got, err, tt.want)
+			t.Fatalf("preferences=%+v, error=%v; want %+v", got, err, tt.want)
 		}
 	}
 	bare, err := New(WithFilesystem(files), WithAssetCodecs(&asset.Codecs{}))

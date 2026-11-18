@@ -3,7 +3,6 @@ package asset
 import (
 	"fmt"
 	"io"
-	"maps"
 	"reflect"
 	"sync"
 )
@@ -16,9 +15,9 @@ type Decoder[T any] func(io.Reader) (T, error)
 type Encoder[T any] func(io.Writer, T) error
 
 // Codecs configures typed encoders and decoders. Its zero value is empty.
-// Loaders and savers copy its registrations at construction; later changes
-// do not affect existing facades. Copies of registrations share their closures,
-// which must support concurrent calls if used concurrently.
+// Loaders and savers read it on every call, so registrations and replacements
+// made after construction take effect for them. Registered closures must
+// support concurrent calls if used concurrently.
 //
 // Registration is safe for concurrent use. Codecs must not be copied.
 type Codecs struct {
@@ -37,7 +36,8 @@ func NewCodecs() *Codecs {
 }
 
 // SetDecoder installs or replaces d for T and format. Nil decoders and
-// empty formats are errors. Existing loaders and savers are unaffected.
+// empty formats are errors. Existing loaders use the new decoder on their next
+// call.
 func (c *Codecs) SetDecoder[T any](format Format, d Decoder[T]) error {
 	if c == nil {
 		return fmt.Errorf("codecs cannot be nil")
@@ -48,7 +48,8 @@ func (c *Codecs) SetDecoder[T any](format Format, d Decoder[T]) error {
 }
 
 // SetEncoder installs or replaces e for T and format. Nil encoders and
-// empty formats are errors. Existing loaders and savers are unaffected.
+// empty formats are errors. Existing savers use the new encoder on their next
+// call.
 func (c *Codecs) SetEncoder[T any](format Format, e Encoder[T]) error {
 	if c == nil {
 		return fmt.Errorf("codecs cannot be nil")
@@ -87,31 +88,43 @@ func (c *Codecs) setEncoder[T any](key codecKey, e Encoder[T]) error {
 	return nil
 }
 
-func (c *Codecs) snapshot() *Codecs {
-	if c == nil {
-		return NewCodecs()
-	}
+func (c *Codecs) decoderValue(key codecKey) (any, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return &Codecs{decoders: maps.Clone(c.decoders), encoders: maps.Clone(c.encoders)}
+	d, ok := c.decoders[key]
+	return d, ok
+}
+
+func (c *Codecs) encoderValue(key codecKey) (any, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	e, ok := c.encoders[key]
+	return e, ok
+}
+
+// HasDecoder reports whether a decoder for T and format is registered.
+func (c *Codecs) HasDecoder[T any](format Format) bool {
+	if c == nil {
+		return false
+	}
+	_, ok := c.decoderValue(codecKey{reflect.TypeFor[T](), format})
+	return ok
 }
 
 func (c *Codecs) decoder[T any](format Format) (Decoder[T], error) {
-	c.mu.RLock()
-	d, ok := c.decoders[codecKey{reflect.TypeFor[T](), format}]
-	c.mu.RUnlock()
+	key := codecKey{reflect.TypeFor[T](), format}
+	d, ok := c.decoderValue(key)
 	if !ok {
-		return nil, fmt.Errorf("no decoder registered for type %v and format %q", reflect.TypeFor[T](), format)
+		return nil, fmt.Errorf("no decoder registered for type %v and format %q", key.typ, format)
 	}
 	return d.(Decoder[T]), nil
 }
 
 func (c *Codecs) encoder[T any](format Format) (Encoder[T], error) {
-	c.mu.RLock()
-	e, ok := c.encoders[codecKey{reflect.TypeFor[T](), format}]
-	c.mu.RUnlock()
+	key := codecKey{reflect.TypeFor[T](), format}
+	e, ok := c.encoderValue(key)
 	if !ok {
-		return nil, fmt.Errorf("no encoder registered for type %v and format %q", reflect.TypeFor[T](), format)
+		return nil, fmt.Errorf("no encoder registered for type %v and format %q", key.typ, format)
 	}
 	return e.(Encoder[T]), nil
 }

@@ -67,8 +67,8 @@ func BenchmarkLoadColdPNG(b *testing.B) {
 // wav codec, the eager path's per-track cost. The ebiten codec
 // dominates this cost.
 func BenchmarkLoadColdWAV(b *testing.B) {
-	loader := benchLoader(b)
-	err := loader.RegisterDecoder(asset.FormatWAV, func(r io.Reader) (asset.AudioData, error) {
+	codecs := asset.NewCodecs()
+	err := codecs.SetDecoder(asset.FormatWAV, func(r io.Reader) (asset.AudioData, error) {
 		stream, err := wav.DecodeWithSampleRate(44100, r)
 		if err != nil {
 			return asset.AudioData{}, err
@@ -79,6 +79,10 @@ func BenchmarkLoadColdWAV(b *testing.B) {
 		}
 		return asset.AudioData{PCM: pcm, SampleRate: 44100, Length: stream.Length()}, nil
 	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	loader, err := asset.NewLoader(benchFS(b), asset.LoaderOptions{Codecs: codecs})
 	if err != nil {
 		b.Fatal(err)
 	}
