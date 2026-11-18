@@ -74,7 +74,7 @@ type Loader struct {
 
 // LoaderOptions configures a loader at construction.
 type LoaderOptions struct {
-	// Codecs supplies registrations to snapshot. Nil selects the defaults.
+	// Codecs supplies shared registrations, read on each call. Nil selects the defaults.
 	Codecs *Codecs
 	// CachePolicy is the default for path loads. Zero selects CacheReuse.
 	CachePolicy CachePolicy
@@ -83,8 +83,7 @@ type LoaderOptions struct {
 // NewLoader creates a Loader backed by filesystem. If filesystem is nil, assets are
 // read from the current working directory. Loading is lazy and begins on the
 // first call to [Loader.Load]. A filesystem containing a nil pointer returns
-// an error, as does an invalid cache policy. Codec registrations are private
-// to the returned loader.
+// an error, as does an invalid cache policy.
 func NewLoader(filesystem fs.FS, opts LoaderOptions) (*Loader, error) {
 	if err := opts.CachePolicy.validate(); err != nil {
 		return nil, fmt.Errorf("asset: NewLoader: %w", err)
@@ -94,9 +93,13 @@ func NewLoader(filesystem fs.FS, opts LoaderOptions) (*Loader, error) {
 	} else if isNilPointer(filesystem) {
 		return nil, fmt.Errorf("asset: NewLoader: filesystem cannot be typed nil")
 	}
+	codecs := opts.Codecs
+	if codecs == nil {
+		codecs = NewCodecs()
+	}
 	a := &Loader{
 		fs:          filesystem,
-		codecs:      opts.Codecs.snapshot(),
+		codecs:      codecs,
 		cache:       newCache(),
 		cachePolicy: opts.CachePolicy,
 	}
@@ -211,21 +214,6 @@ func (l *Loader) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 		return zero, &AssetError{Op: "Decode", Err: err}
 	}
 	return value, nil
-}
-
-// RegisterDecoder registers d for values of type T in format. It returns an
-// error if d is nil, format is empty, or that pair is already registered.
-// Registrations affect only this loader. Configure replacements with
-// [Codecs.SetDecoder] before constructing it.
-func (l *Loader) RegisterDecoder[T any](format Format, d Decoder[T]) error {
-	c := l.codecs
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	key := codecKey{reflect.TypeFor[T](), format}
-	if _, exists := c.decoders[key]; exists {
-		return fmt.Errorf("decoder for type %v and format %q already exists", key.typ, format)
-	}
-	return c.setDecoder(key, d)
 }
 
 // WithCachePolicy overrides the loader's default cache policy for one Load.

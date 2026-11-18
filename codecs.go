@@ -11,8 +11,9 @@ import (
 // NewAssetCodecs returns asset defaults with JSON codecs for [audio.Preferences]
 // and [input.Preferences]. Preference validation and application remain explicit.
 //
-// Configure custom codecs before passing the result to [WithAssetCodecs],
-// [asset.NewLoader], or [asset.NewSaver]. Each call returns independent codecs.
+// Custom codecs may be registered before or after passing the result to
+// [WithAssetCodecs], [asset.NewLoader], or [asset.NewSaver]. Each call returns
+// independent codecs.
 func NewAssetCodecs() *asset.Codecs {
 	codecs := asset.NewCodecs()
 	if err := codecs.SetJSON[audio.Preferences](); err != nil {
