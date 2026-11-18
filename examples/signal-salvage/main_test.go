@@ -42,7 +42,8 @@ func TestRoundWinCollectsEveryCoreAndSwitchesToResult(t *testing.T) {
 		t.Fatalf("round state = %+v, want won with %d cores", state, coreGoal)
 	}
 	advanceTestFrame(t, game, &input.Snapshot{})
-	if _, ok := game.World().MustResource[*scene.Director]().ByName("result"); !ok {
+	director := game.World().MustResource[*scene.Director]()
+	if !director.Live(state.result) {
 		t.Fatal("winning round did not switch to the result scene")
 	}
 }

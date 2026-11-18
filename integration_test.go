@@ -1,5 +1,11 @@
 package castrum
 
+// These tests drive a fully composed Game through its public surface and
+// assert on behaviour that only emerges when several subsystems run together:
+// phase ordering, signal visibility across phases, input edges across fixed
+// ticks, scene and state transitions, and pause or time-scale interactions.
+// Single-package rules belong in that package's own tests.
+
 import (
 	"errors"
 	"math"
@@ -17,7 +23,6 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/scene"
-	"github.com/Leonard-Atorough/castrum/settings"
 	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/state"
 	"github.com/Leonard-Atorough/castrum/tween"
@@ -52,58 +57,74 @@ func newTestAudioEntity(t *testing.T, g *Game, settings audio.Settings, componen
 	return entity
 }
 
-func TestRunnerAudioRunsAfterFrameAndSignalsPostFrame(t *testing.T) {
+// rootScene builds a one-node tree. The props string names the scene in
+// lifecycle records.
+var rootScene = scene.Of(func(string) scene.Node {
+	return scene.Node{Key: "root"}
+})
+
+// recordEntry appends "scene:<name>" to log when the scene is entered.
+func recordEntry(log *[]string, name string) scene.Option {
+	return scene.WithHooks(scene.Hooks{
+		Enter: func(*core.Context, *scene.Handle) error {
+			*log = append(*log, "scene:"+name)
+			return nil
+		},
+	})
+}
+
+func TestEngineDefaultsRunWithoutOptions(t *testing.T) {
 	g := newTestGame(t)
-	controller := &integrationAudioController{finished: true}
-	entity := newTestAudioEntity(t, g, audio.DefaultSettings())
-	hub := g.World().MustResource[*signal.Hub]()
-	frame, post, fixed, nextFrame := hub.NewReader[audio.Finished](), hub.NewReader[audio.Finished](), hub.NewReader[audio.Finished](), hub.NewReader[audio.Finished]()
-	addTestSystem(t, g, core.PhaseFrame, "configure", core.SystemFunc(func(*core.Context) error {
-		if _, ok := frame.Next(); ok {
-			t.Fatal("audio finished before frame work")
-		}
-		return g.World().MustResource[*audio.Mixer]().SetMaster(0.5)
-	}))
-	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
-		t.Fatal(err)
+	fixedDT := g.Options().FixedDT()
+
+	timer, err := g.World().NewEntity(gametime.NewTimer(fixedDT, false))
+	if err != nil {
+		t.Fatalf("spawn timer: %v", err)
 	}
-	var finished audio.Finished
-	var received bool
-	addTestSystem(t, g, core.PhasePostFrame, "finished", core.SystemFunc(func(*core.Context) error {
-		if signal, ok := post.Next(); ok {
-			finished, received = signal, true
-		}
-		return nil
-	}))
-	var fixedTicks int
-	addTestSystem(t, g, core.PhasePreFixed, "check expiration", core.SystemFunc(func(*core.Context) error {
-		fixedTicks++
-		if _, ok := fixed.Next(); ok {
-			t.Fatal("frame signal survived into fixed tick")
-		}
-		return nil
-	}))
-	advanceTestGame(t, g, g.Options().FixedDT())
-	if !received || finished.Entity != entity || finished.Audio != "sound" {
-		t.Fatalf("finished = %+v, received = %t; want entity %d and audio sound", finished, received, entity.ID())
+	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"frame_0", "frame_1"}, 120)
+	if err != nil {
+		t.Fatalf("clip: %v", err)
 	}
-	if fixedTicks != 1 || len(controller.playbacks) != 1 || controller.playbacks[0].Volume != 0.5 {
-		t.Fatalf("fixed ticks = %d, playbacks = %+v", fixedTicks, controller.playbacks)
+	animated, err := animation.NewAnimatedSprite(clip)
+	if err != nil {
+		t.Fatalf("animated sprite: %v", err)
 	}
-	if controller.entity != entity.ID() || controller.source != "sound" {
-		t.Fatalf("controller synced entity %d and audio %q; want entity %d and audio sound", controller.entity, controller.source, entity.ID())
+	animatedEntity, err := g.World().NewEntity(animated, core.Transform{})
+	if err != nil {
+		t.Fatalf("spawn animated sprite: %v", err)
 	}
-	checkedNextFrame := false
-	addTestSystem(t, g, core.PhasePreFrame, "check next frame", core.SystemFunc(func(*core.Context) error {
-		checkedNextFrame = true
-		if _, ok := nextFrame.Next(); ok {
-			t.Fatal("frame signal survived into the next frame")
+	var colliders []core.Entity
+	for _, x := range []float64{0, 1} {
+		shape, err := collision.NewCollider(collision.Circle{Radius: 8})
+		if err != nil {
+			t.Fatalf("NewCollider: %v", err)
 		}
-		return nil
-	}))
-	advanceTestGame(t, g, time.Millisecond)
-	if !checkedNextFrame {
-		t.Fatal("next-frame signal check did not run")
+		entity, err := g.World().NewEntity(shape, core.Transform{Position: geom.Vector2{X: x}})
+		if err != nil {
+			t.Fatalf("NewEntity: %v", err)
+		}
+		colliders = append(colliders, entity)
+	}
+
+	// One fixed tick: the timer completes, the sprite advances one frame,
+	// and the overlapping pair gains a contact.
+	advanceTestGame(t, g, fixedDT)
+
+	if tm, ok := timer.Component[gametime.Timer](g.World()); !ok || tm.CompletedOn == 0 {
+		t.Errorf("timer = %+v, found %t; want completion without any option", tm, ok)
+	}
+	value, ok := animatedEntity.Component[animation.AnimatedSprite](g.World())
+	if !ok {
+		t.Fatal("animated entity lost its component")
+	}
+	if frame, ok, err := value.CurrentFrame(); err != nil || !ok || frame.Region != "frame_1" {
+		t.Errorf("CurrentFrame = %v, %t, %v; want frame_1 without any option", frame, ok, err)
+	}
+	for _, entity := range colliders {
+		contacts, ok := entity.Component[collision.Contacts](g.World())
+		if !ok || len(contacts.Current) != 1 {
+			t.Errorf("entity %d contacts = %+v, found %t; want one contact without any option", entity.ID(), contacts, ok)
+		}
 	}
 }
 
@@ -131,78 +152,7 @@ func TestEngineSystemsRejectRelativeInsertion(t *testing.T) {
 	}
 }
 
-func TestAudioBackendAttachmentTiming(t *testing.T) {
-	for _, phase := range []core.Phase{core.PhasePreFrame, core.PhaseFrame, core.PhasePostFrame} {
-		t.Run(phase.String(), func(t *testing.T) {
-			g := newTestGame(t)
-			controller := &integrationAudioController{}
-			newTestAudioEntity(t, g, audio.DefaultSettings())
-			attached := false
-			addTestSystem(t, g, phase, "attach audio", core.SystemFunc(func(*core.Context) error {
-				if attached {
-					return nil
-				}
-				attached = true
-				return g.World().MustResource[*audio.Backend]().Attach(controller)
-			}))
-			advanceTestGame(t, g, time.Millisecond)
-			want := 0
-			if phase == core.PhasePreFrame {
-				want = 1
-			}
-			if len(controller.playbacks) != want {
-				t.Fatalf("first frame syncs = %d, want %d", len(controller.playbacks), want)
-			}
-			advanceTestGame(t, g, time.Millisecond)
-			if len(controller.playbacks) != want+1 {
-				t.Fatalf("second frame syncs = %d, want %d", len(controller.playbacks), want+1)
-			}
-		})
-	}
-}
-
-func TestAudioBackendHeadlessAndErrors(t *testing.T) {
-	g := newTestGame(t)
-	newTestAudioEntity(t, g, audio.DefaultSettings())
-	advanceTestGame(t, g, time.Millisecond)
-	if _, err := g.World().Resource[audio.Controller](); !errors.Is(err, core.ErrResourceNotRegistered) {
-		t.Fatalf("legacy audio.Controller resource error = %v, want not registered", err)
-	}
-	wantErr := errors.New("backend failed")
-	controller := &integrationAudioController{err: wantErr}
-	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
-		t.Fatal(err)
-	}
-	err := g.Advance(time.Millisecond)
-	if !errors.Is(err, wantErr) || !strings.Contains(err.Error(), audio.SystemName) {
-		t.Fatalf("Advance error = %v, want backend failure from %s", err, audio.SystemName)
-	}
-	controller.err = nil
-	advanceTestGame(t, g, time.Millisecond)
-	if len(controller.playbacks) != 2 || !controller.playbacks[0].Restart || !controller.playbacks[1].Restart {
-		t.Fatalf("playbacks = %+v; headless and failed syncs must not consume the initial restart", controller.playbacks)
-	}
-}
-
-func TestPreFixedInputAcrossCatchUpTicks(t *testing.T) {
-	g := newTestGame(t, WithFixedTPS(4), WithMaxFrameTime(time.Second), WithBindings(input.Bindings{
-		"jump": {input.KeyInput{Key: input.KeySpace}.Binding()},
-	}))
-	snapshot := &input.Snapshot{}
-	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
-	g.Context().Input = snapshot
-	var got []bool
-	addTestSystem(t, g, core.PhasePreFixed, "input", core.SystemFunc(func(ctx *core.Context) error {
-		got = append(got, ctx.Actions.Pressed("jump"))
-		return nil
-	}))
-	advanceTestGame(t, g, 750*time.Millisecond)
-	if want := []bool{true, false, false}; !slices.Equal(got, want) {
-		t.Fatalf("catch-up tick edges = %v, want %v", got, want)
-	}
-}
-
-func TestEngineTickSignalsAndPreFixedMovement(t *testing.T) {
+func TestFixedPhaseSignalsAndMovementShareTick(t *testing.T) {
 	g := newTestGame(t, WithFixedTPS(4))
 	hub := g.World().MustResource[*signal.Hub]()
 	timerReader := hub.NewReader[gametime.Completed]()
@@ -211,7 +161,7 @@ func TestEngineTickSignalsAndPreFixedMovement(t *testing.T) {
 	if _, err := g.World().NewEntity(gametime.NewTimer(250*time.Millisecond, false)); err != nil {
 		t.Fatal(err)
 	}
-	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"frame"}, 4)
+	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"frame_0", "frame_1"}, 120)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,135 +201,51 @@ func TestEngineTickSignalsAndPreFixedMovement(t *testing.T) {
 	advanceTestGame(t, g, 250*time.Millisecond)
 }
 
-func TestSpatialAudioFrameAndFixedOrder(t *testing.T) {
-	g := newTestGame(t, WithFixedTPS(4))
-	listener := g.World().MustResource[*audio.Listener]()
-	listener.Enabled, listener.Mode, listener.Range = true, audio.FixedPosition, 100
-	settings := audio.DefaultSettings()
-	settings.Spatial = true
-	entity := newTestAudioEntity(t, g, settings, core.Transform{})
-	controller := &integrationAudioController{}
-	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
-		t.Fatal(err)
+func TestCollisionSignalsReachFrameAfterFixedTicks(t *testing.T) {
+	g, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
 	}
-	addTestSystem(t, g, core.PhaseFixed, "move", core.SystemFunc(func(ctx *core.Context) error {
-		return entity.Update(ctx.World, func(tr *core.Transform) { tr.Position.X += 50 })
-	}))
-	advanceTestGame(t, g, 250*time.Millisecond)
-	g.Pause()
-	advanceTestGame(t, g, 250*time.Millisecond)
-	if len(controller.playbacks) != 2 || controller.playbacks[0].Volume != 1 ||
-		controller.playbacks[1].Volume != 0.5 || !controller.playbacks[1].Playing || controller.playbacks[1].Restart {
-		t.Fatalf("frame playbacks = %+v, want initial position then fixed movement during game pause", controller.playbacks)
-	}
-}
+	hub := g.World().MustResource[*signal.Hub]()
 
-func TestSettingsWorldAndFrameApplication(t *testing.T) {
-	type accessibility struct{ Subtitles bool }
-	bindings := input.Bindings{"move": {input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyC}.Binding()}}
-	inputPrefs, err := input.NewPreferences(bindings)
+	shape, err := collision.NewCollider(collision.Box{
+		Min: geom.Vector2{X: -1, Y: -1},
+		Max: geom.Vector2{X: 1, Y: 1},
+	})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("collider: %v", err)
 	}
-	if err := inputPrefs.Update(func(p input.Preferences) input.Preferences {
-		p.Bindings["move"] = []input.Input{input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyD}.Binding()}
-		return p
-	}); err != nil {
-		t.Fatal(err)
-	}
-	inputValue, err := inputPrefs.Value()
+	left, err := g.World().NewEntity(core.Transform{}, shape)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("spawn left: %v", err)
 	}
-	game, err := New(WithBindings(inputValue.Bindings))
-	if err != nil {
-		t.Fatal(err)
+	if _, err := g.World().NewEntity(core.Transform{Position: geom.Vector2{X: 1, Y: 0}}, shape); err != nil {
+		t.Fatalf("spawn right: %v", err)
 	}
-	audioPrefs, err := audio.NewPreferences()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := game.World().Provide(func(*core.World) (*settings.Group[audio.Preferences], error) { return audioPrefs, nil }); err != nil {
-		t.Fatal(err)
-	}
-	if err := game.World().Provide(func(*core.World) (*settings.Group[input.Preferences], error) { return inputPrefs, nil }); err != nil {
-		t.Fatal(err)
-	}
-	custom, err := settings.New(accessibility{Subtitles: true}, settings.Policy[accessibility]{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := game.World().Provide(func(*core.World) (*settings.Group[accessibility], error) { return custom, nil }); err != nil {
-		t.Fatal(err)
-	}
-	if game.World().MustResource[*settings.Group[audio.Preferences]]() != audioPrefs ||
-		game.World().MustResource[*settings.Group[input.Preferences]]() != inputPrefs ||
-		game.World().MustResource[*settings.Group[accessibility]]() != custom {
-		t.Fatal("typed preference groups did not resolve independently")
-	}
-	mixer := game.World().MustResource[*audio.Mixer]()
-	actions := game.World().MustResource[*input.ActionMap]()
-	var volumes, axes []float64
-	if err := game.AddSystem(core.PhaseFrame, "observe", core.SystemFunc(func(ctx *core.Context) error {
-		volumes = append(volumes, mixer.Master())
-		axes = append(axes, ctx.Actions.Axis("move"))
+
+	reader := hub.NewReader[collision.Entered]()
+	var got []collision.Entered
+	addTestSystem(t, g, core.PhaseFrame, "signal collector", core.SystemFunc(func(*core.Context) error {
+		for event, ok := reader.Next(); ok; event, ok = reader.Next() {
+			got = append(got, event)
+		}
 		return nil
-	})); err != nil {
-		t.Fatal(err)
+	}))
+
+	step := time.Second / 60
+	for range 3 {
+		advanceTestGame(t, g, step)
 	}
-	if err := game.Startup(); err != nil {
-		t.Fatal(err)
+
+	if len(got) != 2 {
+		t.Fatalf("entered signals = %v, want two (one per perspective)", got)
 	}
-	snapshot := &input.Snapshot{}
-	snapshot.Keys[input.KeyD] = input.State{Held: true}
-	game.Context().Input = snapshot
-	if err := game.Advance(time.Millisecond); err != nil {
-		t.Fatal(err)
-	}
-	if err := audioPrefs.Set(audio.Preferences{Master: 0.4, Music: 1, SFX: 1}); err != nil {
-		t.Fatal(err)
-	}
-	if err := inputPrefs.Set(input.Preferences{Bindings: input.Bindings{"move": {input.KeyPairInput{Negative: input.KeyA, Positive: input.KeyB}.Binding()}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := game.Advance(time.Millisecond); err != nil {
-		t.Fatal(err)
-	}
-	if mixer.Master() != 1 {
-		t.Fatal("changing audio preferences applied them without game code")
-	}
-	if actions.Axis("move") != 1 {
-		t.Fatal("changing input preferences applied them without game code")
-	}
-	value, err := audioPrefs.Value()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := mixer.SetMaster(value.Master); err != nil {
-		t.Fatal(err)
-	}
-	inputValue, err = inputPrefs.Value()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := actions.SetBindings(inputValue.Bindings); err != nil {
-		t.Fatal(err)
-	}
-	if actions.Axis("move") != 1 {
-		t.Fatal("applying bindings changed input before the next update")
-	}
-	if err := game.Advance(time.Millisecond); err != nil {
-		t.Fatal(err)
-	}
-	if len(volumes) != 3 || volumes[0] != 1 || volumes[1] != 1 || volumes[2] != 0.4 {
-		t.Fatalf("volumes = %v", volumes)
-	}
-	if len(axes) != 3 || axes[0] != 1 || axes[1] != 1 || axes[2] != 0 {
-		t.Fatalf("axes = %v; bindings should affect the next input update", axes)
+	if got[0].Entity != left && got[1].Entity != left {
+		t.Fatalf("no entered signal for entity %d: %v", left.ID(), got)
 	}
 }
 
-func TestWithBindingsWiresInput(t *testing.T) {
+func TestBindingEdgesReachEveryPhase(t *testing.T) {
 	bindings := input.Bindings{
 		"jump": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}
@@ -445,210 +311,240 @@ func TestWithBindingsWiresInput(t *testing.T) {
 		t.Errorf("tick edges = %v, want press and release on first tick only", ticks)
 	}
 	if !slices.Equal(preTicks, ticks) {
-		t.Errorf("pre-fixed edges = %v, fixed edges = %v", preTicks, ticks)
+		t.Errorf("pre-fixed edges = %v, fixed edges = %v; want identical", preTicks, ticks)
 	}
 }
 
-func TestNoBindingsNoActionMap(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	if _, err := g.World().Resource[*input.ActionMap](); err == nil {
-		t.Error("an ActionMap resource should not exist without WithBindings")
-	}
-	if g.Context().Actions != nil {
-		t.Error("Context.Actions should be nil without WithBindings")
-	}
-}
-
-func TestTimerSystemAlwaysRegistered(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	if _, err := g.World().Resource[*gametime.Groups](); err != nil {
-		t.Fatalf("resolve timer groups: %v", err)
-	}
-	entity, err := g.World().NewEntity(gametime.NewTimer(2*g.Options().FixedDT(), false))
-	if err != nil {
-		t.Fatalf("spawn timer: %v", err)
-	}
-	if err := g.Advance(2 * g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	tm, ok := entity.Component[gametime.Timer](g.World())
-	if !ok || tm.CompletedOn == 0 {
-		t.Fatalf("timer = %+v, found %t; want completion without any option", tm, ok)
-	}
-}
-
-func TestCollisionSystemAlwaysRegistered(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	queries, queryErr := g.World().Resource[*collision.Queries]()
-	if queryErr != nil {
-		t.Fatalf("Queries resource error: %v", queryErr)
-	}
-	if queries.Tick() != 0 {
-		t.Fatalf("query tick before first update = %d, want 0", queries.Tick())
-	}
-	if _, ok := queries.Raycast(geom.Segment{Start: geom.Vector2{X: -10}, End: geom.Vector2{X: 10}}, collision.RaycastFilter{Mask: ^uint32(0)}); ok {
-		t.Fatal("raycast hit before the first collision update")
-	}
-	var entities []core.Entity
-	for _, x := range []float64{0, 1} {
-		collider, err := collision.NewCollider(collision.Circle{Radius: 8})
-		if err != nil {
-			t.Fatalf("NewCollider: %v", err)
-		}
-		entity, err := g.World().NewEntity(collider, core.Transform{Position: geom.Vector2{X: x}})
-		if err != nil {
-			t.Fatalf("NewEntity: %v", err)
-		}
-		entities = append(entities, entity)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	for _, entity := range entities {
-		contacts, ok := entity.Component[collision.Contacts](g.World())
-		if !ok || len(contacts.Current) != 1 {
-			t.Errorf("entity %d contacts = %+v, found %t; want one contact without any option", entity.ID(), contacts, ok)
-		}
-	}
-}
-
-func TestAnimationSystemAlwaysRegistered(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	// 120 FPS on 60 ticks per second: one fixed tick advances one frame, so a
-	// single Advance proves the engine registered the system without an option.
-	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"frame_0", "frame_1"}, 120)
-	if err != nil {
-		t.Fatalf("clip: %v", err)
-	}
-	animated, err := animation.NewAnimatedSprite(clip)
-	if err != nil {
-		t.Fatalf("animated sprite: %v", err)
-	}
-	entity, err := g.World().NewEntity(animated, core.Transform{})
-	if err != nil {
-		t.Fatalf("spawn animated sprite: %v", err)
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	value, ok := entity.Component[animation.AnimatedSprite](g.World())
-	if !ok {
-		t.Fatal("animated entity lost its component")
-	}
-	frame, ok, err := value.CurrentFrame()
-	if err != nil || !ok {
-		t.Fatalf("CurrentFrame = %v, %v, %v, want the current frame", frame, ok, err)
-	}
-	if frame.Region != "frame_1" {
-		t.Errorf("frame region = %q, want frame_1 advanced without any option", frame.Region)
-	}
-}
-
-func TestWithScenesDoesNotControlGroups(t *testing.T) {
-	g := newTestGame(t, WithScenes())
-	director, err := g.World().Resource[*scene.Director]()
-	if err != nil {
-		t.Fatalf("resolve scene director: %v", err)
-	}
-
-	var updates int
-	if err := g.AddSystem(core.PhaseFixed, "mission", core.SystemFunc(func(*core.Context) error {
-		updates++
+func TestPressEdgeIsSeenOnceAcrossCatchUpTicks(t *testing.T) {
+	g := newTestGame(t, WithFixedTPS(4), WithMaxFrameTime(time.Second), WithBindings(input.Bindings{
+		"jump": {input.KeyInput{Key: input.KeySpace}.Binding()},
+	}))
+	snapshot := &input.Snapshot{}
+	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
+	g.Context().Input = snapshot
+	var got []bool
+	addTestSystem(t, g, core.PhasePreFixed, "input", core.SystemFunc(func(ctx *core.Context) error {
+		got = append(got, ctx.Actions.Pressed("jump"))
 		return nil
-	}), InGroup("mission")); err != nil {
-		t.Fatalf("AddSystem: %v", err)
+	}))
+	advanceTestGame(t, g, 750*time.Millisecond)
+	if want := []bool{true, false, false}; !slices.Equal(got, want) {
+		t.Fatalf("catch-up tick edges = %v, want %v", got, want)
 	}
-	blueprint := func(name string) *scene.Blueprint {
-		return &scene.Blueprint{Name: name, EntityList: []scene.EntitySpec{{Name: "root"}}}
+}
+
+func TestSpatialAudioFollowsFixedMovementDuringPause(t *testing.T) {
+	g := newTestGame(t, WithFixedTPS(4))
+	listener := g.World().MustResource[*audio.Listener]()
+	listener.Enabled, listener.Mode, listener.Range = true, audio.FixedPosition, 100
+	settings := audio.DefaultSettings()
+	settings.Spatial = true
+	entity := newTestAudioEntity(t, g, settings, core.Transform{})
+	controller := &integrationAudioController{}
+	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
+		t.Fatal(err)
 	}
-	check := func(action string, want int) {
-		t.Helper()
-		advanceTestGame(t, g, g.Options().FixedDT())
-		if updates != want {
-			t.Fatalf("%s: group updates = %d, want %d", action, updates, want)
+	addTestSystem(t, g, core.PhaseFixed, "move", core.SystemFunc(func(ctx *core.Context) error {
+		return entity.Update(ctx.World, func(tr *core.Transform) { tr.Position.X += 50 })
+	}))
+	advanceTestGame(t, g, 250*time.Millisecond)
+	g.Pause()
+	advanceTestGame(t, g, 250*time.Millisecond)
+	if len(controller.playbacks) != 2 || controller.playbacks[0].Volume != 1 ||
+		controller.playbacks[1].Volume != 0.5 || !controller.playbacks[1].Playing || controller.playbacks[1].Restart {
+		t.Fatalf("frame playbacks = %+v, want initial position then fixed movement during game pause", controller.playbacks)
+	}
+}
+
+func TestAudioFinishedSignalReachesPostFrameOnly(t *testing.T) {
+	g := newTestGame(t)
+	controller := &integrationAudioController{finished: true}
+	entity := newTestAudioEntity(t, g, audio.DefaultSettings())
+	hub := g.World().MustResource[*signal.Hub]()
+	post := hub.NewReader[audio.Finished]()
+	fixed := hub.NewReader[audio.Finished]()
+	nextFrame := hub.NewReader[audio.Finished]()
+	addTestSystem(t, g, core.PhaseFrame, "configure", core.SystemFunc(func(*core.Context) error {
+		return g.World().MustResource[*audio.Mixer]().SetMaster(0.5)
+	}))
+	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
+		t.Fatal(err)
+	}
+	var finished audio.Finished
+	var received bool
+	addTestSystem(t, g, core.PhasePostFrame, "finished", core.SystemFunc(func(*core.Context) error {
+		if signal, ok := post.Next(); ok {
+			finished, received = signal, true
 		}
+		return nil
+	}))
+	var fixedTicks int
+	addTestSystem(t, g, core.PhasePreFixed, "check expiration", core.SystemFunc(func(*core.Context) error {
+		fixedTicks++
+		if _, ok := fixed.Next(); ok {
+			t.Fatal("frame signal survived into fixed tick")
+		}
+		return nil
+	}))
+	advanceTestGame(t, g, g.Options().FixedDT())
+	if !received || finished.Entity != entity || finished.Audio != "sound" {
+		t.Fatalf("finished = %+v, received = %t; want entity %d and audio sound", finished, received, entity.ID())
 	}
-	if err := g.Startup(); err != nil {
-		t.Fatalf("Startup: %v", err)
+	if fixedTicks != 1 || len(controller.playbacks) != 1 || controller.playbacks[0].Volume != 0.5 {
+		t.Fatalf("fixed ticks = %d, playbacks = %+v", fixedTicks, controller.playbacks)
 	}
-	check("before load", 1)
-
-	id, err := director.Load(blueprint("mission"))
-	if err != nil {
-		t.Fatalf("Load: %v", err)
+	if controller.entity != entity.ID() || controller.source != "sound" {
+		t.Fatalf("controller synced entity %d and audio %q; want entity %d and audio sound", controller.entity, controller.source, entity.ID())
 	}
-	check("after load", 2)
-	if err := g.SetGroupEnabled("mission", false); err != nil {
-		t.Fatal(err)
+	checkedNextFrame := false
+	addTestSystem(t, g, core.PhasePreFrame, "check next frame", core.SystemFunc(func(*core.Context) error {
+		checkedNextFrame = true
+		if _, ok := nextFrame.Next(); ok {
+			t.Fatal("frame signal survived into the next frame")
+		}
+		return nil
+	}))
+	advanceTestGame(t, g, time.Millisecond)
+	if !checkedNextFrame {
+		t.Fatal("next-frame signal check did not run")
 	}
-	if _, err := director.Load(blueprint("overlay")); err != nil {
-		t.Fatalf("Load overlay: %v", err)
-	}
-	check("load while disabled", 2)
-	if err := director.Update(id, blueprint("new mission")); err != nil {
-		t.Fatalf("Update: %v", err)
-	}
-	check("update while disabled", 2)
-	id, err = director.Switch(blueprint("replacement"))
-	if err != nil {
-		t.Fatalf("Switch: %v", err)
-	}
-	check("switch while disabled", 2)
-	if err := director.Remove(id); err != nil {
-		t.Fatalf("Remove: %v", err)
-	}
-	check("remove while disabled", 2)
-	if err := g.SetGroupEnabled("mission", true); err != nil {
-		t.Fatal(err)
-	}
-	check("explicit enable", 3)
-	id, err = director.Load(blueprint("another"))
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	check("load while enabled", 4)
-	if err := director.Remove(id); err != nil {
-		t.Fatalf("Remove: %v", err)
-	}
-	check("remove while enabled", 5)
 }
 
-func TestWithoutStateHasNoMachine(t *testing.T) {
-	for _, tt := range []struct {
-		name string
-		opts []option
-	}{
-		{"default", nil},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			g := newTestGame(t, tt.opts...)
-			if _, err := g.World().Resource[*state.Machine[string]](); !errors.Is(err, core.ErrResourceNotRegistered) {
-				t.Fatalf("state resource error = %v, want ErrResourceNotRegistered", err)
+func TestAudioBackendFailureSurfacesThroughAdvance(t *testing.T) {
+	g := newTestGame(t)
+	newTestAudioEntity(t, g, audio.DefaultSettings())
+	advanceTestGame(t, g, time.Millisecond)
+
+	wantErr := errors.New("backend failed")
+	controller := &integrationAudioController{err: wantErr}
+	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
+		t.Fatal(err)
+	}
+	err := g.Advance(time.Millisecond)
+	if !errors.Is(err, wantErr) || !strings.Contains(err.Error(), audio.SystemName) {
+		t.Fatalf("Advance error = %v, want backend failure from %s", err, audio.SystemName)
+	}
+	controller.err = nil
+	advanceTestGame(t, g, time.Millisecond)
+	if len(controller.playbacks) != 2 || !controller.playbacks[0].Restart || !controller.playbacks[1].Restart {
+		t.Fatalf("playbacks = %+v; headless and failed syncs must not consume the initial restart", controller.playbacks)
+	}
+}
+
+func TestStateTransitionsOrderAgainstScenesAndFrameWork(t *testing.T) {
+	machine := state.New[string]().WithInitial("boot")
+	g := newTestGame(t, WithScenes(), WithState(machine), WithBindings(input.Bindings{
+		"start": {input.KeyInput{Key: input.KeySpace}.Binding()},
+	}))
+	director := g.World().MustResource[*scene.Director]()
+	hub := g.World().MustResource[*signal.Hub]()
+	startupSignal := hub.NewReader[state.Initialized[string]]()
+	frameSignal := hub.NewReader[state.Initialized[string]]()
+	changed := hub.NewReader[state.Changed[string]]()
+	fixedSignal := hub.NewReader[state.Changed[string]]()
+	var got []string
+
+	// Superseded below by the same-batch Switch from the boot hook, so it never enters.
+	if _, err := director.Switch(rootScene, "setup", recordEntry(&got, "setup")); err != nil {
+		t.Fatalf("queue setup scene: %v", err)
+	}
+	machine.OnEnter("boot", core.SystemFunc(func(*core.Context) error {
+		got = append(got, "state:boot")
+		_, err := director.Switch(rootScene, "startup", recordEntry(&got, "startup"))
+		return err
+	}))
+	machine.OnExit("boot", core.SystemFunc(func(*core.Context) error {
+		got = append(got, "state:exit-boot")
+		return nil
+	}))
+	machine.OnEnter("play", core.SystemFunc(func(ctx *core.Context) error {
+		if !ctx.Actions.JustPressed("start") {
+			t.Fatal("state hook ran before frame input updated")
+		}
+		got = append(got, "state:play")
+		_, err := director.Switch(rootScene, "frame", recordEntry(&got, "frame"))
+		return err
+	}))
+	loaded := false
+	addTestSystem(t, g, core.PhasePreFrame, "user.pre-frame", core.SystemFunc(func(*core.Context) error {
+		got = append(got, "user:pre-frame")
+		if loaded {
+			return nil
+		}
+		loaded = true
+		_, err := director.Load(rootScene, "pre-frame", recordEntry(&got, "pre-frame"))
+		return err
+	}))
+	addTestSystem(t, g, core.PhaseStartup, "user.startup", core.SystemFunc(func(*core.Context) error {
+		if event, ok := startupSignal.Next(); !ok || event.State != "boot" {
+			t.Fatalf("startup signal = %+v, %t", event, ok)
+		}
+		got = append(got, "user:startup")
+		return nil
+	}))
+	frames := 0
+	addTestSystem(t, g, core.PhaseFrame, "user.frame", core.SystemFunc(func(*core.Context) error {
+		frames++
+		if frames == 1 {
+			if event, ok := frameSignal.Next(); !ok || event.State != "boot" {
+				t.Fatalf("first-frame initialization signal = %+v, %t", event, ok)
 			}
-		})
+			if event, ok := changed.Next(); !ok || event != (state.Changed[string]{From: "boot", To: "play"}) {
+				t.Fatalf("frame change signal = %+v, %t", event, ok)
+			}
+		}
+		got = append(got, "user:frame")
+		return nil
+	}))
+	addTestSystem(t, g, core.PhaseFixed, "user.fixed", core.SystemFunc(func(*core.Context) error {
+		if _, ok := fixedSignal.Next(); ok {
+			t.Fatal("state signal did not expire before fixed ticks")
+		}
+		got = append(got, "user:fixed")
+		return nil
+	}))
+
+	if err := g.Startup(); err != nil {
+		t.Fatalf("Startup(): %v", err)
+	}
+	wantStartup := []string{"state:boot", "scene:startup", "user:startup"}
+	if !slices.Equal(got, wantStartup) {
+		t.Fatalf("startup order = %v, want %v", got, wantStartup)
+	}
+
+	if err := machine.Request("play"); err != nil {
+		t.Fatalf("Request(play): %v", err)
+	}
+	snapshot := &input.Snapshot{}
+	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
+	g.Context().Input = snapshot
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("Advance(): %v", err)
+	}
+	// Scenes drain before the state system within PreFrame, so the scene
+	// requests queued by the state and user hooks apply on the next Advance.
+	wantFirst := []string{
+		"state:boot", "scene:startup", "user:startup",
+		"state:exit-boot", "state:play", "user:pre-frame", "user:frame", "user:fixed",
+	}
+	if !slices.Equal(got, wantFirst) {
+		t.Fatalf("first frame order = %v, want %v", got, wantFirst)
+	}
+
+	if err := g.Advance(g.Options().FixedDT()); err != nil {
+		t.Fatalf("second Advance(): %v", err)
+	}
+	wantSecond := append(slices.Clone(wantFirst),
+		"scene:frame", "scene:pre-frame", "user:pre-frame", "user:frame", "user:fixed")
+	if !slices.Equal(got, wantSecond) {
+		t.Fatalf("second frame order = %v, want %v", got, wantSecond)
 	}
 }
 
-func TestWithStateRegistersMultipleMachines(t *testing.T) {
+func TestStateMachinesCoordinateInOrder(t *testing.T) {
 	first := state.New[int]().WithInitial(1)
 	last := state.New[string]().WithInitial("boot")
 	g := newTestGame(t, WithState(first), WithState(last))
-	if g.World().MustResource[*state.Machine[int]]() != first ||
-		g.World().MustResource[*state.Machine[string]]() != last {
-		t.Fatal("configured machines were not both provided")
-	}
 	var got []string
 	first.OnEnter(1, func(*core.Context) error { got = append(got, "first"); return nil })
 	last.OnEnter("boot", func(*core.Context) error { got = append(got, "last"); return nil })
@@ -666,6 +562,7 @@ func TestWithStateRegistersMultipleMachines(t *testing.T) {
 	if !first.Is(2) || !last.Is("play") {
 		t.Fatal("later machine did not process the earlier machine's hook request")
 	}
+
 	boom := errors.New("first machine failed")
 	first.OnEnter(3, func(*core.Context) error { return boom })
 	if err := first.Request(3); err != nil {
@@ -684,20 +581,9 @@ func TestWithStateRegistersMultipleMachines(t *testing.T) {
 	if !last.Is("done") {
 		t.Fatal("later machine's preserved request was not applied")
 	}
-	for _, duplicate := range []*state.Machine[int]{first, state.New[int]()} {
-		if game, err := New(WithState(first), WithState(duplicate)); err == nil || game != nil {
-			t.Fatal("duplicate machine resource type was accepted")
-		}
-	}
 }
 
-func TestWithStateRejectsNilMachine(t *testing.T) {
-	if g, err := New(WithState[string](nil)); err == nil || g != nil {
-		t.Fatalf("New with nil machine = %v, %v, want nil game and an error", g, err)
-	}
-}
-
-func TestWithStateRunsWhilePaused(t *testing.T) {
+func TestStateMachinesAdvanceWhilePaused(t *testing.T) {
 	machine := state.New[string]().WithInitial("boot")
 	g := newTestGame(t, WithState(machine))
 	if err := g.Startup(); err != nil {
@@ -715,225 +601,70 @@ func TestWithStateRunsWhilePaused(t *testing.T) {
 	}
 }
 
-func TestStateTransitionsRunBeforeSceneOperationsAndFrameSystems(t *testing.T) {
-	machine := state.New[string]().WithInitial("boot")
-	g := newTestGame(t, WithScenes(), WithState(machine), WithBindings(input.Bindings{
-		"start": {input.KeyInput{Key: input.KeySpace}.Binding()},
-	}))
-	if got := g.World().MustResource[*state.Machine[string]](); got != machine {
-		t.Fatal("state resource is not the configured machine")
-	}
+func TestSceneLifecycleLeavesGroupStateToGameCode(t *testing.T) {
+	g := newTestGame(t, WithScenes())
 	director := g.World().MustResource[*scene.Director]()
-	hub := g.World().MustResource[*signal.Hub]()
-	startupSignal := hub.NewReader[state.Initialized[string]]()
-	frameSignal := hub.NewReader[state.Initialized[string]]()
-	changed := hub.NewReader[state.Changed[string]]()
-	fixedSignal := hub.NewReader[state.Changed[string]]()
-	var got []string
-	blueprint := func(name string) *scene.Blueprint {
-		return &scene.Blueprint{
-			Name:       name,
-			EntityList: []scene.EntitySpec{{Name: "root"}},
-			Hooks: scene.Hooks{Enter: func(*core.Context, *scene.Instance) error {
-				got = append(got, "scene:"+name)
-				return nil
-			}},
-		}
-	}
-	if _, err := director.Switch(blueprint("setup")); err != nil {
-		t.Fatalf("queue setup scene: %v", err)
-	}
 
-	machine.OnEnter("boot", core.SystemFunc(func(*core.Context) error {
-		got = append(got, "state:boot")
-		_, err := director.Switch(blueprint("startup"))
-		return err
-	}))
-	machine.OnExit("boot", core.SystemFunc(func(*core.Context) error {
-		got = append(got, "state:exit-boot")
+	var updates int
+	if err := g.AddSystem(core.PhaseFixed, "mission", core.SystemFunc(func(*core.Context) error {
+		updates++
 		return nil
-	}))
-	machine.OnEnter("play", core.SystemFunc(func(ctx *core.Context) error {
-		if !ctx.Actions.JustPressed("start") {
-			t.Fatal("state hook ran before frame input updated")
-		}
-		got = append(got, "state:play")
-		_, err := director.Switch(blueprint("frame"))
-		return err
-	}))
-	addTestSystem(t, g, core.PhasePreFrame, "user.pre-frame", core.SystemFunc(func(*core.Context) error {
-		got = append(got, "user:pre-frame")
-		_, err := director.Load(blueprint("pre-frame"))
-		return err
-	}))
-	addTestSystem(t, g, core.PhaseStartup, "user.startup", core.SystemFunc(func(*core.Context) error {
-		if event, ok := startupSignal.Next(); !ok || event.State != "boot" {
-			t.Fatalf("startup signal = %+v, %t", event, ok)
-		}
-		got = append(got, "user:startup")
-		return nil
-	}))
-	addTestSystem(t, g, core.PhaseFrame, "user.frame", core.SystemFunc(func(*core.Context) error {
-		if event, ok := frameSignal.Next(); !ok || event.State != "boot" {
-			t.Fatalf("first-frame initialization signal = %+v, %t", event, ok)
-		}
-		if event, ok := changed.Next(); !ok || event != (state.Changed[string]{From: "boot", To: "play"}) {
-			t.Fatalf("frame change signal = %+v, %t", event, ok)
-		}
-		got = append(got, "user:frame")
-		return nil
-	}))
-	addTestSystem(t, g, core.PhaseFixed, "user.fixed", core.SystemFunc(func(ctx *core.Context) error {
-		if _, ok := fixedSignal.Next(); ok {
-			t.Fatal("state signal did not expire before fixed ticks")
-		}
-		if ctx.Actions.Pressed("start") {
-			t.Fatal("scene transition did not flush the pending input edge")
-		}
-		got = append(got, "user:fixed")
-		return nil
-	}))
-
-	if err := g.Startup(); err != nil {
-		t.Fatalf("Startup(): %v", err)
-	}
-	wantStartup := []string{"state:boot", "scene:setup", "scene:startup", "user:startup"}
-	if !slices.Equal(got, wantStartup) {
-		t.Fatalf("startup order = %v, want %v", got, wantStartup)
-	}
-
-	if err := machine.Request("play"); err != nil {
-		t.Fatalf("Request(play): %v", err)
-	}
-	snapshot := &input.Snapshot{}
-	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
-	g.Context().Input = snapshot
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance(): %v", err)
-	}
-	want := []string{
-		"state:boot", "scene:setup", "scene:startup", "user:startup",
-		"state:exit-boot", "state:play", "user:pre-frame", "scene:frame", "scene:pre-frame", "user:frame", "user:fixed",
-	}
-	if !slices.Equal(got, want) {
-		t.Fatalf("execution order = %v, want %v", got, want)
-	}
-}
-
-func TestWithScenesProcessesStartupRequests(t *testing.T) {
-	g, err := New(WithScenes())
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	director := g.World().MustResource[*scene.Director]()
-	id, err := director.Load(&scene.Blueprint{Name: "startup", EntityList: []scene.EntitySpec{{Name: "root"}}})
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	var entered bool
-	if err := g.AddSystem(core.PhaseStartup, "check scene", core.SystemFunc(func(*core.Context) error {
-		for entry := range core.NewQuery(g.World()).With(scene.OwnershipRecord{}).Execute() {
-			owner, _ := entry.Component[scene.OwnershipRecord]()
-			entered = entered || owner.Instance == id
-		}
-		return nil
-	})); err != nil {
+	}), InGroup("mission")); err != nil {
 		t.Fatalf("AddSystem: %v", err)
+	}
+	check := func(action string, want int) {
+		t.Helper()
+		advanceTestGame(t, g, g.Options().FixedDT())
+		if updates != want {
+			t.Fatalf("%s: group updates = %d, want %d", action, updates, want)
+		}
 	}
 	if err := g.Startup(); err != nil {
 		t.Fatalf("Startup: %v", err)
 	}
-	if !entered {
-		t.Fatal("startup system did not see queued scene entities")
+	check("before load", 1)
+
+	id, err := director.Load(rootScene, "mission")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
 	}
+	check("after load", 2)
+	if err := g.SetGroupEnabled("mission", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := director.Load(rootScene, "overlay"); err != nil {
+		t.Fatalf("Load overlay: %v", err)
+	}
+	check("load while disabled", 2)
+	if err := director.Update(id, rootScene, "new mission"); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	check("update while disabled", 2)
+	id, err = director.Switch(rootScene, "replacement")
+	if err != nil {
+		t.Fatalf("Switch: %v", err)
+	}
+	check("switch while disabled", 2)
+	if err := director.Remove(id); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	check("remove while disabled", 2)
+	if err := g.SetGroupEnabled("mission", true); err != nil {
+		t.Fatal(err)
+	}
+	check("explicit enable", 3)
+	id, err = director.Load(rootScene, "another")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	check("load while enabled", 4)
+	if err := director.Remove(id); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	check("remove while enabled", 5)
 }
 
-func TestTimerEmitsCompletedSignal(t *testing.T) {
-	// FixedTPS 4 => fixedDT 250ms; a 300ms one-shot completes on tick 2.
-	g, err := New(WithFixedTPS(4))
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	hub := g.World().MustResource[*signal.Hub]()
-	reader := hub.NewReader[gametime.Completed]()
-
-	entity, err := g.World().NewEntity(gametime.NewTimer(300*time.Millisecond, false))
-	if err != nil {
-		t.Fatalf("spawn: %v", err)
-	}
-
-	var got []gametime.Completed
-	if err := g.AddSystem(core.PhaseFrame, "signal collector", core.SystemFunc(func(ctx *core.Context) error {
-		for event, ok := reader.Next(); ok; event, ok = reader.Next() {
-			got = append(got, event)
-		}
-		return nil
-	})); err != nil {
-		t.Fatalf("AddSystem: %v", err)
-	}
-
-	step := 100 * time.Millisecond
-	for range 6 {
-		if err := g.Advance(step); err != nil {
-			t.Fatalf("Advance: %v", err)
-		}
-	}
-	if len(got) != 1 || got[0] != (gametime.Completed{Entity: entity, Tick: 2}) {
-		t.Fatalf("signals = %v, want one completion of entity %d on tick 2", got, entity.ID())
-	}
-}
-
-func TestCollisionEmitsEnteredSignal(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	hub := g.World().MustResource[*signal.Hub]()
-
-	shape, err := collision.NewCollider(collision.Box{
-		Min: geom.Vector2{X: -1, Y: -1},
-		Max: geom.Vector2{X: 1, Y: 1},
-	})
-	if err != nil {
-		t.Fatalf("collider: %v", err)
-	}
-	left, err := g.World().NewEntity(core.Transform{}, shape)
-	if err != nil {
-		t.Fatalf("spawn left: %v", err)
-	}
-	_, err = g.World().NewEntity(
-		core.Transform{Position: geom.Vector2{X: 1, Y: 0}}, shape)
-	if err != nil {
-		t.Fatalf("spawn right: %v", err)
-	}
-
-	reader := hub.NewReader[collision.Entered]()
-	var got []collision.Entered
-	if err := g.AddSystem(core.PhaseFrame, "signal collector", core.SystemFunc(func(ctx *core.Context) error {
-		for event, ok := reader.Next(); ok; event, ok = reader.Next() {
-			got = append(got, event)
-		}
-		return nil
-	})); err != nil {
-		t.Fatalf("AddSystem: %v", err)
-	}
-
-	step := time.Second / 60
-	for range 3 {
-		if err := g.Advance(step); err != nil {
-			t.Fatalf("Advance: %v", err)
-		}
-	}
-
-	if len(got) != 2 {
-		t.Fatalf("entered signals = %v, want two (one per perspective)", got)
-	}
-	if got[0].Entity != left && got[1].Entity != left {
-		t.Fatalf("no entered signal for entity %d: %v", left.ID(), got)
-	}
-}
-
-func TestTweenSchedulerClocks(t *testing.T) {
+func TestTweenClocksFollowPauseAndTimeScale(t *testing.T) {
 	t.Parallel()
 
 	type step struct {
@@ -1049,176 +780,5 @@ func TestTweenSchedulerClocks(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestSimulationTimeIsTheLoopResource(t *testing.T) {
-	g, err := New(WithFixedTPS(4))
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	sim, err := g.World().Resource[*gametime.Simulation]()
-	if err != nil {
-		t.Fatalf("resolve simulation: %v", err)
-	}
-	if sim.Tick != 0 || sim.Paused || sim.Scale != 1 {
-		t.Fatalf("simulation = %+v, want a running simulation at tick 0 scale 1", *sim)
-	}
-
-	// FixedTPS 4 => fixedDT 250ms; one 250ms advance runs exactly one tick.
-	for range 3 {
-		if err := g.Advance(g.Options().FixedDT()); err != nil {
-			t.Fatalf("Advance: %v", err)
-		}
-	}
-	if sim.Tick != 3 {
-		t.Fatalf("Tick = %d, want 3", sim.Tick)
-	}
-
-	sim.Pause()
-	if !g.Paused() {
-		t.Fatal("resource pause is not visible through Game.Paused")
-	}
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance while paused: %v", err)
-	}
-	if sim.Tick != 3 {
-		t.Fatalf("Tick = %d while paused, want 3", sim.Tick)
-	}
-
-	sim.Resume()
-	if err := sim.SetScale(2); err != nil {
-		t.Fatalf("SetScale: %v", err)
-	}
-	if g.TimeScale() != 2 {
-		t.Fatalf("TimeScale = %v, want 2", g.TimeScale())
-	}
-	// Double scale: one 250ms advance accumulates 500ms => two ticks.
-	if err := g.Advance(g.Options().FixedDT()); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	if sim.Tick != 5 {
-		t.Fatalf("Tick = %d at double scale, want 5", sim.Tick)
-	}
-
-	// The game-level API drives the same resource.
-	if err := g.SetTimeScale(0.5); err != nil {
-		t.Fatalf("SetTimeScale: %v", err)
-	}
-	if sim.Scale != 0.5 {
-		t.Fatalf("Scale = %v, want 0.5 via SetTimeScale", sim.Scale)
-	}
-	g.Pause()
-	if !sim.Paused {
-		t.Fatal("Game.Pause did not pause the resource")
-	}
-	g.Resume()
-	if sim.Paused {
-		t.Fatal("Game.Resume did not resume the resource")
-	}
-}
-
-func TestRealTimeIsWallClock(t *testing.T) {
-	g, err := New(WithFixedTPS(4), WithMaxFrameTime(250*time.Millisecond))
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	real, err := g.World().Resource[*gametime.Real]()
-	if err != nil {
-		t.Fatalf("resolve real time: %v", err)
-	}
-	sim := g.World().MustResource[*gametime.Simulation]()
-
-	// Real time accumulates raw elapsed, clamped nowhere.
-	if err := g.Advance(time.Second); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	if real.Elapsed != time.Second || real.Delta != time.Second {
-		t.Fatalf("real = %v/%v, want 1s/1s", real.Elapsed, real.Delta)
-	}
-
-	// Pause stops simulation time; real time keeps flowing, frames included.
-	g.Pause()
-	if err := g.Advance(time.Second); err != nil {
-		t.Fatalf("Advance while paused: %v", err)
-	}
-	if real.Elapsed != 2*time.Second {
-		t.Fatalf("real Elapsed = %v while paused, want 2s", real.Elapsed)
-	}
-	if real.Frame != 2 {
-		t.Fatalf("real Frame = %d while paused, want 2", real.Frame)
-	}
-	if sim.Tick != 1 {
-		t.Fatalf("sim Tick = %d while paused, want 1 (held from the first advance)", sim.Tick)
-	}
-
-	// Scale changes tick rate; real time is unaffected.
-	g.Resume()
-	if err := g.SetTimeScale(2); err != nil {
-		t.Fatalf("SetTimeScale: %v", err)
-	}
-	if err := g.Advance(125 * time.Millisecond); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	if real.Elapsed != 2125*time.Millisecond {
-		t.Fatalf("real Elapsed = %v at double scale, want 2125ms", real.Elapsed)
-	}
-
-	// The clamp limits simulation ingestion, never real time.
-	if err := g.Advance(10 * time.Second); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	if real.Delta != 10*time.Second || real.Elapsed != 12125*time.Millisecond {
-		t.Fatalf("real = %v/%v, want unclamped 10s/12125ms", real.Delta, real.Elapsed)
-	}
-	// 10s clamped to 250ms at double scale = 500ms => two more fixed ticks.
-	if sim.Tick != 4 {
-		t.Fatalf("sim Tick = %d after clamped advance, want 4", sim.Tick)
-	}
-
-	// The clamp is runtime-adjustable through the resource.
-	real.MaxFrameTime = 500 * time.Millisecond
-	if err := g.Advance(2 * time.Second); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	// 2s clamped to 500ms at double scale = 1s => four more ticks of 250ms.
-	if sim.Tick != 8 {
-		t.Fatalf("sim Tick = %d after adjusted clamp, want 8", sim.Tick)
-	}
-}
-
-func TestDeltaTimeMirrorsThePhaseResources(t *testing.T) {
-	g, err := New(WithFixedTPS(4), WithMaxFrameTime(250*time.Millisecond))
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	sim := g.World().MustResource[*gametime.Simulation]()
-	var frameDelta, fixedDelta time.Duration
-	if err := g.AddSystem(core.PhaseFrame, "frame.delta", core.SystemFunc(func(ctx *core.Context) error {
-		frameDelta = ctx.DeltaTime
-		return nil
-	})); err != nil {
-		t.Fatalf("AddSystem: %v", err)
-	}
-	if err := g.AddSystem(core.PhaseFixed, "fixed.delta", core.SystemFunc(func(ctx *core.Context) error {
-		fixedDelta = ctx.DeltaTime
-		return nil
-	})); err != nil {
-		t.Fatalf("AddSystem: %v", err)
-	}
-
-	// A 1s advance is clamped to 250ms for the frame phase; fixed ticks
-	// always see Simulation.Delta.
-	if err := g.Advance(time.Second); err != nil {
-		t.Fatalf("Advance: %v", err)
-	}
-	if frameDelta != 250*time.Millisecond {
-		t.Fatalf("frame DeltaTime = %v, want 250ms (clamped)", frameDelta)
-	}
-	if fixedDelta != sim.Delta || fixedDelta != 250*time.Millisecond {
-		t.Fatalf("fixed DeltaTime = %v, want Simulation.Delta (250ms)", fixedDelta)
-	}
-	if sim.Elapsed() != 250*time.Millisecond {
-		t.Fatalf("sim Elapsed = %v, want 250ms", sim.Elapsed())
 	}
 }

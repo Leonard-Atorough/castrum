@@ -195,10 +195,10 @@ func WithScenes() option {
 			}); err != nil {
 				return fmt.Errorf("castrum: provide scene director: %w", err)
 			}
-			if err := g.addEngineFirst(core.PhaseStartup, scene.StartupSystemName, scene.NewStartupSystem(director)); err != nil {
+			if err := g.addEngineFirst(core.PhaseStartup, scene.StartupSystemName, scene.NewSystem(director)); err != nil {
 				return err
 			}
-			return g.addEngineFirst(core.PhaseFrame, scene.FrameSystemName, scene.NewFrameSystem(director))
+			return g.addEngineFirst(core.PhasePreFrame, scene.FrameSystemName, scene.NewSystem(director))
 		})
 	})
 }
