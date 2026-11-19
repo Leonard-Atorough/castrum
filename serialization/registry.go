@@ -130,8 +130,7 @@ func (r *Registry) Component[T any](key string) error {
 	return nil
 }
 
-// Resource registers T under key for resource serialization. The world
-// must store the resource as *T.
+// Resource registers T under key for resource serialization.
 //
 // It returns an error if key is empty or already registered as a resource,
 // T is a pointer type or is already registered as a resource under
@@ -182,13 +181,12 @@ func (r *Registry) Resource[T any](key string) error {
 	return nil
 }
 
-// DecodeResource decodes raw JSON into a value of the resource's
-// registered type. Values implementing [core.Validatable] validate here:
-// unlike components, a restored resource passes through no other
-// validation gate, so this is the corruption check for resource data.
+// DecodeResource decodes raw JSON into a value of the resource's registered
+// type.
 //
-// If the key is unknown or decoding or validation fails, the error names
-// the key.
+// It validates values that implement [core.Validatable]. A Validate method
+// defined only on a pointer to the registered type is not called. If the key
+// is unknown or decoding or validation fails, the error names the key.
 func (r *Registry) DecodeResource(key string, raw []byte) (any, error) {
 	entry, ok := r.resources[key]
 	if !ok {
@@ -264,8 +262,7 @@ func (r *Registry) ComponentType(key string) (reflect.Type, bool) {
 }
 
 // KeyForType returns the key registered for the component type typ and
-// whether typ is a registered component. Saving uses it to map world
-// components back to their wire keys.
+// whether typ is a registered component.
 func (r *Registry) KeyForType(typ reflect.Type) (string, bool) {
 	entry, ok := r.componentTypes[typ]
 	if !ok {
