@@ -1,8 +1,8 @@
-// Command primitive demonstrates the shape drawables as a spectrum:
-// one row per shape kind - rect, circle/ellipse, line - and one
-// column per variant - filled, outlined, spinning, stretched by the
-// transform's scale, half-faded. The same five knobs run across every
-// row, so each column reads as one knob and each row as one geometry.
+// Command primitive demonstrates the shape drawables as a spectrum. Each row
+// is one shape kind (rect, circle or ellipse, line), and each column is one
+// variant: filled, outlined, spinning, stretched by the transform's scale, or
+// half-faded. The same five knobs run across every row, so each column reads
+// as one knob and each row as one geometry.
 // Shapes are pure geometry: no assets are loaded.
 //
 // Run from this directory:
@@ -27,15 +27,10 @@ const (
 
 	screenW, screenH = 1280, 720
 
-	// The spectrum grid: cellX0 + c*cellDX places variant column c,
-	// rowY0 + r*rowDY places shape row r.
 	cellX0, cellDX = 200, 220
 	rowY0, rowDY   = 140, 220
 )
 
-// cell is one variant in the spectrum: the sprite to draw, the
-// transform's scale it renders with (zero means uniform), and whether
-// the spin system advances its rotation.
 type cell struct {
 	sprite spr.Primitive
 	scale  geom.Vector2
@@ -69,18 +64,18 @@ func run() error {
 	}{
 		{
 
-			color: &color.RGBA{G: 100, A: 128},
+			color: &color.RGBA{G: 200, A: 128},
 			cells: []cell{
 				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}},
 				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: spr.Style{Outline: true, StrokeWidth: 3}}},
 				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}, spin: true},
 				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}, scale: stretch},
-				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: spr.Style{Color: &color.RGBA{G: 100, A: 64}}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: spr.Style{Color: &color.RGBA{G: 200, A: 64}}}},
 			},
 		},
 		{
 
-			color: &color.RGBA{R: 110, A: 128},
+			color: &color.RGBA{R: 220, A: 128},
 			cells: []cell{
 				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}},
 				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: spr.Style{Outline: true, StrokeWidth: 3}}},
@@ -90,12 +85,12 @@ func run() error {
 				// Equal radii stretched by the transform: the other
 				// road to an ellipse, composed per axis.
 				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}, scale: stretch},
-				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: spr.Style{Color: &color.RGBA{R: 110, A: 64}}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: spr.Style{Color: &color.RGBA{R: 220, A: 64}}}},
 			},
 		},
 		{
 
-			color: &color.RGBA{B: 110, A: 128},
+			color: &color.RGBA{B: 220, A: 128},
 			cells: []cell{
 				// A zero From anchors the segment at the position.
 				{sprite: spr.Primitive{Shape: spr.ShapeLine, To: geom.Vector2{X: 80, Y: 0}, Style: spr.Style{Outline: true, StrokeWidth: 4}}},
