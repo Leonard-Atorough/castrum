@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/scene"
 )
@@ -20,6 +21,9 @@ type File struct {
 	Persistent bool `json:"persistent"`
 	// Components lists the node's components. Each registered type may appear once.
 	Components []FileComponent `json:"components"`
+	// Assets lists assets to load before the scene enters, keyed by
+	// registered asset type.
+	Assets []FileAsset `json:"assets"`
 	// Children lists the child nodes. Child keys must be unique within the node.
 	Children []File `json:"children"`
 }
@@ -32,10 +36,19 @@ type FileComponent struct {
 	Value json.RawMessage `json:"value"`
 }
 
-// Open builds the [scene.Node] described by f and its children.
-//
-// It fails on an invalid or duplicate key, an unknown or repeated component
-// type, or a component that fails to decode or validate.
+// FileAsset is one preload entry in a [File]: an asset of a registered
+// asset type, loaded before the scene enters.
+type FileAsset struct {
+	// Type is the key the asset type was registered under with [Registry.Asset].
+	Type string `json:"type"`
+	// ID is the asset path to load.
+	ID asset.ID `json:"id"`
+}
+
+// Open builds the [scene.Node] described by f and its children. It fails on
+// an invalid or duplicate key, an unknown or repeated component type, a
+// component that fails to decode or validate, authored content that would
+// contribute nothing ([core.Authored]), or an unregistered asset type.
 func (f File) Open(reg *Registry) (scene.Node, error) {
 	return f.open(reg, "")
 }
@@ -93,6 +106,14 @@ func (f File) open(reg *Registry, path string) (scene.Node, error) {
 
 	nodepath := join(path, f.Key)
 	n := scene.Node{Key: f.Key, Persistent: f.Persistent}
+
+	for i, a := range f.Assets {
+		preload, err := reg.Preload(a.Type, a.ID)
+		if err != nil {
+			return scene.Node{}, fmt.Errorf("serialization: asset %d (%s) in node %q: %w", i, a.Type, nodepath, err)
+		}
+		n.Assets = append(n.Assets, preload)
+	}
 
 	types := make(map[reflect.Type]bool, len(f.Components))
 	for i, c := range f.Components {
