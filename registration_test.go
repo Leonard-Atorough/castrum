@@ -2,13 +2,16 @@ package castrum
 
 import (
 	"bytes"
+	"image/color"
 	"reflect"
 	"testing"
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/serialization"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 func newEngineTestRegistry(t *testing.T) *serialization.Registry {
@@ -23,42 +26,67 @@ func newEngineTestRegistry(t *testing.T) *serialization.Registry {
 	return serialization.NewRegistry(world)
 }
 
-func TestRegisterEngineRegistersEngineComponents(t *testing.T) {
+func TestRegisterEngineMapsComponentKeys(t *testing.T) {
 	reg := newEngineTestRegistry(t)
 	if err := registerEngine(reg); err != nil {
 		t.Fatalf("registerEngine: %v", err)
 	}
 
-	if typ, ok := reg.ComponentType(TransformKey); !ok || typ != reflect.TypeFor[core.Transform]() {
-		t.Fatalf("TransformKey type = %v, %v", typ, ok)
-	}
-	if typ, ok := reg.ComponentType(ColliderKey); !ok || typ != reflect.TypeFor[collision.Collider]() {
-		t.Fatalf("ColliderKey type = %v, %v", typ, ok)
-	}
-	if key, ok := reg.KeyForType(reflect.TypeFor[core.Transform]()); !ok || key != TransformKey {
-		t.Fatalf("Transform key = %q, %v", key, ok)
-	}
-	if key, ok := reg.KeyForType(reflect.TypeFor[collision.Collider]()); !ok || key != ColliderKey {
-		t.Fatalf("Collider key = %q, %v", key, ok)
+	for key, want := range map[string]reflect.Type{
+		TransformKey: reflect.TypeFor[core.Transform](),
+		ColliderKey:  reflect.TypeFor[collision.Collider](),
+		SpriteKey:    reflect.TypeFor[sprite.Sprite](),
+		TextKey:      reflect.TypeFor[sprite.Text](),
+		PrimitiveKey: reflect.TypeFor[sprite.Primitive](),
+	} {
+		typ, ok := reg.ComponentType(key)
+		if !ok || typ != want {
+			t.Errorf("key %q type = %v, %v; want %v", key, typ, ok, want)
+		}
+		back, ok := reg.KeyForType(want)
+		if !ok || back != key {
+			t.Errorf("type %v key = %q, %v; want %q", want, back, ok, key)
+		}
 	}
 }
 
-func TestRegisterEngineTransformRoundTrip(t *testing.T) {
+func TestRegisterEngineComponentRoundTrip(t *testing.T) {
 	reg := newEngineTestRegistry(t)
 	if err := registerEngine(reg); err != nil {
 		t.Fatalf("registerEngine: %v", err)
 	}
 
-	var buf bytes.Buffer
-	if err := reg.EncodeComponent(TransformKey, core.Transform{}, &buf); err != nil {
-		t.Fatalf("EncodeComponent: %v", err)
-	}
-	got, err := reg.DecodeComponent(TransformKey, buf.Bytes())
-	if err != nil {
-		t.Fatalf("DecodeComponent: %v", err)
-	}
-	if _, ok := got.(core.Transform); !ok {
-		t.Fatalf("decoded %T, want core.Transform", got)
+	for _, tt := range []struct {
+		key   string
+		value any
+	}{
+		{TransformKey, core.Transform{Position: geom.Vector2{X: 12, Y: 34}, Rotation: 0.5}},
+		{SpriteKey, sprite.Sprite{
+			Asset: "sprites.json", Region: "player",
+			Style: sprite.Style{Layer: 2, Color: &color.RGBA{R: 100, G: 220, B: 140, A: 255}},
+		}},
+		{TextKey, sprite.Text{
+			Asset: "fonts/go.ttf", Text: "hello, castrum", TextSize: 16,
+			Style: sprite.Style{Color: &color.RGBA{R: 25, G: 237, B: 237, A: 255}},
+		}},
+		{PrimitiveKey, sprite.Primitive{
+			Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 32, Y: 16},
+			Style: sprite.Style{Outline: true, StrokeWidth: 2},
+		}},
+	} {
+		t.Run(tt.key, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := reg.EncodeComponent(tt.key, tt.value, &buf); err != nil {
+				t.Fatalf("EncodeComponent: %v", err)
+			}
+			decoded, err := reg.DecodeComponent(tt.key, buf.Bytes())
+			if err != nil {
+				t.Fatalf("DecodeComponent: %v", err)
+			}
+			if !reflect.DeepEqual(decoded, tt.value) {
+				t.Fatalf("decoded = %+v, want %+v", decoded, tt.value)
+			}
+		})
 	}
 }
 
