@@ -81,9 +81,7 @@ func NewSpriteClip(source asset.SheetRef, frames []string, fps float64) (SpriteC
 // AnimatedSprite is a sprite with its own animation state.
 // Its zero value has no clip and draws nothing.
 //
-// An entity needs a [core.Transform] to be rendered; animated frames
-// stage after every static visual class, so an animated sprite may share
-// its entity with a [sprite.Sprite], [sprite.Text], or [sprite.Primitive].
+// It requires a [core.Transform] to render.
 type AnimatedSprite struct {
 	// Loop selects what happens after the clip's final frame.
 	Loop LoopMode
