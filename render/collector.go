@@ -18,8 +18,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
-// DrawItem is one drawable resolved from a [sprite.Sprite] or
-// [animation.AnimatedSprite] for a frame.
+// DrawItem is one drawable resolved from a [sprite.Sprite], [sprite.Text],
+// [sprite.Primitive], or [animation.AnimatedSprite] for a frame.
 type DrawItem struct {
 	// Texture is the source texture for a texture item; empty for text and shapes.
 	Texture asset.ID
@@ -59,7 +59,8 @@ type DrawList struct {
 	// Camera is the resolved primary camera view.
 	Camera CameraView
 	// Items is the sorted set of drawables. When returned by [Collector.Collect],
-	// the collector owns the slice and overwrites it on its next call.
+	// the collector owns the slice and overwrites it on its next call; callers
+	// must not modify or retain it.
 	Items []DrawItem
 }
 
@@ -82,8 +83,8 @@ type Collector struct {
 	// view is the published [*CameraView] resource; every Collect writes
 	// the resolved view into it.
 	view *CameraView
-	// SortedItems backs [DrawList.Items]. It is reused on the next
-	// [Collector.Collect] call; callers must not modify or retain it.
+	// SortedItems is the storage behind [DrawList.Items] and follows its
+	// ownership rule.
 	SortedItems []DrawItem
 }
 
@@ -129,15 +130,13 @@ func NewCollector(world *core.World) *Collector {
 	}
 }
 
-// Collect resolves the draw list for the current frame. It interpolates
-// transforms using [core.Context.Alpha], clamps the camera to its bounds,
-// culls conservative rotated and stroked bounds to the view, and sorts items
-// by layer, sort order, then world Y.
-// Text bounds use [asset.FontData.Measure].
+// Collect resolves the draw list for the current frame. Items outside the
+// camera view are culled, and the rest are sorted by layer, sort order, then
+// world Y.
 //
 // When a primary camera is available, Collect publishes the resolved view as
 // the world's [*CameraView] resource once collection succeeds: the resource
-// always describes a drawn frame. A failed Collect publishes nothing - the
+// always describes a drawn frame. A failed Collect publishes nothing; the
 // resource keeps the previous frame's view, and a first Collect that fails
 // registers no resource. Calls without a primary camera leave the resource
 // unchanged.
@@ -147,9 +146,9 @@ func NewCollector(world *core.World) *Collector {
 // Sheet documents, textures, and text resolve through the world's [asset.Loader].
 // Sheet regions are checked against the decoded texture before staging.
 // An entity may carry [sprite.Sprite], [sprite.Text], [sprite.Primitive],
-// and [animation.AnimatedSprite] together; each contributes its own item,
-// staged in that class order. Layer, SortOrder, and world Y order items
-// across classes; class order is the tiebreak among them.
+// and [animation.AnimatedSprite] together; each contributes its own item.
+// Among items with equal layer, sort order, and world Y, class order decides:
+// sprites, then primitives, then text, then animated sprites.
 func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 	camera, ok, err := c.camera.Resolve(ctx.Alpha, ctx.LogicalWidth, ctx.LogicalHeight)
 	if err != nil {
