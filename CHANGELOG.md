@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Implement the games data format "file" to unlock data driven workflow  (#238)
 - Implement tick-stamped system-level scheduling (#234)
 - Add Added/Changed query filters over per-row change ticks (#229)
 - Implement resource and component registry (#225)
