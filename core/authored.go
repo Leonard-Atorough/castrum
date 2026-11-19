@@ -1,13 +1,13 @@
 package core
 
-// Authored reports whether a component value is acceptable as authored
-// file content. File data is written deliberately, so a component that
-// would draw nothing - a text with no font, a sprite with no asset -
-// is an authoring mistake even though its zero value is valid runtime
-// state. Data boundaries reject Authored failures; runtime spawn does
-// not.
+// Authored is the opt-in contract for validating components in authored files.
+//
+// Its rules may be stricter than [Validatable], allowing runtime zero values
+// while rejecting incomplete file content. File loading calls Authored on
+// component values; runtime entity creation does not. Implement Authored with
+// a value receiver so file loading can detect it.
 type Authored interface {
-	// Authored reports an error naming the rule when the value would
-	// contribute nothing to a file-authored entity.
+	// Authored returns an error if the component is unsuitable for authored
+	// file content.
 	Authored() error
 }
