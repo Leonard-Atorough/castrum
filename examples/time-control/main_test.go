@@ -81,9 +81,8 @@ func TestTimeControlsPauseScaleAndResumeOrbit(t *testing.T) {
 			t.Fatalf("scale=%v, want %v", g.TimeScale(), step.scale)
 		}
 		sprite, _ := state.Component[spr.Sprite](g.World())
-		source, ok := sprite.Drawable.(spr.TextSource)
-		if !ok || source.Text != step.text {
-			t.Fatalf("status=%v, want %q", sprite.Drawable, step.text)
+		if sprite.Source.Kind != spr.KindText || sprite.Source.Text != step.text {
+			t.Fatalf("status=%v, want %q", sprite.Source, step.text)
 		}
 		checkOrbits(step.angle)
 	}

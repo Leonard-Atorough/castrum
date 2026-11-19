@@ -23,7 +23,7 @@ func BenchmarkMemoryPerEntity(b *testing.B) {
 	for range population {
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: 1, Y: 2}},
-			sprite.Sprite{Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 4, Y: 4}}},
+			sprite.Sprite{Source: sprite.Source{Kind: sprite.KindCircle, Radii: geom.Vector2{X: 4, Y: 4}}},
 		); err != nil {
 			b.Fatal(err)
 		}

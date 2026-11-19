@@ -98,7 +98,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 	for line := range labels {
 		label, err := g.World().NewEntity(
 			core.Transform{Position: geom.Vector2{X: 480, Y: float64(36 + line*46)}},
-			spr.Sprite{Drawable: spr.TextSource{Font: builtin.Font, Size: 22}},
+			spr.Sprite{Source: spr.Source{Kind: spr.KindText, Asset: builtin.Font, TextSize: 22}},
 		)
 		if err != nil {
 			return nil, nil, err
@@ -133,7 +133,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 				text = lines[i]
 			}
 			if err := label.Update(ctx.World, func(sprite *spr.Sprite) {
-				sprite.Drawable = spr.TextSource{Font: builtin.Font, Text: text, Size: 22}
+				sprite.Source = spr.Source{Kind: spr.KindText, Asset: builtin.Font, Text: text, TextSize: 22}
 			}); err != nil {
 				return err
 			}

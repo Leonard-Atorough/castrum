@@ -177,7 +177,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		a, _ := e.Component[animation.AnimatedSprite]()
 		transform, _ := e.Component[core.Transform]()
 		prev, _ := e.Component[core.PrevTransform]()
-		frame, ok, err := a.CurrentFrame()
+		ref, region, ok, err := a.CurrentFrame()
 		if err != nil {
 			return DrawList{}, fmt.Errorf("castrum: collect: animated sprite: entity %d: %w", e.ID(), err)
 		}
@@ -185,10 +185,21 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 			// A clipless sprite is legal and draws nothing.
 			continue
 		}
-		view := sprite.Sprite{Drawable: frame, Style: a.Style}
-		if err := c.collectSprite(viewport, ctx.Alpha, assetLoader, view, prev, transform); err != nil {
+		if transform.Scale.X == 0 {
+			transform.Scale.X = 1
+		}
+		if transform.Scale.Y == 0 {
+			transform.Scale.Y = 1
+		}
+		scale := prev.Scale.Lerp(transform.Scale, ctx.Alpha)
+		rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*ctx.Alpha
+		item, size, err := c.collectSheet(assetLoader, sprite.Sprite{Style: a.Style}, rotation, scale, ref, region)
+		if err != nil {
 			return DrawList{}, err
 		}
+		var zero geom.Vector2
+		c.stage(viewport, ctx.Alpha, a.Style.Layer, a.Style.SortOrder,
+			prev.Position, transform.Position, zero, size, item)
 	}
 
 	slices.SortStableFunc(c.working, func(a, b workingItem) int {
@@ -226,115 +237,140 @@ func (c *Collector) collectSprite(viewport geom.Rect, alpha float64, loadAsset f
 
 	var item DrawItem
 	var offset, size geom.Vector2
-	switch drawable := s.Drawable.(type) {
-	case nil:
+	var err error
+	switch s.Source.Kind {
+	case sprite.KindNone:
 		return nil
-	case sprite.SheetSource:
-		srv, err := loadAsset()
+	case sprite.KindSheet:
+		item, size, err = c.collectSheet(loadAsset, s, rotation, scale, asset.FileSheet(s.Source.Asset), s.Source.Region)
 		if err != nil {
 			return err
 		}
-		sheet, err := drawable.Sheet.Resolve(srv)
-		if err != nil {
-			return fmt.Errorf("castrum: collect: %w", err)
-		}
-		region, err := sheet.Region(drawable.Region)
-		if err != nil {
-			return fmt.Errorf("castrum: collect: %w", err)
-		}
-		texture, err := srv.Load[asset.TextureData](string(sheet.Texture))
-		if err != nil {
-			return fmt.Errorf("castrum: collect: sheet region %q: %w", drawable.Region, err)
-		}
-		if texture.Image == nil {
-			return fmt.Errorf("castrum: collect: sheet texture %q has no decoded image", sheet.Texture)
-		}
-		if !region.In(texture.Image.Bounds()) {
-			return fmt.Errorf("castrum: collect: sheet region %q falls outside texture %q bounds %v",
-				drawable.Region, sheet.Texture, texture.Image.Bounds())
-		}
-		size = geom.Vector2{
-			X: float64(region.Dx()) * scale.X,
-			Y: float64(region.Dy()) * scale.Y,
-		}
-		item = textureItem(s, rotation, scale, sheet.Texture, region)
-	case sprite.TextureSource:
-		srv, err := loadAsset()
-		if err != nil {
+	case sprite.KindTexture:
+		if err := c.collectTexture(loadAsset, s, rotation, scale, &item, &size); err != nil {
 			return err
 		}
-		data, err := srv.Load[asset.TextureData](string(drawable.Texture))
-		if err != nil {
-			return fmt.Errorf("castrum: collect: texture %q: %w", drawable.Texture, err)
-		}
-		size = geom.Vector2{
-			X: float64(data.Width) * scale.X,
-			Y: float64(data.Height) * scale.Y,
-		}
-		item = textureItem(s, rotation, scale, drawable.Texture, image.Rectangle{})
-	case sprite.TextSource:
-		if drawable.Text == "" {
+	case sprite.KindText:
+		if s.Source.Text == "" {
 			return nil
 		}
-		srv, err := loadAsset()
-		if err != nil {
+		if err := c.collectText(loadAsset, s, rotation, scale, &item, &size); err != nil {
 			return err
 		}
-		font, err := srv.Load[asset.FontData](string(drawable.Font))
-		if err != nil {
-			return fmt.Errorf("castrum: collect: font %q: %w", drawable.Font, err)
-		}
-		textWidth, textHeight := font.Measure(drawable.Size, drawable.Text)
-		fill := s.Style.Color
-		if fill == nil {
-			fill = color.White
-		}
+	case sprite.KindRect:
+		shape := sprite.RectShape{Size: s.Source.Rect}
 		size = geom.Vector2{
-			X: textWidth * scale.X,
-			Y: textHeight * scale.Y,
+			X: shape.Size.X * scale.X,
+			Y: shape.Size.Y * scale.Y,
 		}
-		item = DrawItem{
-			Text:       drawable.Text,
-			Font:       drawable.Font,
-			TextSize:   drawable.Size,
-			TextWidth:  textWidth,
-			TextHeight: textHeight,
-			Rotation:   rotation,
-			Scale:      scale,
-			Color:      fill,
-		}
-	case sprite.RectShape:
+		item = shapeItem(s, rotation, scale, shape)
+	case sprite.KindCircle:
+		shape := sprite.CircleShape{Radii: s.Source.Radii}
 		size = geom.Vector2{
-			X: drawable.Size.X * scale.X,
-			Y: drawable.Size.Y * scale.Y,
+			X: 2 * shape.Radii.X * scale.X,
+			Y: 2 * shape.Radii.Y * scale.Y,
 		}
-		item = shapeItem(s, rotation, scale, drawable)
-	case sprite.CircleShape:
-		size = geom.Vector2{
-			X: 2 * drawable.Radii.X * scale.X,
-			Y: 2 * drawable.Radii.Y * scale.Y,
-		}
-		item = shapeItem(s, rotation, scale, drawable)
-	case sprite.LineShape:
+		item = shapeItem(s, rotation, scale, shape)
+	case sprite.KindLine:
+		shape := sprite.LineShape{From: s.Source.From, To: s.Source.To}
 		segment := geom.Segment{
 			Start: geom.Vector2{
-				X: drawable.From.X * scale.X,
-				Y: drawable.From.Y * scale.Y,
+				X: shape.From.X * scale.X,
+				Y: shape.From.Y * scale.Y,
 			},
 			End: geom.Vector2{
-				X: drawable.To.X * scale.X,
-				Y: drawable.To.Y * scale.Y,
+				X: shape.To.X * scale.X,
+				Y: shape.To.Y * scale.Y,
 			},
 		}
 		bounds := segment.BoundingBox()
 		offset, size = bounds.Center(), bounds.Size()
-		item = shapeItem(s, rotation, scale, drawable)
+		item = shapeItem(s, rotation, scale, shape)
 	default:
-		// Unreachable: the sum is sealed and Validate covers it.
+		// Unreachable: Validate rejects unknown kinds at the boundary.
 		return nil
 	}
 	c.stage(viewport, alpha, s.Style.Layer, s.Style.SortOrder,
 		prev.Position, transform.Position, offset, size, item)
+	return nil
+}
+
+// collectSheet resolves a sheet region into a texture item. Sprite
+// components reference sheets by file ID; animated sprite clips retain
+// the resolved reference. Both resolve through this path.
+func (c *Collector) collectSheet(loadAsset func() (*asset.Loader, error), s sprite.Sprite, rotation float64, scale geom.Vector2, ref asset.SheetRef, region string) (DrawItem, geom.Vector2, error) {
+	srv, err := loadAsset()
+	if err != nil {
+		return DrawItem{}, geom.Vector2{}, err
+	}
+	sheet, err := ref.Resolve(srv)
+	if err != nil {
+		return DrawItem{}, geom.Vector2{}, fmt.Errorf("castrum: collect: %w", err)
+	}
+	regionRect, err := sheet.Region(region)
+	if err != nil {
+		return DrawItem{}, geom.Vector2{}, fmt.Errorf("castrum: collect: %w", err)
+	}
+	texture, err := srv.Load[asset.TextureData](string(sheet.Texture))
+	if err != nil {
+		return DrawItem{}, geom.Vector2{}, fmt.Errorf("castrum: collect: sheet region %q: %w", region, err)
+	}
+	if texture.Image == nil {
+		return DrawItem{}, geom.Vector2{}, fmt.Errorf("castrum: collect: sheet texture %q has no decoded image", sheet.Texture)
+	}
+	if !regionRect.In(texture.Image.Bounds()) {
+		return DrawItem{}, geom.Vector2{}, fmt.Errorf("castrum: collect: sheet region %q falls outside texture %q bounds %v",
+			region, sheet.Texture, texture.Image.Bounds())
+	}
+	size := geom.Vector2{
+		X: float64(regionRect.Dx()) * scale.X,
+		Y: float64(regionRect.Dy()) * scale.Y,
+	}
+	return textureItem(s, rotation, scale, sheet.Texture, regionRect), size, nil
+}
+
+func (c *Collector) collectTexture(loadAsset func() (*asset.Loader, error), s sprite.Sprite, rotation float64, scale geom.Vector2, item *DrawItem, size *geom.Vector2) error {
+	srv, err := loadAsset()
+	if err != nil {
+		return err
+	}
+	data, err := srv.Load[asset.TextureData](string(s.Source.Asset))
+	if err != nil {
+		return fmt.Errorf("castrum: collect: texture %q: %w", s.Source.Asset, err)
+	}
+	*size = geom.Vector2{
+		X: float64(data.Width) * scale.X,
+		Y: float64(data.Height) * scale.Y,
+	}
+	*item = textureItem(s, rotation, scale, s.Source.Asset, image.Rectangle{})
+	return nil
+}
+
+func (c *Collector) collectText(loadAsset func() (*asset.Loader, error), s sprite.Sprite, rotation float64, scale geom.Vector2, item *DrawItem, size *geom.Vector2) error {
+	srv, err := loadAsset()
+	if err != nil {
+		return err
+	}
+	font, err := srv.Load[asset.FontData](string(s.Source.Asset))
+	if err != nil {
+		return fmt.Errorf("castrum: collect: font %q: %w", s.Source.Asset, err)
+	}
+	textWidth, textHeight := font.Measure(s.Source.TextSize, s.Source.Text)
+	fill := styleTint(s.Style.Color, color.White)
+	*size = geom.Vector2{
+		X: textWidth * scale.X,
+		Y: textHeight * scale.Y,
+	}
+	*item = DrawItem{
+		Text:       s.Source.Text,
+		Font:       s.Source.Asset,
+		TextSize:   s.Source.TextSize,
+		TextWidth:  textWidth,
+		TextHeight: textHeight,
+		Rotation:   rotation,
+		Scale:      scale,
+		Color:      fill,
+	}
 	return nil
 }
 
@@ -391,6 +427,10 @@ func (c *Collector) initializeView(world *core.World) error {
 }
 
 func textureItem(sprite sprite.Sprite, rotation float64, scale geom.Vector2, texture asset.ID, region image.Rectangle) DrawItem {
+	var tint color.Color
+	if sprite.Style.Color != nil {
+		tint = *sprite.Style.Color
+	}
 	return DrawItem{
 		Texture:  texture,
 		Rect:     region,
@@ -398,15 +438,12 @@ func textureItem(sprite sprite.Sprite, rotation float64, scale geom.Vector2, tex
 		Scale:    scale,
 		FlipH:    sprite.Style.FlipH,
 		FlipV:    sprite.Style.FlipV,
-		Color:    sprite.Style.Color,
+		Color:    tint,
 	}
 }
 
 func shapeItem(sprite sprite.Sprite, rotation float64, scale geom.Vector2, shape sprite.Shape) DrawItem {
-	fill := sprite.Style.Color
-	if fill == nil {
-		fill = color.Black
-	}
+	fill := styleTint(sprite.Style.Color, color.Black)
 	return DrawItem{
 		Shape:       shape,
 		Rotation:    rotation,
@@ -415,4 +452,14 @@ func shapeItem(sprite sprite.Sprite, rotation float64, scale geom.Vector2, shape
 		Outline:     sprite.Style.Outline,
 		StrokeWidth: sprite.Style.StrokeWidth,
 	}
+}
+
+// styleTint converts a style color to a fill, substituting fallback when
+// the style is untinted. A typed-nil *color.RGBA must not leak into the
+// color.Color interface, so nil is handled before the conversion.
+func styleTint(clr *color.RGBA, fallback color.Color) color.Color {
+	if clr == nil {
+		return fallback
+	}
+	return *clr
 }

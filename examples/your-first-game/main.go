@@ -103,10 +103,10 @@ type game struct {
 }
 
 // bulletColor is the fill color for bullet circles.
-var bulletColor = color.NRGBA{R: 245, G: 220, B: 130, A: 255}
+var bulletColor = &color.RGBA{R: 245, G: 220, B: 130, A: 255}
 
 // tileColor is the fill color for the start tile.
-var tileColor = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+var tileColor = &color.RGBA{R: 255, G: 255, B: 255, A: 255}
 
 func main() {
 	if err := run(); err != nil {
@@ -165,8 +165,8 @@ func run() error {
 	if _, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
 		sprite.Sprite{
-			Drawable: sprite.RectShape{Size: geom.Vector2{X: TileSize, Y: TileSize}},
-			Style:    sprite.Style{Color: tileColor, SortOrder: -1},
+			Source: sprite.Source{Kind: sprite.KindRect, Rect: geom.Vector2{X: TileSize, Y: TileSize}},
+			Style:  sprite.Style{Color: tileColor, SortOrder: -1},
 		},
 	); err != nil {
 		return err
@@ -182,7 +182,7 @@ func run() error {
 	playerCollider.Mask = collision.Mask(enemyLayer)
 	hull, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
-		sprite.Sprite{Drawable: sprite.TextureSource{Texture: AssetHull}},
+		sprite.Sprite{Source: sprite.Source{Kind: sprite.KindTexture, Asset: AssetHull}},
 		playerCollider,
 	)
 	if err != nil {
@@ -193,7 +193,7 @@ func run() error {
 	// Start it paused: a stopped timer means the gun is ready to fire.
 	turret, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
-		sprite.Sprite{Drawable: sprite.TextureSource{Texture: AssetTurret}, Style: sprite.Style{Layer: 1}},
+		sprite.Sprite{Source: sprite.Source{Kind: sprite.KindTexture, Asset: AssetTurret}, Style: sprite.Style{Layer: 1}},
 		gametime.NewTimer(FireCooldown, false),
 	)
 	if err != nil {
@@ -221,7 +221,7 @@ func run() error {
 	// the gun is ready.
 	cooldown, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos.Add(geom.Vector2{X: 0, Y: 72}), Scale: geom.Vector2{X: 1, Y: 1}},
-		sprite.Sprite{Drawable: sprite.TextSource{Font: AssetFont, Text: "", Size: 18}},
+		sprite.Sprite{Source: sprite.Source{Kind: sprite.KindText, Asset: AssetFont, Text: "", TextSize: 18}},
 	)
 	if err != nil {
 		return err
@@ -271,7 +271,7 @@ func run() error {
 	// camera's top-left as it follows the tank.
 	scoreHUD, err := g.World().NewEntity(
 		core.Transform{},
-		sprite.Sprite{Drawable: sprite.TextSource{Font: AssetFont, Text: "", Size: 20}},
+		sprite.Sprite{Source: sprite.Source{Kind: sprite.KindText, Asset: AssetFont, Text: "", TextSize: 20}},
 	)
 	if err != nil {
 		return err
@@ -381,11 +381,7 @@ func scoreSystem(hud, camera, stats core.Entity) core.System {
 			return err
 		}
 		return hud.Update(ctx.World, func(s *sprite.Sprite) {
-			s.Drawable = sprite.TextSource{
-				Font: AssetFont,
-				Text: fmt.Sprintf("score %d / %d", run.Score, WinScore),
-				Size: 20,
-			}
+			s.Source = sprite.Source{Kind: sprite.KindText, Asset: AssetFont, Text: fmt.Sprintf("score %d / %d", run.Score, WinScore), TextSize: 20}
 		})
 	})
 }
@@ -444,8 +440,8 @@ func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (core.Ent
 	return world.NewEntity(
 		core.Transform{Position: at, Rotation: rotation, Scale: geom.Vector2{X: 1, Y: 1}},
 		sprite.Sprite{
-			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: BulletRadius, Y: BulletRadius}},
-			Style:    sprite.Style{Color: bulletColor},
+			Source: sprite.Source{Kind: sprite.KindCircle, Radii: geom.Vector2{X: BulletRadius, Y: BulletRadius}},
+			Style:  sprite.Style{Color: bulletColor},
 		},
 		collider,
 		bullet{},
@@ -566,7 +562,7 @@ func spawnEnemy(world *core.World, at geom.Vector2) (core.Entity, error) {
 	collider.Mask = collision.Mask(bulletLayer, playerLayer)
 	return world.NewEntity(
 		core.Transform{Position: at, Scale: geom.Vector2{X: 1, Y: 1}},
-		sprite.Sprite{Drawable: sprite.TextureSource{Texture: AssetEnemy}},
+		sprite.Sprite{Source: sprite.Source{Kind: sprite.KindTexture, Asset: AssetEnemy}},
 		collider,
 		enemy{},
 	)
@@ -627,7 +623,7 @@ func resultSystem(banner, hull, stats core.Entity) core.System {
 		}
 		return banner.Update(ctx.World, func(s *sprite.Sprite) {
 			s.Style.Hidden = false
-			s.Drawable = sprite.TextSource{Font: AssetFont, Text: text, Size: 48}
+			s.Source = sprite.Source{Kind: sprite.KindText, Asset: AssetFont, Text: text, TextSize: 48}
 		})
 	})
 }
@@ -649,11 +645,7 @@ func reloadReadoutSystem(readout, turret, stats core.Entity) core.System {
 		return readout.Update(ctx.World, func(s *sprite.Sprite) {
 			if gun.Running {
 				s.Style.Hidden = false
-				s.Drawable = sprite.TextSource{
-					Font: AssetFont,
-					Text: fmt.Sprintf("reloading %.1fs", (gun.Duration - gun.Elapsed).Seconds()),
-					Size: 18,
-				}
+				s.Source = sprite.Source{Kind: sprite.KindText, Asset: AssetFont, Text: fmt.Sprintf("reloading %.1fs", (gun.Duration - gun.Elapsed).Seconds()), TextSize: 18}
 			} else {
 				s.Style.Hidden = true
 			}

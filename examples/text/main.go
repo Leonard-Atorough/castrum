@@ -66,7 +66,7 @@ func run() error {
 	// on the position like every other drawable.
 	if _, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: titleY}, Scale: geom.Vector2{X: 1, Y: 1}},
-		sprite.Sprite{Drawable: sprite.TextSource{Font: goFont, Text: "hello, castrum", Size: 48}},
+		sprite.Sprite{Source: sprite.Source{Kind: sprite.KindText, Asset: goFont, Text: "hello, castrum", TextSize: 48}},
 	); err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func run() error {
 	// update closure, nothing else.
 	score, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: scoreY}, Scale: geom.Vector2{X: 1, Y: 1}},
-		sprite.Sprite{Drawable: sprite.TextSource{Font: goFont, Text: "score: 0", Size: 32}},
+		sprite.Sprite{Source: sprite.Source{Kind: sprite.KindText, Asset: goFont, Text: "score: 0", TextSize: 32}},
 	)
 	if err != nil {
 		return err
@@ -90,8 +90,8 @@ func run() error {
 			Scale:    geom.Vector2{X: 1, Y: 1},
 		},
 		sprite.Sprite{
-			Drawable: sprite.TextSource{Font: goFont, Text: "text culls, sorts, and fades like any drawable", Size: 24},
-			Style:    sprite.Style{Color: color.NRGBA{R: 120, G: 200, B: 255, A: 255}},
+			Source: sprite.Source{Kind: sprite.KindText, Asset: goFont, Text: "text culls, sorts, and fades like any drawable", TextSize: 24},
+			Style:  sprite.Style{Color: &color.RGBA{R: 120, G: 200, B: 255, A: 255}},
 		},
 	); err != nil {
 		return err
@@ -99,8 +99,7 @@ func run() error {
 
 	if _, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: screenH - 24}, Scale: geom.Vector2{X: 1, Y: 1}},
-		sprite.Sprite{Drawable: sprite.TextSource{Font: goFont,
-			Text: "the counter is one sprite whose string is rewritten each tick", Size: 20}},
+		sprite.Sprite{Source: sprite.Source{Kind: sprite.KindText, Asset: goFont, Text: "the counter is one sprite whose string is rewritten each tick", TextSize: 20}},
 	); err != nil {
 		return err
 	}
@@ -111,7 +110,7 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFixed, "score", core.SystemFunc(func(ctx *core.Context) error {
 		elapsed += ctx.DeltaTime
 		return score.Update(ctx.World, func(s *sprite.Sprite) {
-			s.Drawable = sprite.TextSource{Font: goFont, Text: fmt.Sprintf("score: %d", int(elapsed.Seconds())), Size: 32}
+			s.Source = sprite.Source{Kind: sprite.KindText, Asset: goFont, Text: fmt.Sprintf("score: %d", int(elapsed.Seconds())), TextSize: 32}
 		})
 	})); err != nil {
 		return err

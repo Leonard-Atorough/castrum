@@ -135,9 +135,9 @@ func spriteWorld(b *testing.B, n int, shape bool, viewportFraction float64) (*co
 		}
 		sprite := spr.Sprite{Style: spr.Style{Layer: uint8(i % 3), SortOrder: int8(i % 5)}}
 		if shape {
-			sprite.Drawable = spr.CircleShape{Radii: geom.Vector2{X: 16, Y: 16}}
+			sprite.Source = spr.Source{Kind: spr.KindCircle, Radii: geom.Vector2{X: 16, Y: 16}}
 		} else {
-			sprite.Drawable = spr.TextureSource{Texture: "tex.png"}
+			sprite.Source = spr.Source{Kind: spr.KindTexture, Asset: "tex.png"}
 		}
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: x, Y: y}},

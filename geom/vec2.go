@@ -11,9 +11,9 @@ import (
 // Vector2 is a two-dimensional vector.
 type Vector2 struct {
 	// X is the horizontal component.
-	X float64
+	X float64 `json:"x"`
 	// Y is the vertical component.
-	Y float64
+	Y float64 `json:"y"`
 }
 
 // Add returns the component-wise sum of v and other.

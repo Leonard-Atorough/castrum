@@ -63,14 +63,14 @@ const (
 
 var (
 	// pendingColor is a timer that is not accumulating time.
-	pendingColor = color.RGBA{R: 120, G: 120, B: 120, A: 255}
+	pendingColor = &color.RGBA{R: 120, G: 120, B: 120, A: 255}
 	// runningColor is a timer mid-countdown.
-	runningColor = color.RGBA{R: 110, G: 170, B: 230, A: 255}
+	runningColor = &color.RGBA{R: 110, G: 170, B: 230, A: 255}
 	// firedColor is a one-shot that has completed.
-	firedColor = color.RGBA{R: 110, G: 220, B: 120, A: 255}
+	firedColor = &color.RGBA{R: 110, G: 220, B: 120, A: 255}
 	// flashColor marks the single tick on which a repeating timer
 	// completed.
-	flashColor = color.RGBA{R: 240, G: 220, B: 90, A: 255}
+	flashColor = &color.RGBA{R: 240, G: 220, B: 90, A: 255}
 )
 
 func main() {
@@ -275,9 +275,9 @@ func spawnBar(world *core.World, y float64, duration time.Duration, repeating bo
 }
 
 // barSprite builds the bar's drawable rect in the given state color.
-func barSprite(fill color.Color) sprite.Sprite {
+func barSprite(fill *color.RGBA) sprite.Sprite {
 	return sprite.Sprite{
-		Drawable: sprite.RectShape{Size: geom.Vector2{X: barWidth, Y: barHeight}},
-		Style:    sprite.Style{Color: fill},
+		Source: sprite.Source{Kind: sprite.KindRect, Rect: geom.Vector2{X: barWidth, Y: barHeight}},
+		Style:  sprite.Style{Color: fill},
 	}
 }

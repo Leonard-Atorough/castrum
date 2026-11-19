@@ -35,7 +35,7 @@ func BenchmarkSpawnEntityThreeComponents(b *testing.B) {
 	for b.Loop() {
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: 1, Y: 2}},
-			spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 4, Y: 4}}},
+			spr.Sprite{Source: spr.Source{Kind: spr.KindCircle, Radii: geom.Vector2{X: 4, Y: 4}}},
 			benchTag{},
 		); err != nil {
 			b.Fatal(err)
@@ -162,7 +162,7 @@ func BenchmarkQuery2(b *testing.B) {
 			for range n {
 				if _, err := world.NewEntity(
 					core.Transform{},
-					spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}},
+					spr.Sprite{Source: spr.Source{Kind: spr.KindCircle, Radii: geom.Vector2{X: 2, Y: 2}}},
 				); err != nil {
 					b.Fatal(err)
 				}
@@ -189,7 +189,7 @@ func BenchmarkQuery3(b *testing.B) {
 			for range n {
 				if _, err := world.NewEntity(
 					core.Transform{},
-					spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}},
+					spr.Sprite{Source: spr.Source{Kind: spr.KindCircle, Radii: geom.Vector2{X: 2, Y: 2}}},
 					benchTag{},
 				); err != nil {
 					b.Fatal(err)
@@ -215,7 +215,7 @@ func BenchmarkQueryWhere(b *testing.B) {
 	for i := range 1000 {
 		sprite := spr.Sprite{}
 		if i%2 == 0 {
-			sprite.Drawable = spr.CircleShape{Radii: geom.Vector2{X: 1, Y: 1}}
+			sprite.Source = spr.Source{Kind: spr.KindCircle, Radii: geom.Vector2{X: 1, Y: 1}}
 		}
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: 1, Y: 1}},
@@ -226,7 +226,7 @@ func BenchmarkQueryWhere(b *testing.B) {
 	}
 	query := core.NewQuery(world).With(core.Transform{}, spr.Sprite{}).Where(func(e core.Entry) bool {
 		s, _ := e.Component[spr.Sprite]()
-		return s.Drawable != nil
+		return s.Source.Kind != spr.KindNone
 	})
 	matched := 0
 	for range query.Execute() {

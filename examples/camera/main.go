@@ -50,8 +50,8 @@ const (
 )
 
 var (
-	edgeColor = color.NRGBA{R: 255, G: 200, B: 80, A: 255}
-	dotColor  = color.NRGBA{R: 120, G: 120, B: 120, A: 255}
+	edgeColor = &color.RGBA{R: 255, G: 200, B: 80, A: 255}
+	dotColor  = &color.RGBA{R: 120, G: 120, B: 120, A: 255}
 )
 
 func main() {
@@ -114,19 +114,19 @@ func run() error {
 			if _, err := g.World().NewEntity(
 				core.Transform{Position: geom.Vector2{X: float64(x), Y: float64(y)}},
 				sprite.Sprite{
-					Drawable: sprite.CircleShape{Radii: geom.Vector2{X: dotRadius, Y: dotRadius}},
-					Style:    sprite.Style{Color: dotColor, SortOrder: -1},
+					Source: sprite.Source{Kind: sprite.KindCircle, Radii: geom.Vector2{X: dotRadius, Y: dotRadius}},
+					Style:  sprite.Style{Color: dotColor, SortOrder: -1},
 				},
 			); err != nil {
 				return err
 			}
 		}
 	}
-	edges := []sprite.LineShape{
-		{From: geom.Vector2{}, To: geom.Vector2{X: levelW}}, // top
-		{From: geom.Vector2{}, To: geom.Vector2{X: levelW}}, // bottom
-		{From: geom.Vector2{}, To: geom.Vector2{Y: levelH}}, // left
-		{From: geom.Vector2{}, To: geom.Vector2{Y: levelH}}, // right
+	edges := []sprite.Source{
+		{Kind: sprite.KindLine, From: geom.Vector2{}, To: geom.Vector2{X: levelW}}, // top
+		{Kind: sprite.KindLine, From: geom.Vector2{}, To: geom.Vector2{X: levelW}}, // bottom
+		{Kind: sprite.KindLine, From: geom.Vector2{}, To: geom.Vector2{Y: levelH}}, // left
+		{Kind: sprite.KindLine, From: geom.Vector2{}, To: geom.Vector2{Y: levelH}}, // right
 	}
 	for i, pos := range []geom.Vector2{
 		{X: 0, Y: 0}, {X: 0, Y: levelH}, {X: 0, Y: 0}, {X: levelW, Y: 0},
@@ -134,8 +134,8 @@ func run() error {
 		if _, err := g.World().NewEntity(
 			core.Transform{Position: pos},
 			sprite.Sprite{
-				Drawable: edges[i],
-				Style:    sprite.Style{Outline: true, StrokeWidth: edgeWidth, Color: edgeColor},
+				Source: edges[i],
+				Style:  sprite.Style{Outline: true, StrokeWidth: edgeWidth, Color: edgeColor},
 			},
 		); err != nil {
 			return err
@@ -144,17 +144,13 @@ func run() error {
 
 	// The HUD contains a static controls line and a live state line.
 	if _, err := g.World().NewEntity(
-		sprite.Sprite{Drawable: sprite.TextSource{
-			Font: goFont, Text: "arrows: pan  A/D: rotate  W/S: zoom", Size: 22,
-		}},
+		sprite.Sprite{Source: sprite.Source{Kind: sprite.KindText, Asset: goFont, Text: "arrows: pan  A/D: rotate  W/S: zoom", TextSize: 22}},
 		core.Transform{Position: geom.Vector2{X: center.X, Y: controlsY}, Scale: geom.Vector2{X: 1, Y: 1}},
 	); err != nil {
 		return err
 	}
 	state, err := g.World().NewEntity(
-		sprite.Sprite{Drawable: sprite.TextSource{
-			Font: goFont, Text: "0 degrees, 1.00x", Size: 28,
-		}},
+		sprite.Sprite{Source: sprite.Source{Kind: sprite.KindText, Asset: goFont, Text: "0 degrees, 1.00x", TextSize: 28}},
 		core.Transform{Position: geom.Vector2{X: center.X, Y: stateY}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	if err != nil {
@@ -216,12 +212,8 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFrame, "camera.hud", core.SystemFunc(func(ctx *core.Context) error {
 		transform, _ := camera.Component[core.Transform](ctx.World)
 		return state.Update(ctx.World, func(s *sprite.Sprite) {
-			s.Drawable = sprite.TextSource{
-				Font: goFont,
-				Text: fmt.Sprintf("%.0f degrees, %.2fx",
-					transform.Rotation*180/math.Pi, transform.Scale.X),
-				Size: 28,
-			}
+			s.Source = sprite.Source{Kind: sprite.KindText, Asset: goFont, Text: fmt.Sprintf("%.0f degrees, %.2fx",
+				transform.Rotation*180/math.Pi, transform.Scale.X), TextSize: 28}
 		})
 	})); err != nil {
 		return err

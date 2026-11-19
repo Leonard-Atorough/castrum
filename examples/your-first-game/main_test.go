@@ -78,7 +78,7 @@ func newTestGame(t *testing.T) (*castrum.Game, core.Entity, core.Entity) {
 	}
 	readout, err := world.NewEntity(
 		core.Transform{Position: geom.Vector2{X: 200, Y: 430}, Scale: geom.Vector2{X: 1, Y: 1}},
-		spr.Sprite{Drawable: spr.TextSource{Font: AssetFont, Text: "", Size: 18}},
+		spr.Sprite{Source: spr.Source{Kind: spr.KindText, Asset: AssetFont, Text: "", TextSize: 18}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -335,9 +335,8 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 	if sprite.Style.Hidden {
 		t.Fatal("cooling gun should show the reload text")
 	}
-	text, ok := sprite.Drawable.(spr.TextSource)
-	if !ok || text.Text == "" {
-		t.Errorf("reload text = %+v, want a countdown string", sprite.Drawable)
+	if sprite.Source.Kind != spr.KindText || sprite.Source.Text == "" {
+		t.Errorf("reload text = %+v, want a countdown string", sprite.Source)
 	}
 
 	// Once the cooldown completes the readout hides again.
@@ -354,7 +353,7 @@ func findReadout(t *testing.T, world *core.World) core.Entity {
 	query := core.NewQuery(world).With(spr.Sprite{}, core.Transform{})
 	for e := range query.Execute() {
 		sprite, _ := e.Component[spr.Sprite]()
-		if _, ok := sprite.Drawable.(spr.TextSource); ok {
+		if sprite.Source.Kind == spr.KindText {
 			return e.Entity()
 		}
 	}
@@ -368,7 +367,7 @@ func findBanner(t *testing.T, world *core.World, want string) core.Entity {
 	query := core.NewQuery(world).With(spr.Sprite{})
 	for e := range query.Execute() {
 		sprite, _ := e.Component[spr.Sprite]()
-		if text, ok := sprite.Drawable.(spr.TextSource); ok && text.Text == want {
+		if sprite.Source.Kind == spr.KindText && sprite.Source.Text == want {
 			return e.Entity()
 		}
 	}

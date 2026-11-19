@@ -37,8 +37,8 @@ func New() (*castrum.Game, error) {
 	player, err := g.World().NewEntity(
 		core.Transform{},
 		sprite.Sprite{
-			Drawable: sprite.RectShape{Size: geom.Vector2{X: 48, Y: 48}},
-			Style:    sprite.Style{Color: color.RGBA{R: 80, G: 180, B: 240, A: 255}},
+			Source: sprite.Source{Kind: sprite.KindRect, Rect: geom.Vector2{X: 48, Y: 48}},
+			Style:  sprite.Style{Color: &color.RGBA{R: 80, G: 180, B: 240, A: 255}},
 		},
 	)
 	if err != nil {

@@ -140,19 +140,17 @@ func (a AnimatedSprite) Validate() error {
 	return nil
 }
 
-// CurrentFrame returns the frame to draw. It reports false for a clipless
-// sprite and an error if the sprite is invalid.
-func (a AnimatedSprite) CurrentFrame() (sprite.SheetSource, bool, error) {
+// CurrentFrame returns the sheet reference and region name of the frame
+// to draw. It reports false for a clipless sprite and an error if the
+// sprite is invalid. Resolution happens in the render collector.
+func (a AnimatedSprite) CurrentFrame() (asset.SheetRef, string, bool, error) {
 	if err := a.Validate(); err != nil {
-		return sprite.SheetSource{}, false, err
+		return asset.SheetRef{}, "", false, err
 	}
 	if !a.hasClip {
-		return sprite.SheetSource{}, false, nil
+		return asset.SheetRef{}, "", false, nil
 	}
-	return sprite.SheetSource{
-		Sheet:  a.clip.source,
-		Region: a.clip.frames[a.frame],
-	}, true, nil
+	return a.clip.source, a.clip.frames[a.frame], true, nil
 }
 
 // JustCompleted reports whether the clip completed on tick. Pass
