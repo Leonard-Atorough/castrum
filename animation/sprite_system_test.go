@@ -47,11 +47,11 @@ func readAnimated(t *testing.T, e core.Entity, w *core.World) AnimatedSprite {
 
 func animatedRegion(t *testing.T, e core.Entity, w *core.World) string {
 	t.Helper()
-	frame, ok, err := readAnimated(t, e, w).CurrentFrame()
+	_, region, ok, err := readAnimated(t, e, w).CurrentFrame()
 	if err != nil || !ok {
-		t.Fatalf("CurrentFrame() = %v, %v, %v", frame, ok, err)
+		t.Fatalf("CurrentFrame() = %v, %v, %v", region, ok, err)
 	}
-	return frame.Region
+	return region
 }
 
 func drainCompleted(r *signal.Reader[Completed]) []Completed {
@@ -202,7 +202,7 @@ func TestSpriteAnimationSystemSkipsWithoutStoppingOtherSprites(t *testing.T) {
 		t.Fatal(err)
 	}
 	tickAt(t, sys, ctx, 1)
-	if _, ok, err := readAnimated(t, clipless, ctx.World).CurrentFrame(); err != nil || ok {
+	if _, _, ok, err := readAnimated(t, clipless, ctx.World).CurrentFrame(); err != nil || ok {
 		t.Fatalf("clipless CurrentFrame() = %v, %v", ok, err)
 	}
 	if got := animatedRegion(t, paused, ctx.World); got != "a" {

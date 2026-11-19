@@ -129,11 +129,11 @@ func newGame() (*castrum.Game, error) {
 		if !ok {
 			return fmt.Errorf("animated torch has no playback component")
 		}
-		frame, _, err := value.CurrentFrame()
+		_, region, _, err := value.CurrentFrame()
 		if err != nil {
 			return err
 		}
-		panel.Status("playback", fmt.Sprintf("frame %s   paused: %t   completed: %t", frame.Region, value.Paused, value.HasCompleted()))
+		panel.Status("playback", fmt.Sprintf("frame %s   paused: %t   completed: %t", region, value.Paused, value.HasCompleted()))
 		if value.JustCompleted(ctx.Tick) {
 			if value.HasCompleted() {
 				panel.Message("finished - R restarts playback")

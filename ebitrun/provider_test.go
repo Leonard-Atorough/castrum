@@ -197,7 +197,7 @@ func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 		t.Fatal("SubImage and SubImageRect must share the cached subimage")
 	}
 	if _, err := g.World().NewEntity(
-		sprite.Sprite{Drawable: sprite.SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}},
+		sprite.Sprite{Asset: "sprites.json", Region: "player"},
 		core.Transform{Scale: spriteScale},
 	); err != nil {
 		t.Fatal(err)

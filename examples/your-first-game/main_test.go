@@ -78,14 +78,14 @@ func newTestGame(t *testing.T) (*castrum.Game, core.Entity, core.Entity) {
 	}
 	readout, err := world.NewEntity(
 		core.Transform{Position: geom.Vector2{X: 200, Y: 430}, Scale: geom.Vector2{X: 1, Y: 1}},
-		spr.Sprite{Drawable: spr.TextSource{Font: AssetFont, Text: "", Size: 18}},
+		spr.Text{Asset: AssetFont, Text: "", TextSize: 18},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	banner, err := world.NewEntity(
 		core.Transform{Position: geom.Vector2{X: 200, Y: 360}},
-		spr.Sprite{Style: spr.Style{Hidden: true, Layer: 10}},
+		spr.Text{Style: spr.Style{Hidden: true, Layer: 10}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -322,7 +322,7 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 
 	advance(t, g, 3)
 	// Idle: hidden.
-	if sprite, _ := readout.Component[spr.Sprite](world); !sprite.Style.Hidden {
+	if text, _ := readout.Component[spr.Text](world); !text.Style.Hidden {
 		t.Error("idle gun should hide the reload text")
 	}
 
@@ -331,18 +331,17 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 		t.Fatal(err)
 	}
 	advance(t, g, 3)
-	sprite, _ := readout.Component[spr.Sprite](world)
-	if sprite.Style.Hidden {
+	text, _ := readout.Component[spr.Text](world)
+	if text.Style.Hidden {
 		t.Fatal("cooling gun should show the reload text")
 	}
-	text, ok := sprite.Drawable.(spr.TextSource)
-	if !ok || text.Text == "" {
-		t.Errorf("reload text = %+v, want a countdown string", sprite.Drawable)
+	if text.Text == "" {
+		t.Errorf("reload text = %+v, want a countdown string", text)
 	}
 
 	// Once the cooldown completes the readout hides again.
 	advance(t, g, 120)
-	if sprite, _ := readout.Component[spr.Sprite](world); !sprite.Style.Hidden {
+	if text, _ := readout.Component[spr.Text](world); !text.Style.Hidden {
 		t.Error("ready gun should hide the reload text")
 	}
 }
@@ -351,10 +350,11 @@ func TestReloadReadoutFollowsCooldown(t *testing.T) {
 // is not the banner.
 func findReadout(t *testing.T, world *core.World) core.Entity {
 	t.Helper()
-	query := core.NewQuery(world).With(spr.Sprite{}, core.Transform{})
+	// Every text surface now shares one component class; the readout
+	// is identified by its size.
+	query := core.NewQuery(world).With(spr.Text{}, core.Transform{})
 	for e := range query.Execute() {
-		sprite, _ := e.Component[spr.Sprite]()
-		if _, ok := sprite.Drawable.(spr.TextSource); ok {
+		if text, _ := e.Component[spr.Text](); text.TextSize == ReadoutSize {
 			return e.Entity()
 		}
 	}
@@ -365,10 +365,10 @@ func findReadout(t *testing.T, world *core.World) core.Entity {
 // findBanner resolves the end banner and checks its text.
 func findBanner(t *testing.T, world *core.World, want string) core.Entity {
 	t.Helper()
-	query := core.NewQuery(world).With(spr.Sprite{})
+	query := core.NewQuery(world).With(spr.Text{})
 	for e := range query.Execute() {
-		sprite, _ := e.Component[spr.Sprite]()
-		if text, ok := sprite.Drawable.(spr.TextSource); ok && text.Text == want {
+		text, _ := e.Component[spr.Text]()
+		if text.Text == want {
 			return e.Entity()
 		}
 	}

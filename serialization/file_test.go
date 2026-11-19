@@ -7,6 +7,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/scene"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 func newFileTestRegistry(t *testing.T) *Registry {
@@ -134,5 +135,36 @@ func TestSpawnPropagatesOverrideValidationError(t *testing.T) {
 	_, err := Spawn(core.NewWorld(), shipNode(), trader{})
 	if !errors.Is(err, errTraderName) {
 		t.Fatalf("Spawn error = %v, want errTraderName", err)
+	}
+}
+
+func TestOpenRejectsUnauthoredComponents(t *testing.T) {
+	// Authored content must contribute something: engine visual
+	// components implement core.Authored, and File.Open enforces it
+	// with the node path named.
+	reg := newFileTestRegistry(t)
+	if err := reg.Component[sprite.Sprite]("sprite.Sprite"); err != nil {
+		t.Fatalf("register sprite: %v", err)
+	}
+	if err := reg.Component[sprite.Text]("sprite.Text"); err != nil {
+		t.Fatalf("register text: %v", err)
+	}
+	if err := reg.Component[sprite.Primitive]("sprite.Primitive"); err != nil {
+		t.Fatalf("register primitive: %v", err)
+	}
+
+	for name, tc := range map[string]struct {
+		key string
+		raw string
+	}{
+		"sprite without asset":    {"sprite.Sprite", `{"style":{}}`},
+		"text without font":       {"sprite.Text", `{"textSize":12}`},
+		"primitive without shape": {"sprite.Primitive", `{"rect":{"x":1,"y":1}}`},
+	} {
+		f := File{Key: "root", Components: []FileComponent{{Type: tc.key, Value: []byte(tc.raw)}}}
+		_, err := f.Open(reg)
+		if err == nil || !strings.Contains(err.Error(), tc.key) || !strings.Contains(err.Error(), "root") {
+			t.Errorf("%s: error = %v, want it to name key %q and node root", name, err, tc.key)
+		}
 	}
 }

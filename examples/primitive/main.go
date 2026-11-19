@@ -37,7 +37,7 @@ const (
 // transform's scale it renders with (zero means uniform), and whether
 // the spin system advances its rotation.
 type cell struct {
-	sprite spr.Sprite
+	sprite spr.Primitive
 	scale  geom.Vector2
 	spin   bool
 }
@@ -64,48 +64,48 @@ func run() error {
 	stretch := geom.Vector2{X: 0.5, Y: 1.5}
 
 	spectrum := []struct {
-		color color.Color
+		color *color.RGBA
 		cells []cell
 	}{
 		{
 
-			color: color.RGBA{G: 200, A: 255},
+			color: &color.RGBA{G: 100, A: 128},
 			cells: []cell{
-				{sprite: spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}},
-				{sprite: spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: 100, Y: 50}}, Style: spr.Style{Outline: true, StrokeWidth: 3}}},
-				{sprite: spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}, spin: true},
-				{sprite: spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: 100, Y: 50}}}, scale: stretch},
-				{sprite: spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: 100, Y: 50}}, Style: spr.Style{Color: color.NRGBA{G: 200, A: 128}}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: spr.Style{Outline: true, StrokeWidth: 3}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}, spin: true},
+				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}, scale: stretch},
+				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: spr.Style{Color: &color.RGBA{G: 100, A: 64}}}},
 			},
 		},
 		{
 
-			color: color.RGBA{R: 220, A: 255},
+			color: &color.RGBA{R: 110, A: 128},
 			cells: []cell{
-				{sprite: spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}}},
-				{sprite: spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}, Style: spr.Style{Outline: true, StrokeWidth: 3}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: spr.Style{Outline: true, StrokeWidth: 3}}},
 				// Unequal radii declare the ellipse in the shape
 				// itself; the spin shows rotation is meaningful.
-				{sprite: spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 80, Y: 50}}}, spin: true},
+				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 80, Y: 50}}, spin: true},
 				// Equal radii stretched by the transform: the other
 				// road to an ellipse, composed per axis.
-				{sprite: spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}}, scale: stretch},
-				{sprite: spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}}, Style: spr.Style{Color: color.NRGBA{R: 220, A: 128}}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}, scale: stretch},
+				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: spr.Style{Color: &color.RGBA{R: 110, A: 64}}}},
 			},
 		},
 		{
 
-			color: color.RGBA{B: 220, A: 255},
+			color: &color.RGBA{B: 110, A: 128},
 			cells: []cell{
 				// A zero From anchors the segment at the position.
-				{sprite: spr.Sprite{Drawable: spr.LineShape{To: geom.Vector2{X: 80, Y: 0}}, Style: spr.Style{Outline: true, StrokeWidth: 4}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeLine, To: geom.Vector2{X: 80, Y: 0}, Style: spr.Style{Outline: true, StrokeWidth: 4}}},
 				// Symmetric endpoints pivot at the segment's middle.
-				{sprite: spr.Sprite{Drawable: spr.LineShape{From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}}, Style: spr.Style{Outline: true, StrokeWidth: 4}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeLine, From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}, Style: spr.Style{Outline: true, StrokeWidth: 4}}},
 				// The anchored line spins around its endpoint.
-				{sprite: spr.Sprite{Drawable: spr.LineShape{To: geom.Vector2{X: 80, Y: 0}}, Style: spr.Style{Outline: true, StrokeWidth: 4}}, spin: true},
+				{sprite: spr.Primitive{Shape: spr.ShapeLine, To: geom.Vector2{X: 80, Y: 0}, Style: spr.Style{Outline: true, StrokeWidth: 4}}, spin: true},
 				// Scale tilts a diagonal segment into a new slope.
-				{sprite: spr.Sprite{Drawable: spr.LineShape{From: geom.Vector2{X: -40, Y: -40}, To: geom.Vector2{X: 40, Y: 40}}, Style: spr.Style{Outline: true, StrokeWidth: 4}}, scale: stretch},
-				{sprite: spr.Sprite{Drawable: spr.LineShape{From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}}, Style: spr.Style{Outline: true, StrokeWidth: 4, Color: color.NRGBA{B: 220, A: 128}}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeLine, From: geom.Vector2{X: -40, Y: -40}, To: geom.Vector2{X: 40, Y: 40}, Style: spr.Style{Outline: true, StrokeWidth: 4}}, scale: stretch},
+				{sprite: spr.Primitive{Shape: spr.ShapeLine, From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}, Style: spr.Style{Outline: true, StrokeWidth: 4, Color: &color.RGBA{B: 110, A: 64}}}},
 			},
 		},
 	}

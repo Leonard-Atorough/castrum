@@ -23,11 +23,11 @@ import (
 )
 
 var (
-	markerColor = color.RGBA{R: 240, G: 220, B: 90, A: 255}
-	circleColor = color.RGBA{R: 90, G: 180, B: 240, A: 255}
-	boxColor    = color.RGBA{R: 190, G: 120, B: 220, A: 255}
-	missColor   = color.RGBA{R: 220, G: 100, B: 100, A: 255}
-	hitColor    = color.RGBA{R: 100, G: 240, B: 130, A: 255}
+	markerColor = &color.RGBA{R: 240, G: 220, B: 90, A: 255}
+	circleColor = &color.RGBA{R: 90, G: 180, B: 240, A: 255}
+	boxColor    = &color.RGBA{R: 190, G: 120, B: 220, A: 255}
+	missColor   = &color.RGBA{R: 220, G: 100, B: 100, A: 255}
+	hitColor    = &color.RGBA{R: 100, G: 240, B: 130, A: 255}
 )
 
 func main() {
@@ -51,17 +51,15 @@ func run() error {
 
 	if _, err := world.NewEntity(
 		core.Transform{Position: origin},
-		sprite.Sprite{
-			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 9, Y: 9}},
-			Style:    sprite.Style{Color: markerColor},
-		},
+		sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 9, Y: 9},
+			Style: sprite.Style{Color: markerColor}},
 	); err != nil {
 		return err
 	}
 
 	if err := addTarget(world, geom.Vector2{X: -180, Y: -120},
 		collision.Circle{Radius: 42},
-		sprite.CircleShape{Radii: geom.Vector2{X: 42, Y: 42}},
+		sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 42, Y: 42}},
 		0, circleColor); err != nil {
 		return err
 	}
@@ -70,13 +68,13 @@ func run() error {
 			Min: geom.Vector2{X: -70, Y: -35},
 			Max: geom.Vector2{X: 70, Y: 35},
 		},
-		sprite.RectShape{Size: geom.Vector2{X: 140, Y: 70}},
+		sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 140, Y: 70}},
 		1, boxColor); err != nil {
 		return err
 	}
 	if err := addTarget(world, geom.Vector2{X: 340, Y: 150},
 		collision.Circle{Radius: 56},
-		sprite.CircleShape{Radii: geom.Vector2{X: 56, Y: 56}},
+		sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 56, Y: 56}},
 		0, circleColor); err != nil {
 		return err
 	}
@@ -85,23 +83,21 @@ func run() error {
 			Min: geom.Vector2{X: -60, Y: -40},
 			Max: geom.Vector2{X: 60, Y: 40},
 		},
-		sprite.RectShape{Size: geom.Vector2{X: 120, Y: 80}},
+		sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 120, Y: 80}},
 		1, boxColor); err != nil {
 		return err
 	}
 	if err := addTarget(world, geom.Vector2{X: 550, Y: 250},
 		collision.Circle{Radius: 50},
-		sprite.CircleShape{Radii: geom.Vector2{X: 50, Y: 50}},
+		sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}},
 		0, circleColor); err != nil {
 		return err
 	}
 
 	beam, err := world.NewEntity(
 		core.Transform{Position: origin},
-		sprite.Sprite{
-			Drawable: sprite.LineShape{To: geom.Vector2{X: 1}},
-			Style:    sprite.Style{StrokeWidth: 3, Color: missColor},
-		},
+		sprite.Primitive{Shape: sprite.ShapeLine, To: geom.Vector2{X: 1},
+			Style: sprite.Style{StrokeWidth: 3, Color: missColor}},
 	)
 	if err != nil {
 		return err
@@ -138,10 +134,8 @@ func run() error {
 		} else {
 			panel.Status("hit", "No hit.")
 		}
-		return beam.SetComponent(ctx.World, sprite.Sprite{
-			Drawable: sprite.LineShape{To: lineEnd},
-			Style:    sprite.Style{StrokeWidth: 3, Color: lineColor},
-		})
+		return beam.SetComponent(ctx.World, sprite.Primitive{Shape: sprite.ShapeLine, To: lineEnd,
+			Style: sprite.Style{StrokeWidth: 3, Color: lineColor}})
 	})); err != nil {
 		return err
 	}
@@ -157,9 +151,9 @@ func addTarget(
 	world *core.World,
 	position geom.Vector2,
 	shape collision.ColliderShape,
-	drawable sprite.Drawable,
+	drawable sprite.Primitive,
 	layer int,
-	tint color.Color,
+	tint *color.RGBA,
 ) error {
 	collider, err := collision.NewCollider(shape)
 	if err != nil {
@@ -169,7 +163,11 @@ func addTarget(
 	_, err = world.NewEntity(
 		core.Transform{Position: position},
 		collider,
-		sprite.Sprite{Drawable: drawable, Style: sprite.Style{Color: tint}},
+		sprite.Primitive{
+			Shape: drawable.Shape, Rect: drawable.Rect, Radii: drawable.Radii,
+			From: drawable.From, To: drawable.To,
+			Style: sprite.Style{Color: tint},
+		},
 	)
 	return err
 }
