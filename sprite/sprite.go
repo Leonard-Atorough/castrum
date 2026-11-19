@@ -1,7 +1,6 @@
-// Package sprite defines the visual components. This is the composed-sprite
-// experiment: one component per visual concept - [Sprite] for textures and
-// sheet regions, [Text] for text, [Primitive] for geometry - instead of one
-// component discriminated by a Kind.
+// Package sprite defines the visual components: one component per visual
+// concept - [Sprite] for textures and sheet regions, [Text] for text, and
+// [Primitive] for geometry.
 //
 // Each component is plain data with JSON tags and holds asset IDs, never
 // runtime pointers; asset resolution happens in the render collector. An
@@ -69,16 +68,8 @@ func (st Style) Validate() error {
 // set, the named Region of the sheet document named by Asset. Region
 // presence selects the source: an empty Asset draws nothing.
 //
-// The zero value is valid and draws nothing, so spawn-safe struct literals
-// keep the zero-value contract. Authored file content may not omit the
-// asset; see [Sprite.Authored].
-func (s Sprite) Authored() error {
-	if s.Asset == "" {
-		return fmt.Errorf("authored sprite requires an asset")
-	}
-	return nil
-}
-
+// The zero value is valid and draws nothing. Authored file content may not
+// omit the asset; see [Sprite.Authored].
 type Sprite struct {
 	// Asset is the texture ID, or the sheet document ID when Region is set.
 	Asset asset.ID `json:"asset,omitempty"`
@@ -87,6 +78,15 @@ type Sprite struct {
 	Region string `json:"region,omitempty"`
 	// Style holds the visual style.
 	Style Style `json:"style,omitempty"`
+}
+
+// Authored reports an error when the sprite has no asset. File content must
+// name one; runtime zero values stay legal.
+func (s Sprite) Authored() error {
+	if s.Asset == "" {
+		return fmt.Errorf("authored sprite requires an asset")
+	}
+	return nil
 }
 
 // Validate reports whether the sprite's source and style are valid. An empty
@@ -191,12 +191,13 @@ func (s Shape) String() string {
 	}
 }
 
-// MarshalJSON writes the shape as its wire identity. UnmarshalJSON
-// rejects unknown identities by name.
+// MarshalJSON writes the shape as its wire identity.
 func (s Shape) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + s.String() + `"`), nil
 }
 
+// UnmarshalJSON reads a shape from its wire identity. It returns an error
+// for an unknown identity.
 func (s *Shape) UnmarshalJSON(data []byte) error {
 	var name string
 	if err := json.Unmarshal(data, &name); err != nil {
@@ -222,13 +223,6 @@ func (s *Shape) UnmarshalJSON(data []byte) error {
 //
 // The zero value is valid and draws nothing. Authoring a shapeless
 // primitive in file content is a mistake; see [Primitive.Authored].
-func (p Primitive) Authored() error {
-	if p.Shape == ShapeNone {
-		return fmt.Errorf("authored primitive requires a shape")
-	}
-	return nil
-}
-
 type Primitive struct {
 	// Shape selects the geometry.
 	Shape Shape `json:"shape"`
@@ -243,6 +237,15 @@ type Primitive struct {
 	To geom.Vector2 `json:"to,omitempty"`
 	// Style holds the visual style.
 	Style Style `json:"style,omitempty"`
+}
+
+// Authored reports an error when the primitive has no shape. File content
+// must name one; runtime zero values stay legal.
+func (p Primitive) Authored() error {
+	if p.Shape == ShapeNone {
+		return fmt.Errorf("authored primitive requires a shape")
+	}
+	return nil
 }
 
 // Validate reports whether the primitive and its style are valid.
