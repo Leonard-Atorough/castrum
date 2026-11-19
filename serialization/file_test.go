@@ -168,3 +168,49 @@ func TestOpenRejectsUnauthoredComponents(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenCompilesFileAssets(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+	if err := reg.Asset[trader]("game.TraderAsset"); err != nil {
+		t.Fatalf("Asset: %v", err)
+	}
+
+	f := File{
+		Key: "root",
+		Assets: []FileAsset{
+			{Type: "game.TraderAsset", ID: "sprites.json"},
+		},
+		Children: []File{
+			{Key: "kid", Assets: []FileAsset{{Type: "game.TraderAsset", ID: "font.ttf"}}},
+		},
+	}
+	n, err := f.Open(reg)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if len(n.Assets) != 1 {
+		t.Fatalf("node assets = %d, want 1", len(n.Assets))
+	}
+	if len(n.Children) != 1 || len(n.Children[0].Assets) != 1 {
+		t.Fatalf("child assets = %+v, want one child with one asset", n.Children)
+	}
+}
+
+func TestOpenRejectsUnknownAssetType(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+
+	f := File{
+		Key:    "root",
+		Assets: []FileAsset{{Type: "game.Mystery", ID: "x.png"}},
+	}
+	_, err := f.Open(reg)
+	if err == nil || !strings.Contains(err.Error(), "game.Mystery") || !strings.Contains(err.Error(), "root") {
+		t.Fatalf("Open error = %v, want it to name the asset key and node path", err)
+	}
+}
