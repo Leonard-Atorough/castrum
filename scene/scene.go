@@ -60,7 +60,9 @@ type Node struct {
 	// Component-specific validation runs when the entity is created.
 	Components []any
 	// Children are nested scene nodes, not a transform hierarchy.
-	Children   []Node
+	Children []Node
+	// Persistent marks the node as persistent for game runtime serialization.
+	// Persistent nodes are kept across saves but do not affect scene lifetime.
 	Persistent bool
 }
 

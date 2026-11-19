@@ -92,29 +92,23 @@ func newGame() (*castrum.Game, *demo, error) {
 	end := geom.Vector2{X: 1040, Y: 260}
 	if _, err := g.World().NewEntity(
 		core.Transform{Position: start},
-		sprite.Sprite{
-			Drawable: sprite.LineShape{To: end.Sub(start)},
-			Style:    sprite.Style{Outline: true, StrokeWidth: 2, Color: color.NRGBA{R: 100, G: 100, B: 100, A: 255}},
-		},
+		sprite.Primitive{Shape: sprite.ShapeLine, To: end.Sub(start),
+			Style: sprite.Style{Outline: true, StrokeWidth: 2, Color: &color.RGBA{R: 100, G: 100, B: 100, A: 255}}},
 	); err != nil {
 		return nil, nil, err
 	}
 	d.body, err = g.World().NewEntity(
 		core.Transform{Position: start},
-		sprite.Sprite{
-			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 24, Y: 24}},
-			Style:    sprite.Style{Color: color.NRGBA{R: 100, G: 220, B: 140, A: 255}, Layer: 1},
-		},
+		sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 24, Y: 24},
+			Style: sprite.Style{Color: &color.RGBA{R: 100, G: 220, B: 140, A: 255}, Layer: 1}},
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 	d.swatch, err = g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: 480}},
-		sprite.Sprite{
-			Drawable: sprite.RectShape{Size: geom.Vector2{X: 240, Y: 120}},
-			Style:    sprite.Style{Color: color.NRGBA{R: 255, G: 180, B: 60, A: 255}},
-		},
+		sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 240, Y: 120},
+			Style: sprite.Style{Color: &color.RGBA{R: 255, G: 180, B: 60, A: 255}}},
 	)
 	if err != nil {
 		return nil, nil, err
@@ -176,8 +170,8 @@ func newGame() (*castrum.Game, *demo, error) {
 		if err != nil {
 			return err
 		}
-		return d.swatch.Update(ctx.World, func(s *sprite.Sprite) {
-			s.Style.Color = color.NRGBA{
+		return d.swatch.Update(ctx.World, func(s *sprite.Primitive) {
+			s.Style.Color = &color.RGBA{
 				R: uint8(math.Round(geom.Lerp(255, 80, weight))),
 				G: uint8(math.Round(geom.Lerp(180, 160, weight))),
 				B: uint8(math.Round(geom.Lerp(60, 255, weight))),

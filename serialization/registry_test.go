@@ -80,6 +80,10 @@ func TestResourceRegistration(t *testing.T) {
 	if err := reg.Resource[station](""); err == nil {
 		t.Fatal("empty resource key accepted")
 	}
+	if err := reg.Resource[station]("game.Outpost"); err == nil ||
+		!strings.Contains(err.Error(), "game.Station") {
+		t.Fatalf("second key for same type error = %v, want it to name game.Station", err)
+	}
 
 	// Registering a resource installs JSON for its value type on the
 	// game's codecs.
@@ -305,5 +309,67 @@ func TestComponentInstallsJSONOnGameCodecs(t *testing.T) {
 	}
 	if got.Name != "Vex" || got.Patience != 0.5 {
 		t.Fatalf("round trip = %+v, want name Vex patience 0.5", got)
+	}
+}
+
+func TestResourceRoundTrip(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Resource[station]("game.Station"); err != nil {
+		t.Fatalf("Resource: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := reg.EncodeResource("game.Station", station{Credits: 7}, &buf); err != nil {
+		t.Fatalf("EncodeResource: %v", err)
+	}
+	got, err := reg.DecodeResource("game.Station", buf.Bytes())
+	if err != nil {
+		t.Fatalf("DecodeResource: %v", err)
+	}
+	if station, ok := got.(station); !ok || station.Credits != 7 {
+		t.Fatalf("decoded = %+v (%T), want station credits 7", got, got)
+	}
+}
+
+func TestResourceEncodeDecodeErrors(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Resource[station]("game.Station"); err != nil {
+		t.Fatalf("Resource: %v", err)
+	}
+
+	// Unknown keys name the key.
+	var buf bytes.Buffer
+	if err := reg.EncodeResource("game.Unknown", station{}, &buf); err == nil ||
+		!strings.Contains(err.Error(), "game.Unknown") {
+		t.Fatalf("unknown key error = %v, want it to name game.Unknown", err)
+	}
+	if _, err := reg.DecodeResource("game.Unknown", []byte(`{}`)); err == nil ||
+		!strings.Contains(err.Error(), "game.Unknown") {
+		t.Fatalf("unknown key error = %v, want it to name game.Unknown", err)
+	}
+
+	// Invalid JSON wraps the codec error with the key.
+	if _, err := reg.DecodeResource("game.Station", []byte(`{`)); err == nil ||
+		!strings.Contains(err.Error(), "game.Station") {
+		t.Fatalf("decode error = %v, want it to name game.Station", err)
+	}
+
+	// The encoded value must have the registered concrete type.
+	if err := reg.EncodeResource("game.Station", trader{Name: "Vex"}, &buf); err == nil {
+		t.Fatal("mismatched value type accepted")
+	}
+}
+
+func TestDecodeResourceValidatesValidatable(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Resource[trader]("game.Economy"); err != nil {
+		t.Fatalf("Resource: %v", err)
+	}
+
+	// DecodeResource is the only validation gate for restored resources;
+	// an invalid value must be rejected here with the rule named.
+	if _, err := reg.DecodeResource("game.Economy", []byte(`{"name":"","patience":0.8}`)); err == nil ||
+		!strings.Contains(err.Error(), "name must not be empty") {
+		t.Fatalf("validation error = %v, want the trader constraint", err)
 	}
 }

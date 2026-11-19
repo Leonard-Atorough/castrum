@@ -99,11 +99,11 @@ func newPlayerStats(maxHealth, maxSpeed int) playerStats {
 }
 
 var (
-	playerColor  = color.RGBA{R: 120, G: 220, B: 120, A: 255}
-	wallColor    = color.RGBA{R: 90, G: 110, B: 140, A: 255}
-	barColor     = color.RGBA{R: 170, G: 130, B: 200, A: 255}
-	pickupColor  = color.RGBA{R: 240, G: 220, B: 90, A: 255}
-	contactColor = color.RGBA{R: 230, G: 90, B: 90, A: 255}
+	playerColor  = &color.RGBA{R: 120, G: 220, B: 120, A: 255}
+	wallColor    = &color.RGBA{R: 90, G: 110, B: 140, A: 255}
+	barColor     = &color.RGBA{R: 170, G: 130, B: 200, A: 255}
+	pickupColor  = &color.RGBA{R: 240, G: 220, B: 90, A: 255}
+	contactColor = &color.RGBA{R: 230, G: 90, B: 90, A: 255}
 )
 
 func main() {
@@ -145,10 +145,8 @@ func run() error {
 	stats := newPlayerStats(maxHealth, moveSpeed)
 	player, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: 0 + wallThickness*2}},
-		sprite.Sprite{
-			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
-			Style:    sprite.Style{Color: playerColor},
-		},
+		sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: playerRadius, Y: playerRadius},
+			Style: sprite.Style{Color: playerColor}},
 		playerCollider,
 		stats,
 	)
@@ -208,10 +206,8 @@ func run() error {
 		collider.Trigger = true
 		pickups[i], err = g.World().NewEntity(
 			core.Transform{Position: randomPosition()},
-			sprite.Sprite{
-				Drawable: sprite.CircleShape{Radii: geom.Vector2{X: pickupRadius, Y: pickupRadius}},
-				Style:    sprite.Style{Color: pickupColor},
-			},
+			sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: pickupRadius, Y: pickupRadius},
+				Style: sprite.Style{Color: pickupColor}},
 			collider,
 		)
 		if err != nil {
@@ -253,10 +249,8 @@ func run() error {
 				}
 			}
 		}
-		return player.SetComponent(ctx.World, sprite.Sprite{
-			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: playerRadius, Y: playerRadius}},
-			Style:    sprite.Style{Color: tint},
-		})
+		return player.SetComponent(ctx.World, sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: playerRadius, Y: playerRadius},
+			Style: sprite.Style{Color: tint}})
 	})); err != nil {
 		return err
 	}
@@ -367,7 +361,7 @@ func pickupSystem(player core.Entity, pickups []core.Entity, score *int, panel *
 // matching collider on the given layer bitmask, used for walls and
 // spinning bars. The collider's mask admits only the player's layer.
 // extra attaches more components - the bars add their rotation.
-func spawnRect(world *core.World, position, min, max geom.Vector2, fill color.Color, layers uint32, extra ...any) (core.Entity, error) {
+func spawnRect(world *core.World, position, min, max geom.Vector2, fill *color.RGBA, layers uint32, extra ...any) (core.Entity, error) {
 	collider, err := collision.NewCollider(collision.Box{Min: min, Max: max})
 	if err != nil {
 		return core.Entity{}, err
@@ -377,7 +371,7 @@ func spawnRect(world *core.World, position, min, max geom.Vector2, fill color.Co
 	size := max.Sub(min)
 	return world.NewEntity(append([]any{
 		core.Transform{Position: position},
-		sprite.Sprite{Drawable: sprite.RectShape{Size: size}, Style: sprite.Style{Color: fill}},
+		sprite.Primitive{Shape: sprite.ShapeRect, Rect: size, Style: sprite.Style{Color: fill}},
 		collider,
 	}, extra...)...)
 }
