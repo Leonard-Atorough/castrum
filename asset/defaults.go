@@ -1,8 +1,6 @@
 package asset
 
-import (
-	"fmt"
-)
+import "fmt"
 
 func (c *Codecs) registerDefaults() {
 	for _, format := range []Format{FormatPNG, FormatJPG, FormatJPEG} {
