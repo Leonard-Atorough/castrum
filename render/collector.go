@@ -295,9 +295,6 @@ func (c *Collector) collectSprite(viewport geom.Rect, alpha float64, loadAsset f
 	return nil
 }
 
-// collectSheet resolves a sheet region into a texture item. Sprite
-// components reference sheets by file ID; animated sprite clips retain
-// the resolved reference. Both resolve through this path.
 func (c *Collector) collectSheet(loadAsset func() (*asset.Loader, error), s sprite.Sprite, rotation float64, scale geom.Vector2, ref asset.SheetRef, region string) (DrawItem, geom.Vector2, error) {
 	srv, err := loadAsset()
 	if err != nil {
@@ -454,9 +451,6 @@ func shapeItem(sprite sprite.Sprite, rotation float64, scale geom.Vector2, shape
 	}
 }
 
-// styleTint converts a style color to a fill, substituting fallback when
-// the style is untinted. A typed-nil *color.RGBA must not leak into the
-// color.Color interface, so nil is handled before the conversion.
 func styleTint(clr *color.RGBA, fallback color.Color) color.Color {
 	if clr == nil {
 		return fallback

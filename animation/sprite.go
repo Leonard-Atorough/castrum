@@ -142,7 +142,7 @@ func (a AnimatedSprite) Validate() error {
 
 // CurrentFrame returns the sheet reference and region name of the frame
 // to draw. It reports false for a clipless sprite and an error if the
-// sprite is invalid. Resolution happens in the render collector.
+// sprite is invalid.
 func (a AnimatedSprite) CurrentFrame() (asset.SheetRef, string, bool, error) {
 	if err := a.Validate(); err != nil {
 		return asset.SheetRef{}, "", false, err
