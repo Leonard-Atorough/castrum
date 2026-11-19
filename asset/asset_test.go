@@ -49,8 +49,8 @@ func newTestFS(files map[string]string) fs.FS {
 
 func mustRegisterJSONDecoder(t *testing.T, a *Loader) {
 	t.Helper()
-	if err := a.RegisterDecoder(FormatJSON, jsonDecoder[spriteMeta]()); err != nil {
-		t.Fatalf("RegisterDecoder: %v", err)
+	if err := a.codecs.SetDecoder(FormatJSON, jsonDecoder[spriteMeta]()); err != nil {
+		t.Fatalf("SetDecoder: %v", err)
 	}
 }
 
@@ -72,7 +72,7 @@ func TestLoadNormalizesPath(t *testing.T) {
 	// name: the cleaned path reaches the fs open, not just the cache id.
 	a := newTestLoader(t, newTestFS(map[string]string{"sprites/player.json": `{"name":"player"}`}), LoaderOptions{})
 	decodes := 0
-	if err := a.RegisterDecoder(FormatJSON, func(r io.Reader) (spriteMeta, error) {
+	if err := a.codecs.SetDecoder(FormatJSON, func(r io.Reader) (spriteMeta, error) {
 		decodes++
 		return jsonDecoder[spriteMeta]()(r)
 	}); err != nil {
@@ -116,7 +116,7 @@ func TestLoadCachePolicies(t *testing.T) {
 			files := fstest.MapFS{}
 			loader := newTestLoader(t, files, LoaderOptions{CachePolicy: tc.policy})
 			decodes := 0
-			if err := loader.RegisterDecoder(FormatJSON, func(r io.Reader) (spriteMeta, error) {
+			if err := loader.codecs.SetDecoder(FormatJSON, func(r io.Reader) (spriteMeta, error) {
 				decodes++
 				return jsonDecoder[spriteMeta]()(r)
 			}); err != nil {
@@ -150,7 +150,7 @@ func TestLoadBypassDoesNotJoinOrReplaceCachedWork(t *testing.T) {
 		loader := newTestLoader(t, files, LoaderOptions{})
 		oldGate, freshGate := make(chan struct{}), make(chan struct{})
 		var decodes atomic.Int32
-		if err := loader.RegisterDecoder(FormatJSON, func(r io.Reader) (*spriteMeta, error) {
+		if err := loader.codecs.SetDecoder(FormatJSON, func(r io.Reader) (*spriteMeta, error) {
 			value, err := jsonDecoder[*spriteMeta]()(r)
 			if decodes.Add(1) == 1 {
 				<-oldGate
@@ -278,7 +278,7 @@ func TestLoadFailuresDoNotPublishValues(t *testing.T) {
 				}
 				failDecode := failure.decode
 				loader := newTestLoader(t, files, LoaderOptions{CachePolicy: policy})
-				if err := loader.RegisterDecoder(FormatJSON, func(r io.Reader) (spriteMeta, error) {
+				if err := loader.codecs.SetDecoder(FormatJSON, func(r io.Reader) (spriteMeta, error) {
 					if failDecode {
 						return spriteMeta{Name: "partial"}, decodeErr
 					}
@@ -315,7 +315,7 @@ func TestLoadInFlightIdentityUsesExactType(t *testing.T) {
 		{
 			type document struct{ Name string }
 			types[0] = reflect.TypeFor[document]()
-			if err := loader.RegisterDecoder(FormatJSON, func(io.Reader) (document, error) {
+			if err := loader.codecs.SetDecoder(FormatJSON, func(io.Reader) (document, error) {
 				<-gate
 				return document{Name: "first"}, nil
 			}); err != nil {
@@ -332,7 +332,7 @@ func TestLoadInFlightIdentityUsesExactType(t *testing.T) {
 		{
 			type document struct{ Name string }
 			types[1] = reflect.TypeFor[document]()
-			if err := loader.RegisterDecoder(FormatJSON, func(io.Reader) (document, error) {
+			if err := loader.codecs.SetDecoder(FormatJSON, func(io.Reader) (document, error) {
 				return document{Name: "second"}, nil
 			}); err != nil {
 				t.Fatal(err)
@@ -375,13 +375,13 @@ func TestLoadInFlightIdentityUsesExactType(t *testing.T) {
 func TestLoadWithFormatOverridesExtensionAndCacheIdentity(t *testing.T) {
 	a := newTestLoader(t, newTestFS(map[string]string{"data": "contents"}), LoaderOptions{})
 	var jsonDecodes, yamlDecodes int
-	if err := a.RegisterDecoder(FormatJSON, Decoder[spriteMeta](func(io.Reader) (spriteMeta, error) {
+	if err := a.codecs.SetDecoder(FormatJSON, Decoder[spriteMeta](func(io.Reader) (spriteMeta, error) {
 		jsonDecodes++
 		return spriteMeta{Name: "json"}, nil
 	})); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.RegisterDecoder(FormatYAML, Decoder[spriteMeta](func(io.Reader) (spriteMeta, error) {
+	if err := a.codecs.SetDecoder(FormatYAML, Decoder[spriteMeta](func(io.Reader) (spriteMeta, error) {
 		yamlDecodes++
 		return spriteMeta{Name: "yaml"}, nil
 	})); err != nil {
@@ -415,7 +415,7 @@ func TestLoadDeduplicatesConcurrentLoads(t *testing.T) {
 				completed := atomic.Int32{}
 				wantErr := errors.New("decode failed")
 				fail := failure != "none"
-				if err := a.RegisterDecoder(FormatJSON, Decoder[spriteMeta](func(r io.Reader) (spriteMeta, error) {
+				if err := a.codecs.SetDecoder(FormatJSON, Decoder[spriteMeta](func(r io.Reader) (spriteMeta, error) {
 					decodes.Add(1)
 					if fail {
 						if failure == "panic" {
@@ -425,7 +425,7 @@ func TestLoadDeduplicatesConcurrentLoads(t *testing.T) {
 					}
 					return jsonDecoder[spriteMeta]()(r)
 				})); err != nil {
-					t.Fatalf("RegisterDecoder: %v", err)
+					t.Fatalf("SetDecoder: %v", err)
 				}
 
 				const peers = 8
@@ -499,11 +499,11 @@ func TestLoadDeduplicatesConcurrentLoads(t *testing.T) {
 func TestLoadPointerTypeCachesNil(t *testing.T) {
 	a := newTestLoader(t, newTestFS(map[string]string{"sprites/player.json": `{"name":"player"}`}), LoaderOptions{})
 	var decodes int
-	if err := a.RegisterDecoder(FormatJSON, Decoder[*spriteMeta](func(io.Reader) (*spriteMeta, error) {
+	if err := a.codecs.SetDecoder(FormatJSON, Decoder[*spriteMeta](func(io.Reader) (*spriteMeta, error) {
 		decodes++
 		return nil, nil // a pointer decoder may legitimately produce nil
 	})); err != nil {
-		t.Fatalf("RegisterDecoder: %v", err)
+		t.Fatalf("SetDecoder: %v", err)
 	}
 
 	first, err := a.Load[*spriteMeta]("sprites/player.json")
@@ -557,11 +557,11 @@ func TestLoadWithoutDecoderErrors(t *testing.T) {
 func TestLoadReaderDecodesWithoutCaching(t *testing.T) {
 	a := newTestLoader(t, nil, LoaderOptions{})
 	var decodes atomic.Int32
-	if err := a.RegisterDecoder(FormatJSON, Decoder[spriteMeta](func(r io.Reader) (spriteMeta, error) {
+	if err := a.codecs.SetDecoder(FormatJSON, Decoder[spriteMeta](func(r io.Reader) (spriteMeta, error) {
 		decodes.Add(1)
 		return jsonDecoder[spriteMeta]()(r)
 	})); err != nil {
-		t.Fatalf("RegisterDecoder: %v", err)
+		t.Fatalf("SetDecoder: %v", err)
 	}
 
 	for i := range 2 {
@@ -584,36 +584,6 @@ func TestLoadReaderRequiresFormat(t *testing.T) {
 
 	if _, err := a.LoadReader[spriteMeta](strings.NewReader(`{}`), "xml"); err == nil {
 		t.Error("LoadReader with an unregistered format should error")
-	}
-}
-
-func TestRegisterDecoderValidation(t *testing.T) {
-	a := newTestLoader(t, nil, LoaderOptions{})
-
-	if err := a.RegisterDecoder(FormatJSON, jsonDecoder[spriteMeta]()); err != nil {
-		t.Fatalf("first registration: %v", err)
-	}
-	if err := a.RegisterDecoder(FormatJSON, jsonDecoder[spriteMeta]()); err == nil {
-		t.Error("duplicate registration without override should error")
-	}
-	if err := a.RegisterDecoder(FormatJSON, Decoder[spriteMeta](nil)); err == nil {
-		t.Error("nil decoder should error")
-	}
-	if err := a.RegisterDecoder("", jsonDecoder[spriteMeta]()); err == nil {
-		t.Error("empty format should error")
-	}
-	if err := a.RegisterDecoder(FormatJSON, Decoder[spriteMeta](func(io.Reader) (spriteMeta, error) {
-		return spriteMeta{Name: "replaced"}, nil
-	})); err == nil {
-		t.Fatal("duplicate registration should not replace the decoder")
-	}
-
-	meta, err := a.LoadReader[spriteMeta](strings.NewReader(`{"name":"original"}`), FormatJSON)
-	if err != nil {
-		t.Fatalf("LoadReader after rejected replacement: %v", err)
-	}
-	if meta.Name != "original" {
-		t.Fatalf("decoder after rejected replacement = %+v, want original", meta)
 	}
 }
 

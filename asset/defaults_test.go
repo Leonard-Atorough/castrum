@@ -31,10 +31,6 @@ func TestDefaultDecodersAnswerToUserRegistration(t *testing.T) {
 	}
 	a := newTestLoader(t, nil, LoaderOptions{Codecs: codecs})
 
-	if err := a.RegisterDecoder(FormatPNG, decodeTexture); err == nil {
-		t.Error("duplicate registration of a default should error")
-	}
-
 	tex, err := a.LoadReader[TextureData](strings.NewReader(""), FormatPNG)
 	if err != nil {
 		t.Fatalf("LoadReader after override: %v", err)

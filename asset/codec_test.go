@@ -11,75 +11,37 @@ import (
 	"testing/fstest"
 )
 
-func TestCodecSnapshotsAndLocalRegistration(t *testing.T) {
+func TestCodecChangesReachExistingFacades(t *testing.T) {
 	codecs := NewCodecs()
-	if err := codecs.SetJSON[spriteMeta](); err != nil {
-		t.Fatal(err)
-	}
-	oldLoader := newTestLoader(t, nil, LoaderOptions{Codecs: codecs})
-	oldSaver, err := NewSaver(nil, SaverOptions{Codecs: codecs})
+	loader := newTestLoader(t, nil, LoaderOptions{Codecs: codecs})
+	saver, err := NewSaver(nil, SaverOptions{Codecs: codecs})
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := codecs.SetJSON[spriteMeta](); err != nil {
+		t.Fatal(err)
+	}
 	if err := codecs.SetDecoder(FormatJSON, func(io.Reader) (spriteMeta, error) {
-		return spriteMeta{Name: "new decoder"}, nil
+		return spriteMeta{Name: "replaced"}, nil
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := codecs.SetEncoder(FormatJSON, func(w io.Writer, _ spriteMeta) error {
-		_, err := io.WriteString(w, "new encoder")
+		_, err := io.WriteString(w, "replaced encoder")
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
-	newLoader := newTestLoader(t, nil, LoaderOptions{Codecs: codecs})
-	newSaver, err := NewSaver(nil, SaverOptions{Codecs: codecs})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tc := range []struct {
-		loader *Loader
-		saver  *Saver
-		name   string
-		output string
-	}{
-		{oldLoader, oldSaver, "original", "{\"name\":\"original\"}\n"},
-		{newLoader, newSaver, "new decoder", "new encoder"},
-	} {
-		got, err := tc.loader.LoadReader[spriteMeta](strings.NewReader(`{"name":"original"}`), FormatJSON)
-		if err != nil || got.Name != tc.name {
-			t.Fatalf("snapshot decode = %+v, %v; want %q", got, err, tc.name)
-		}
-		var output bytes.Buffer
-		if err := tc.saver.SaveWriter(&output, spriteMeta{Name: "original"}, FormatJSON); err != nil {
-			t.Fatal(err)
-		}
-		if output.String() != tc.output {
-			t.Fatalf("snapshot encode = %q, want %q", output.String(), tc.output)
-		}
-	}
-
-	local := Format("local")
-	if err := oldLoader.RegisterDecoder(local, jsonDecoder[spriteMeta]()); err != nil {
-		t.Fatal(err)
-	}
-	if err := oldSaver.RegisterEncoder(local, func(w io.Writer, v spriteMeta) error {
-		return json.NewEncoder(w).Encode(v)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := newLoader.LoadReader[spriteMeta](strings.NewReader(`{}`), local); err == nil {
-		t.Fatal("local decoder escaped into a sibling loader")
+	got, err := loader.LoadReader[spriteMeta](strings.NewReader(`{"name":"original"}`), FormatJSON)
+	if err != nil || got.Name != "replaced" {
+		t.Fatalf("decode = %+v, %v; want replaced", got, err)
 	}
 	var output bytes.Buffer
-	if err := newSaver.SaveWriter(&output, spriteMeta{}, local); err == nil {
-		t.Fatal("local encoder escaped into a sibling saver")
+	if err := saver.SaveWriter(&output, spriteMeta{Name: "original"}, FormatJSON); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := codecs.decoder[spriteMeta](local); err == nil {
-		t.Fatal("local decoder escaped into configuration")
-	}
-	if _, err := codecs.encoder[spriteMeta](local); err == nil {
-		t.Fatal("local encoder escaped into configuration")
+	if output.String() != "replaced encoder" {
+		t.Fatalf("encode = %q, want replaced encoder", output.String())
 	}
 }
 

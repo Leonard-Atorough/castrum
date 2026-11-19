@@ -62,8 +62,8 @@ func (s *audioSession) release() error {
 	return source.Close()
 }
 
-func newAudioProvider(audioCtx *ebitaudio.Context, loader *asset.Loader) (*audioProvider, error) {
-	if err := registerAudioCodecs(loader, audioCtx.SampleRate()); err != nil {
+func newAudioProvider(audioCtx *ebitaudio.Context, loader *asset.Loader, codecs *asset.Codecs) (*audioProvider, error) {
+	if err := registerAudioCodecs(codecs, audioCtx.SampleRate()); err != nil {
 		return nil, err
 	}
 	return &audioProvider{
@@ -89,9 +89,15 @@ var streamDecoders = map[asset.Format]func(int, io.Reader) (audioStream, error){
 	},
 }
 
-func registerAudioCodecs(loader *asset.Loader, sampleRate int) error {
+// registerAudioCodecs installs the runner's audio decoders on the game's
+// shared codecs. A format that already has a decoder keeps it, so a
+// user-set decoder is never replaced.
+func registerAudioCodecs(codecs *asset.Codecs, sampleRate int) error {
 	for format, decode := range streamDecoders {
-		err := loader.RegisterDecoder(format, func(r io.Reader) (asset.AudioData, error) {
+		if codecs.HasDecoder[asset.AudioData](format) {
+			continue
+		}
+		err := codecs.SetDecoder(format, func(r io.Reader) (asset.AudioData, error) {
 			stream, err := decode(sampleRate, r)
 			if err != nil {
 				return asset.AudioData{}, err

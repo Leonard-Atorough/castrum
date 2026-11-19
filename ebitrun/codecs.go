@@ -11,9 +11,11 @@ import (
 // [DisplayPreferences]. Use it for preference loaders and savers before
 // constructing a runner.
 //
-// Each call returns independent codecs. Custom registrations must precede
-// facade construction. Audio data decoders are installed by [New] at the
-// effective audio sample rate, not by this function.
+// Each call returns independent codecs. Custom registrations are visible to
+// facades built from these codecs, including ones built earlier. Audio data
+// decoders are installed on these codecs by [New] at the effective audio
+// sample rate, for each format that has no decoder yet; a decoder set before
+// [New] is kept.
 func NewAssetCodecs() *asset.Codecs {
 	codecs := castrum.NewAssetCodecs()
 	if err := codecs.SetJSON[DisplayPreferences](); err != nil {

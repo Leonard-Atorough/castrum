@@ -195,6 +195,21 @@ func TestComponentPointerReceiverValidateRejected(t *testing.T) {
 	}
 }
 
+func TestSaverBuiltBeforeComponentRegistrationSaves(t *testing.T) {
+	reg, codecs := newTestRegistry(t)
+	saver, err := asset.NewSaver(nil, asset.SaverOptions{Codecs: codecs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Component[trader]("trader"); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := saver.SaveWriter(&buf, trader{Name: "Vex", Patience: 0.5}, asset.FormatJSON); err != nil {
+		t.Fatalf("saver built before registration: %v", err)
+	}
+}
+
 func TestComponentTypeRegisteredTwice(t *testing.T) {
 	reg, _ := newTestRegistry(t)
 	if err := reg.Component[trader]("game.Trader"); err != nil {
