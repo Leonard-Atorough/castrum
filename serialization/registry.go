@@ -26,6 +26,7 @@ type Registry struct {
 	components     map[string]*componentEntry
 	componentTypes map[reflect.Type]*componentEntry
 	resources      map[string]*resourceEntry
+	resourceTypes  map[reflect.Type]*resourceEntry
 }
 
 var validatableType = reflect.TypeFor[core.Validatable]()
@@ -54,6 +55,7 @@ func NewRegistry(world *core.World) *Registry {
 		components:     make(map[string]*componentEntry),
 		componentTypes: make(map[reflect.Type]*componentEntry),
 		resources:      make(map[string]*resourceEntry),
+		resourceTypes:  make(map[reflect.Type]*resourceEntry),
 	}
 }
 
@@ -132,7 +134,8 @@ func (r *Registry) Component[T any](key string) error {
 // must store the resource as *T.
 //
 // It returns an error if key is empty or already registered as a resource,
-// T is a pointer type, or the codecs resource cannot be resolved.
+// T is a pointer type or is already registered as a resource under
+// another key, or the codecs resource cannot be resolved.
 func (r *Registry) Resource[T any](key string) error {
 	if key == "" {
 		return fmt.Errorf("serialization: resource key must not be empty")
@@ -145,6 +148,9 @@ func (r *Registry) Resource[T any](key string) error {
 	if typ.Kind() == reflect.Pointer {
 		return fmt.Errorf("serialization: resource %q must not be a pointer type", key)
 	}
+	if existing, dup := r.resourceTypes[typ]; dup {
+		return fmt.Errorf("serialization: resource %q: type %v already registered as %q", key, typ, existing.key)
+	}
 
 	codecs, err := r.codecsOrError()
 	if err != nil {
@@ -153,7 +159,7 @@ func (r *Registry) Resource[T any](key string) error {
 	if err := codecs.SetJSON[T](); err != nil {
 		return fmt.Errorf("serialization: resource %q: %w", key, err)
 	}
-	r.resources[key] = &resourceEntry{
+	entry := &resourceEntry{
 		key: key,
 		typ: typ,
 		decode: func(rd io.Reader) (any, error) {
@@ -170,6 +176,45 @@ func (r *Registry) Resource[T any](key string) error {
 			}
 			return codecs.Encode(w, v, asset.FormatJSON)
 		},
+	}
+	r.resources[key] = entry
+	r.resourceTypes[typ] = entry
+	return nil
+}
+
+// DecodeResource decodes raw JSON into a value of the resource's
+// registered type. Values implementing [core.Validatable] validate here:
+// unlike components, a restored resource passes through no other
+// validation gate, so this is the corruption check for resource data.
+//
+// If the key is unknown or decoding or validation fails, the error names
+// the key.
+func (r *Registry) DecodeResource(key string, raw []byte) (any, error) {
+	entry, ok := r.resources[key]
+	if !ok {
+		return nil, fmt.Errorf("serialization: unknown resource key %q", key)
+	}
+	value, err := entry.decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, fmt.Errorf("serialization: resource %q: %w", key, err)
+	}
+	if v, ok := value.(core.Validatable); ok {
+		if err := v.Validate(); err != nil {
+			return nil, fmt.Errorf("serialization: resource %q: %w", key, err)
+		}
+	}
+	return value, nil
+}
+
+// EncodeResource writes the resource value for key as JSON. The value must
+// have the registered concrete type.
+func (r *Registry) EncodeResource(key string, value any, w io.Writer) error {
+	entry, ok := r.resources[key]
+	if !ok {
+		return fmt.Errorf("serialization: unknown resource key %q", key)
+	}
+	if err := entry.encode(w, value); err != nil {
+		return fmt.Errorf("serialization: resource %q: %w", key, err)
 	}
 	return nil
 }
