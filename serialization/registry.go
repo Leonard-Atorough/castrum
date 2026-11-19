@@ -8,6 +8,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/scene"
 )
 
 // Registry maps stable keys to the component and resource types that cross
@@ -27,6 +28,7 @@ type Registry struct {
 	componentTypes map[reflect.Type]*componentEntry
 	resources      map[string]*resourceEntry
 	resourceTypes  map[reflect.Type]*resourceEntry
+	assets         map[string]*assetEntry
 }
 
 var validatableType = reflect.TypeFor[core.Validatable]()
@@ -45,6 +47,14 @@ type resourceEntry struct {
 	encode func(w io.Writer, value any) error
 }
 
+type assetEntry struct {
+	key string
+	typ reflect.Type
+	// preload builds the scene.Preload for an asset id of the registered
+	// type, erasing T at registration time.
+	preload func(id asset.ID) scene.Preload
+}
+
 // NewRegistry returns an empty registry bound to world.
 //
 // The registry looks up [asset.Codecs] in world when registration first
@@ -56,6 +66,7 @@ func NewRegistry(world *core.World) *Registry {
 		componentTypes: make(map[reflect.Type]*componentEntry),
 		resources:      make(map[string]*resourceEntry),
 		resourceTypes:  make(map[reflect.Type]*resourceEntry),
+		assets:         make(map[string]*assetEntry),
 	}
 }
 
@@ -74,8 +85,36 @@ func (r *Registry) codecsOrError() (*asset.Codecs, error) {
 	return codecs, nil
 }
 
-// Component registers T under key for spawning components from data.
+// Asset registers T under key as an asset type loadable from data. File
+// asset entries name a registered key; [Registry.Preload] turns a key and
+// an asset ID into the preload the scene enters with.
 //
+// It returns an error if key is empty or already registered as an asset.
+func (r *Registry) Asset[T any](key string) error {
+	if key == "" {
+		return fmt.Errorf("serialization: asset key must not be empty")
+	}
+	if _, dup := r.assets[key]; dup {
+		return fmt.Errorf("serialization: asset key %q already registered", key)
+	}
+	r.assets[key] = &assetEntry{
+		key:     key,
+		typ:     reflect.TypeFor[T](),
+		preload: func(id asset.ID) scene.Preload { return scene.Warm[T](id) },
+	}
+	return nil
+}
+
+// Preload returns the preload that warms the asset id of the asset type
+// registered under key. An unknown key is an error naming the key.
+func (r *Registry) Preload(key string, id asset.ID) (scene.Preload, error) {
+	entry, ok := r.assets[key]
+	if !ok {
+		return nil, fmt.Errorf("serialization: unknown asset type %q", key)
+	}
+	return entry.preload(id), nil
+}
+
 // It returns an error if key is empty or already registered as a component,
 // T is a pointer type or is already registered as a component under
 // another key, only *T implements [core.Validatable], or the codecs

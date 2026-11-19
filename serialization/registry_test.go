@@ -373,3 +373,28 @@ func TestDecodeResourceValidatesValidatable(t *testing.T) {
 		t.Fatalf("validation error = %v, want the trader constraint", err)
 	}
 }
+
+type testAsset struct {
+	Data []byte
+}
+
+func TestAssetRegistration(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Asset[testAsset]("game.Pixel"); err != nil {
+		t.Fatalf("Asset: %v", err)
+	}
+	if err := reg.Asset[testAsset]("game.Pixel"); err == nil {
+		t.Fatal("duplicate asset key accepted")
+	}
+	if err := reg.Asset[testAsset](""); err == nil {
+		t.Fatal("empty asset key accepted")
+	}
+}
+
+func TestPreloadUnknownAssetType(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if _, err := reg.Preload("game.Mystery", "x.png"); err == nil ||
+		!strings.Contains(err.Error(), "game.Mystery") {
+		t.Fatalf("unknown asset type error = %v, want it to name the key", err)
+	}
+}
