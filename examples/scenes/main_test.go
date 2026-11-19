@@ -25,8 +25,10 @@ func TestSceneControlsAndEntitySystems(t *testing.T) {
 	if !director.Live(d.root) {
 		t.Fatal("hangar did not enter at startup")
 	}
-	if got := len(director.Entities(d.root)); got != 2 {
-		t.Fatalf("hangar entities = %d, want 2", got)
+	// hangar.json authors three nodes: the backdrop, the ship, and the
+	// location title.
+	if got := len(director.Entities(d.root)); got != 3 {
+		t.Fatalf("hangar entities = %d, want 3", got)
 	}
 	ship := movingEntity(t, g, spin{})
 
@@ -97,8 +99,8 @@ func TestSceneControlsAndEntitySystems(t *testing.T) {
 	if got := len(director.Entities(field)) + len(director.Entities(d.scanner)); got != 0 {
 		t.Fatalf("old field and scanner entities = %d, want 0", got)
 	}
-	if got := len(director.Entities(d.root)); got != 2 {
-		t.Fatalf("returned hangar entities = %d, want 2", got)
+	if got := len(director.Entities(d.root)); got != 3 {
+		t.Fatalf("returned hangar entities = %d, want 3", got)
 	}
 	newShip := movingEntity(t, g, spin{})
 	hangarRotation := rotation(t, g, newShip)

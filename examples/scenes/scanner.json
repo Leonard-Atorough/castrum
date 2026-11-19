@@ -1,0 +1,22 @@
+{
+  "key": "scanner",
+  "components": [
+    {
+      "type": "core.Transform",
+      "value": { "Position": { "x": 640, "y": 400 } }
+    },
+    {
+      "type": "sprite.Primitive",
+      "value": {
+        "shape": "circle",
+        "radii": { "x": 190, "y": 190 },
+        "style": {
+          "layer": 2,
+          "outline": true,
+          "strokeWidth": 3,
+          "color": { "r": 90, "g": 240, "b": 130, "a": 255 }
+        }
+      }
+    }
+  ]
+}

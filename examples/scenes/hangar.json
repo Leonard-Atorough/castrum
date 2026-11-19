@@ -1,0 +1,61 @@
+{
+  "key": "hangar",
+  "assets": [
+    { "type": "asset.FontData", "id": "builtin/fonts/GoRegular.ttf" }
+  ],
+  "components": [
+    {
+      "type": "core.Transform",
+      "value": { "Position": { "x": 640, "y": 400 } }
+    },
+    {
+      "type": "sprite.Primitive",
+      "value": {
+        "shape": "rect",
+        "rect": { "x": 460, "y": 240 },
+        "style": { "color": { "r": 30, "g": 65, "b": 90, "a": 255 } }
+      }
+    }
+  ],
+  "children": [
+    {
+      "key": "ship",
+      "components": [
+        {
+          "type": "core.Transform",
+          "value": { "Position": { "x": 640, "y": 400 } }
+        },
+        {
+          "type": "sprite.Primitive",
+          "value": {
+            "shape": "rect",
+            "rect": { "x": 120, "y": 60 },
+            "style": {
+              "color": { "r": 90, "g": 210, "b": 240, "a": 255 },
+              "layer": 1
+            }
+          }
+        },
+        { "type": "scenes.spin", "value": { "speed": 0.6 } }
+      ]
+    },
+    {
+      "key": "hangar-title",
+      "components": [
+        {
+          "type": "core.Transform",
+          "value": { "Position": { "x": 640, "y": 220 } }
+        },
+        {
+          "type": "sprite.Text",
+          "value": {
+            "asset": "builtin/fonts/GoRegular.ttf",
+            "text": "HANGAR",
+            "textSize": 28,
+            "style": { "color": { "r": 200, "g": 230, "b": 245, "a": 255 } }
+          }
+        }
+      ]
+    }
+  ]
+}
