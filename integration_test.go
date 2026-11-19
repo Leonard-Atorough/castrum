@@ -117,8 +117,8 @@ func TestEngineDefaultsRunWithoutOptions(t *testing.T) {
 	if !ok {
 		t.Fatal("animated entity lost its component")
 	}
-	if frame, ok, err := value.CurrentFrame(); err != nil || !ok || frame.Region != "frame_1" {
-		t.Errorf("CurrentFrame = %v, %t, %v; want frame_1 without any option", frame, ok, err)
+	if _, region, ok, err := value.CurrentFrame(); err != nil || !ok || region != "frame_1" {
+		t.Errorf("CurrentFrame = %v, %t, %v; want frame_1 without any option", region, ok, err)
 	}
 	for _, entity := range colliders {
 		contacts, ok := entity.Component[collision.Contacts](g.World())

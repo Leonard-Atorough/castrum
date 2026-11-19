@@ -100,10 +100,8 @@ func run() error {
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 		},
-		sprite.Sprite{
-			Drawable: sprite.RectShape{Size: geom.Vector2{X: 64, Y: 96}},
-			Style:    sprite.Style{Color: color.RGBA{G: 200}},
-		},
+		sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 64, Y: 96},
+			Style: sprite.Style{Color: &color.RGBA{G: 200}}},
 	)
 	if err != nil {
 		return err
@@ -112,10 +110,8 @@ func run() error {
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 		},
-		sprite.Sprite{
-			Drawable: sprite.LineShape{To: geom.Vector2{X: 0, Y: -barrelLen}},
-			Style:    sprite.Style{Outline: true, StrokeWidth: barrelWidth, Color: color.RGBA{R: 120, A: 255}},
-		},
+		sprite.Primitive{Shape: sprite.ShapeLine, To: geom.Vector2{X: 0, Y: -barrelLen},
+			Style: sprite.Style{Outline: true, StrokeWidth: barrelWidth, Color: &color.RGBA{R: 120, A: 255}}},
 	)
 	if err != nil {
 		return err
@@ -131,10 +127,8 @@ func run() error {
 				core.Transform{
 					Position: pos,
 				},
-				sprite.Sprite{
-					Drawable: sprite.CircleShape{Radii: geom.Vector2{X: circleRadii, Y: circleRadii}},
-					Style:    sprite.Style{Color: color.RGBA{R: 255}},
-				},
+				sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: circleRadii, Y: circleRadii},
+					Style: sprite.Style{Color: &color.RGBA{R: 255}}},
 			); err != nil {
 				return err
 			}

@@ -105,6 +105,12 @@ func (f File) open(reg *Registry, path string) (scene.Node, error) {
 			return scene.Node{}, fmt.Errorf("serialization: failed to decode component %q at index %d in node %q: %w", c.Type, i, nodepath, err)
 		}
 
+		if a, ok := val.(core.Authored); ok {
+			if err := a.Authored(); err != nil {
+				return scene.Node{}, fmt.Errorf("serialization: component %q at index %d in node %q: %w", c.Type, i, nodepath, err)
+			}
+		}
+
 		typ := reflect.TypeOf(val)
 		if types[typ] {
 			return scene.Node{}, fmt.Errorf("serialization: duplicate component type %q at index %d in node %q", typ, i, nodepath)
