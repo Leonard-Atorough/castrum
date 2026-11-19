@@ -67,11 +67,11 @@ const (
 )
 
 var (
-	runningColor = color.RGBA{R: 110, G: 170, B: 230, A: 255}
-	flashColor   = color.RGBA{R: 240, G: 220, B: 90, A: 255}
-	chargedColor = color.RGBA{R: 240, G: 200, B: 60, A: 255}
-	countdownOn  = color.RGBA{R: 230, G: 90, B: 90, A: 255}
-	countdownOff = color.RGBA{R: 120, G: 50, B: 50, A: 255}
+	runningColor = &color.RGBA{R: 110, G: 170, B: 230, A: 255}
+	flashColor   = &color.RGBA{R: 240, G: 220, B: 90, A: 255}
+	chargedColor = &color.RGBA{R: 240, G: 200, B: 60, A: 255}
+	countdownOn  = &color.RGBA{R: 230, G: 90, B: 90, A: 255}
+	countdownOff = &color.RGBA{R: 120, G: 50, B: 50, A: 255}
 )
 
 // coreCharged is the game's own signal for the charge reaching full:
@@ -295,23 +295,21 @@ type sequence struct {
 	core      core.Entity
 }
 
-func (s *sequence) flashColor() color.Color {
+func (s *sequence) flashColor() *color.RGBA {
 	if s.flash > 0 {
 		return flashColor
 	}
 	return runningColor
 }
 
-func barSprite(fill color.Color) sprite.Sprite {
-	return sprite.Sprite{
-		Drawable: sprite.RectShape{Size: geom.Vector2{X: injectorW, Y: injectorH}},
-		Style:    sprite.Style{Color: fill},
+func barSprite(fill *color.RGBA) sprite.Primitive {
+	return sprite.Primitive{
+		Shape: sprite.ShapeRect, Rect: geom.Vector2{X: injectorW, Y: injectorH},
+		Style: sprite.Style{Color: fill},
 	}
 }
 
-func coreSprite(size float64, fill color.Color) sprite.Sprite {
-	return sprite.Sprite{
-		Drawable: sprite.RectShape{Size: geom.Vector2{X: size, Y: size}},
-		Style:    sprite.Style{Color: fill},
-	}
+func coreSprite(size float64, fill *color.RGBA) sprite.Primitive {
+	return sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: size, Y: size},
+		Style: sprite.Style{Color: fill}}
 }

@@ -161,13 +161,13 @@ func hangarScene(any) (scene.Node, error) {
 		Key: "hangar",
 		Components: []any{
 			core.Transform{Position: geom.Vector2{X: 640, Y: 400}},
-			sprite.Sprite{Drawable: sprite.RectShape{Size: geom.Vector2{X: 460, Y: 240}}, Style: sprite.Style{Color: color.NRGBA{R: 30, G: 65, B: 90, A: 255}}},
+			sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 460, Y: 240}, Style: sprite.Style{Color: &color.RGBA{R: 30, G: 65, B: 90, A: 255}}},
 		},
 		Children: []scene.Node{{
 			Key: "ship",
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: 640, Y: 400}},
-				sprite.Sprite{Drawable: sprite.RectShape{Size: geom.Vector2{X: 120, Y: 60}}, Style: sprite.Style{Color: color.NRGBA{R: 90, G: 210, B: 240, A: 255}, Layer: 1}},
+				sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 120, Y: 60}, Style: sprite.Style{Color: &color.RGBA{R: 90, G: 210, B: 240, A: 255}, Layer: 1}},
 				spin{speed: 0.6},
 			},
 		}},
@@ -182,7 +182,7 @@ func fieldScene(any) (scene.Node, error) {
 			Key: string(rune('A' + i)),
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: float64(260 + i*130), Y: float64(270 + (i%3)*120)}},
-				sprite.Sprite{Drawable: sprite.RectShape{Size: geom.Vector2{X: 55, Y: 35}}, Style: sprite.Style{Color: color.NRGBA{R: 220, G: 145, B: 75, A: 255}, Layer: 1}},
+				sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 55, Y: 35}, Style: sprite.Style{Color: &color.RGBA{R: 220, G: 145, B: 75, A: 255}, Layer: 1}},
 				drift{speed: float64(25 + i*8)},
 			},
 		})
@@ -191,7 +191,7 @@ func fieldScene(any) (scene.Node, error) {
 		Key: "field",
 		Components: []any{
 			core.Transform{Position: geom.Vector2{X: 640, Y: 400}},
-			sprite.Sprite{Drawable: sprite.RectShape{Size: geom.Vector2{X: 1280, Y: 460}}, Style: sprite.Style{Color: color.NRGBA{R: 20, G: 35, B: 60, A: 255}}},
+			sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 1280, Y: 460}, Style: sprite.Style{Color: &color.RGBA{R: 20, G: 35, B: 60, A: 255}}},
 		},
 		Children: debris,
 	}, nil
@@ -203,10 +203,8 @@ func scannerScene(any) (scene.Node, error) {
 		Key: "scanner",
 		Components: []any{
 			core.Transform{Position: geom.Vector2{X: 640, Y: 400}},
-			sprite.Sprite{
-				Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 190, Y: 190}},
-				Style:    sprite.Style{Layer: 2, Outline: true, StrokeWidth: 3, Color: color.NRGBA{R: 90, G: 240, B: 130, A: 255}},
-			},
+			sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 190, Y: 190},
+				Style: sprite.Style{Layer: 2, Outline: true, StrokeWidth: 3, Color: &color.RGBA{R: 90, G: 240, B: 130, A: 255}}},
 		},
 	}, nil
 }

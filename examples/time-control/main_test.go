@@ -25,7 +25,7 @@ func TestTimeControlsPauseScaleAndResumeOrbit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := g.World().NewEntity(spr.Sprite{})
+	state, err := g.World().NewEntity(spr.Text{Asset: "go.ttf", TextSize: 28})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,10 +80,9 @@ func TestTimeControlsPauseScaleAndResumeOrbit(t *testing.T) {
 		if math.Abs(g.TimeScale()-step.scale) > 1e-9 {
 			t.Fatalf("scale=%v, want %v", g.TimeScale(), step.scale)
 		}
-		sprite, _ := state.Component[spr.Sprite](g.World())
-		source, ok := sprite.Drawable.(spr.TextSource)
-		if !ok || source.Text != step.text {
-			t.Fatalf("status=%v, want %q", sprite.Drawable, step.text)
+		x, _ := state.Component[spr.Text](g.World())
+		if x.Text != step.text {
+			t.Fatalf("status=%+v, want %q", x, step.text)
 		}
 		checkOrbits(step.angle)
 	}
@@ -103,7 +102,7 @@ func TestTimeScaleControlsClampWhilePaused(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		state, err := g.World().NewEntity(spr.Sprite{})
+		state, err := g.World().NewEntity(spr.Text{Asset: "go.ttf", TextSize: 28})
 		if err != nil {
 			t.Fatal(err)
 		}

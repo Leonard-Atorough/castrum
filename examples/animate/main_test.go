@@ -103,11 +103,11 @@ func TestAnimationControlsAndCompletion(t *testing.T) {
 	}
 	regionOf := func(value animation.AnimatedSprite) string {
 		t.Helper()
-		frame, ok, err := value.CurrentFrame()
+		_, region, ok, err := value.CurrentFrame()
 		if err != nil || !ok {
-			t.Fatalf("CurrentFrame = %v, %v, %v", frame, ok, err)
+			t.Fatalf("CurrentFrame = %v, %v, %v", region, ok, err)
 		}
-		return string(frame.Region)
+		return region
 	}
 	if got := regionOf(read()); got != "torch_light_0" {
 		t.Fatalf("initial frame=%s, want the file-backed first frame", got)

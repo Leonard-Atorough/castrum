@@ -81,8 +81,9 @@ func NewSpriteClip(source asset.SheetRef, frames []string, fps float64) (SpriteC
 // AnimatedSprite is a sprite with its own animation state.
 // Its zero value has no clip and draws nothing.
 //
-// An entity needs a [core.Transform] to be rendered and must not also have a
-// [sprite.Sprite].
+// An entity needs a [core.Transform] to be rendered; animated frames
+// stage after every static visual class, so an animated sprite may share
+// its entity with a [sprite.Sprite], [sprite.Text], or [sprite.Primitive].
 type AnimatedSprite struct {
 	// Loop selects what happens after the clip's final frame.
 	Loop LoopMode
@@ -140,19 +141,17 @@ func (a AnimatedSprite) Validate() error {
 	return nil
 }
 
-// CurrentFrame returns the frame to draw. It reports false for a clipless
-// sprite and an error if the sprite is invalid.
-func (a AnimatedSprite) CurrentFrame() (sprite.SheetSource, bool, error) {
+// CurrentFrame returns the sheet reference and region name of the frame
+// to draw. It reports false for a clipless sprite and an error if the
+// sprite is invalid.
+func (a AnimatedSprite) CurrentFrame() (asset.SheetRef, string, bool, error) {
 	if err := a.Validate(); err != nil {
-		return sprite.SheetSource{}, false, err
+		return asset.SheetRef{}, "", false, err
 	}
 	if !a.hasClip {
-		return sprite.SheetSource{}, false, nil
+		return asset.SheetRef{}, "", false, nil
 	}
-	return sprite.SheetSource{
-		Sheet:  a.clip.source,
-		Region: a.clip.frames[a.frame],
-	}, true, nil
+	return a.clip.source, a.clip.frames[a.frame], true, nil
 }
 
 // JustCompleted reports whether the clip completed on tick. Pass

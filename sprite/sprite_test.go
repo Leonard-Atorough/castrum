@@ -6,110 +6,122 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
 func TestSpriteValidate(t *testing.T) {
 	valid := Sprite{
-		Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"},
-		Style:    Style{Layer: 31, Color: color.White},
+		Asset:  "sprites.json",
+		Region: "player",
+		Style:  Style{Layer: 31, Color: &color.RGBA{R: 255, G: 255, B: 255, A: 255}},
 	}
 	if err := valid.Validate(); err != nil {
-		t.Fatalf("valid Sprite rejected: %v", err)
+		t.Fatalf("valid sheet sprite rejected: %v", err)
 	}
-	outlined := Sprite{
-		Drawable: CircleShape{Radii: geom.Vector2{X: 5, Y: 5}},
-		Style:    Style{Outline: true, StrokeWidth: 2},
+	if err := (Sprite{Asset: "hull.png"}).Validate(); err != nil {
+		t.Fatalf("whole-texture sprite rejected: %v", err)
 	}
-	if err := outlined.Validate(); err != nil {
-		t.Fatalf("outlined shape Sprite rejected: %v", err)
-	}
-	// Text sources validate: real strings and empty ones, which draw
-	// nothing like a nil drawable does.
-	if err := (Sprite{Drawable: TextSource{Font: "ui/go.ttf", Text: "score: 1", Size: 16}}).Validate(); err != nil {
-		t.Fatalf("valid text source rejected: %v", err)
-	}
-	if err := (Sprite{Drawable: TextSource{Font: "ui/go.ttf", Size: 16}}).Validate(); err != nil {
-		t.Fatalf("empty text source rejected: %v", err)
-	}
-
-	// Style without a picture is legal — it just does not draw.
+	// Style without a picture is legal - it just does not draw.
 	if err := (Sprite{}).Validate(); err != nil {
-		t.Fatalf("nil Drawable should validate, got: %v", err)
+		t.Fatalf("zero-value sprite rejected: %v", err)
 	}
-
 	for name, sprite := range map[string]Sprite{
-		"layer over 31":           {Style: Style{Layer: 32}},
-		"negative stroke width":   {Style: Style{StrokeWidth: -1}},
-		"NaN stroke width":        {Style: Style{StrokeWidth: math.NaN()}},
-		"infinite stroke width":   {Style: Style{StrokeWidth: math.Inf(1)}},
-		"outline without width":   {Style: Style{Outline: true}},
-		"sheet without reference": {Drawable: SheetSource{Region: "player"}},
-		"sheet without region":    {Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json")}},
-		"texture without ID":      {Drawable: TextureSource{}},
-		"rect zero size":          {Drawable: RectShape{}},
-		"rect zero width":         {Drawable: RectShape{Size: geom.Vector2{X: 10}}},
-		"rect negative size":      {Drawable: RectShape{Size: geom.Vector2{X: -1, Y: 10}}},
-		"rect infinite size":      {Drawable: RectShape{Size: geom.Vector2{X: math.Inf(1), Y: 10}}},
-		"circle zero radii":       {Drawable: CircleShape{}},
-		"circle zero Y radius":    {Drawable: CircleShape{Radii: geom.Vector2{X: 10}}},
-		"circle negative radii":   {Drawable: CircleShape{Radii: geom.Vector2{X: -5, Y: 5}}},
-		"circle NaN radius":       {Drawable: CircleShape{Radii: geom.Vector2{X: math.NaN(), Y: 5}}},
-		"line zero endpoints":     {Drawable: LineShape{}},
-		"line same endpoints":     {Drawable: LineShape{From: geom.Vector2{X: 1, Y: 1}, To: geom.Vector2{X: 1, Y: 1}}},
-		"line infinite endpoint":  {Drawable: LineShape{From: geom.Vector2{X: math.Inf(1)}, To: geom.Vector2{X: 1}}},
-		"text without font":       {Drawable: TextSource{Text: "hi", Size: 16}},
-		"text zero size":          {Drawable: TextSource{Font: "f.ttf", Text: "hi"}},
-		"text negative size":      {Drawable: TextSource{Font: "f.ttf", Text: "hi", Size: -16}},
-		"text NaN size":           {Drawable: TextSource{Font: "f.ttf", Text: "hi", Size: math.NaN()}},
-		"text multiline":          {Drawable: TextSource{Font: "f.ttf", Text: "a\nb", Size: 16}},
+		"layer over 31":         {Asset: "sprites.json", Style: Style{Layer: 32}},
+		"negative stroke width": {Asset: "sprites.json", Style: Style{StrokeWidth: -1}},
+		"NaN stroke width":      {Asset: "sprites.json", Style: Style{StrokeWidth: math.NaN()}},
+		"infinite stroke width": {Asset: "sprites.json", Style: Style{StrokeWidth: math.Inf(1)}},
+		"outline without width": {Asset: "sprites.json", Style: Style{Outline: true}},
+		"invalid sheet path":    {Asset: "../escape/../sprites.json", Region: "player"},
+		"region with no asset":  {Region: "player"},
 	} {
 		if err := sprite.Validate(); err == nil {
-			t.Errorf("Sprite with %s should fail validation", name)
+			t.Errorf("%s accepted", name)
 		}
 	}
 }
 
-// The core.Validatable hook fires through the public surface: spawn rejects
-// invalid sprites, naming the component type, and a nil-Drawable
-// sprite spawns fine — it simply does not draw.
-func TestComponentValidationAtSpawn(t *testing.T) {
+func TestTextValidate(t *testing.T) {
+	if err := (Text{Asset: "ui/go.ttf", Text: "score: 1", TextSize: 16}).Validate(); err != nil {
+		t.Fatalf("valid text rejected: %v", err)
+	}
+	// No font, or nothing to say: legal, draws nothing.
+	if err := (Text{}).Validate(); err != nil {
+		t.Fatalf("zero-value text rejected: %v", err)
+	}
+	if err := (Text{Text: "hi", TextSize: 16}).Validate(); err != nil {
+		t.Fatalf("fontless text rejected: %v", err)
+	}
+	if err := (Text{Asset: "f.ttf", TextSize: 16}).Validate(); err != nil {
+		t.Fatalf("empty text rejected: %v", err)
+	}
+	for name, text := range map[string]Text{
+		"zero size":     {Asset: "f.ttf", Text: "hi"},
+		"negative size": {Asset: "f.ttf", Text: "hi", TextSize: -16},
+		"NaN size":      {Asset: "f.ttf", Text: "hi", TextSize: math.NaN()},
+		"multiline":     {Asset: "f.ttf", Text: "a\nb", TextSize: 16},
+		"layer over 31": {Asset: "f.ttf", Text: "hi", TextSize: 16, Style: Style{Layer: 32}},
+	} {
+		if err := text.Validate(); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
+
+func TestPrimitiveValidate(t *testing.T) {
+	outlined := Primitive{
+		Shape: ShapeCircle,
+		Radii: geom.Vector2{X: 5, Y: 5},
+		Style: Style{Outline: true, StrokeWidth: 2},
+	}
+	if err := outlined.Validate(); err != nil {
+		t.Fatalf("outlined circle rejected: %v", err)
+	}
+	if err := (Primitive{}).Validate(); err != nil {
+		t.Fatalf("zero-value primitive rejected: %v", err)
+	}
+	for name, primitive := range map[string]Primitive{
+		"rect zero size":          {Shape: ShapeRect},
+		"rect negative size":      {Shape: ShapeRect, Rect: geom.Vector2{X: -1, Y: 5}},
+		"rect NaN size":           {Shape: ShapeRect, Rect: geom.Vector2{X: math.NaN(), Y: 5}},
+		"circle zero radii":       {Shape: ShapeCircle},
+		"circle negative radii":   {Shape: ShapeCircle, Radii: geom.Vector2{X: -5, Y: 5}},
+		"circle NaN radii":        {Shape: ShapeCircle, Radii: geom.Vector2{X: 5, Y: math.NaN()}},
+		"line same endpoints":     {Shape: ShapeLine, From: geom.Vector2{X: 1, Y: 1}, To: geom.Vector2{X: 1, Y: 1}},
+		"line NaN endpoints":      {Shape: ShapeLine, From: geom.Vector2{X: math.NaN(), Y: 1}, To: geom.Vector2{X: 1, Y: 1}},
+		"unknown shape":           {Shape: Shape(200)},
+		"primitive layer over 31": {Shape: ShapeRect, Rect: geom.Vector2{X: 5, Y: 5}, Style: Style{Layer: 32}},
+	} {
+		if err := primitive.Validate(); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
+
+func TestSpriteValidatedAtWorldBoundary(t *testing.T) {
 	w := core.NewWorld()
+	// A region without an asset is configuration nonsense: rejected at
+	// spawn, named by the rule.
+	if _, err := w.NewEntity(Sprite{Region: "player"}); err == nil {
+		t.Fatal("region without asset accepted")
+	}
+	if _, err := w.NewEntity(Sprite{Asset: "../sheets/sprites.json", Region: "player"}); err == nil {
+		t.Fatal("invalid sheet reference accepted")
+	}
+}
 
-	if _, err := w.NewEntity(
-		Sprite{Style: Style{Layer: 32}},
-		core.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
-	); err == nil || !strings.Contains(err.Error(), "Sprite") {
-		t.Errorf("invalid layer at spawn = %v, want an error naming Sprite", err)
+func TestStyleValidatedByEveryComponent(t *testing.T) {
+	// Style is shared by all three components; each validates it.
+	if err := (Sprite{Asset: "a.png", Style: Style{Layer: 99}}).Validate(); err == nil ||
+		!strings.Contains(err.Error(), "layer") {
+		t.Errorf("sprite layer bounds: %v", err)
 	}
-	if _, err := w.NewEntity(
-		Sprite{Drawable: TextureSource{}},
-		core.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
-	); err == nil || !strings.Contains(err.Error(), "Sprite") {
-		t.Errorf("empty texture source at spawn = %v, want an error naming Sprite", err)
+	if err := (Text{Asset: "f.ttf", TextSize: 2, Style: Style{Layer: 99}}).Validate(); err == nil ||
+		!strings.Contains(err.Error(), "layer") {
+		t.Errorf("text layer bounds: %v", err)
 	}
-	if _, err := w.NewEntity(
-		Sprite{Drawable: RectShape{}},
-		core.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
-	); err == nil || !strings.Contains(err.Error(), "Sprite") {
-		t.Errorf("degenerate rect at spawn = %v, want an error naming Sprite", err)
-	}
-
-	entity, err := w.NewEntity(
-		Sprite{}, // style only: legal
-		core.Transform{Scale: geom.Vector2{X: 1, Y: 1}},
-	)
-	if err != nil {
-		t.Fatalf("nil-Drawable sprite should spawn: %v", err)
-	}
-	// Attaching the picture later is the supported flow: validate
-	// fires again at the add.
-	if err := entity.AddComponent(w, Sprite{Drawable: SheetSource{Sheet: asset.FileSheet("sprites.json"), Region: "player"}}); err != nil {
-		t.Fatalf("attach drawable later: %v", err)
-	}
-	if err := entity.AddComponent(w, Sprite{Drawable: TextureSource{}}); err == nil {
-		t.Error("overwriting with an invalid drawable should error")
+	if err := (Primitive{Shape: ShapeRect, Rect: geom.Vector2{X: 1, Y: 1}, Style: Style{Layer: 99}}).Validate(); err == nil ||
+		!strings.Contains(err.Error(), "layer") {
+		t.Errorf("primitive layer bounds: %v", err)
 	}
 }

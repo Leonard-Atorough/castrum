@@ -44,12 +44,12 @@ const (
 )
 
 var (
-	backgroundColor = color.NRGBA{R: 8, G: 18, B: 36, A: 255}
-	fieldColor      = color.NRGBA{R: 13, G: 31, B: 54, A: 255}
-	borderColor     = color.NRGBA{R: 47, G: 86, B: 111, A: 255}
-	playerColor     = color.NRGBA{R: 74, G: 226, B: 231, A: 255}
-	coreColor       = color.NRGBA{R: 255, G: 217, B: 93, A: 255}
-	droneColor      = color.NRGBA{R: 255, G: 91, B: 105, A: 255}
+	backgroundColor = &color.RGBA{R: 8, G: 18, B: 36, A: 255}
+	fieldColor      = &color.RGBA{R: 13, G: 31, B: 54, A: 255}
+	borderColor     = &color.RGBA{R: 47, G: 86, B: 111, A: 255}
+	playerColor     = &color.RGBA{R: 74, G: 226, B: 231, A: 255}
+	coreColor       = &color.RGBA{R: 255, G: 217, B: 93, A: 255}
+	droneColor      = &color.RGBA{R: 255, G: 91, B: 105, A: 255}
 )
 
 type pilot struct{}
@@ -156,8 +156,8 @@ func newGame() (*castrum.Game, *runState, error) {
 
 	world := game.World()
 	if err := addRoundSystems(game, director, hub, panel, state, result,
-		core.NewQuery(world).With(scoreLabel{}, spr.Sprite{}),
-		core.NewQuery(world).With(clockLabel{}, gametime.Timer{}, spr.Sprite{}),
+		core.NewQuery(world).With(scoreLabel{}, spr.Text{}),
+		core.NewQuery(world).With(clockLabel{}, gametime.Timer{}, spr.Text{}),
 		core.NewQuery(world).With(pilot{}, core.Transform{}),
 		core.NewQuery(world).With(core.Transform{}, pulseDrone{}),
 	); err != nil {
@@ -277,7 +277,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 						if err := other.Update(world, func(c *collision.Collider) { c.Active = false }); err != nil {
 							return err
 						}
-						if err := other.Update(world, func(s *spr.Sprite) { s.Style.Hidden = true }); err != nil {
+						if err := other.Update(world, func(p *spr.Primitive) { p.Style.Hidden = true }); err != nil {
 							return err
 						}
 						hub.Emit(coreCollected{})
@@ -299,8 +299,8 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 				state.score++
 				panel.Message(fmt.Sprintf("CORE RECOVERED  %d / %d", state.score, coreGoal))
 				if entry, ok := scoreQuery.First(); ok {
-					entry.Update(func(sprite *spr.Sprite) {
-						sprite.Drawable = textDrawable(fmt.Sprintf("CORES  %d / %d", state.score, coreGoal), 24)
+					entry.Update(func(x *spr.Text) {
+						x.Text = fmt.Sprintf("CORES  %d / %d", state.score, coreGoal)
 					})
 				}
 				if state.score == coreGoal {
@@ -330,8 +330,8 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 						continue
 					}
 					state.displayedSeconds = seconds
-					entry.Update(func(sprite *spr.Sprite) {
-						sprite.Drawable = textDrawable(fmt.Sprintf("TIME  %02d", seconds), 24)
+					entry.Update(func(x *spr.Text) {
+						x.Text = fmt.Sprintf("TIME  %02d", seconds)
 					})
 				}
 				return nil
@@ -381,12 +381,12 @@ func makeBriefingScene() scene.Scene {
 			Key: "briefing",
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: screenHeight / 2}},
-				spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: screenWidth, Y: screenHeight}}, Style: spr.Style{Color: backgroundColor}},
+				spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: screenWidth, Y: screenHeight}, Style: spr.Style{Color: backgroundColor}},
 			},
 			Children: []scene.Node{
 				textNode("title", geom.Vector2{X: screenWidth / 2, Y: 184}, "SIGNAL SALVAGE", 48, playerColor),
 				textNode("objective", geom.Vector2{X: screenWidth / 2, Y: 252}, "RECOVER 5 CORES  /  AVOID THE PULSE", 20, coreColor),
-				textNode("controls", geom.Vector2{X: screenWidth / 2, Y: 316}, "WASD OR ARROWS TO MOVE", 18, color.White),
+				textNode("controls", geom.Vector2{X: screenWidth / 2, Y: 316}, "WASD OR ARROWS TO MOVE", 18, &color.RGBA{R: 255, G: 255, B: 255, A: 255}),
 				textNode("start", geom.Vector2{X: screenWidth / 2, Y: 408}, "PRESS SPACE TO DEPLOY", 22, playerColor),
 			},
 		}, nil
@@ -412,24 +412,22 @@ func makeArenaScene() (scene.Scene, error) {
 				Key: "arena",
 				Components: []any{
 					core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: 286}},
-					spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: 900, Y: 428}}, Style: spr.Style{Color: fieldColor, Layer: 1}},
+					spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 900, Y: 428}, Style: spr.Style{Color: fieldColor, Layer: 1}},
 				},
 			},
 			{
 				Key: "arena-border",
 				Components: []any{
 					core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: 286}},
-					spr.Sprite{
-						Drawable: spr.RectShape{Size: geom.Vector2{X: 900, Y: 428}},
-						Style:    spr.Style{Outline: true, StrokeWidth: 2, Color: borderColor, Layer: 2},
-					},
+					spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 900, Y: 428},
+						Style: spr.Style{Outline: true, StrokeWidth: 2, Color: borderColor, Layer: 2}},
 				},
 			},
 			{
 				Key: "score",
 				Components: []any{
 					core.Transform{Position: geom.Vector2{X: 180, Y: 43}},
-					spr.Sprite{Drawable: textDrawable("CORES  0 / 5", 24), Style: spr.Style{Color: coreColor, Layer: 5}},
+					withTextStyle(textDrawable("CORES  0 / 5", 24), spr.Style{Color: coreColor, Layer: 5}),
 					scoreLabel{},
 				},
 			},
@@ -437,7 +435,7 @@ func makeArenaScene() (scene.Scene, error) {
 				Key: "round-clock",
 				Components: []any{
 					core.Transform{Position: geom.Vector2{X: 780, Y: 43}},
-					spr.Sprite{Drawable: textDrawable("TIME  20", 24), Style: spr.Style{Color: color.White, Layer: 5}},
+					withTextStyle(textDrawable("TIME  20", 24), spr.Style{Color: &color.RGBA{R: 255, G: 255, B: 255, A: 255}, Layer: 5}),
 					clockLabel{},
 					roundClock{},
 					gametime.NewTimer(roundLength, false),
@@ -448,10 +446,8 @@ func makeArenaScene() (scene.Scene, error) {
 				Key: "pilot",
 				Components: []any{
 					core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: 424}},
-					spr.Sprite{
-						Drawable: spr.CircleShape{Radii: geom.Vector2{X: 16, Y: 16}},
-						Style:    spr.Style{Color: playerColor, Layer: 4},
-					},
+					spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 16, Y: 16},
+						Style: spr.Style{Color: playerColor, Layer: 4}},
 					playerCollider,
 					pilot{},
 				},
@@ -460,10 +456,8 @@ func makeArenaScene() (scene.Scene, error) {
 				Key: "pulse-drone",
 				Components: []any{
 					core.Transform{Position: geom.Vector2{X: screenWidth/2 + 235, Y: 275}},
-					spr.Sprite{
-						Drawable: spr.CircleShape{Radii: geom.Vector2{X: 26, Y: 26}},
-						Style:    spr.Style{Color: droneColor, Outline: true, StrokeWidth: 4, Layer: 4},
-					},
+					spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 26, Y: 26},
+						Style: spr.Style{Color: droneColor, Outline: true, StrokeWidth: 4, Layer: 4}},
 					droneCollider,
 					pulseDrone{},
 				},
@@ -480,10 +474,8 @@ func makeArenaScene() (scene.Scene, error) {
 				Key: fmt.Sprintf("core-%d", i+1),
 				Components: []any{
 					core.Transform{Position: position},
-					spr.Sprite{
-						Drawable: spr.CircleShape{Radii: geom.Vector2{X: 12, Y: 12}},
-						Style:    spr.Style{Color: coreColor, Outline: true, StrokeWidth: 3, Layer: 3},
-					},
+					spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 12, Y: 12},
+						Style: spr.Style{Color: coreColor, Outline: true, StrokeWidth: 3, Layer: 3}},
 					coreCollider,
 					dataCore{},
 				},
@@ -493,7 +485,7 @@ func makeArenaScene() (scene.Scene, error) {
 			Key: "field",
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: screenHeight / 2}},
-				spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: screenWidth, Y: screenHeight}}, Style: spr.Style{Color: backgroundColor}},
+				spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: screenWidth, Y: screenHeight}, Style: spr.Style{Color: backgroundColor}},
 			},
 			Children: children,
 		}, nil
@@ -510,12 +502,12 @@ func makeResultScene() scene.Scene {
 			Key: "result",
 			Components: []any{
 				core.Transform{Position: geom.Vector2{X: screenWidth / 2, Y: screenHeight / 2}},
-				spr.Sprite{Drawable: spr.RectShape{Size: geom.Vector2{X: screenWidth, Y: screenHeight}}, Style: spr.Style{Color: backgroundColor}},
+				spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: screenWidth, Y: screenHeight}, Style: spr.Style{Color: backgroundColor}},
 			},
 			Children: []scene.Node{
 				textNode("result-title", geom.Vector2{X: screenWidth / 2, Y: 208}, title, 42, tint),
 				textNode("result-score", geom.Vector2{X: screenWidth / 2, Y: 278}, fmt.Sprintf("CORES RECOVERED  %d / %d", p.score, coreGoal), 20, coreColor),
-				textNode("result-prompt", geom.Vector2{X: screenWidth / 2, Y: 378}, "PRESS ENTER FOR BRIEFING", 20, color.White),
+				textNode("result-prompt", geom.Vector2{X: screenWidth / 2, Y: 378}, "PRESS ENTER FOR BRIEFING", 20, &color.RGBA{R: 255, G: 255, B: 255, A: 255}),
 			},
 		}
 	})
@@ -532,16 +524,23 @@ func triggerCollider(radius float64, layer int, masks ...int) (collision.Collide
 	return collider, nil
 }
 
-func textNode(key string, position geom.Vector2, text string, size float64, tint color.Color) scene.Node {
+func textNode(key string, position geom.Vector2, text string, size float64, tint *color.RGBA) scene.Node {
 	return scene.Node{
 		Key: key,
 		Components: []any{
 			core.Transform{Position: position},
-			spr.Sprite{Drawable: textDrawable(text, size), Style: spr.Style{Color: tint, Layer: 5}},
+			withTextStyle(textDrawable(text, size), spr.Style{Color: tint, Layer: 5}),
 		},
 	}
 }
 
-func textDrawable(text string, size float64) spr.TextSource {
-	return spr.TextSource{Font: builtin.Font, Text: text, Size: size}
+func textDrawable(text string, size float64) spr.Text {
+	return spr.Text{Asset: builtin.Font, Text: text, TextSize: size}
+}
+
+// withTextStyle copies a text component with its style applied, for
+// scene node component lists that pair a text with per-surface styling.
+func withTextStyle(x spr.Text, style spr.Style) spr.Text {
+	x.Style = style
+	return x
 }

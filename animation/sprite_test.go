@@ -54,9 +54,9 @@ func TestSpriteClipIsSharedWithoutExposingFrames(t *testing.T) {
 	frames[0] = "changed again"
 
 	for _, animated := range []AnimatedSprite{first, second} {
-		frame, ok, err := animated.CurrentFrame()
-		if err != nil || !ok || frame != (sprite.SheetSource{Sheet: animSheet, Region: "a"}) {
-			t.Fatalf("CurrentFrame() = %v, %v, %v; want original first frame", frame, ok, err)
+		_, region, ok, err := animated.CurrentFrame()
+		if err != nil || !ok || region != "a" {
+			t.Fatalf("CurrentFrame() = %v, %v, %v; want original first frame", region, ok, err)
 		}
 	}
 }
@@ -66,8 +66,8 @@ func TestAnimatedSpriteZeroValue(t *testing.T) {
 	if err := animated.Validate(); err != nil {
 		t.Fatalf("Validate() = %v, want nil", err)
 	}
-	if frame, ok, err := animated.CurrentFrame(); err != nil || ok {
-		t.Fatalf("CurrentFrame() = %v, %v, %v; want no frame", frame, ok, err)
+	if _, _, ok, err := animated.CurrentFrame(); err != nil || ok {
+		t.Fatalf("CurrentFrame() = %t, %v; want no frame", ok, err)
 	}
 	if animated.HasCompleted() || animated.JustCompleted(0) {
 		t.Fatal("clipless sprite reported completion")
@@ -96,7 +96,7 @@ func TestAnimatedSpriteRejectsInvalidSettings(t *testing.T) {
 			if err := tt.animated.Validate(); err == nil {
 				t.Fatal("Validate accepted invalid settings")
 			}
-			if _, _, err := tt.animated.CurrentFrame(); err == nil {
+			if _, _, _, err := tt.animated.CurrentFrame(); err == nil {
 				t.Fatal("CurrentFrame accepted invalid settings")
 			}
 		})
@@ -138,8 +138,8 @@ func TestAnimatedSpriteSetClipAndRestart(t *testing.T) {
 	if animated.Loop != LoopAll || animated.PlaybackMultiplier != 2 || animated.Style.Layer != 7 {
 		t.Fatalf("SetClip changed playback settings or style: %+v", animated)
 	}
-	if frame, ok, err := animated.CurrentFrame(); err != nil || !ok || frame.Region != "a" {
-		t.Fatalf("CurrentFrame() = %v, %v, %v; want first frame", frame, ok, err)
+	if ref, region, ok, err := animated.CurrentFrame(); err != nil || !ok || region != "a" || ref != animSheet {
+		t.Fatalf("CurrentFrame() = %v, %v, %v; want first frame", region, ok, err)
 	}
 
 	animated.frame = 1
@@ -160,7 +160,7 @@ func TestAnimatedSpriteSetClipAndRestart(t *testing.T) {
 	if err := animated.SetClip(other); err != nil {
 		t.Fatal(err)
 	}
-	if frame, ok, err := animated.CurrentFrame(); err != nil || !ok || frame != (sprite.SheetSource{Sheet: otherSheet, Region: "c"}) {
-		t.Fatalf("CurrentFrame() = %v, %v, %v; want replacement frame", frame, ok, err)
+	if ref, region, ok, err := animated.CurrentFrame(); err != nil || !ok || region != "c" || ref != otherSheet {
+		t.Fatalf("CurrentFrame() = %v, %v, %v; want replacement frame", region, ok, err)
 	}
 }
