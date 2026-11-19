@@ -69,18 +69,18 @@ func run() error {
 	}{
 		{
 
-			color: &color.RGBA{G: 100, A: 128},
+			color: &color.RGBA{G: 200, A: 128},
 			cells: []cell{
 				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}},
 				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: spr.Style{Outline: true, StrokeWidth: 3}}},
 				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}, spin: true},
 				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}, scale: stretch},
-				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: spr.Style{Color: &color.RGBA{G: 100, A: 64}}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: spr.Style{Color: &color.RGBA{G: 200, A: 64}}}},
 			},
 		},
 		{
 
-			color: &color.RGBA{R: 110, A: 128},
+			color: &color.RGBA{R: 220, A: 128},
 			cells: []cell{
 				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}},
 				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: spr.Style{Outline: true, StrokeWidth: 3}}},
@@ -90,12 +90,12 @@ func run() error {
 				// Equal radii stretched by the transform: the other
 				// road to an ellipse, composed per axis.
 				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}, scale: stretch},
-				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: spr.Style{Color: &color.RGBA{R: 110, A: 64}}}},
+				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: spr.Style{Color: &color.RGBA{R: 220, A: 64}}}},
 			},
 		},
 		{
 
-			color: &color.RGBA{B: 110, A: 128},
+			color: &color.RGBA{B: 220, A: 128},
 			cells: []cell{
 				// A zero From anchors the segment at the position.
 				{sprite: spr.Primitive{Shape: spr.ShapeLine, To: geom.Vector2{X: 80, Y: 0}, Style: spr.Style{Outline: true, StrokeWidth: 4}}},

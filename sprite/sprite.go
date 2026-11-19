@@ -31,7 +31,14 @@ type Style struct {
 	StrokeWidth float64 `json:"strokeWidth,omitempty"`
 	// Color tints texture pixels or sets the text or primitive color. A nil
 	// value leaves textures untinted, defaults text to white, and defaults
-	// primitives to black; an RGBA with zero alpha is explicitly transparent.
+	// primitives to black; an RGBA with zero alpha is explicitly
+	// transparent.
+	//
+	// The bytes are straight alpha: RGB holds the tint color at full
+	// intensity and A holds its opacity, matching how colors are authored
+	// and serialized. (The struct is color.RGBA for its simple layout,
+	// not for Go's alpha-premultiplied convention; the render pipeline
+	// consumes the bytes as authored.)
 	Color *color.RGBA `json:"color,omitempty"`
 	// Layer orders sprites from back to front, from 0 through 31.
 	Layer uint8 `json:"layer,omitempty"`
