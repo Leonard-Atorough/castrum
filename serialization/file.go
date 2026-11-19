@@ -15,7 +15,8 @@ import (
 type File struct {
 	// Key names the node within its parent. It must not be empty or contain '/'.
 	Key string `json:"key"`
-	// Persistent is copied to [scene.Node.Persistent].
+	// Persistent flags the node as a candidate for game runtime state
+	// serialization; it is copied to [scene.Node.Persistent].
 	Persistent bool `json:"persistent"`
 	// Components lists the node's components. Each registered type may appear once.
 	Components []FileComponent `json:"components"`
