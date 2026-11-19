@@ -61,9 +61,8 @@ type Node struct {
 	Components []any
 	// Children are nested scene nodes, not a transform hierarchy.
 	Children []Node
-	// Persistent flags the node as a candidate for game runtime state
-	// serialization: save capture keeps persistent nodes, so their state
-	// survives save and restore. It does not change scene lifetime.
+	// Persistent marks the node as persistent for game runtime serialization.
+	// Persistent nodes are kept across saves but do not affect scene lifetime.
 	Persistent bool
 }
 

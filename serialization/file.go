@@ -32,11 +32,55 @@ type FileComponent struct {
 	Value json.RawMessage `json:"value"`
 }
 
-// Open builds the [scene.Node] described by f and its children. It fails on an
-// invalid or duplicate key, an unknown or repeated component type, or a
-// component that fails to decode or validate.
+// Open builds the [scene.Node] described by f and its children.
+//
+// It fails on an invalid or duplicate key, an unknown or repeated component
+// type, or a component that fails to decode or validate.
 func (f File) Open(reg *Registry) (scene.Node, error) {
 	return f.open(reg, "")
+}
+
+// Scene returns a [scene.Scene] that yields the node built by [File.Open].
+//
+// The scene ignores props and returns copies of the same node, sharing its
+// component and child slices.
+func (f File) Scene(reg *Registry) (scene.Scene, error) {
+	node, err := f.open(reg, "")
+	if err != nil {
+		return nil, err
+	}
+
+	return func(any) (scene.Node, error) { return node, nil }, nil
+}
+
+// Spawn creates an entity in world from n's components.
+//
+// An override replaces the node component of the same type, and overrides of
+// other types are added. Spawn fails if n has children; load scenes with
+// [scene.Director] instead. It ignores the node's key, assets, and persistence.
+// Entity creation follows the rules of [core.World.NewEntity].
+func Spawn(world *core.World, n scene.Node, overrides ...any) (core.Entity, error) {
+	if len(n.Children) != 0 {
+		return core.Entity{}, fmt.Errorf("serialization: spawn node %q has children; use scene.Director for loading scenes", n.Key)
+	}
+	components := make([]any, 0, len(n.Components)+len(overrides))
+	for _, c := range n.Components {
+		if !replacedBy(c, overrides) {
+			components = append(components, c)
+		}
+	}
+	components = append(components, overrides...)
+	return world.NewEntity(components...)
+}
+
+func replacedBy(c any, overrides []any) bool {
+	typ := reflect.TypeOf(c)
+	for _, o := range overrides {
+		if reflect.TypeOf(o) == typ {
+			return true
+		}
+	}
+	return false
 }
 
 func (f File) open(reg *Registry, path string) (scene.Node, error) {
@@ -82,45 +126,6 @@ func (f File) open(reg *Registry, path string) (scene.Node, error) {
 		n.Children = append(n.Children, cn)
 	}
 	return n, nil
-}
-
-// Scene returns a [scene.Scene] that yields the node built by [File.Open]. The
-// node is built once, so every call to the scene returns the same node.
-func (f File) Scene(reg *Registry) (scene.Scene, error) {
-	node, err := f.open(reg, "")
-	if err != nil {
-		return nil, err
-	}
-
-	return func(any) (scene.Node, error) { return node, nil }, nil
-}
-
-// Spawn creates an entity in world from n's components. An override replaces
-// the node component of the same type, and overrides of other types are added.
-// Spawn fails if n has children; load scenes with [scene.Director] instead.
-// Components are validated when the entity is created.
-func Spawn(world *core.World, n scene.Node, overrides ...any) (core.Entity, error) {
-	if len(n.Children) != 0 {
-		return core.Entity{}, fmt.Errorf("serialization: spawn node %q has children; use scene.Director for loading scenes", n.Key)
-	}
-	components := make([]any, 0, len(n.Components)+len(overrides))
-	for _, c := range n.Components {
-		if !replacedBy(c, overrides) {
-			components = append(components, c)
-		}
-	}
-	components = append(components, overrides...)
-	return world.NewEntity(components...)
-}
-
-func replacedBy(c any, overrides []any) bool {
-	typ := reflect.TypeOf(c)
-	for _, o := range overrides {
-		if reflect.TypeOf(o) == typ {
-			return true
-		}
-	}
-	return false
 }
 
 func join(path, key string) string {
