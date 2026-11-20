@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"image/color"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -97,5 +98,26 @@ func TestRegisterEngineRejectsSecondCall(t *testing.T) {
 	}
 	if err := registerEngine(reg); err == nil {
 		t.Fatal("second registerEngine on the same registry succeeded")
+	}
+}
+
+// TestTransformWireShape pins core.Transform's data wire exactly: the
+// tags are a contract, and renamed fields break authored files.
+func TestTransformWireShape(t *testing.T) {
+	reg := newEngineTestRegistry(t)
+	if err := registerEngine(reg); err != nil {
+		t.Fatalf("registerEngine: %v", err)
+	}
+
+	var buf bytes.Buffer
+	value := core.Transform{Position: geom.Vector2{X: 12, Y: 34}, Rotation: 0.5}
+	if err := reg.EncodeComponent(TransformKey, value, &buf); err != nil {
+		t.Fatalf("EncodeComponent: %v", err)
+	}
+	const want = `{"position":{"x":12,"y":34},"rotation":0.5,"scale":{"x":0,"y":0},"offset":{"x":0,"y":0}}`
+	// The codec's encoder writes a trailing newline; the wire value is
+	// the JSON object itself.
+	if strings.TrimSpace(buf.String()) != want {
+		t.Fatalf("wire = %s, want %s", buf.String(), want)
 	}
 }
