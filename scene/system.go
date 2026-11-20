@@ -10,12 +10,16 @@ import (
 )
 
 const (
+	// StartupSystemName is the scene system's registration name in [core.PhaseStartup].
 	StartupSystemName = "scene-startup"
-	FrameSystemName   = "scene"
+	// FrameSystemName is the scene system's registration name in [core.PhasePreFrame].
+	FrameSystemName = "scene"
 )
 
 type loaderSource func(ctx *core.Context, tree Node) (*asset.Loader, error)
 
+// NewSystem returns a system that processes queued requests for director.
+// Scenes that declare assets require an [asset.Loader] resource in the world.
 func NewSystem(director *Director) core.System {
 	return &system{director: director}
 }
@@ -29,9 +33,6 @@ func (s *system) Update(ctx *core.Context) error {
 	return s.director.execute(ctx, s.loaderFor)
 }
 
-// loaderFor returns the world's asset loader, fetching it once on first
-// use and only when the tree declares assets. A tree without assets never
-// touches the loader resource.
 func (s *system) loaderFor(ctx *core.Context, tree Node) (*asset.Loader, error) {
 	if !hasAssets(tree) {
 		return nil, nil
