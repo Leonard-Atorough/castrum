@@ -115,6 +115,8 @@ func (r *Registry) Preload(key string, id asset.ID) (scene.Preload, error) {
 	return entry.preload(id), nil
 }
 
+// Component registers T as a JSON component under key.
+//
 // It returns an error if key is empty or already registered as a component,
 // T is a pointer type or is already registered as a component under
 // another key, only *T implements [core.Validatable], or the codecs

@@ -255,6 +255,7 @@ func (a *Archetype) stampAddedRange(typ reflect.Type, start, end int, tick uint6
 	}
 }
 
+// StampChanged records tick for the component at index if typ is tracked and the row exists.
 func (a *Archetype) StampChanged(typ reflect.Type, index int, tick uint64) {
 	if tr, ok := a.tracks[typ]; ok && index >= 0 && index < len(tr.changed) {
 		tr.changed[index] = tick

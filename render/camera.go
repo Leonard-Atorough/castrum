@@ -38,7 +38,7 @@ func (c Camera) Validate() error {
 // MovePosition returns the position reached by moving transform by a
 // world-space displacement, without modifying transform.
 //
-// It constrains both the starting position and the destination to [Camera.Bounds],
+// It constrains both the starting position and the destination to Bounds in [Camera],
 // accounting for the logical viewport width and height in pixels, zoom,
 // rotation, and anchor. A zero displacement only constrains the position.
 // Empty bounds leave movement unbounded. If the view cannot fit on an axis,

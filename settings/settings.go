@@ -21,8 +21,9 @@ type groupState[T any] struct {
 	policyDepth int
 }
 
-// Validator checks a proposed preference value without mutating it.
+// Validator decides whether a proposed preference value is acceptable.
 type Validator[T any] interface {
+	// Validate returns an error if value is unacceptable and does not mutate it.
 	Validate(value T) error
 }
 
@@ -34,9 +35,9 @@ func (f ValidatorFunc[T]) Validate(value T) error {
 	return f(value)
 }
 
-// Cloner copies all mutable data reachable from a preference value without
-// mutating its argument.
+// Cloner makes independent copies of preference values.
 type Cloner[T any] interface {
+	// Clone copies all mutable data reachable from value without mutating it.
 	Clone(value T) T
 }
 

@@ -582,9 +582,10 @@ func (g *Game) Quitting() bool {
 	return g.quit.Load()
 }
 
-// Runner drives a Game: it owns the platform loop, the draw surface, and
-// input, and calls the Game loop hooks. Run blocks until the game quits.
+// Runner drives a [Game] by owning the platform loop, draw surface, and input
+// and calling the game's loop hooks.
 type Runner interface {
+	// Run blocks until the platform loop exits and returns any failure.
 	Run() error
 }
 
