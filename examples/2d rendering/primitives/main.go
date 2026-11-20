@@ -18,7 +18,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
-	spr "github.com/Leonard-Atorough/castrum/sprite"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
 const (
@@ -32,9 +32,9 @@ const (
 )
 
 type cell struct {
-	sprite spr.Primitive
-	scale  geom.Vector2
-	spin   bool
+	s     sprite.Primitive
+	scale geom.Vector2
+	spin  bool
 }
 
 func main() {
@@ -66,26 +66,26 @@ func run() error {
 
 			color: &color.RGBA{G: 200, A: 128},
 			cells: []cell{
-				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}},
-				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: spr.Style{Outline: true, StrokeWidth: 3}}},
-				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}, spin: true},
-				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}, scale: stretch},
-				{sprite: spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: spr.Style{Color: &color.RGBA{G: 200, A: 64}}}},
+				{s: sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}},
+				{s: sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: sprite.Style{Outline: true, StrokeWidth: 3}}},
+				{s: sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}, spin: true},
+				{s: sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}, scale: stretch},
+				{s: sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}, Style: sprite.Style{Color: &color.RGBA{G: 200, A: 64}}}},
 			},
 		},
 		{
 
 			color: &color.RGBA{R: 220, A: 128},
 			cells: []cell{
-				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}},
-				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: spr.Style{Outline: true, StrokeWidth: 3}}},
+				{s: sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}},
+				{s: sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: sprite.Style{Outline: true, StrokeWidth: 3}}},
 				// Unequal radii declare the ellipse in the shape
 				// itself; the spin shows rotation is meaningful.
-				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 80, Y: 50}}, spin: true},
+				{s: sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 80, Y: 50}}, spin: true},
 				// Equal radii stretched by the transform: the other
 				// road to an ellipse, composed per axis.
-				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}, scale: stretch},
-				{sprite: spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: spr.Style{Color: &color.RGBA{R: 220, A: 64}}}},
+				{s: sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}, scale: stretch},
+				{s: sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: sprite.Style{Color: &color.RGBA{R: 220, A: 64}}}},
 			},
 		},
 		{
@@ -93,14 +93,14 @@ func run() error {
 			color: &color.RGBA{B: 220, A: 128},
 			cells: []cell{
 				// A zero From anchors the segment at the position.
-				{sprite: spr.Primitive{Shape: spr.ShapeLine, To: geom.Vector2{X: 80, Y: 0}, Style: spr.Style{Outline: true, StrokeWidth: 4}}},
+				{s: sprite.Primitive{Shape: sprite.ShapeLine, To: geom.Vector2{X: 80, Y: 0}, Style: sprite.Style{Outline: true, StrokeWidth: 4}}},
 				// Symmetric endpoints pivot at the segment's middle.
-				{sprite: spr.Primitive{Shape: spr.ShapeLine, From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}, Style: spr.Style{Outline: true, StrokeWidth: 4}}},
+				{s: sprite.Primitive{Shape: sprite.ShapeLine, From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}, Style: sprite.Style{Outline: true, StrokeWidth: 4}}},
 				// The anchored line spins around its endpoint.
-				{sprite: spr.Primitive{Shape: spr.ShapeLine, To: geom.Vector2{X: 80, Y: 0}, Style: spr.Style{Outline: true, StrokeWidth: 4}}, spin: true},
+				{s: sprite.Primitive{Shape: sprite.ShapeLine, To: geom.Vector2{X: 80, Y: 0}, Style: sprite.Style{Outline: true, StrokeWidth: 4}}, spin: true},
 				// Scale tilts a diagonal segment into a new slope.
-				{sprite: spr.Primitive{Shape: spr.ShapeLine, From: geom.Vector2{X: -40, Y: -40}, To: geom.Vector2{X: 40, Y: 40}, Style: spr.Style{Outline: true, StrokeWidth: 4}}, scale: stretch},
-				{sprite: spr.Primitive{Shape: spr.ShapeLine, From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}, Style: spr.Style{Outline: true, StrokeWidth: 4, Color: &color.RGBA{B: 110, A: 64}}}},
+				{s: sprite.Primitive{Shape: sprite.ShapeLine, From: geom.Vector2{X: -40, Y: -40}, To: geom.Vector2{X: 40, Y: 40}, Style: sprite.Style{Outline: true, StrokeWidth: 4}}, scale: stretch},
+				{s: sprite.Primitive{Shape: sprite.ShapeLine, From: geom.Vector2{X: -50, Y: 0}, To: geom.Vector2{X: 50, Y: 0}, Style: sprite.Style{Outline: true, StrokeWidth: 4, Color: &color.RGBA{B: 110, A: 64}}}},
 			},
 		},
 	}
@@ -111,14 +111,14 @@ func run() error {
 			// The color's alpha channel is the drawable's opacity:
 			// the half-faded column declares its own color at half
 			// alpha, everyone else takes the row's hue.
-			if variant.sprite.Style.Color == nil {
-				variant.sprite.Style.Color = row.color
+			if variant.s.Style.Color == nil {
+				variant.s.Style.Color = row.color
 			}
 			// A zero scale reads as unscaled; only the stretched
 			// variants declare one.
 			position := geom.Vector2{X: float64(cellX0 + c*cellDX), Y: float64(rowY0 + r*rowDY)}
 			sprite, err := g.World().NewEntity(
-				variant.sprite,
+				variant.s,
 				core.Transform{Position: position, Scale: variant.scale},
 			)
 			if err != nil {
