@@ -133,16 +133,16 @@ func spriteWorld(b *testing.B, n int, shape bool, viewportFraction float64) (*co
 			x = (float64(i%160) / 160) * (1280 / viewportFraction)
 			y = (float64(i/160) / 160) * (720 / viewportFraction)
 		}
-		sprite := spr.Sprite{Style: spr.Style{Layer: uint8(i % 3), SortOrder: int8(i % 5)}}
+		style := spr.Style{Layer: uint8(i % 3), SortOrder: int8(i % 5)}
+		var drawable any
 		if shape {
-			sprite.Shape = spr.ShapeCircle
-			sprite.Radii = geom.Vector2{X: 16, Y: 16}
+			drawable = spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 16, Y: 16}, Style: style}
 		} else {
-			sprite.Asset = "tex.png"
+			drawable = spr.Sprite{Asset: "tex.png", Style: style}
 		}
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: x, Y: y}},
-			sprite,
+			drawable,
 		); err != nil {
 			b.Fatal(err)
 		}

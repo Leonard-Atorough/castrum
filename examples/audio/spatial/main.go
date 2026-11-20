@@ -1,3 +1,4 @@
+// Command spatial demonstrates positional audio with a movable camera.
 package main
 
 import (

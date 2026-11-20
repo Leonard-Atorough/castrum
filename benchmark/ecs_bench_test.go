@@ -213,21 +213,21 @@ func BenchmarkQuery3(b *testing.B) {
 func BenchmarkQueryWhere(b *testing.B) {
 	world := core.NewWorld()
 	for i := range 1000 {
-		sprite := spr.Sprite{}
-		if i%2 == 0 {
-			sprite.Shape = spr.ShapeCircle
-			sprite.Radii = geom.Vector2{X: 1, Y: 1}
-		}
-		if _, err := world.NewEntity(
+		components := []any{
 			core.Transform{Position: geom.Vector2{X: 1, Y: 1}},
-			sprite,
-		); err != nil {
+			spr.Sprite{},
+		}
+		if i%2 == 0 {
+			components = append(components,
+				spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 1, Y: 1}})
+		}
+		if _, err := world.NewEntity(components...); err != nil {
 			b.Fatal(err)
 		}
 	}
-	query := core.NewQuery(world).With(core.Transform{}, spr.Sprite{}).Where(func(e core.Entry) bool {
-		s, _ := e.Component[spr.Sprite]()
-		return s.Shape != spr.ShapeNone
+	query := core.NewQuery(world).With(core.Transform{}, spr.Sprite{}, spr.Primitive{}).Where(func(e core.Entry) bool {
+		p, ok := e.Component[spr.Primitive]()
+		return ok && p.Shape != spr.ShapeNone
 	})
 	matched := 0
 	for range query.Execute() {

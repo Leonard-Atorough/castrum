@@ -2,7 +2,7 @@
 // state as the [Simulation] resource and countdowns as [Timer] components.
 //
 // [NewTimerSystem] advances timers on fixed ticks, records completions in
-// [Timer.CompletedOn], and emits one [Completed] signal per completion
+// CompletedOn, and emits one [Completed] signal per completion
 // tick. It does not remove timers. See simulation.go for the simulation
 // time resource.
 package gametime
@@ -93,7 +93,7 @@ func (t Timer) HasCompleted() bool {
 // Completed is the signal the timer system emits when a [Timer] completes
 // an interval. The system emits one signal per completion tick: a
 // repeating timer that finishes several intervals in one slow tick records
-// one completion and emits one signal. Tick equals [Timer.CompletedOn].
+// one completion and emits one signal. Tick equals CompletedOn in [Timer].
 type Completed struct {
 	// Entity is the entity whose Timer completed.
 	Entity core.Entity
@@ -230,7 +230,7 @@ func (g *Groups) SetScale(name string, scale float64) error {
 const TimerSystemName = "engine.timer"
 
 // NewTimerSystem returns the fixed-tick system that advances running
-// [Timer] components, records completions in [Timer.CompletedOn], and
+// [Timer] components, records completions in CompletedOn, and
 // emits one [Completed] signal per completion.
 //
 // The game constructor registers this system under [TimerSystemName] for
