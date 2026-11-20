@@ -1,9 +1,7 @@
-// Command primitive demonstrates the shape drawables as a spectrum. Each row
-// is one shape kind (rect, circle or ellipse, line), and each column is one
-// variant: filled, outlined, spinning, stretched by the transform's scale, or
-// half-faded. The same five knobs run across every row, so each column reads
-// as one knob and each row as one geometry.
-// Shapes are pure geometry: no assets are loaded.
+// Command primitive demonstrates shape drawables without loading assets.
+//
+// Rows show rectangles, circles or ellipses, and lines. Columns show filled,
+// outlined, spinning, stretched, and half-faded variants.
 //
 // Run from this directory:
 //
@@ -44,16 +42,30 @@ func main() {
 }
 
 func run() error {
-	g, err := castrum.New(castrum.WithTitle("castrum - primitives"))
+	g, err := newGame()
 	if err != nil {
 		return err
+	}
+
+	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
+	if err != nil {
+		return err
+	}
+
+	return g.Run(runner)
+}
+
+func newGame() (*castrum.Game, error) {
+	g, err := castrum.New(castrum.WithTitle("castrum - primitives"))
+	if err != nil {
+		return nil, err
 	}
 
 	camera := g.MainCamera()
 	if err := camera.Update(g.World(), func(t *core.Transform) {
 		t.Position = geom.Vector2{X: screenW / 2, Y: screenH / 2}
 	}); err != nil {
-		return err
+		return nil, err
 	}
 
 	stretch := geom.Vector2{X: 0.5, Y: 1.5}
@@ -63,7 +75,6 @@ func run() error {
 		cells []cell
 	}{
 		{
-
 			color: &color.RGBA{G: 200, A: 128},
 			cells: []cell{
 				{s: sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 100, Y: 50}}},
@@ -74,22 +85,18 @@ func run() error {
 			},
 		},
 		{
-
 			color: &color.RGBA{R: 220, A: 128},
 			cells: []cell{
 				{s: sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}},
 				{s: sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: sprite.Style{Outline: true, StrokeWidth: 3}}},
-				// Unequal radii declare the ellipse in the shape
-				// itself; the spin shows rotation is meaningful.
+				// Unequal radii make an ellipse.
 				{s: sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 80, Y: 50}}, spin: true},
-				// Equal radii stretched by the transform: the other
-				// road to an ellipse, composed per axis.
+				// Stretched by transform.
 				{s: sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}}, scale: stretch},
 				{s: sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 50, Y: 50}, Style: sprite.Style{Color: &color.RGBA{R: 220, A: 64}}}},
 			},
 		},
 		{
-
 			color: &color.RGBA{B: 220, A: 128},
 			cells: []cell{
 				// A zero From anchors the segment at the position.
@@ -122,7 +129,7 @@ func run() error {
 				core.Transform{Position: position, Scale: variant.scale},
 			)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if variant.spin {
 				spinners = append(spinners, sprite)
@@ -142,17 +149,12 @@ func run() error {
 		}
 		return nil
 	})); err != nil {
-		return err
+		return nil, err
 	}
 
 	panel := g.World().MustResource[*debug.Panel]()
 	panel.Message("rows: rect, circle, line")
 	panel.Message("columns: filled, outlined, spinning, stretched by scale, half-faded")
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-
-	return g.Run(runner)
+	return g, nil
 }
