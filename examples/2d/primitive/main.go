@@ -1,9 +1,8 @@
-// Command primitive demonstrates the shape drawables as a spectrum. Each row
-// is one shape kind (rect, circle or ellipse, line), and each column is one
-// variant: filled, outlined, spinning, stretched by the transform's scale, or
-// half-faded. The same five knobs run across every row, so each column reads
-// as one knob and each row as one geometry.
-// Shapes are pure geometry: no assets are loaded.
+// Command primitive demonstrates asset-free shape drawing with rectangles,
+// circles, ellipses, and line segments.
+//
+// Each column shows a different style or transform: fill, outline, rotation,
+// scale, or reduced opacity.
 //
 // Run from this directory:
 //

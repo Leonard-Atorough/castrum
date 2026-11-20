@@ -8,14 +8,14 @@ import (
 )
 
 // SaveStore publishes encoded documents.
-//
-// Saver supplies encode bound to the selected encoder and value; the store
-// need not know their types or formats. Write calls encode synchronously at
-// most once and must call it before reporting success. It must not retain
-// encode or publish incomplete output on an encoding failure. The store owns
-// its writer and reports write, close, and publication errors. Publication
-// guarantees depend on the implementation.
 type SaveStore interface {
+	// Write publishes the output of encode at name and returns any encoding,
+	// write, close, or publication error.
+	//
+	// Write owns the writer and calls encode synchronously at most once.
+	// It must call encode before reporting success and must not retain it or
+	// publish incomplete output on an encoding failure. Publication guarantees
+	// depend on the store.
 	Write(name string, encode func(io.Writer) error) error
 }
 

@@ -48,9 +48,12 @@ type gridEntry struct {
 
 // Change updates or removes one entity's indexed bounds.
 type Change struct {
+	// EntityID identifies the entity to update or remove.
 	EntityID ecs.EntityID
-	Bounds   geom.Rect
-	Remove   bool
+	// Bounds is the replacement rectangle; it is ignored when Remove is true.
+	Bounds geom.Rect
+	// Remove removes the entity from the index instead of updating its bounds.
+	Remove bool
 }
 
 func (e *gridEntry) contains(cell GridCell) bool {

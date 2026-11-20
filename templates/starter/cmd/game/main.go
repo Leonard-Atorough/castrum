@@ -1,3 +1,4 @@
+// Command game runs the Castrum starter game.
 package main
 
 import (

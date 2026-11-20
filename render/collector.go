@@ -34,17 +34,20 @@ type DrawItem struct {
 	Font asset.ID
 	// TextSize is the font size in pixels before applying Scale.
 	TextSize float64
-	// TextWidth and TextHeight are the text dimensions measured by the font
-	// before applying Scale.
-	TextWidth, TextHeight float64
+	// TextWidth is the font-measured text width in pixels before applying Scale.
+	TextWidth float64
+	// TextHeight is the font-measured text height in pixels before applying Scale.
+	TextHeight float64
 	// Position is the interpolated position in world space.
 	Position geom.Vector2
 	// Rotation is the rotation in world space, in radians.
 	Rotation float64
 	// Scale is the drawable's scale in world space.
 	Scale geom.Vector2
-	// FlipH and FlipV mirror texture items horizontally and vertically.
-	FlipH, FlipV bool
+	// FlipH mirrors texture items horizontally.
+	FlipH bool
+	// FlipV mirrors texture items vertically.
+	FlipV bool
 	// Color tints texture pixels or sets the text or shape color. Its alpha
 	// controls opacity; nil means no tint on a texture item.
 	Color color.Color
