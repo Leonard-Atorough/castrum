@@ -11,13 +11,13 @@ import (
 // world also adds a [PrevTransform] if one is not already present.
 type Transform struct {
 	// Position is the entity's position in 2D space.
-	Position geom.Vector2
+	Position geom.Vector2 `json:"position"`
 	// Rotation is the entity's rotation in radians.
-	Rotation float64
+	Rotation float64 `json:"rotation"`
 	// Scale is the entity's 2D scale. A zero component is treated as 1.
-	Scale geom.Vector2
+	Scale geom.Vector2 `json:"scale"`
 	// Offset is the transform's position offset.
-	Offset geom.Vector2
+	Offset geom.Vector2 `json:"offset"`
 }
 
 // PrevTransform stores an entity's transform at the start of a fixed tick.

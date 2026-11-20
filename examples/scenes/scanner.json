@@ -3,7 +3,7 @@
   "components": [
     {
       "type": "core.Transform",
-      "value": { "Position": { "x": 640, "y": 400 } }
+      "value": { "position": { "x": 640, "y": 400 } }
     },
     {
       "type": "sprite.Primitive",

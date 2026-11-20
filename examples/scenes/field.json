@@ -3,7 +3,7 @@
   "components": [
     {
       "type": "core.Transform",
-      "value": { "Position": { "x": 640, "y": 400 } }
+      "value": { "position": { "x": 640, "y": 400 } }
     },
     {
       "type": "sprite.Primitive",
@@ -18,7 +18,7 @@
     {
       "key": "A",
       "components": [
-        { "type": "core.Transform", "value": { "Position": { "x": 260, "y": 270 } } },
+        { "type": "core.Transform", "value": { "position": { "x": 260, "y": 270 } } },
         {
           "type": "sprite.Primitive",
           "value": {
@@ -36,7 +36,7 @@
     {
       "key": "B",
       "components": [
-        { "type": "core.Transform", "value": { "Position": { "x": 390, "y": 390 } } },
+        { "type": "core.Transform", "value": { "position": { "x": 390, "y": 390 } } },
         {
           "type": "sprite.Primitive",
           "value": {
@@ -54,7 +54,7 @@
     {
       "key": "C",
       "components": [
-        { "type": "core.Transform", "value": { "Position": { "x": 520, "y": 510 } } },
+        { "type": "core.Transform", "value": { "position": { "x": 520, "y": 510 } } },
         {
           "type": "sprite.Primitive",
           "value": {
@@ -72,7 +72,7 @@
     {
       "key": "D",
       "components": [
-        { "type": "core.Transform", "value": { "Position": { "x": 650, "y": 270 } } },
+        { "type": "core.Transform", "value": { "position": { "x": 650, "y": 270 } } },
         {
           "type": "sprite.Primitive",
           "value": {
@@ -90,7 +90,7 @@
     {
       "key": "E",
       "components": [
-        { "type": "core.Transform", "value": { "Position": { "x": 780, "y": 390 } } },
+        { "type": "core.Transform", "value": { "position": { "x": 780, "y": 390 } } },
         {
           "type": "sprite.Primitive",
           "value": {
@@ -108,7 +108,7 @@
     {
       "key": "F",
       "components": [
-        { "type": "core.Transform", "value": { "Position": { "x": 910, "y": 510 } } },
+        { "type": "core.Transform", "value": { "position": { "x": 910, "y": 510 } } },
         {
           "type": "sprite.Primitive",
           "value": {
