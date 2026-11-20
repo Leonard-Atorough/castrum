@@ -1,18 +1,12 @@
-// Command scenes demonstrates scene switching, additive scene loads,
-// lifecycle hooks, and queries over director-owned entities - with every
-// scene's content authored in JSON files instead of Go builders.
+// Command scenes demonstrates scene-owned entities and lifecycle hooks.
 //
-// SPACE switches between the hangar and the salvage field; S toggles a
-// scanner overlay while the salvage field is live. Scene requests queue in
-// the director and are applied by the scene system, so their effects appear
-// on the frame after the press.
+// SPACE switches between two rooms. S loads or removes a scanner alongside
+// the current room. Requests made by the controls are applied on the next
+// frame; switching removes both the old room and any loaded scanner.
 //
-// The three scene files are data: nodes reference engine components by
-// registry key (core.Transform, sprite.Primitive, sprite.Text) and the
-// example's own gameplay state by a key the example registers
-// (scenes.spin, scenes.drift). The hangar preloads the built-in font
-// through its assets section, so the location is a self-contained unit:
-// entering it loads what it draws.
+// The field's entry hook spawns moving obstacles through the director, so
+// they are removed with the field. The movement system is registered once
+// and queries them in the same world as every other entity.
 //
 // Run from this directory:
 //
@@ -20,159 +14,82 @@
 package main
 
 import (
-	"embed"
-	"encoding/json"
+	"fmt"
+	"image/color"
 
 	"github.com/Leonard-Atorough/castrum"
+	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/scene"
-	"github.com/Leonard-Atorough/castrum/serialization"
+	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
-// spin marks an entity the "hangar spin" system rotates, in radians per
-// second. Authored under the "scenes.spin" registry key, so the JSON scene
-// attaches it to the ship like any engine component.
-type spin struct {
-	Speed float64 `json:"speed"`
-}
-
-// Validate keeps the file contract sharp: a scene that ships a spinning
-// part without a rotation rate fails at spawn, and an authored file
-// holding a non-positive speed fails at decode.
-func (s spin) Validate() error {
-	if s.Speed <= 0 {
-		return errSpinSpeed
-	}
-	return nil
-}
-
-var errSpinSpeed = &fileError{"spin speed must be positive"}
-
-type fileError struct{ msg string }
-
-func (e *fileError) Error() string { return e.msg }
-
-// drift marks an entity the "salvage drift" system moves, in pixels per
-// second, authored under "scenes.drift".
-type drift struct {
-	Speed float64 `json:"speed"`
-}
-
-func (d drift) Validate() error {
-	if d.Speed <= 0 {
-		return errDriftSpeed
-	}
-	return nil
-}
-
-var errDriftSpeed = &fileError{"drift speed must be positive"}
-
-// sceneFiles holds the authored scenes: hangar, field, and scanner overlay.
-//
-//go:embed hangar.json field.json scanner.json
-var sceneFiles embed.FS
-
-// sceneFrom compiles one authored file into a scene. All failures name
-// the file, the registry key, and the node path, the engine's boundary
-// error promise.
-func sceneFrom(reg *serialization.Registry, name string) (scene.Scene, error) {
-	raw, err := sceneFiles.ReadFile(name)
-	if err != nil {
-		return nil, err
-	}
-	var file serialization.File
-	if err := json.Unmarshal(raw, &file); err != nil {
-		return nil, err
-	}
-	return file.Scene(reg)
-}
-
-// stage couples an authored scene file with the name and hooks the
-// director receives whenever that scene is requested.
-type stage struct {
-	name  string
-	file  string
-	hooks scene.Hooks
-	run   scene.Scene // compiled once during setup
+type roomProps struct {
+	name       string
+	background color.RGBA
 }
 
 var (
-	hangar  = stage{name: "hangar", file: "hangar.json", hooks: locationHooks("hangar")}
-	field   = stage{name: "field", file: "field.json", hooks: locationHooks("salvage field")}
-	scanner = stage{name: "scanner", file: "scanner.json", hooks: scannerHooks()}
+	hangar = roomProps{name: "hangar", background: color.RGBA{R: 30, G: 65, B: 90, A: 255}}
+	field  = roomProps{name: "field", background: color.RGBA{R: 20, G: 35, B: 60, A: 255}}
 )
 
-// demo holds the director and the instance ids the controls requested.
+// roomScene is a reusable blueprint: each call builds a node tree from props.
+// Child nodes are separate entities; their positions are world coordinates.
+var roomScene = scene.Of(func(p roomProps) scene.Node {
+	return scene.Node{
+		Key:    p.name,
+		Assets: []scene.Preload{scene.Warm[asset.FontData](builtin.Font)},
+		Components: []any{
+			core.Transform{Position: geom.Vector2{X: 640, Y: 400}},
+			sprite.Primitive{
+				Shape: sprite.ShapeRect,
+				Rect:  geom.Vector2{X: 1280, Y: 460},
+				Style: sprite.Style{Color: &p.background},
+			},
+		},
+		Children: []scene.Node{{
+			Key: "title",
+			Components: []any{
+				core.Transform{Position: geom.Vector2{X: 640, Y: 220}},
+				sprite.Text{Asset: builtin.Font, Text: p.name, TextSize: 28},
+			},
+		}},
+	}
+})
+
+var scannerScene = scene.Of(func(_ struct{}) scene.Node {
+	return scene.Node{
+		Key: "scanner",
+		Components: []any{
+			core.Transform{Position: geom.Vector2{X: 640, Y: 400}},
+			sprite.Primitive{
+				Shape: sprite.ShapeCircle,
+				Radii: geom.Vector2{X: 190, Y: 190},
+				Style: sprite.Style{
+					Layer: 2, Outline: true, StrokeWidth: 3,
+					Color: &color.RGBA{R: 90, G: 240, B: 130, A: 255},
+				},
+			},
+		},
+	}
+})
+
+type drift struct {
+	speed float64
+}
+
 type demo struct {
 	game     *castrum.Game
 	director *scene.Director
-	root     scene.InstanceID // the root SPACE controls, from queue to teardown
-	scanner  scene.InstanceID // the scanner overlay, zero while absent
-}
-
-// atField reports whether the salvage field root is live. Controls read the
-// director's live roots instead of the recorded ids, so presses while a
-// switch is queued act on the scene that is on screen.
-func (d *demo) atField() bool {
-	for _, root := range d.director.Roots() {
-		if name, ok := d.director.Name(root); ok && name == field.name {
-			return true
-		}
-	}
-	return false
-}
-
-// controls turns the two actions into director requests and nothing else;
-// travel is checked first so both presses queue in one frame.
-func (d *demo) controls(ctx *core.Context) error {
-	if ctx.Actions.JustPressed("travel") {
-		if err := d.travel(); err != nil {
-			return err
-		}
-	}
-	if ctx.Actions.JustPressed("scanner") {
-		return d.toggleScanner()
-	}
-	return nil
-}
-
-func (d *demo) travel() error {
-	if d.atField() {
-		return d.switchStage(hangar)
-	}
-	return d.switchStage(field)
-}
-
-// switchStage queues s to replace every live root and records the reserved
-// instance id.
-func (d *demo) switchStage(s stage) error {
-	id, err := d.director.Switch(s.run, nil, scene.WithName(s.name), scene.WithHooks(s.hooks))
-	if err != nil {
-		return err
-	}
-	d.root = id
-	return nil
-}
-
-// toggleScanner loads the scanner overlay alongside the field, or queues its
-// removal when it is already live.
-func (d *demo) toggleScanner() error {
-	if !d.atField() {
-		return nil
-	}
-	if d.director.Live(d.scanner) {
-		return d.director.Remove(d.scanner)
-	}
-	id, err := d.director.Load(scanner.run, nil, scene.WithName(scanner.name), scene.WithHooks(scanner.hooks))
-	if err != nil {
-		return err
-	}
-	d.scanner = id
-	return nil
+	location string
+	room     scene.InstanceID
+	scanner  scene.InstanceID
 }
 
 func newGame() (*demo, error) {
@@ -192,61 +109,104 @@ func newGame() (*demo, error) {
 	}); err != nil {
 		return nil, err
 	}
+
 	d := &demo{game: g, director: g.World().MustResource[*scene.Director]()}
+	g.World().MustResource[*debug.Panel]().Status("controls", "SPACE: switch rooms   S: toggle scanner")
 
-	// The example's gameplay state crosses the data boundary like any
-	// engine component: registered under a stable key, then authored in
-	// JSON. The registry is provided by castrum.New with the engine's
-	// own components already registered.
-	reg := g.World().MustResource[*serialization.Registry]()
-	if err := reg.Component[spin]("scenes.spin"); err != nil {
-		return nil, err
-	}
-	if err := reg.Component[drift]("scenes.drift"); err != nil {
-		return nil, err
-	}
-
-	// Compile the authored scenes once; switching and reloading reuse the
-	// compiled nodes.
-	for _, s := range []*stage{&hangar, &field, &scanner} {
-		compiled, err := sceneFrom(reg, s.file)
-		if err != nil {
-			return nil, err
+	// Scene entities use ordinary components, so one fixed system can move
+	// field obstacles regardless of how or when they were spawned.
+	moving := core.NewQuery(g.World()).With(core.Transform{}, drift{})
+	if err := g.AddSystem(core.PhaseFixed, "drift", core.SystemFunc(func(ctx *core.Context) error {
+		for entity := range moving.Execute() {
+			motion, _ := entity.Component[drift]()
+			entity.Update(func(t *core.Transform) {
+				t.Position.X += motion.speed * ctx.DeltaTime.Seconds()
+				if t.Position.X > 1300 {
+					t.Position.X = -120
+				}
+			})
 		}
-		s.run = compiled
-	}
-
-	g.World().MustResource[*debug.Panel]().Status("controls", "SPACE: travel   S: toggle scanner in field")
-
-	// Queries and systems work on scene entities like any other entity, so
-	// they are registered once and run regardless of which scene is live.
-	if err := d.addSpinSystem(); err != nil {
-		return nil, err
-	}
-	if err := d.addDriftSystem(); err != nil {
+		return nil
+	})); err != nil {
 		return nil, err
 	}
 	if err := g.AddSystem(core.PhaseFrame, "scene controls", core.SystemFunc(d.controls)); err != nil {
 		return nil, err
 	}
 
-	id, err := d.director.Load(hangar.run, nil, scene.WithName(hangar.name), scene.WithHooks(hangar.hooks))
+	// Load queues the first room for the scene startup system.
+	d.room, err = d.director.Load(roomScene, hangar,
+		scene.WithName(hangar.name), scene.WithHooks(d.roomHooks(hangar.name)))
 	if err != nil {
 		return nil, err
 	}
-	d.root = id
 	return d, nil
 }
 
-// locationHooks labels the debug panel while the location is entering.
-func locationHooks(name string) scene.Hooks {
-	return scene.Hooks{Enter: func(ctx *core.Context, _ *scene.Handle) error {
-		ctx.World.MustResource[*debug.Panel]().Status("location", "Location: "+name)
+func (d *demo) controls(ctx *core.Context) error {
+	// Give switching priority if both actions occur in the same frame.
+	if ctx.Actions.JustPressed("travel") {
+		next := field
+		if d.location == field.name {
+			next = hangar
+		}
+		id, err := d.director.Switch(roomScene, next,
+			scene.WithName(next.name), scene.WithHooks(d.roomHooks(next.name)))
+		if err != nil {
+			return err
+		}
+		d.room = id
 		return nil
-	}}
+	}
+	if ctx.Actions.JustPressed("scanner") {
+		if d.director.Live(d.scanner) {
+			return d.director.Remove(d.scanner)
+		}
+		id, err := d.director.Load(scannerScene, struct{}{},
+			scene.WithName("scanner"), scene.WithHooks(scannerHooks()))
+		if err != nil {
+			return err
+		}
+		d.scanner = id
+	}
+	return nil
 }
 
-// scannerHooks reports the overlay entering and clears the label when it exits.
+func (d *demo) roomHooks(name string) scene.Hooks {
+	return scene.Hooks{
+		Enter: func(ctx *core.Context, h *scene.Handle) error {
+			if name == field.name {
+				for i := range 6 {
+					// Spawn associates each obstacle with this scene instance.
+					_, err := d.director.Spawn(ctx, h.ID(),
+						core.Transform{Position: geom.Vector2{X: 260 + float64(i)*130, Y: 270 + float64(i%3)*120}},
+						sprite.Primitive{
+							Shape: sprite.ShapeRect,
+							Rect:  geom.Vector2{X: 55, Y: 35},
+							Style: sprite.Style{Color: &color.RGBA{R: 220, G: 145, B: 75, A: 255}, Layer: 1},
+						},
+						drift{speed: 25 + float64(i)*8},
+					)
+					if err != nil {
+						return fmt.Errorf("spawn obstacle %d: %w", i+1, err)
+					}
+				}
+			}
+			d.location = name
+			panel := ctx.World.MustResource[*debug.Panel]()
+			panel.Status("location", "Location: "+name)
+			panel.Message("Enter " + name)
+			return nil
+		},
+		Exit: func(ctx *core.Context, _ *scene.Handle) error {
+			// A replacement enters before the old room exits, so do not clear
+			// the shared location status here.
+			ctx.World.MustResource[*debug.Panel]().Message("Exit " + name)
+			return nil
+		},
+	}
+}
+
 func scannerHooks() scene.Hooks {
 	return scene.Hooks{
 		Enter: func(ctx *core.Context, _ *scene.Handle) error {
@@ -258,38 +218,6 @@ func scannerHooks() scene.Hooks {
 			return nil
 		},
 	}
-}
-
-// addSpinSystem registers the fixed system rotating entities with a spin.
-func (d *demo) addSpinSystem() error {
-	query := core.NewQuery(d.game.World()).With(core.Transform{}, spin{})
-	return d.game.AddSystem(core.PhaseFixed, "hangar spin", core.SystemFunc(func(ctx *core.Context) error {
-		for entity := range query.Execute() {
-			motion, _ := entity.Component[spin]()
-			entity.Update(func(t *core.Transform) {
-				t.Rotation += motion.Speed * ctx.DeltaTime.Seconds()
-			})
-		}
-		return nil
-	}))
-}
-
-// addDriftSystem registers the fixed system drifting entities with a drift
-// and wrapping them back to the field's left edge.
-func (d *demo) addDriftSystem() error {
-	query := core.NewQuery(d.game.World()).With(core.Transform{}, drift{})
-	return d.game.AddSystem(core.PhaseFixed, "salvage drift", core.SystemFunc(func(ctx *core.Context) error {
-		for entity := range query.Execute() {
-			motion, _ := entity.Component[drift]()
-			entity.Update(func(t *core.Transform) {
-				t.Position.X += motion.Speed * ctx.DeltaTime.Seconds()
-				if t.Position.X > 1300 {
-					t.Position.X = -120
-				}
-			})
-		}
-		return nil
-	}))
 }
 
 func run() error {

@@ -1,151 +1,125 @@
 package main
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/Leonard-Atorough/castrum"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/input"
 )
 
-const noKey input.Key = -1
+func TestControls(t *testing.T) {
+	d := startGame(t)
+	panel := d.game.World().MustResource[*debug.Panel]()
+	if d.location != hangar.name {
+		t.Fatalf("initial location = %q, want %q", d.location, hangar.name)
+	}
 
-func TestSceneControlsAndEntitySystems(t *testing.T) {
+	advance(t, d.game, input.KeyS)
+	advance(t, d.game)
+	if !slices.Contains(panel.StatusLines(), "Scanner: active") {
+		t.Fatal("scanner control did not activate the scanner")
+	}
+	advance(t, d.game, input.KeyS)
+	advance(t, d.game)
+	if slices.Contains(panel.StatusLines(), "Scanner: active") {
+		t.Fatal("scanner control did not deactivate the scanner")
+	}
+
+	advance(t, d.game, input.KeyS)
+	advance(t, d.game)
+	scanner := d.scanner
+	advance(t, d.game, input.KeySpace, input.KeyS)
+	if d.scanner != scanner {
+		t.Fatal("scanner control ran when switching had priority")
+	}
+	advance(t, d.game)
+	if d.location != field.name || !slices.Contains(panel.StatusLines(), "Location: field") {
+		t.Fatalf("location after travel = %q, status = %v", d.location, panel.StatusLines())
+	}
+	if slices.Contains(panel.StatusLines(), "Scanner: active") {
+		t.Fatal("scanner status survived switching rooms")
+	}
+
+	// A scanner ID from the previous room must not prevent a new load.
+	advance(t, d.game, input.KeyS)
+	advance(t, d.game)
+	if !slices.Contains(panel.StatusLines(), "Scanner: active") {
+		t.Fatal("scanner did not reactivate after switching rooms")
+	}
+	advance(t, d.game, input.KeySpace)
+	advance(t, d.game)
+	if d.location != hangar.name || !slices.Contains(panel.StatusLines(), "Location: hangar") {
+		t.Fatalf("location after return = %q, status = %v", d.location, panel.StatusLines())
+	}
+}
+
+func TestFieldObstacles(t *testing.T) {
+	d := startGame(t)
+	advance(t, d.game, input.KeySpace)
+	advance(t, d.game)
+
+	var obstacles []core.Entity
+	for _, entity := range d.director.Entities(d.room) {
+		if entity.HasComponent[drift](d.game.World()) {
+			obstacles = append(obstacles, entity)
+		}
+	}
+	if len(obstacles) != 6 {
+		t.Fatalf("field obstacles = %d, want 6", len(obstacles))
+	}
+	before, ok := obstacles[0].Component[core.Transform](d.game.World())
+	if !ok {
+		t.Fatal("obstacle has no transform")
+	}
+	advance(t, d.game)
+	after, ok := obstacles[0].Component[core.Transform](d.game.World())
+	if !ok || after.Position.X <= before.Position.X {
+		t.Fatal("obstacle did not drift")
+	}
+
+	if err := obstacles[0].Update(d.game.World(), func(t *core.Transform) {
+		t.Position.X = 1300
+	}); err != nil {
+		t.Fatal(err)
+	}
+	advance(t, d.game)
+	wrapped, ok := obstacles[0].Component[core.Transform](d.game.World())
+	if !ok || wrapped.Position.X < -120 || wrapped.Position.X >= -118 {
+		t.Fatalf("obstacle position after wrapping = %v", wrapped.Position.X)
+	}
+
+	advance(t, d.game, input.KeySpace)
+	advance(t, d.game)
+	moving := core.NewQuery(d.game.World()).With(drift{})
+	for range moving.Execute() {
+		t.Fatal("field obstacle survived returning to the hangar")
+	}
+}
+
+func startGame(t *testing.T) *demo {
+	t.Helper()
 	d, err := newGame()
 	if err != nil {
 		t.Fatal(err)
 	}
-	g := d.game
-	director := d.director
-	if err := g.Startup(); err != nil {
+	if err := d.game.Startup(); err != nil {
 		t.Fatal(err)
 	}
-
-	if !director.Live(d.root) {
-		t.Fatal("hangar did not enter at startup")
-	}
-	// hangar.json authors three nodes: the backdrop, the ship, and the
-	// location title.
-	if got := len(director.Entities(d.root)); got != 3 {
-		t.Fatalf("hangar entities = %d, want 3", got)
-	}
-	ship := movingEntity(t, g, spin{})
-
-	advance(t, g, input.KeyS)
-	if director.Live(d.scanner) {
-		t.Fatal("scanner loaded in the hangar")
-	}
-
-	hangar := d.root
-	advance(t, g, input.KeySpace) // queues the switch; the hangar keeps running
-	if got := len(director.Entities(d.root)); got != 0 {
-		t.Fatalf("pending field entities = %d, want 0", got)
-	}
-	if rotation(t, g, ship) == 0 {
-		t.Fatal("hangar ship did not rotate before the switch was applied")
-	}
-
-	advance(t, g, noKey) // applies the switch
-	if director.Live(hangar) {
-		t.Fatal("hangar survived switch")
-	}
-	if got := len(director.Entities(hangar)); got != 0 {
-		t.Fatalf("old hangar entities = %d, want 0", got)
-	}
-	if got := len(director.Entities(d.root)); got != 7 {
-		t.Fatalf("field entities = %d, want 7", got)
-	}
-	field := d.root
-	debris := movingEntity(t, g, drift{})
-	debrisPosition := position(t, g, debris)
-
-	advance(t, g, input.KeyS) // queues the scanner load
-	if got := len(director.Entities(d.scanner)); got != 0 {
-		t.Fatalf("pending scanner entities = %d, want 0", got)
-	}
-	advance(t, g, noKey)
-	if got := len(director.Entities(d.scanner)); got != 1 {
-		t.Fatalf("scanner entities = %d, want 1", got)
-	}
-	if got := len(director.Entities(d.root)); got != 7 {
-		t.Fatalf("field entities with scanner = %d, want 7", got)
-	}
-	if position(t, g, debris) <= debrisPosition {
-		t.Fatal("field debris did not move")
-	}
-
-	scanner := d.scanner
-	advance(t, g, input.KeyS) // queues the removal
-	advance(t, g, noKey)
-	if director.Live(scanner) {
-		t.Fatal("scanner survived removal")
-	}
-	if got := len(director.Entities(scanner)); got != 0 {
-		t.Fatalf("removed scanner entities = %d, want 0", got)
-	}
-
-	advance(t, g, input.KeyS) // queues a reload
-	advance(t, g, noKey)
-	if !director.Live(d.scanner) {
-		t.Fatal("scanner did not reload")
-	}
-
-	advance(t, g, input.KeySpace) // queues the return to the hangar
-	advance(t, g, noKey)
-	if director.Live(field) || director.Live(d.scanner) {
-		t.Fatal("field or scanner survived the switch")
-	}
-	if got := len(director.Entities(field)) + len(director.Entities(d.scanner)); got != 0 {
-		t.Fatalf("old field and scanner entities = %d, want 0", got)
-	}
-	if got := len(director.Entities(d.root)); got != 3 {
-		t.Fatalf("returned hangar entities = %d, want 3", got)
-	}
-	newShip := movingEntity(t, g, spin{})
-	hangarRotation := rotation(t, g, newShip)
-	advance(t, g, noKey)
-	if rotation(t, g, newShip) == hangarRotation {
-		t.Fatal("new hangar ship did not rotate")
-	}
+	return d
 }
 
-func advance(t *testing.T, g *castrum.Game, key input.Key) {
+func advance(t *testing.T, g *castrum.Game, keys ...input.Key) {
 	t.Helper()
 	snapshot := &input.Snapshot{}
-	if key >= 0 {
+	for _, key := range keys {
 		snapshot.Keys[key] = input.State{Pressed: true, Held: true}
 	}
 	g.Context().Input = snapshot
 	if err := g.Advance(20 * time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func movingEntity(t *testing.T, g *castrum.Game, marker any) core.Entity {
-	t.Helper()
-	query := core.NewQuery(g.World()).With(core.Transform{}, marker)
-	entry, ok := query.First()
-	if !ok {
-		t.Fatalf("no entity with %T", marker)
-	}
-	return entry.Entity()
-}
-
-func rotation(t *testing.T, g *castrum.Game, entity core.Entity) float64 {
-	t.Helper()
-	transform, ok := entity.Component[core.Transform](g.World())
-	if !ok {
-		t.Fatal("spin probe has no transform")
-	}
-	return transform.Rotation
-}
-
-func position(t *testing.T, g *castrum.Game, entity core.Entity) float64 {
-	t.Helper()
-	transform, ok := entity.Component[core.Transform](g.World())
-	if !ok {
-		t.Fatal("drift probe has no transform")
-	}
-	return transform.Position.X
 }
