@@ -24,15 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement AnimatedSprite and SpriteClip (#215)
 - Add loop count to Completed signal and update tests (#214)
 - Implement new documentation website and migrate old v0.3.0 documentation (#205) (#206)
-- Demonstrate relative system ordering (#199)
-- Demonstrate playlist controls (#198)
-- Add persistent rebinding workflow (#196)
-- Demonstrate queued state transitions (#195)
 - Support display preference persistence (#194)
 - **breaking:** Persist bindings and global deadzone (#193)
 - Support preference persistence (#192)
-- Complete persistence workflows for v0.4.0 (#191)
-- Enhance example documentation and add new systems for… (#190)
 - Add scripts for example validation and module pinning; upda… (#189)
 - **breaking:** Replace atlas registration with serializable spritesheets (#188)
 - Implement directory-backed storage and associated tests (#187)
@@ -67,7 +61,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **breaking:** Protect engine system ordering (#181)
 - Replace receiver name 's' with 'l' for consistency (#178)
 - **breaking:** Registration strategy - declaration-driven systems, instance-driven features (#159)
-- Make runnable examples standalone (#139)
 
 ### Documentation
 - Remove old v0.3.0 archive (#208)
@@ -97,7 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pin entity-vs-query write validation matrix (#231)
 - Implement guide skill (#200)
 - Restore supported development commands (#170)
-- Test standalone example modules (#140)
 
 ## [0.3.0] - 2026-10-30
 
