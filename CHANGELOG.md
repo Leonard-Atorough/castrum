@@ -68,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document the unreleased playlist API (#144)
 
 ### Fixed
+- Migrate fixtures off the removed sprite shape fields (#256)
 - Define Style.Color as straight alpha and restore its tints (#246)
 - Fix correctness bugs in serialization package around resources and type validation. (#235)
 - Document the pause/scale same-advance boundary (#232)
