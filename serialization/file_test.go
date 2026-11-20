@@ -141,9 +141,6 @@ func TestSpawnPropagatesOverrideValidationError(t *testing.T) {
 }
 
 func TestOpenRejectsUnauthoredComponents(t *testing.T) {
-	// Authored content must contribute something: engine visual
-	// components implement core.Authored, and File.Open enforces it
-	// with the node path named.
 	reg := newFileTestRegistry(t)
 	if err := reg.Component[sprite.Sprite]("sprite.Sprite"); err != nil {
 		t.Fatalf("register sprite: %v", err)
@@ -217,18 +214,6 @@ func TestOpenRejectsUnknownAssetType(t *testing.T) {
 	}
 }
 
-// TestFileShape pins the File format's JSON shape exactly, both
-// directions.
-//
-// The authored half is what a game author types: field names, entry
-// shapes, and the recursive node nesting. The encoded half is what a
-// saver produces (today: round-trip only; a save writer arrives with
-// runtime state serialization). Renaming any pinned field breaks
-// authored files, so the pin fails loudly instead of silently.
-//
-// Deliberately not pinned: absence shapes (lists as null versus
-// omitted) are saver decisions that do not exist yet, and
-// unknown-field leniency is a policy the format has not declared.
 func TestFileShape(t *testing.T) {
 	const authored = `{
 		"key": "root",
@@ -258,9 +243,6 @@ func TestFileShape(t *testing.T) {
 		if f.Key != "root" || !f.Persistent {
 			t.Fatalf("node header = %q persistent %v", f.Key, f.Persistent)
 		}
-		// Component values travel verbatim, authoring whitespace and
-		// all; the pin compares the compacted JSON so it stays
-		// readable.
 		var compact bytes.Buffer
 		if err := json.Compact(&compact, f.Components[0].Value); err != nil {
 			t.Fatalf("compact component value: %v", err)
@@ -270,8 +252,6 @@ func TestFileShape(t *testing.T) {
 			f.Components[1].Type != "game.Station" {
 			t.Fatalf("component entries = %+v", f.Components)
 		}
-		// Verbatim passthrough is the contract: the authored spacing
-		// above survives the decode untouched.
 		if string(f.Components[0].Value) != `{ "name": "orsa" }` {
 			t.Fatalf("value = %q, want the authored bytes verbatim", f.Components[0].Value)
 		}
@@ -282,7 +262,6 @@ func TestFileShape(t *testing.T) {
 			t.Fatalf("children = %+v", f.Children)
 		}
 
-		// The file compiles through the registry like any authored file.
 		reg := newFileTestRegistry(t)
 		if err := reg.Component[station]("game.Station"); err != nil {
 			t.Fatalf("Component: %v", err)
@@ -307,9 +286,6 @@ func TestFileShape(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal: %v", err)
 		}
-		// Component values pass through raw - verbatim JSON in,
-		// verbatim JSON out - and children recurse as the same node
-		// shape.
 		const want = `{"key":"root","persistent":true,` +
 			`"components":[{"type":"game.Trader","value":{"name":"orsa"}}],` +
 			`"assets":[{"type":"game.TraderAsset","id":"sprites.json"}],` +
