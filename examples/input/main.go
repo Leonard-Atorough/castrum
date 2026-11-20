@@ -100,10 +100,8 @@ func run() error {
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 		},
-		sprite.Sprite{
-			Drawable: sprite.RectShape{Size: geom.Vector2{X: 64, Y: 96}},
-			Style:    sprite.Style{Color: color.RGBA{G: 200}},
-		},
+		sprite.Primitive{Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 64, Y: 96},
+			Style: sprite.Style{Color: &color.RGBA{G: 200}}},
 	)
 	if err != nil {
 		return err
@@ -112,10 +110,8 @@ func run() error {
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 		},
-		sprite.Sprite{
-			Drawable: sprite.LineShape{To: geom.Vector2{X: 0, Y: -barrelLen}},
-			Style:    sprite.Style{Outline: true, StrokeWidth: barrelWidth, Color: color.RGBA{R: 120, A: 255}},
-		},
+		sprite.Primitive{Shape: sprite.ShapeLine, To: geom.Vector2{X: 0, Y: -barrelLen},
+			Style: sprite.Style{Outline: true, StrokeWidth: barrelWidth, Color: &color.RGBA{R: 120, A: 255}}},
 	)
 	if err != nil {
 		return err
@@ -131,10 +127,8 @@ func run() error {
 				core.Transform{
 					Position: pos,
 				},
-				sprite.Sprite{
-					Drawable: sprite.CircleShape{Radii: geom.Vector2{X: circleRadii, Y: circleRadii}},
-					Style:    sprite.Style{Color: color.RGBA{R: 255}},
-				},
+				sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: circleRadii, Y: circleRadii},
+					Style: sprite.Style{Color: &color.RGBA{R: 255}}},
 			); err != nil {
 				return err
 			}
@@ -177,7 +171,7 @@ func run() error {
 	return g.Run(runner)
 }
 
-func cameraSystem(camera *core.Entity, body *core.Entity) core.System {
+func cameraSystem(camera core.Entity, body core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hull, _ := body.Component[core.Transform](ctx.World)
 
@@ -188,7 +182,7 @@ func cameraSystem(camera *core.Entity, body *core.Entity) core.System {
 	})
 }
 
-func zoomSystem(camera *core.Entity, panel *debug.Panel) core.System {
+func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		// Keys express a rate; wheel offsets already express movement.
 		scaleChange := ctx.Actions.Axis("zoom")*zoomSpeed*ctx.DeltaTime.Seconds() + ctx.Input.Wheel().Y*wheelZoomStep
@@ -213,7 +207,7 @@ func zoomSystem(camera *core.Entity, panel *debug.Panel) core.System {
 // tankBodySystem drives the hull like a tank: the bindings move it
 // along its facing and turn it in place, independent of where the
 // turret aims.
-func tankBodySystem(body *core.Entity) core.System {
+func tankBodySystem(body core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		return body.Update(ctx.World, func(t *core.Transform) {
 			// Forward is screen-up (negative Y in this world), rotated
@@ -241,7 +235,7 @@ func tankBodySystem(body *core.Entity) core.System {
 // not through bindings - and projects to world space through the same
 // camera view the renderer frames with. Rotation 0 faces screen-up,
 // so the aim angle is atan2(x, -y) of the direction to the cursor.
-func turretSystem(turret, body *core.Entity) core.System {
+func turretSystem(turret, body core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		hull, _ := body.Component[core.Transform](ctx.World)
 		view, err := ctx.World.Resource[*render.CameraView]()

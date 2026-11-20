@@ -1,335 +1,229 @@
-// Package scene defines scene blueprints and manages their runtime instances.
 package scene
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
-// Blueprint describes the entities that make up a scene.
+// Scene builds a [Node] tree from props.
+type Scene func(props any) (Node, error)
+
+// Of wraps a typed builder as a [Scene].
 //
-// [Director.Load], [Director.Switch], and [Director.Update] snapshot the
-// blueprint structure and component interface values when they queue a request.
-// References inside component values and state captured by hooks remain shared.
-type Blueprint struct {
-	// Name identifies the blueprint.
-	Name string
-	// Assets lists asset IDs associated with the blueprint. The scene system
-	// does not currently load them.
-	Assets []asset.ID
-	// EntityList contains the root entity specifications.
-	EntityList []EntitySpec
-	// Hooks defines callbacks for instance lifecycle transitions.
-	Hooks Hooks
-}
-
-// Validate reports whether bp has a valid name, assets, and
-// entity specifications, including nested subscenes.
-func (bp Blueprint) Validate() error {
-	if bp.Name == "" {
-		return fmt.Errorf("scene: blueprint name must not be empty")
-	}
-	if len(bp.EntityList) == 0 {
-		return fmt.Errorf("scene: blueprint %q has no nodes", bp.Name)
-	}
-	if slices.Contains(bp.Assets, "") {
-		return fmt.Errorf("scene: blueprint %q has an empty asset ID", bp.Name)
-	}
-	return validateNodes(bp.Name, bp.EntityList)
-}
-
-func validateNodes(owner string, nodes []EntitySpec) error {
-	seen := make(map[string]bool, len(nodes))
-	for _, n := range nodes {
-		if n.Name == "" {
-			return fmt.Errorf("scene: blueprint %q has an unnamed node", owner)
+// The returned scene reports an error if props cannot be asserted to P.
+func Of[P any](build func(P) Node) Scene {
+	return func(props any) (Node, error) {
+		p, ok := props.(P)
+		if !ok {
+			return Node{}, fmt.Errorf("scene: props type %T, want %v", props, reflect.TypeFor[P]())
 		}
-		if seen[n.Name] {
-			return fmt.Errorf("scene: blueprint %q has duplicate node name %q", owner, n.Name)
-		}
-		seen[n.Name] = true
-		for i, c := range n.Components {
-			if c == nil {
-				return fmt.Errorf("scene: blueprint %q node %q: component at index %d is nil", owner, n.Name, i)
-			}
-			if reflect.TypeOf(c).Kind() == reflect.Pointer {
-				return fmt.Errorf("scene: blueprint %q node %q: component at index %d (%T) is a pointer", owner, n.Name, i, c)
-			}
-			if _, ok := c.(OwnershipRecord); ok {
-				return fmt.Errorf("scene: blueprint %q node %q: OwnershipRecord is managed by the director", owner, n.Name)
-			}
-			if v, ok := c.(core.Validatable); ok {
-				if err := v.Validate(); err != nil {
-					return fmt.Errorf("scene: blueprint %q node %q: %w", owner, n.Name, err)
-				}
-			}
-		}
-		if err := validateNodes(owner, n.Children); err != nil {
-			return err
-		}
-		for _, sub := range n.SubScenes {
-			if err := sub.Validate(); err != nil {
-				return fmt.Errorf("scene: subscene %q: %w", sub.Name, err)
-			}
-		}
-	}
-	return nil
-}
-
-func snapshotBlueprint(bp *Blueprint) *Blueprint {
-	snapshot := *bp
-	snapshot.Assets = slices.Clone(bp.Assets)
-	snapshot.EntityList = snapshotEntitySpecs(bp.EntityList)
-	return &snapshot
-}
-
-func snapshotEntitySpecs(specs []EntitySpec) []EntitySpec {
-	snapshot := slices.Clone(specs)
-	for i := range snapshot {
-		snapshot[i].Components = slices.Clone(snapshot[i].Components)
-		snapshot[i].Children = snapshotEntitySpecs(snapshot[i].Children)
-		snapshot[i].SubScenes = slices.Clone(snapshot[i].SubScenes)
-		for j := range snapshot[i].SubScenes {
-			snapshot[i].SubScenes[j] = *snapshotBlueprint(&snapshot[i].SubScenes[j])
-		}
-	}
-	return snapshot
-}
-
-// EntitySpec describes an entity to create in a scene instance.
-type EntitySpec struct {
-	// Name identifies the entity among its siblings.
-	Name string
-	// Components contains the non-nil, non-pointer values attached to the entity.
-	// OwnershipRecord is managed by the director and must not be supplied.
-	Components []any
-	// Children contains child entities owned by the same scene instance.
-	Children []EntitySpec
-	// SubScenes contains nested scenes managed as separate instances. For each
-	// entity specification, they enter before those on its child specifications.
-	SubScenes []Blueprint
-}
-
-// Hooks contains callbacks for scene-instance lifecycle transitions.
-type Hooks struct {
-	// Enter runs after the instance's entities are created,
-	// before its nested scenes enter. An error rolls back the entry.
-	Enter func(ctx *core.Context, self *Instance) error
-	// Exit runs while the instance's entities still exist. Exit hooks run
-	// children-first; errors do not stop other hooks or teardown, and are
-	// reported after teardown commits.
-	Exit func(ctx *core.Context, self *Instance) error
-}
-
-// InstanceID identifies an instance managed by a [Director]. IDs increase
-// monotonically and are not reused.
-type InstanceID uint64
-
-// Instance is a detached view of a scene instance.
-type Instance struct {
-	// ID uniquely identifies this instance within its Director.
-	ID InstanceID
-	// Name identifies the instance and is unchanged by blueprint updates.
-	Name string
-	// Blueprint is a detached structural snapshot of the blueprint assigned to
-	// this instance. Mutating its structure does not change the instance; use
-	// [Director.Update] to replace its blueprint.
-	Blueprint Blueprint
-}
-
-// OwnershipRecord identifies the scene instance that owns an entity's lifetime.
-type OwnershipRecord struct {
-	// Instance is the ID of the owning scene instance.
-	Instance InstanceID
-}
-
-type instance struct {
-	id        InstanceID
-	name      string
-	blueprint *Blueprint
-	parent    InstanceID // 0 for roots
-	children  []InstanceID
-	live      bool // false while pending, true once applied
-}
-
-func (i *instance) snapshot() Instance {
-	return Instance{ID: i.id, Name: i.name, Blueprint: *snapshotBlueprint(i.blueprint)}
-}
-
-func (i *instance) view() *Instance {
-	view := i.snapshot()
-	return &view
-}
-
-type request struct {
-	kind      requestKind
-	id        InstanceID // reserved for load/switch; target for update/remove
-	blueprint *Blueprint
-}
-
-type requestKind uint8
-
-const (
-	requestSwitch requestKind = iota
-	requestLoad
-	requestUpdate
-	requestUnload
-)
-
-// Director queues scene-instance transitions and tracks their instances.
-// It is single-threaded and must not be accessed concurrently.
-type Director struct {
-	next      InstanceID
-	pending   []request
-	instances map[InstanceID]*instance
-}
-
-// NewDirector returns an empty [Director].
-func NewDirector() *Director {
-	return &Director{
-		next:      1, // 0 is the "no parent" sentinel
-		instances: make(map[InstanceID]*instance),
+		return build(p), nil
 	}
 }
 
-// Switch queues removal of live root instances and loads bp as a new root.
-// The returned ID is reserved immediately; the instance remains pending until
-// the request is applied. The request snapshots bp when queued, so later
-// changes to its structure do not affect it.
-func (d *Director) Switch(bp *Blueprint) (InstanceID, error) {
-	return d.queueRoot(bp, requestSwitch, "Switch")
+// Preload describes a typed asset to load before entering a scene.
+// Use [Warm] to create one.
+type Preload interface {
+	warm(loader *asset.Loader) error
+	id() asset.ID
 }
 
-// Load queues bp as a root instance without removing existing instances.
-// The returned ID is reserved immediately; the instance remains pending until
-// the request is applied. The request snapshots bp when queued, so later
-// changes to its structure do not affect it.
-func (d *Director) Load(bp *Blueprint) (InstanceID, error) {
-	return d.queueRoot(bp, requestLoad, "Load")
+// Warm declares that the asset at id should be loaded as T before scene entry.
+func Warm[T any](id asset.ID) Preload {
+	return warm[T]{path: id}
 }
 
-func (d *Director) queueRoot(bp *Blueprint, kind requestKind, operation string) (InstanceID, error) {
-	if bp == nil {
-		return 0, fmt.Errorf("scene: %s: blueprint is nil", operation)
-	}
-	if err := bp.Validate(); err != nil {
-		return 0, err
-	}
-	bp = snapshotBlueprint(bp)
-	inst := d.reserve(bp, 0)
-	d.pending = append(d.pending, request{kind: kind, id: inst.id, blueprint: bp})
-	return inst.id, nil
-}
+type warm[T any] struct{ path asset.ID }
 
-// Get returns a detached view of id, including pending instances. It reports
-// false if id is unknown.
-func (d *Director) Get(id InstanceID) (Instance, bool) {
-	inst, ok := d.findInstance(id)
-	if !ok {
-		return Instance{}, false
-	}
-	return inst.snapshot(), true
-}
+func (w warm[T]) id() asset.ID { return w.path }
 
-// ByName returns a detached view of the first live or pending instance with
-// the given name, ordered by instance ID. It reports false if none exists.
-func (d *Director) ByName(name string) (Instance, bool) {
-	inst, ok := d.findInstanceByName(name)
-	if !ok {
-		return Instance{}, false
-	}
-	return inst.snapshot(), true
-}
-
-// Update queues bp as a replacement blueprint for a live instance. It returns
-// an error if bp is invalid or id does not identify a live instance. The
-// request snapshots bp when queued, so later changes to its structure do not
-// affect it.
-func (d *Director) Update(id InstanceID, bp *Blueprint) error {
-	if bp == nil {
-		return fmt.Errorf("scene: Update: blueprint is nil")
-	}
-	if err := bp.Validate(); err != nil {
+func (w warm[T]) warm(loader *asset.Loader) error {
+	if _, err := loader.Load[T](string(w.path)); err != nil {
 		return err
 	}
-	inst, ok := d.findInstance(id)
-	if !ok {
-		return fmt.Errorf("scene: Update: instance %d not found", id)
-	}
-	if !inst.live {
-		return fmt.Errorf("scene: Update: instance %d is pending; update live instances only", id)
-	}
-	bp = snapshotBlueprint(bp)
-	d.pending = append(d.pending, request{kind: requestUpdate, id: id, blueprint: bp})
 	return nil
 }
 
-// Remove queues teardown of the instance subtree rooted at id. It returns an
-// error if id does not identify an instance.
-func (d *Director) Remove(id InstanceID) error {
-	inst, ok := d.findInstance(id)
-	if !ok {
-		return fmt.Errorf("scene: Remove: instance %d not found", id)
+// Node describes an entity in a scene tree.
+type Node struct {
+	// Key identifies the node among its siblings. It must be nonempty and contain no "/".
+	Key string
+	// Assets lists assets to load before the scene enters.
+	Assets []Preload
+	// Components are the non-nil, non-pointer values attached to the entity.
+	// Component-specific validation runs when the entity is created.
+	Components []any
+	// Children are nested scene nodes, not a transform hierarchy.
+	Children []Node
+	// Persistent marks the node as persistent for game runtime serialization.
+	// Persistent nodes are kept across saves but do not affect scene lifetime.
+	Persistent bool
+}
+
+func validateNode(path string, n Node, seen map[string]bool) error {
+	if n.Key == "" {
+		return fmt.Errorf("scene: node at %q has an empty key", path)
 	}
-	d.pending = append(d.pending, request{kind: requestUnload, id: inst.id})
+	if strings.Contains(n.Key, "/") {
+		return fmt.Errorf("scene: node key %q must not contain '/'", n.Key)
+	}
+	if seen[n.Key] {
+		return fmt.Errorf("scene: duplicate sibling key %q", n.Key)
+	}
+	seen[n.Key] = true
+	for i, c := range n.Components {
+		if c == nil {
+			return fmt.Errorf("scene: node %q: component at index %d is nil", n.Key, i)
+		}
+		if reflect.TypeOf(c).Kind() == reflect.Pointer {
+			return fmt.Errorf("scene: node %q: component at index %d (%T) is a pointer", n.Key, i, c)
+		}
+	}
+	childSeen := make(map[string]bool, len(n.Children))
+	for _, child := range n.Children {
+		if err := validateNode(path+"/"+child.Key, child, childSeen); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-// Spawn creates an entity owned by the live scene instance identified by
-// owner. The entity is created in ctx.World and is destroyed when the instance
-// is removed or rebuilt. Call this from the engine goroutine, like other world
-// operations. It returns an error if ctx or its world is nil, owner is not a
-// live instance, or components are invalid. OwnershipRecord is managed by the
-// director and must not be supplied by callers.
-func (d *Director) Spawn(ctx *core.Context, owner InstanceID, components ...any) (*core.Entity, error) {
-	if ctx == nil || ctx.World == nil {
-		return nil, fmt.Errorf("scene: Spawn: context and world must not be nil")
+func validate(scene Scene, props any) (Node, error) {
+	tree, err := scene(props)
+	if err != nil {
+		return Node{}, err
 	}
-	inst, ok := d.findInstance(owner)
-	if !ok || !inst.live {
-		return nil, fmt.Errorf("scene: Spawn: instance %d is not live", owner)
+	return tree, validateNode(tree.Key, tree, map[string]bool{})
+}
+
+// InstanceID identifies a scene instance within a [Director].
+type InstanceID uint64
+
+type instance struct {
+	id       InstanceID
+	name     string
+	hooks    Hooks
+	tree     Node
+	entities []core.Entity
+	live     bool
+}
+
+func enter(world *core.World, loader *asset.Loader, inst *instance, tree Node) error {
+	if inst.live {
+		panic("scene: enter called on already live instance")
 	}
-	for _, component := range components {
-		if _, ok := component.(OwnershipRecord); ok {
-			return nil, fmt.Errorf("scene: Spawn: OwnershipRecord is managed by the director")
+	if err := preload(loader, tree); err != nil {
+		return err
+	}
+
+	entities, err := spawnTree(world, nil, "", tree)
+	if err != nil {
+		return errors.Join(err, destroy(world, entities))
+	}
+	inst.tree = tree
+	inst.entities = entities
+	inst.live = true
+	return nil
+}
+
+func spawnTree(world *core.World, entities []core.Entity, path string, n Node) ([]core.Entity, error) {
+	entity, err := world.NewEntity(n.Components...)
+	if err != nil {
+		return entities, fmt.Errorf("scene: spawn node %q: %w", join(path, n.Key), err)
+	}
+	entities = append(entities, entity)
+	nodePath := join(path, n.Key)
+	for _, c := range n.Children {
+		if entities, err = spawnTree(world, entities, nodePath, c); err != nil {
+			return entities, err
 		}
 	}
-	return newOwnedEntity(ctx.World, owner, components...)
+	return entities, nil
 }
 
-func (d *Director) nextID() InstanceID {
-	id := d.next
-	d.next++
-	return id
+func exit(world *core.World, inst *instance) error {
+	errs := destroy(world, inst.entities)
+	inst.live = false
+	inst.entities = nil
+	inst.tree = Node{}
+	return errs
 }
 
-func (d *Director) reserve(bp *Blueprint, parent InstanceID) *instance {
-	id := d.nextID()
-	inst := &instance{id: id, name: bp.Name, blueprint: bp, parent: parent}
-	d.instances[id] = inst
-	return inst
-}
-
-func (d *Director) findInstance(id InstanceID) (*instance, bool) {
-	inst, ok := d.instances[id]
-	return inst, ok
-}
-
-func (d *Director) findInstanceByName(name string) (*instance, bool) {
-	for id := InstanceID(1); id < d.next; id++ {
-		if inst, ok := d.instances[id]; ok && inst.name == name {
-			return inst, true
+func destroy(world *core.World, entities []core.Entity) error {
+	var errs []error
+	for _, ent := range entities {
+		if err := world.DestroyEntity(ent); err != nil {
+			errs = append(errs, fmt.Errorf("scene: destroy entity %d: %w", ent.ID(), err))
 		}
 	}
-	return nil, false
+	return errors.Join(errs...)
 }
 
-func (d *Director) take() []request {
-	reqs := append([]request(nil), d.pending...)
-	d.pending = nil
-	return reqs
+func join(path, key string) string {
+	if path == "" {
+		return key
+	}
+	return path + "/" + key
+}
+
+// ErrAssetLoadFailed identifies a failure to preload a scene asset.
+var ErrAssetLoadFailed = errors.New("scene: asset load failed")
+
+func preload(loader *asset.Loader, tree Node) error {
+	return walkAssets(tree, func(p Preload) error {
+		if err := p.warm(loader); err != nil {
+			return fmt.Errorf("%w: %s: %w", ErrAssetLoadFailed, p.id(), err)
+		}
+		return nil
+	})
+}
+
+func walkAssets(n Node, visit func(Preload) error) error {
+	for _, p := range n.Assets {
+		if err := visit(p); err != nil {
+			return err
+		}
+	}
+	for _, child := range n.Children {
+		if err := walkAssets(child, visit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Handle identifies a scene instance in lifecycle callbacks.
+type Handle struct {
+	id       InstanceID
+	director *Director
+}
+
+// ID returns the id of the handle's scene instance.
+func (h Handle) ID() InstanceID { return h.id }
+
+// Hooks contains scene lifecycle callbacks.
+type Hooks struct {
+	// Enter is the callback for scene entry.
+	Enter func(ctx *core.Context, handle *Handle) error
+	// Exit is the callback for scene exit.
+	Exit func(ctx *core.Context, handle *Handle) error
+}
+
+// cloneTree returns a deep copy of n with fresh slices, so a queued tree
+// cannot change through slices the builder still holds.
+func cloneTree(n Node) Node {
+	c := n
+	c.Components = slices.Clone(n.Components)
+	c.Assets = slices.Clone(n.Assets)
+	c.Children = make([]Node, len(n.Children))
+	for i := range n.Children {
+		c.Children[i] = cloneTree(n.Children[i])
+	}
+	return c
 }

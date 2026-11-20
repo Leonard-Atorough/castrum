@@ -84,7 +84,7 @@ func (p *spatialPass) resolve() error {
 	return nil
 }
 
-func (p *spatialPass) apply(id core.EntityID, s Settings, want *Playback) error {
+func (p *spatialPass) apply(entity core.Entity, s Settings, want *Playback) error {
 	if !s.Spatial {
 		return nil
 	}
@@ -96,17 +96,17 @@ func (p *spatialPass) apply(id core.EntityID, s Settings, want *Playback) error 
 	if !p.listener.Enabled {
 		return nil
 	}
-	transform, ok := core.NewEntity(id).Component[core.Transform](p.ctx.World)
+	transform, ok := entity.Component[core.Transform](p.ctx.World)
 	if !ok {
-		return fmt.Errorf("audio: entity %d: spatial source requires a Transform", id)
+		return fmt.Errorf("audio: entity %d: spatial source requires a Transform", entity.ID())
 	}
 	if !finite(transform.Position.X) || !finite(transform.Position.Y) {
-		return fmt.Errorf("audio: entity %d: spatial source position must be finite", id)
+		return fmt.Errorf("audio: entity %d: spatial source position must be finite", entity.ID())
 	}
 	delta := transform.Position.Sub(p.position)
 	local := delta.Rotate(-p.rotation)
 	if !finite(delta.X) || !finite(delta.Y) || !finite(local.X) || !finite(local.Y) {
-		return fmt.Errorf("audio: entity %d: spatial displacement must be finite", id)
+		return fmt.Errorf("audio: entity %d: spatial displacement must be finite", entity.ID())
 	}
 	t := math.Min(math.Hypot(delta.X, delta.Y)/p.listener.Range, 1)
 	curve := s.Attenuation
@@ -114,11 +114,11 @@ func (p *spatialPass) apply(id core.EntityID, s Settings, want *Playback) error 
 		curve = geom.EaseLinear
 	}
 	if curve(0) != 0 || curve(1) != 1 {
-		return fmt.Errorf("audio: entity %d: attenuation curve must map 0 to 0 and 1 to 1", id)
+		return fmt.Errorf("audio: entity %d: attenuation curve must map 0 to 0 and 1 to 1", entity.ID())
 	}
 	attenuation := curve(t)
 	if !finite(attenuation) || attenuation < 0 || attenuation > 1 {
-		return fmt.Errorf("audio: entity %d: attenuation curve must return finite values in [0, 1], got %v", id, attenuation)
+		return fmt.Errorf("audio: entity %d: attenuation curve must return finite values in [0, 1], got %v", entity.ID(), attenuation)
 	}
 	want.Volume *= 1 - attenuation
 	want.Balance = math.Max(-1, math.Min(1, s.Balance+local.X/p.listener.Range))

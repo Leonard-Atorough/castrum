@@ -9,7 +9,7 @@ type queryPos struct{ X, Y float64 }
 type queryVel struct{ X, Y float64 }
 type queryTag struct{}
 
-func mustQueryEntity(t *testing.T, w *World, components ...any) *Entity {
+func mustQueryEntity(t *testing.T, w *World, components ...any) Entity {
 	t.Helper()
 	entity, err := w.NewEntity(components...)
 	if err != nil {
@@ -47,6 +47,25 @@ func TestQueryFirst(t *testing.T) {
 	}
 	if len(ids) != 2 || ids[0] != first.ID() || ids[1] != second.ID() {
 		t.Fatalf("Execute after First = %v, want [%d %d]", ids, first.ID(), second.ID())
+	}
+}
+
+func TestQueryEntityHandle(t *testing.T) {
+	w := NewWorld()
+	first := mustQueryEntity(t, w, queryPos{})
+	second := mustQueryEntity(t, w, queryPos{})
+	var handles []Entity
+	for entry := range NewQuery(w).With(queryPos{}).Execute() {
+		handles = append(handles, entry.Entity())
+	}
+	if len(handles) != 2 || handles[0] != first || handles[1] != second || !w.HasEntity(handles[0]) {
+		t.Fatalf("query handles = %v, want live entities %v and %v", handles, first, second)
+	}
+	if err := w.DestroyEntity(handles[0]); err != nil {
+		t.Fatal(err)
+	}
+	if w.HasEntity(first) || !w.HasEntity(handles[1]) {
+		t.Fatal("query handle did not destroy only the intended entity")
 	}
 }
 
@@ -194,7 +213,7 @@ func TestQueryGenerationInvalidation(t *testing.T) {
 	}
 
 	generation := w.archetypes.Generation()
-	for i, entity := range []*Entity{first, second} {
+	for i, entity := range []Entity{first, second} {
 		if err := w.DestroyEntity(entity); err != nil {
 			t.Fatalf("DestroyEntity: %v", err)
 		}
@@ -469,5 +488,53 @@ func TestEntryUpdateUnprefetchedPanics(t *testing.T) {
 	}()
 	for entry := range NewQuery(w).With(queryPos{}).Execute() {
 		entry.Update(func(v *queryVel) { v.X = 1 })
+	}
+}
+
+// TestWritePathValidationMatrix pins the validation contract: spawn, add,
+// and entity replacement validate through [Validatable] and leave the stored
+// value unchanged when they reject, while query entry writes bypass
+// validation by design so iteration stays error-free.
+func TestWritePathValidationMatrix(t *testing.T) {
+	w := NewWorld()
+	if _, err := w.NewEntity(rating{n: 99}); err == nil {
+		t.Fatal("spawn with an invalid component should error")
+	}
+	e, err := w.NewEntity(rating{n: 5}, queryPos{})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	if err := e.AddComponent(w, rating{n: 99}); err == nil {
+		t.Fatal("AddComponent with an invalid value should error")
+	}
+
+	// Entity replacement validates and does not commit the invalid value.
+	if err := e.SetComponent(w, rating{n: 99}); err == nil {
+		t.Fatal("SetComponent with an invalid value should error")
+	}
+	if r, ok := e.Component[rating](w); !ok || r.n != 5 {
+		t.Fatalf("stored rating after rejected SetComponent = %v, %v; want 5, true", r, ok)
+	}
+	if err := e.Update(w, func(r *rating) { r.n = 99 }); err == nil {
+		t.Fatal("Update writing an invalid value should error")
+	}
+	if r, _ := e.Component[rating](w); r.n != 5 {
+		t.Fatalf("stored rating after rejected Update = %d; want 5 unchanged", r.n)
+	}
+
+	// Query entry writes bypass validation, per the contract on
+	// [Entry.SetComponent], [Entry.Update], and [Validatable].
+	q := NewQuery(w).With(rating{})
+	for entry := range q.Execute() {
+		entry.SetComponent(rating{n: 99})
+	}
+	if r, _ := e.Component[rating](w); r.n != 99 {
+		t.Fatalf("stored rating after Entry.SetComponent = %d; want 99 (query writes bypass validation)", r.n)
+	}
+	for entry := range q.Execute() {
+		entry.Update(func(r *rating) { r.n = -1 })
+	}
+	if r, _ := e.Component[rating](w); r.n != -1 {
+		t.Fatalf("stored rating after Entry.Update = %d; want -1 (query writes bypass validation)", r.n)
 	}
 }

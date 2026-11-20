@@ -18,7 +18,7 @@ import (
 )
 
 type demonstration struct {
-	entity      *core.Entity
+	entity      core.Entity
 	completions int
 	last        asset.ID
 }
@@ -76,7 +76,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 	hub := g.World().MustResource[*signal.Hub]()
 	if err := g.AddSystem(core.PhasePostFrame, "observe finished tracks", hub.Consumer(
 		func(_ *core.Context, event audio.Finished) error {
-			if event.Entity == entity.ID() {
+			if event.Entity == entity {
 				d.completions++
 				d.last = event.Audio
 			}
@@ -90,11 +90,11 @@ func newGame() (*castrum.Game, *demonstration, error) {
 	}); err != nil {
 		return nil, nil, err
 	}
-	labels := make([]*core.Entity, 4)
+	labels := make([]core.Entity, 4)
 	for line := range labels {
 		label, err := g.World().NewEntity(
 			core.Transform{Position: geom.Vector2{X: 560, Y: float64(80 + line*70)}},
-			spr.Sprite{Drawable: spr.TextSource{Font: builtin.Font, Size: 20}},
+			spr.Text{Asset: builtin.Font, TextSize: 20},
 		)
 		if err != nil {
 			return nil, nil, err
@@ -117,8 +117,8 @@ func newGame() (*castrum.Game, *demonstration, error) {
 			fmt.Sprintf("Completed tracks: %d | Last: %s", d.completions, d.last),
 		}
 		for i, label := range labels {
-			if err := label.Update(ctx.World, func(sprite *spr.Sprite) {
-				sprite.Drawable = spr.TextSource{Font: builtin.Font, Text: lines[i], Size: 20}
+			if err := label.Update(ctx.World, func(x *spr.Text) {
+				x.Text = lines[i]
 			}); err != nil {
 				return err
 			}

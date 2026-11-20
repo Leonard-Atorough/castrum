@@ -1,0 +1,400 @@
+package serialization
+
+import (
+	"bytes"
+	"errors"
+	"io"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/Leonard-Atorough/castrum/asset"
+	"github.com/Leonard-Atorough/castrum/core"
+)
+
+type trader struct {
+	Name     string  `json:"name"`
+	Patience float64 `json:"patience"`
+}
+
+func (t trader) Validate() error {
+	if t.Name == "" {
+		return errTraderName
+	}
+	return nil
+}
+
+var errTraderName = errors.New("trader: name must not be empty")
+
+type station struct {
+	Credits int64 `json:"credits"`
+}
+
+func newTestRegistry(t *testing.T) (*Registry, *asset.Codecs) {
+	t.Helper()
+	world := core.NewWorld()
+	codecs := asset.NewCodecs()
+	if err := world.Provide(func(*core.World) (*asset.Codecs, error) {
+		return codecs, nil
+	}); err != nil {
+		t.Fatalf("provide codecs: %v", err)
+	}
+	return NewRegistry(world), codecs
+}
+
+func TestComponentRegistration(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+	if err := reg.Component[trader]("game.Trader"); err == nil {
+		t.Fatal("duplicate component key accepted")
+	}
+	if err := reg.Component[station](""); err == nil {
+		t.Fatal("empty component key accepted")
+	}
+	// A second type under a second key is fine.
+	if err := reg.Component[station]("game.Station"); err != nil {
+		t.Fatalf("Component second type: %v", err)
+	}
+}
+
+func TestPointerTypesRejected(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[*trader]("game.TraderPtr"); err == nil {
+		t.Fatal("pointer component type accepted")
+	}
+	if err := reg.Resource[*station]("game.StationPtr"); err == nil {
+		t.Fatal("pointer resource type accepted")
+	}
+}
+
+func TestResourceRegistration(t *testing.T) {
+	reg, codecs := newTestRegistry(t)
+	if err := reg.Resource[station]("game.Station"); err != nil {
+		t.Fatalf("Resource: %v", err)
+	}
+	if err := reg.Resource[station]("game.Station"); err == nil {
+		t.Fatal("duplicate resource key accepted")
+	}
+	if err := reg.Resource[station](""); err == nil {
+		t.Fatal("empty resource key accepted")
+	}
+	if err := reg.Resource[station]("game.Outpost"); err == nil ||
+		!strings.Contains(err.Error(), "game.Station") {
+		t.Fatalf("second key for same type error = %v, want it to name game.Station", err)
+	}
+
+	// Registering a resource installs JSON for its value type on the
+	// game's codecs.
+	var buf bytes.Buffer
+	if err := codecs.Encode(&buf, station{Credits: 5}, asset.FormatJSON); err != nil {
+		t.Fatalf("encode through game codecs: %v", err)
+	}
+	if !strings.Contains(buf.String(), `"credits":5`) {
+		t.Fatalf("encoded = %q, want the station fields", buf.String())
+	}
+}
+
+func TestComponentRoundTrip(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+
+	value, err := reg.DecodeComponent("game.Trader", []byte(`{"name":"Vex","patience":0.8}`))
+	if err != nil {
+		t.Fatalf("DecodeComponent: %v", err)
+	}
+	got, ok := value.(trader)
+	if !ok {
+		t.Fatalf("decoded value type %T, want trader", value)
+	}
+	if got.Name != "Vex" || got.Patience != 0.8 {
+		t.Fatalf("decoded = %+v, want name Vex patience 0.8", got)
+	}
+
+	var buf bytes.Buffer
+	if err := reg.EncodeComponent("game.Trader", got, &buf); err != nil {
+		t.Fatalf("EncodeComponent: %v", err)
+	}
+	if !strings.Contains(buf.String(), `"name":"Vex"`) {
+		t.Fatalf("encoded = %q, want the trader fields", buf.String())
+	}
+}
+
+func TestDecodeComponentErrors(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+
+	// Unknown keys name the key.
+	if _, err := reg.DecodeComponent("game.Unknown", []byte(`{}`)); err == nil ||
+		!strings.Contains(err.Error(), "game.Unknown") {
+		t.Fatalf("unknown key error = %v, want it to name game.Unknown", err)
+	}
+
+	// Invalid JSON wraps the codec error with the key.
+	if _, err := reg.DecodeComponent("game.Trader", []byte(`{`)); err == nil ||
+		!strings.Contains(err.Error(), "game.Trader") {
+		t.Fatalf("decode error = %v, want it to name game.Trader", err)
+	}
+
+	// Validatable components are rejected at the boundary.
+	if _, err := reg.DecodeComponent("game.Trader", []byte(`{"name":"","patience":1}`)); err == nil ||
+		!strings.Contains(err.Error(), "name must not be empty") {
+		t.Fatalf("validation error = %v, want the trader constraint", err)
+	}
+}
+
+func TestEncodeComponentErrors(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := reg.EncodeComponent("game.Unknown", trader{Name: "Vex"}, &buf); err == nil ||
+		!strings.Contains(err.Error(), "game.Unknown") {
+		t.Fatalf("unknown key error = %v, want it to name game.Unknown", err)
+	}
+	if err := reg.EncodeComponent("game.Trader", station{Credits: 1}, &buf); err == nil {
+		t.Fatal("mismatched value type accepted")
+	}
+}
+
+func TestComponentType(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+
+	typ, ok := reg.ComponentType("game.Trader")
+	if !ok || typ != reflect.TypeFor[trader]() {
+		t.Fatalf("ComponentType = %v, %v; want trader, true", typ, ok)
+	}
+	if _, ok := reg.ComponentType("game.Unknown"); ok {
+		t.Fatal("ComponentType reported an unregistered key")
+	}
+}
+
+// pointerValidated declares Validate on *pointerValidated only, so the value
+// type does not satisfy core.Validatable.
+type pointerValidated struct {
+	Name string `json:"name"`
+}
+
+func (p *pointerValidated) Validate() error { return errors.New("always invalid") }
+
+func TestComponentPointerReceiverValidateRejected(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[pointerValidated]("game.PointerValidated"); err == nil ||
+		!strings.Contains(err.Error(), "value receiver") {
+		t.Fatalf("pointer-receiver Validate error = %v, want a value-receiver rejection", err)
+	}
+}
+
+func TestSaverBuiltBeforeComponentRegistrationSaves(t *testing.T) {
+	reg, codecs := newTestRegistry(t)
+	saver, err := asset.NewSaver(nil, asset.SaverOptions{Codecs: codecs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Component[trader]("trader"); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := saver.SaveWriter(&buf, trader{Name: "Vex", Patience: 0.5}, asset.FormatJSON); err != nil {
+		t.Fatalf("saver built before registration: %v", err)
+	}
+}
+
+func TestComponentTypeRegisteredTwice(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+	if err := reg.Component[trader]("game.Merchant"); err == nil ||
+		!strings.Contains(err.Error(), "game.Trader") {
+		t.Fatalf("second key for same type error = %v, want it to name game.Trader", err)
+	}
+}
+
+func TestKeyForType(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+
+	key, ok := reg.KeyForType(reflect.TypeFor[trader]())
+	if !ok || key != "game.Trader" {
+		t.Fatalf("KeyForType = %q, %v; want game.Trader, true", key, ok)
+	}
+	if _, ok := reg.KeyForType(reflect.TypeFor[station]()); ok {
+		t.Fatal("KeyForType reported an unregistered type")
+	}
+}
+
+func TestDecodeComponentRejectsTrailingData(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+	if _, err := reg.DecodeComponent("game.Trader", []byte(`{"name":"Vex"} {}`)); err == nil {
+		t.Fatal("trailing JSON value accepted")
+	}
+}
+
+func TestNilWorldReturnsError(t *testing.T) {
+	reg := NewRegistry(nil)
+	if err := reg.Component[trader]("game.Trader"); err == nil ||
+		!strings.Contains(err.Error(), "no world") {
+		t.Fatalf("nil world error = %v, want a no-world failure", err)
+	}
+}
+
+func TestCodecsResolvedLazily(t *testing.T) {
+	world := core.NewWorld()
+	reg := NewRegistry(world)
+
+	// Before the codecs resource exists, registration fails with the
+	// resolution error.
+	if err := reg.Component[trader]("game.Trader"); err == nil ||
+		!strings.Contains(err.Error(), "resolve asset codecs") {
+		t.Fatalf("pre-provide error = %v, want codec resolution failure", err)
+	}
+
+	codecs := asset.NewCodecs()
+	if err := world.Provide(func(*core.World) (*asset.Codecs, error) {
+		return codecs, nil
+	}); err != nil {
+		t.Fatalf("provide codecs: %v", err)
+	}
+
+	// After provision, registration works - lazily resolved.
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component after provide: %v", err)
+	}
+
+	// A decoder installed on the game's codecs after registration is used
+	// by the registry, which holds the same codecs instance.
+	if err := codecs.SetDecoder[trader](asset.FormatJSON, func(io.Reader) (trader, error) {
+		return trader{Name: "Custom", Patience: 1}, nil
+	}); err != nil {
+		t.Fatalf("SetDecoder: %v", err)
+	}
+	value, err := reg.DecodeComponent("game.Trader", []byte(`{"name":"Vex"}`))
+	if err != nil {
+		t.Fatalf("DecodeComponent: %v", err)
+	}
+	if got := value.(trader); got.Name != "Custom" {
+		t.Fatalf("decoded name = %q, want the post-registration decoder's Custom", got.Name)
+	}
+}
+
+func TestComponentInstallsJSONOnGameCodecs(t *testing.T) {
+	reg, codecs := newTestRegistry(t)
+	if err := reg.Component[trader]("game.Trader"); err != nil {
+		t.Fatalf("Component: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := codecs.Encode[trader](&buf, trader{Name: "Vex", Patience: 0.5}, asset.FormatJSON); err != nil {
+		t.Fatalf("encode through game codecs: %v", err)
+	}
+	got, err := codecs.Decode[trader](&buf, asset.FormatJSON)
+	if err != nil {
+		t.Fatalf("decode through game codecs: %v", err)
+	}
+	if got.Name != "Vex" || got.Patience != 0.5 {
+		t.Fatalf("round trip = %+v, want name Vex patience 0.5", got)
+	}
+}
+
+func TestResourceRoundTrip(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Resource[station]("game.Station"); err != nil {
+		t.Fatalf("Resource: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := reg.EncodeResource("game.Station", station{Credits: 7}, &buf); err != nil {
+		t.Fatalf("EncodeResource: %v", err)
+	}
+	got, err := reg.DecodeResource("game.Station", buf.Bytes())
+	if err != nil {
+		t.Fatalf("DecodeResource: %v", err)
+	}
+	if station, ok := got.(station); !ok || station.Credits != 7 {
+		t.Fatalf("decoded = %+v (%T), want station credits 7", got, got)
+	}
+}
+
+func TestResourceEncodeDecodeErrors(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Resource[station]("game.Station"); err != nil {
+		t.Fatalf("Resource: %v", err)
+	}
+
+	// Unknown keys name the key.
+	var buf bytes.Buffer
+	if err := reg.EncodeResource("game.Unknown", station{}, &buf); err == nil ||
+		!strings.Contains(err.Error(), "game.Unknown") {
+		t.Fatalf("unknown key error = %v, want it to name game.Unknown", err)
+	}
+	if _, err := reg.DecodeResource("game.Unknown", []byte(`{}`)); err == nil ||
+		!strings.Contains(err.Error(), "game.Unknown") {
+		t.Fatalf("unknown key error = %v, want it to name game.Unknown", err)
+	}
+
+	// Invalid JSON wraps the codec error with the key.
+	if _, err := reg.DecodeResource("game.Station", []byte(`{`)); err == nil ||
+		!strings.Contains(err.Error(), "game.Station") {
+		t.Fatalf("decode error = %v, want it to name game.Station", err)
+	}
+
+	// The encoded value must have the registered concrete type.
+	if err := reg.EncodeResource("game.Station", trader{Name: "Vex"}, &buf); err == nil {
+		t.Fatal("mismatched value type accepted")
+	}
+}
+
+func TestDecodeResourceValidatesValidatable(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Resource[trader]("game.Economy"); err != nil {
+		t.Fatalf("Resource: %v", err)
+	}
+
+	// DecodeResource is the only validation gate for restored resources;
+	// an invalid value must be rejected here with the rule named.
+	if _, err := reg.DecodeResource("game.Economy", []byte(`{"name":"","patience":0.8}`)); err == nil ||
+		!strings.Contains(err.Error(), "name must not be empty") {
+		t.Fatalf("validation error = %v, want the trader constraint", err)
+	}
+}
+
+type testAsset struct {
+	Data []byte
+}
+
+func TestAssetRegistration(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if err := reg.Asset[testAsset]("game.Pixel"); err != nil {
+		t.Fatalf("Asset: %v", err)
+	}
+	if err := reg.Asset[testAsset]("game.Pixel"); err == nil {
+		t.Fatal("duplicate asset key accepted")
+	}
+	if err := reg.Asset[testAsset](""); err == nil {
+		t.Fatal("empty asset key accepted")
+	}
+}
+
+func TestPreloadUnknownAssetType(t *testing.T) {
+	reg, _ := newTestRegistry(t)
+	if _, err := reg.Preload("game.Mystery", "x.png"); err == nil ||
+		!strings.Contains(err.Error(), "game.Mystery") {
+		t.Fatalf("unknown asset type error = %v, want it to name the key", err)
+	}
+}

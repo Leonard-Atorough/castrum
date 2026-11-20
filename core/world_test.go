@@ -326,10 +326,56 @@ func TestNewEntityAssignsSequentialIDs(t *testing.T) {
 	if e2.ID() != e1.ID()+1 {
 		t.Errorf("IDs not sequential: %d then %d", e1.ID(), e2.ID())
 	}
-	for _, e := range []*Entity{e1, e2} {
-		if !e.IsAlive() {
+	for _, e := range []Entity{e1, e2} {
+		if !w.HasEntity(e) {
 			t.Errorf("entity %d should be alive after creation", e.ID())
 		}
+	}
+}
+
+func TestEntityHandlesReflectWorldLifetime(t *testing.T) {
+	w := NewWorld()
+	if w.HasEntity(Entity{}) || w.HasEntity(NewEntity(0)) {
+		t.Fatal("zero must not identify an entity")
+	}
+	entity, err := w.NewEntity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entity.ID() == 0 || !w.HasEntity(entity) {
+		t.Fatal("spawned entity must have a nonzero live handle")
+	}
+	copy := NewEntity(entity.ID())
+	if copy != entity || !w.HasEntity(copy) {
+		t.Fatal("minted handle must identify the same entity")
+	}
+	if err := w.DestroyEntity(copy); err != nil {
+		t.Fatal(err)
+	}
+	if w.HasEntity(entity) || w.HasEntity(copy) {
+		t.Fatal("all handles must observe destruction")
+	}
+	next, err := w.NewEntity()
+	if err != nil || next == entity {
+		t.Fatalf("new entity = %v, %v; want a fresh handle", next, err)
+	}
+}
+
+func TestEntityIDsDoNotWrap(t *testing.T) {
+	w := NewWorld()
+	w.nextEntityID = ^EntityID(0)
+	if entities, err := w.NewEntities(2); err == nil || entities != nil {
+		t.Fatal("batch spanning ID exhaustion must fail")
+	}
+	last, err := w.NewEntity()
+	if err != nil || last.ID() != ^EntityID(0) {
+		t.Fatalf("last entity = %v, %v", last, err)
+	}
+	if entity, err := w.NewEntity(); err == nil || entity != (Entity{}) {
+		t.Fatalf("spawn after exhaustion = %v, %v", entity, err)
+	}
+	if w.HasEntity(Entity{}) || !w.HasEntity(last) {
+		t.Fatal("ID exhaustion changed existing entities or created the zero entity")
 	}
 }
 
@@ -375,19 +421,19 @@ func TestNewEntitiesRejectsNonPositiveCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewEntity after rejected batch: %v", err)
 	}
-	if entity.ID() != 0 {
-		t.Errorf("ID after rejected batch = %d, want 0", entity.ID())
+	if entity.ID() != 1 {
+		t.Errorf("ID after rejected batch = %d, want 1", entity.ID())
 	}
 }
 
-func TestDestroyEntityKillsAndRemovesComponents(t *testing.T) {
+func TestDestroyEntityRemovesComponents(t *testing.T) {
 	w := NewWorld()
 	e, _ := w.NewEntity(position{})
 	if err := w.DestroyEntity(e); err != nil {
 		t.Fatalf("DestroyEntity: %v", err)
 	}
-	if e.IsAlive() {
-		t.Error("destroyed entity should be killed")
+	if w.HasEntity(e) {
+		t.Error("destroyed entity should not exist")
 	}
 	if _, ok := e.Component[position](w); ok {
 		t.Error("Component on a destroyed entity should report false")
@@ -412,7 +458,7 @@ func TestDestroyEntitiesAll(t *testing.T) {
 		t.Fatalf("DestroyEntities: %v", err)
 	}
 	for _, e := range entities {
-		if e.IsAlive() {
+		if w.HasEntity(e) {
 			t.Errorf("entity %d should be dead", e.ID())
 		}
 		if e.HasComponent[position](w) {
@@ -428,10 +474,10 @@ func TestDestroyEntitiesStopsAtFirstError(t *testing.T) {
 	if err := w.DestroyEntity(e1); err != nil {
 		t.Fatalf("DestroyEntity: %v", err)
 	}
-	if err := w.DestroyEntities([]*Entity{e1, e2}); err == nil {
+	if err := w.DestroyEntities([]Entity{e1, e2}); err == nil {
 		t.Error("DestroyEntities should fail when any entity fails to destroy")
 	}
-	if !e2.IsAlive() {
+	if !w.HasEntity(e2) {
 		t.Error("DestroyEntities should stop at the first failure, leaving later entities untouched")
 	}
 }
@@ -475,8 +521,8 @@ func TestEntityMintedFromIDResolvesComponents(t *testing.T) {
 	if err := w.DestroyEntity(e); err != nil {
 		t.Fatalf("DestroyEntity: %v", err)
 	}
-	if e.IsAlive() {
-		t.Fatal("DestroyEntity should kill the handle")
+	if w.HasEntity(e) {
+		t.Fatal("DestroyEntity should remove the entity")
 	}
 	if _, ok := e.Component[queryPos](w); ok {
 		t.Fatal("Component should report false for a destroyed entity")
@@ -528,8 +574,8 @@ func TestNewEntityNilComponentErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewEntity after a failed spawn: %v", err)
 	}
-	if e.ID() != 0 {
-		t.Fatalf("successful spawn after a failed one got ID %d, want 0 (failed spawn burned no ID)", e.ID())
+	if e.ID() != 1 {
+		t.Fatalf("successful spawn after a failed one got ID %d, want 1 (failed spawn burned no ID)", e.ID())
 	}
 
 	// NewEntities propagates the error without partial results.
@@ -550,8 +596,8 @@ func TestWorldCreationRejectsPointerComponents(t *testing.T) {
 				t.Fatalf("NewEntities = %v, %v; want pointer error and no entities", entities, err)
 			}
 			entity, err := w.NewEntity(queryPos{X: 2})
-			if err != nil || entity.ID() != 0 {
-				t.Fatalf("value component after failures = %v, %v; want ID 0", entity, err)
+			if err != nil || entity.ID() != 1 {
+				t.Fatalf("value component after failures = %v, %v; want ID 1", entity, err)
 			}
 		})
 	}

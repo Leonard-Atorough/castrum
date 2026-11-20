@@ -52,10 +52,10 @@ func canonicalPair(x, y core.EntityID) pairKey {
 // existing pairs long enough to report when a contact ends.
 func NewSystem() core.System {
 	return &system{
-		contacts:  make(map[core.EntityID]*contactBuffers),
-		tested:    make(map[pairKey]struct{}),
-		nearby:    make([]core.EntityID, 0, 16),
-		attachIDs: make([]core.EntityID, 0, 16),
+		contacts:       make(map[core.EntityID]*contactBuffers),
+		tested:         make(map[pairKey]struct{}),
+		nearby:         make([]core.EntityID, 0, 16),
+		attachEntities: make([]core.Entity, 0, 16),
 	}
 }
 
@@ -65,13 +65,13 @@ type system struct {
 	ensure  *core.Query
 	orphans [2]*core.Query
 
-	queries    *Queries
-	contacts   map[core.EntityID]*contactBuffers
-	tested     map[pairKey]struct{}
-	candidates []pairKey
-	nearby     []core.EntityID
-	attachIDs  []core.EntityID
-	hub        *signal.Hub
+	queries        *Queries
+	contacts       map[core.EntityID]*contactBuffers
+	tested         map[pairKey]struct{}
+	candidates     []pairKey
+	nearby         []core.EntityID
+	attachEntities []core.Entity
+	hub            *signal.Hub
 }
 
 // Update runs one fixed tick of collision detection: reconcile the
@@ -123,27 +123,27 @@ func (s *system) resetTick() {
 // reconcileContacts removes stale contact state so removing and later
 // re-adding a collider or transform cannot preserve an old contact.
 func (s *system) reconcileContacts(world *core.World) error {
-	s.attachIDs = s.attachIDs[:0]
+	s.attachEntities = s.attachEntities[:0]
 	for e := range s.ensure.Execute() {
-		s.attachIDs = append(s.attachIDs, e.ID())
+		s.attachEntities = append(s.attachEntities, e.Entity())
 	}
-	for _, id := range s.attachIDs {
-		if err := core.NewEntity(id).AddComponent(world, Contacts{}); err != nil {
-			return fmt.Errorf("collision: attach contacts to entity %d: %w", id, err)
+	for _, entity := range s.attachEntities {
+		if err := entity.AddComponent(world, Contacts{}); err != nil {
+			return fmt.Errorf("collision: attach contacts to entity %d: %w", entity.ID(), err)
 		}
-		delete(s.contacts, id)
+		delete(s.contacts, entity.ID())
 	}
 
 	for _, orphan := range s.orphans {
-		s.attachIDs = s.attachIDs[:0]
+		s.attachEntities = s.attachEntities[:0]
 		for e := range orphan.Execute() {
-			s.attachIDs = append(s.attachIDs, e.ID())
+			s.attachEntities = append(s.attachEntities, e.Entity())
 		}
-		for _, id := range s.attachIDs {
-			if err := core.NewEntity(id).RemoveComponent[Contacts](world); err != nil {
-				return fmt.Errorf("collision: detach contacts from entity %d: %w", id, err)
+		for _, entity := range s.attachEntities {
+			if err := entity.RemoveComponent[Contacts](world); err != nil {
+				return fmt.Errorf("collision: detach contacts from entity %d: %w", entity.ID(), err)
 			}
-			delete(s.contacts, id)
+			delete(s.contacts, entity.ID())
 		}
 	}
 	return nil
@@ -170,8 +170,8 @@ func (s *system) collectCandidates(changedIDs []core.EntityID) {
 	}
 	for id, buffers := range s.contacts {
 		for _, c := range buffers.current {
-			if id < c.Other {
-				s.addCandidate(pairKey{id, c.Other})
+			if id < c.Other.ID() {
+				s.addCandidate(pairKey{id, c.Other.ID()})
 			}
 		}
 	}
@@ -199,14 +199,14 @@ func (s *system) narrowPhase() {
 		}
 		trigger := a.collider.Trigger || b.collider.Trigger
 		s.appendContact(pair.a, Contact{
-			Other:       pair.b,
+			Other:       core.NewEntity(pair.b),
 			Point:       hit.point,
 			Normal:      hit.normal,
 			Penetration: hit.penetration,
 			Trigger:     trigger,
 		})
 		s.appendContact(pair.b, Contact{
-			Other:       pair.a,
+			Other:       core.NewEntity(pair.a),
 			Point:       hit.point,
 			Normal:      hit.normal.Mul(-1),
 			Penetration: hit.penetration,
@@ -232,7 +232,7 @@ func (s *system) writeContacts(world *core.World, tick uint64) error {
 			continue
 		}
 		slices.SortFunc(buffers.spare, func(x, y Contact) int {
-			return cmp.Compare(x.Other, y.Other)
+			return cmp.Compare(x.Other.ID(), y.Other.ID())
 		})
 		current, previous := buffers.spare, buffers.current
 		if slices.Equal(current, buffers.current) && slices.Equal(previous, buffers.previous) {
@@ -255,11 +255,11 @@ func (s *system) emitEdges(id core.EntityID, current, previous []Contact, tick u
 	i, j := 0, 0
 	for i < len(current) && j < len(previous) {
 		switch {
-		case current[i].Other < previous[j].Other:
+		case current[i].Other.ID() < previous[j].Other.ID():
 			s.hub.Emit(enteredSignal(id, current[i], tick))
 			i++
-		case current[i].Other > previous[j].Other:
-			s.hub.Emit(Exited{Entity: id, Other: previous[j].Other, Tick: tick})
+		case current[i].Other.ID() > previous[j].Other.ID():
+			s.hub.Emit(Exited{Entity: core.NewEntity(id), Other: previous[j].Other, Tick: tick})
 			j++
 		default:
 			i++
@@ -270,13 +270,13 @@ func (s *system) emitEdges(id core.EntityID, current, previous []Contact, tick u
 		s.hub.Emit(enteredSignal(id, current[i], tick))
 	}
 	for ; j < len(previous); j++ {
-		s.hub.Emit(Exited{Entity: id, Other: previous[j].Other, Tick: tick})
+		s.hub.Emit(Exited{Entity: core.NewEntity(id), Other: previous[j].Other, Tick: tick})
 	}
 }
 
 func enteredSignal(id core.EntityID, c Contact, tick uint64) Entered {
 	return Entered{
-		Entity:      id,
+		Entity:      core.NewEntity(id),
 		Other:       c.Other,
 		Point:       c.Point,
 		Normal:      c.Normal,

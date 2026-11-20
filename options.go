@@ -34,7 +34,7 @@ type Options struct {
 	// the current working directory.
 	Filesystem fs.FS
 
-	// AssetCodecs configures the game's loader. New snapshots its registrations.
+	// AssetCodecs configures the game's loader, which reads it on each call.
 	// Nil selects [NewAssetCodecs].
 	AssetCodecs *asset.Codecs
 
@@ -138,8 +138,8 @@ func WithFilesystem(filesystem fs.FS) option {
 }
 
 // WithAssetCodecs supplies codec configuration for the game's content loader.
-// New snapshots the registrations; later changes do not affect that game.
-// Nil selects [NewAssetCodecs].
+// The loader reads the registrations on each call, so later changes affect
+// that game. Nil selects [NewAssetCodecs].
 func WithAssetCodecs(codecs *asset.Codecs) option {
 	return optionFunc(func(o *Options) { o.AssetCodecs = codecs })
 }
@@ -195,10 +195,10 @@ func WithScenes() option {
 			}); err != nil {
 				return fmt.Errorf("castrum: provide scene director: %w", err)
 			}
-			if err := g.addEngineFirst(core.PhaseStartup, scene.StartupSystemName, scene.NewStartupSystem(director)); err != nil {
+			if err := g.addEngineFirst(core.PhaseStartup, scene.StartupSystemName, scene.NewSystem(director)); err != nil {
 				return err
 			}
-			return g.addEngineFirst(core.PhaseFrame, scene.FrameSystemName, scene.NewFrameSystem(director))
+			return g.addEngineFirst(core.PhasePreFrame, scene.FrameSystemName, scene.NewSystem(director))
 		})
 	})
 }

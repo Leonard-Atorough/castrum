@@ -4,7 +4,9 @@
 // rates above the engine-rendered world.
 //
 // Assets load from an embedded filesystem, passed via
-// castrum.WithFilesystem for a single-binary game.
+// castrum.WithFilesystem for a single-binary game. The sprite
+// references its sheet as a data file by asset ID; the render
+// collector resolves it through the loader.
 //
 // Run from this directory:
 //
@@ -21,15 +23,16 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	spr "github.com/Leonard-Atorough/castrum/sprite"
-	"github.com/Leonard-Atorough/castrum/spritesheet"
 )
 
-//go:embed Dungeon_Character_2.png
+//go:embed Dungeon_Character_2.png char.sheet.json
 var files embed.FS
 
 const (
 	// The sheet is 112x32 pixels of 16x16 tiles: 7 across, 2 down, so
-	// the grid defines char_0 through char_13. Any region works.
+	// char.sheet.json defines regions char_0 through char_13. Any
+	// region works.
+	sheet  = "char.sheet.json"
 	region = "char_0"
 	speed  = 120 // world units per second
 
@@ -51,15 +54,14 @@ func run() error {
 		return err
 	}
 
-	// Slice the sheet at setup, before the window opens: a bad path
-	// or uneven tile division fails the launch, not the first frame.
-	// The engine provides the loader at New.
-	texture, err := g.World().MustResource[*asset.Loader]().Load[asset.TextureData]("Dungeon_Character_2.png")
+	// Resolve the sheet document once at setup, before the window
+	// opens: a bad sheet or region name fails the launch, not the
+	// first frame.
+	sheetDoc, err := g.World().MustResource[*asset.Loader]().Load[asset.Sheet](sheet)
 	if err != nil {
 		return err
 	}
-	sheet, err := spritesheet.Grid("Dungeon_Character_2.png", texture.Image.Bounds(), 16, 16, "char")
-	if err != nil {
+	if _, err := sheetDoc.Region(region); err != nil {
 		return err
 	}
 
@@ -71,10 +73,10 @@ func run() error {
 		return err
 	}
 
-	// The sprite's zero-value style is shown and opaque; the Drawable
-	// carries the picture.
+	// The sprite's zero-value style is shown and opaque; the source
+	// carries the picture as data.
 	sprite, err := g.World().NewEntity(
-		spr.Sprite{Drawable: spr.SheetSource{Sheet: asset.MemorySheet(sheet), Region: region}},
+		spr.Sprite{Asset: sheet, Region: region},
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
 			Scale:    geom.Vector2{X: 4, Y: 4}, // 16px tiles read better at 64px
@@ -102,7 +104,7 @@ func run() error {
 	return g.Run(runner)
 }
 
-func wanderSystem(sprite *core.Entity, nextTarget func() geom.Vector2) core.System {
+func wanderSystem(sprite core.Entity, nextTarget func() geom.Vector2) core.System {
 	target := nextTarget()
 	return core.SystemFunc(func(ctx *core.Context) error {
 		return sprite.Update(ctx.World, func(t *core.Transform) {

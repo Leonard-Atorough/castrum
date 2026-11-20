@@ -47,9 +47,9 @@ func run() error {
 	playerStart := geom.Vector2{X: -200}
 	player, err := game.World().NewEntity(
 		core.Transform{Position: playerStart},
-		sprite.Sprite{
-			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 20, Y: 20}},
-			Style:    sprite.Style{Color: color.RGBA{G: 200, B: 255, A: 255}},
+		sprite.Primitive{
+			Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 20, Y: 20},
+			Style: sprite.Style{Color: &color.RGBA{G: 200, B: 255, A: 255}},
 		},
 	)
 	if err != nil {
@@ -71,9 +71,9 @@ func run() error {
 	_, err = game.World().NewEntity(
 		source,
 		core.Transform{},
-		sprite.Sprite{
-			Drawable: sprite.RectShape{Size: geom.Vector2{X: 80, Y: 80}},
-			Style:    sprite.Style{Color: color.RGBA{R: 220, G: 100, A: 255}},
+		sprite.Primitive{
+			Shape: sprite.ShapeRect, Rect: geom.Vector2{X: 80, Y: 80},
+			Style: sprite.Style{Color: &color.RGBA{R: 220, G: 100, A: 255}},
 		},
 	)
 	if err != nil {
@@ -92,7 +92,7 @@ func run() error {
 	return game.Run(runner)
 }
 
-func movementSystem(l *audio.Listener, p *core.Entity) core.System {
+func movementSystem(l *audio.Listener, p core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		dir := geom.Vector2{
 			X: ctx.Actions.Axis("move_x"),

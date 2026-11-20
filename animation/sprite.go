@@ -29,7 +29,7 @@ const (
 // wraps multiple times.
 type Completed struct {
 	// Entity is the entity whose clip completed.
-	Entity core.EntityID
+	Entity core.Entity
 	// Tick is the fixed tick of the completion.
 	Tick uint64
 	// Loops is the number of wraps in this update; 1 for a LoopNone completion.
@@ -81,8 +81,7 @@ func NewSpriteClip(source asset.SheetRef, frames []string, fps float64) (SpriteC
 // AnimatedSprite is a sprite with its own animation state.
 // Its zero value has no clip and draws nothing.
 //
-// An entity needs a [core.Transform] to be rendered and must not also have a
-// [sprite.Sprite].
+// It requires a [core.Transform] to render.
 type AnimatedSprite struct {
 	// Loop selects what happens after the clip's final frame.
 	Loop LoopMode
@@ -140,19 +139,17 @@ func (a AnimatedSprite) Validate() error {
 	return nil
 }
 
-// CurrentFrame returns the frame to draw. It reports false for a clipless
-// sprite and an error if the sprite is invalid.
-func (a AnimatedSprite) CurrentFrame() (sprite.SheetSource, bool, error) {
+// CurrentFrame returns the sheet reference and region name of the frame
+// to draw. It reports false for a clipless sprite and an error if the
+// sprite is invalid.
+func (a AnimatedSprite) CurrentFrame() (asset.SheetRef, string, bool, error) {
 	if err := a.Validate(); err != nil {
-		return sprite.SheetSource{}, false, err
+		return asset.SheetRef{}, "", false, err
 	}
 	if !a.hasClip {
-		return sprite.SheetSource{}, false, nil
+		return asset.SheetRef{}, "", false, nil
 	}
-	return sprite.SheetSource{
-		Sheet:  a.clip.source,
-		Region: a.clip.frames[a.frame],
-	}, true, nil
+	return a.clip.source, a.clip.frames[a.frame], true, nil
 }
 
 // JustCompleted reports whether the clip completed on tick. Pass
@@ -257,13 +254,13 @@ func (s *animationSystem) Update(ctx *core.Context) error {
 			case anim.Loop == LoopAll:
 				anim.completedOn = ctx.Tick
 				anim.frame = total % frameCount
-				s.hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick, Loops: uint64(total / frameCount)})
+				s.hub.Emit(Completed{Entity: e.Entity(), Tick: ctx.Tick, Loops: uint64(total / frameCount)})
 			default:
 				anim.completedOn = ctx.Tick
 				anim.completed = true
 				anim.Paused = true
 				anim.frame = frameCount - 1
-				s.hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick, Loops: 1})
+				s.hub.Emit(Completed{Entity: e.Entity(), Tick: ctx.Tick, Loops: 1})
 			}
 		}
 		e.SetComponent(anim)

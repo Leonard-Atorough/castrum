@@ -99,17 +99,13 @@ func run() error {
 	// The controls line is static text; the state line below it is
 	// rewritten every frame.
 	if _, err := g.World().NewEntity(
-		sprite.Sprite{Drawable: sprite.TextSource{
-			Font: goFont, Text: "space: pause/resume  up/down: time scale", Size: 22,
-		}},
+		sprite.Text{Asset: goFont, Text: "space: pause/resume  up/down: time scale", TextSize: 22},
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: controlsY}, Scale: geom.Vector2{X: 1, Y: 1}},
 	); err != nil {
 		return err
 	}
 	state, err := g.World().NewEntity(
-		sprite.Sprite{Drawable: sprite.TextSource{
-			Font: goFont, Text: "1.00x, running", Size: 28,
-		}},
+		sprite.Text{Asset: goFont, Text: "1.00x, running", TextSize: 28},
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: stateY}, Scale: geom.Vector2{X: 1, Y: 1}},
 	)
 	if err != nil {
@@ -117,29 +113,23 @@ func run() error {
 	}
 
 	if _, err := g.World().NewEntity(
-		sprite.Sprite{
-			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 12, Y: 12}},
-			Style:    sprite.Style{Color: color.NRGBA{R: 255, G: 200, B: 80, A: 255}},
-		},
+		sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 12, Y: 12},
+			Style: sprite.Style{Color: &color.RGBA{R: 255, G: 200, B: 80, A: 255}}},
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: screenH / 2}},
 	); err != nil {
 		return err
 	}
 	inner, err := g.World().NewEntity(
-		sprite.Sprite{
-			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 20, Y: 20}},
-			Style:    sprite.Style{Color: color.NRGBA{R: 120, G: 220, B: 120, A: 255}},
-		},
+		sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 20, Y: 20},
+			Style: sprite.Style{Color: &color.RGBA{R: 120, G: 220, B: 120, A: 255}}},
 		core.Transform{},
 	)
 	if err != nil {
 		return err
 	}
 	outer, err := g.World().NewEntity(
-		sprite.Sprite{
-			Drawable: sprite.CircleShape{Radii: geom.Vector2{X: 32, Y: 32}},
-			Style:    sprite.Style{Color: color.NRGBA{R: 120, G: 160, B: 220, A: 255}},
-		},
+		sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: 32, Y: 32},
+			Style: sprite.Style{Color: &color.RGBA{R: 120, G: 160, B: 220, A: 255}}},
 		core.Transform{},
 	)
 	if err != nil {
@@ -169,7 +159,7 @@ func run() error {
 	return g.Run(runner)
 }
 
-func orbitSystem(inner, outer *core.Entity) core.System {
+func orbitSystem(inner, outer core.Entity) core.System {
 	angle := 0.0
 	return core.SystemFunc(func(ctx *core.Context) error {
 		angle += orbitSpeed * ctx.DeltaTime.Seconds()
@@ -183,7 +173,7 @@ func orbitSystem(inner, outer *core.Entity) core.System {
 	})
 }
 
-func timeControlSystem(g *castrum.Game, state *core.Entity) core.System {
+func timeControlSystem(g *castrum.Game, state core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if ctx.Actions.JustPressed("pause") {
 			if g.Paused() {
@@ -209,12 +199,8 @@ func timeControlSystem(g *castrum.Game, state *core.Entity) core.System {
 		if g.Paused() {
 			word = "paused"
 		}
-		return state.Update(ctx.World, func(s *sprite.Sprite) {
-			s.Drawable = sprite.TextSource{
-				Font: goFont,
-				Text: fmt.Sprintf("%.2fx, %s", g.TimeScale(), word),
-				Size: 28,
-			}
+		return state.Update(ctx.World, func(x *sprite.Text) {
+			x.Text = fmt.Sprintf("%.2fx, %s", g.TimeScale(), word)
 		})
 	})
 }

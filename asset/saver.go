@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"reflect"
 	"strings"
 )
 
@@ -20,8 +19,8 @@ type SaveStore interface {
 	Write(name string, encode func(io.Writer) error) error
 }
 
-// Saver encodes values with private codec registrations. Path saves delegate
-// publication to a borrowed [SaveStore]; Saver never closes the store.
+// Saver encodes values with shared codecs. Path saves delegate publication to a
+// borrowed [SaveStore]; Saver never closes the store.
 // Concurrent calls require concurrency-safe encoders and storage. Callers must
 // order saves to the same destination when the newest value must win.
 type Saver struct {
@@ -31,18 +30,22 @@ type Saver struct {
 
 // SaverOptions configures a saver at construction.
 type SaverOptions struct {
-	// Codecs supplies registrations to snapshot. Nil selects the defaults.
+	// Codecs supplies shared registrations, read on each call. Nil selects the defaults.
 	Codecs *Codecs
 }
 
-// NewSaver creates a saver with a snapshot of the configured codecs.
+// NewSaver creates a saver that reads the configured codecs on each call.
 // A nil store permits [Saver.SaveWriter] only. A store containing a nil
 // pointer returns an error.
 func NewSaver(store SaveStore, opts SaverOptions) (*Saver, error) {
 	if store != nil && isNilPointer(store) {
 		return nil, fmt.Errorf("asset: NewSaver: store cannot be typed nil")
 	}
-	return &Saver{store: store, codecs: opts.Codecs.snapshot()}, nil
+	codecs := opts.Codecs
+	if codecs == nil {
+		codecs = NewCodecs()
+	}
+	return &Saver{store: store, codecs: codecs}, nil
 }
 
 // Save encodes value and publishes it at name through the store. The format
@@ -100,20 +103,6 @@ func (s *Saver) SaveWriter[T any](writer io.Writer, value T, format Format) erro
 		return &AssetError{Op: "Encode", Err: err}
 	}
 	return nil
-}
-
-// RegisterEncoder adds e for T and format to this saver only. Nil encoders,
-// empty formats, and duplicate registrations are errors. Configure replacements
-// with [Codecs.SetEncoder] before constructing the saver.
-func (s *Saver) RegisterEncoder[T any](format Format, e Encoder[T]) error {
-	c := s.codecs
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	key := codecKey{reflect.TypeFor[T](), format}
-	if _, exists := c.encoders[key]; exists {
-		return fmt.Errorf("encoder for type %v and format %q already exists", key.typ, format)
-	}
-	return c.setEncoder(key, e)
 }
 
 type saveOption interface {

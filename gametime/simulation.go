@@ -13,15 +13,15 @@ import (
 // accumulator's position.
 type Simulation struct {
 	// Tick counts fixed updates since the game started.
-	Tick uint64
+	Tick uint64 `json:"tick"`
 	// Delta is the fixed time interval per tick, independent of Scale.
-	Delta time.Duration
+	Delta time.Duration `json:"delta"`
 	// Paused stops fixed updates and preserves the accumulator; frame updates
 	// continue.
-	Paused bool
+	Paused bool `json:"paused"`
 	// Scale multiplies elapsed time accumulated toward fixed ticks. It must
 	// be finite and positive; use [Simulation.Pause] to stop.
-	Scale float64
+	Scale float64 `json:"scale"`
 }
 
 // NewSimulation returns a running simulation with the given fixed tick

@@ -345,6 +345,28 @@ func TestAddSystemToLaterPhaseDuringRun(t *testing.T) {
 	}
 }
 
+func TestAdvanceKeepsWorldChangeTickInStepWithSimTick(t *testing.T) {
+	// FixedTPS 4 => fixedDT = 250ms; one 1s advance runs four fixed ticks.
+	g := newTestGame(t, WithFixedTPS(4))
+	var mismatches int
+	addTestSystem(t, g, core.PhaseFixed, "change tick check", core.SystemFunc(func(ctx *core.Context) error {
+		if ctx.World.Tick() != ctx.Tick {
+			mismatches++
+		}
+		return nil
+	}))
+
+	for range 4 {
+		advanceTestGame(t, g, 250*time.Millisecond)
+	}
+	if mismatches != 0 {
+		t.Fatalf("world change tick diverged from Context.Tick in %d fixed ticks", mismatches)
+	}
+	if got := g.world.Tick(); got != 4 {
+		t.Fatalf("world change tick after 4 fixed ticks = %d, want 4", got)
+	}
+}
+
 func newTestGame(t *testing.T, opts ...option) *Game {
 	t.Helper()
 	g, err := New(opts...)

@@ -12,7 +12,7 @@ import (
 // colliderWorld builds n circle colliders on a grid.
 // Spacing keeps pairs from overlapping, so the system
 // pays its broad phase without narrow-phase hits.
-func colliderWorld(b *testing.B, n int) (*core.World, []*core.Entity) {
+func colliderWorld(b *testing.B, n int) (*core.World, []core.Entity) {
 	b.Helper()
 	world := core.NewWorld()
 	if err := world.Provide(func(*core.World) (*signal.Hub, error) {
@@ -25,7 +25,7 @@ func colliderWorld(b *testing.B, n int) (*core.World, []*core.Entity) {
 	}); err != nil {
 		b.Fatal(err)
 	}
-	entities := make([]*core.Entity, 0, n)
+	entities := make([]core.Entity, 0, n)
 	for i := range n {
 		collider, err := collision.NewCollider(collision.Circle{Radius: 8})
 		if err != nil {
@@ -117,7 +117,7 @@ func BenchmarkCollisionDetectMoving(b *testing.B) {
 	}
 }
 
-func collisionTicks(b *testing.B, world *core.World, moving []*core.Entity, detectorOnly bool) {
+func collisionTicks(b *testing.B, world *core.World, moving []core.Entity, detectorOnly bool) {
 	b.Helper()
 	system := collision.NewSystem()
 	ctx := drawCtx(world, 0)

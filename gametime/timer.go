@@ -8,8 +8,11 @@
 package gametime
 
 import (
+	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/core"
@@ -93,7 +96,7 @@ func (t Timer) HasCompleted() bool {
 // one completion and emits one signal. Tick equals [Timer.CompletedOn].
 type Completed struct {
 	// Entity is the entity whose Timer completed.
-	Entity core.EntityID
+	Entity core.Entity
 	// Tick is the fixed tick of the completion.
 	Tick uint64
 }
@@ -119,6 +122,45 @@ func NewGroups() *Groups {
 	return &Groups{
 		groups: make(map[string]*groupState),
 	}
+}
+
+// jsonGroup is the wire form of one timer group.
+type jsonGroup struct {
+	Name   string  `json:"name"`
+	Paused bool    `json:"paused"`
+	Scale  float64 `json:"scale"`
+}
+
+// MarshalJSON projects the groups as a list ordered by name, so the wire
+// form is deterministic.
+func (g *Groups) MarshalJSON() ([]byte, error) {
+	out := make([]jsonGroup, 0, len(g.groups))
+	for _, name := range slices.Sorted(maps.Keys(g.groups)) {
+		gs := g.groups[name]
+		out = append(out, jsonGroup{Name: name, Paused: gs.paused, Scale: gs.scale})
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalJSON replaces the groups from their wire form. It validates
+// names and scales before applying anything.
+func (g *Groups) UnmarshalJSON(data []byte) error {
+	var in []jsonGroup
+	if err := json.Unmarshal(data, &in); err != nil {
+		return fmt.Errorf("timer groups: %w", err)
+	}
+	groups := make(map[string]*groupState, len(in))
+	for _, jg := range in {
+		if jg.Name == "" {
+			return fmt.Errorf("timer groups: group name must not be empty")
+		}
+		if jg.Scale <= 0 {
+			return fmt.Errorf("timer groups: group %q scale %v, want > 0", jg.Name, jg.Scale)
+		}
+		groups[jg.Name] = &groupState{paused: jg.Paused, scale: jg.Scale}
+	}
+	g.groups = groups
+	return nil
 }
 
 func (g *Groups) write(name string) *groupState {
@@ -277,7 +319,7 @@ func (s *timerSystem) Update(ctx *core.Context) error {
 				t.Elapsed += dt
 			}
 			if t.CompletedOn == ctx.Tick {
-				s.hub.Emit(Completed{Entity: e.ID(), Tick: ctx.Tick})
+				s.hub.Emit(Completed{Entity: e.Entity(), Tick: ctx.Tick})
 			}
 		})
 	}

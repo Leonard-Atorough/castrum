@@ -58,7 +58,7 @@ func run() error {
 	return g.Run(runner)
 }
 
-func balanceSystem(music *core.Entity, panel *debug.Panel) core.System {
+func balanceSystem(music core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		return music.Update(ctx.World, func(s *audio.Player) {
 			step := balanceSpeed * ctx.DeltaTime.Seconds()

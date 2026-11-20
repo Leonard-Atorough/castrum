@@ -102,7 +102,7 @@ if err != nil {
 Add `"github.com/Leonard-Atorough/castrum/core"` and `"github.com/Leonard-Atorough/castrum/input"` to the imports. Then add this function outside `run`:
 
 ```go
-func audioControls(musicEntity *core.Entity) core.System {
+func audioControls(musicEntity core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if ctx.Input.KeyPressed(input.KeyP) {
 			return musicEntity.Update(ctx.World, func(player *audio.Player) {
@@ -128,10 +128,10 @@ Run the game again and press the P key to pause and resume the music.
 
 ## Play a sound effect
 
-What's a game without a sound effect? Let's play one when you press Space. Replace `audioControls` with this version:
+What's a game without a sound effect? Let's play one when you press Space. Upate `audioControls` to this version:
 
 ```go
-func audioControls(musicEntity *core.Entity) core.System {
+func audioControls(musicEntity core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		if ctx.Input.KeyPressed(input.KeySpace) {
 			if _, err := audio.OneShot(ctx.World, audio.Track("audio/effect.wav"), audio.DefaultSettings()); err != nil {

@@ -394,19 +394,15 @@ func clamp01(v float64) float64 {
 	return v
 }
 
-// oneshot retains the handle so cleanup destroys only the entity spawned by
-// [OneShot].
-type oneshot struct {
-	self *core.Entity
-}
+type oneshot struct{}
 
 // OneShot creates a temporary entity for a non-looping play. The audio system
 // destroys the entity when the sequence finishes. It returns an error if the
 // source or settings is invalid or settings requests looping or spatial
 // playback. Use [OneShotAt] for spatial playback.
-func OneShot(world *core.World, src Source, s Settings) (*core.Entity, error) {
+func OneShot(world *core.World, src Source, s Settings) (core.Entity, error) {
 	if s.Spatial {
-		return nil, fmt.Errorf("audio: spatial one-shot requires OneShotAt")
+		return core.Entity{}, fmt.Errorf("audio: spatial one-shot requires OneShotAt")
 	}
 	return oneShot(world, src, s, geom.Vector2{})
 }
@@ -414,25 +410,17 @@ func OneShot(world *core.World, src Source, s Settings) (*core.Entity, error) {
 // OneShotAt creates a temporary entity at pos. Set [Settings.Spatial] to enable
 // listener-relative playback. It returns an error if the source or settings is
 // invalid or settings requests looping.
-func OneShotAt(world *core.World, src Source, s Settings, pos geom.Vector2) (*core.Entity, error) {
+func OneShotAt(world *core.World, src Source, s Settings, pos geom.Vector2) (core.Entity, error) {
 	return oneShot(world, src, s, pos)
 }
 
-func oneShot(world *core.World, src Source, s Settings, pos geom.Vector2) (*core.Entity, error) {
+func oneShot(world *core.World, src Source, s Settings, pos geom.Vector2) (core.Entity, error) {
 	if s.Loop == LoopTrack || s.Loop == LoopAll {
-		return nil, fmt.Errorf("audio: one-shot must not loop")
+		return core.Entity{}, fmt.Errorf("audio: one-shot must not loop")
 	}
 	player, err := NewPlayer(src, s)
 	if err != nil {
-		return nil, err
+		return core.Entity{}, err
 	}
-	entity, err := world.NewEntity(player, core.Transform{Position: pos})
-	if err != nil {
-		return nil, err
-	}
-	if err := entity.AddComponent(world, oneshot{self: entity}); err != nil {
-		_ = world.DestroyEntity(entity)
-		return nil, err
-	}
-	return entity, nil
+	return world.NewEntity(player, core.Transform{Position: pos}, oneshot{})
 }

@@ -47,7 +47,7 @@ func TestBroadphaseSyncIsTransactional(t *testing.T) {
 	if queries.Tick() != 1 {
 		t.Fatalf("published tick = %d, want 1", queries.Tick())
 	}
-	if hit, ok := queries.Raycast(pointSegment(geom.Vector2{X: 1000}), RaycastFilter{Mask: math.MaxUint32}); !ok || hit.Entity != target.ID() {
+	if hit, ok := queries.Raycast(pointSegment(geom.Vector2{X: 1000}), RaycastFilter{Mask: math.MaxUint32}); !ok || hit.Entity != target {
 		t.Fatalf("initial raycast = %+v, %t; want target %d", hit, ok, target.ID())
 	}
 
@@ -63,7 +63,7 @@ func TestBroadphaseSyncIsTransactional(t *testing.T) {
 	if queries.Tick() != 1 {
 		t.Fatalf("failed sync published tick %d, want previous tick 1", queries.Tick())
 	}
-	if hit, ok := queries.Raycast(pointSegment(geom.Vector2{X: 1000}), RaycastFilter{Mask: math.MaxUint32}); !ok || hit.Entity != target.ID() {
+	if hit, ok := queries.Raycast(pointSegment(geom.Vector2{X: 1000}), RaycastFilter{Mask: math.MaxUint32}); !ok || hit.Entity != target {
 		t.Fatalf("raycast after failed sync = %+v, %t; want previous target %d", hit, ok, target.ID())
 	}
 	if _, ok := queries.Raycast(pointSegment(geom.Vector2{}), RaycastFilter{Mask: math.MaxUint32}); ok {
@@ -79,7 +79,7 @@ func TestBroadphaseSyncIsTransactional(t *testing.T) {
 	if queries.Tick() != 2 {
 		t.Fatalf("retried sync published tick %d, want 2", queries.Tick())
 	}
-	if hit, ok := queries.Raycast(pointSegment(geom.Vector2{}), RaycastFilter{Mask: math.MaxUint32}); !ok || hit.Entity != target.ID() {
+	if hit, ok := queries.Raycast(pointSegment(geom.Vector2{}), RaycastFilter{Mask: math.MaxUint32}); !ok || hit.Entity != target {
 		t.Fatalf("raycast after successful retry = %+v, %t; want target %d", hit, ok, target.ID())
 	}
 	if _, ok := queries.Raycast(pointSegment(geom.Vector2{X: 1000}), RaycastFilter{Mask: math.MaxUint32}); ok {
@@ -115,7 +115,7 @@ func TestBroadphaseIndexesLargeCollider(t *testing.T) {
 		pointSegment(geom.Vector2{}),
 		{Start: geom.Vector2{X: -1e6}, End: geom.Vector2{X: 1e6}},
 	} {
-		if hit, ok := queries.Raycast(segment, RaycastFilter{Mask: math.MaxUint32}); !ok || hit.Entity != entity.ID() {
+		if hit, ok := queries.Raycast(segment, RaycastFilter{Mask: math.MaxUint32}); !ok || hit.Entity != entity {
 			t.Fatalf("Raycast(%v) = %+v, %t; want entity %d", segment, hit, ok, entity.ID())
 		}
 	}

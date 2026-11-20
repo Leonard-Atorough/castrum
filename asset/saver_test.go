@@ -76,16 +76,17 @@ func TestSaveRoundTripAndFormatDispatch(t *testing.T) {
 func TestSaveFailuresPreserveCauses(t *testing.T) {
 	want := errors.New("write failed")
 	store := &memoryStore{files: fstest.MapFS{"profile.json": {Data: []byte("old")}}}
-	saver, err := NewSaver(store, SaverOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := saver.RegisterEncoder(FormatJSON, func(w io.Writer, _ spriteMeta) error {
+	codecs := NewCodecs()
+	if err := codecs.SetEncoder(FormatJSON, func(w io.Writer, _ spriteMeta) error {
 		if _, err := io.WriteString(w, "partial"); err != nil {
 			return err
 		}
 		return want
 	}); err != nil {
+		t.Fatal(err)
+	}
+	saver, err := NewSaver(store, SaverOptions{Codecs: codecs})
+	if err != nil {
 		t.Fatal(err)
 	}
 	err = saver.Save("profile.json", spriteMeta{})
@@ -97,25 +98,18 @@ func TestSaveFailuresPreserveCauses(t *testing.T) {
 		t.Fatal("failed encoding published incomplete output")
 	}
 
-	good, err := NewSaver(store, SaverOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := good.RegisterEncoder(FormatJSON, func(w io.Writer, v string) error {
+	if err := codecs.SetEncoder(FormatJSON, func(w io.Writer, v string) error {
 		_, err := io.WriteString(w, v)
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
 	store.err = want
-	if err := good.Save("profile.json", "new"); !errors.Is(err, want) {
+	if err := saver.Save("profile.json", "new"); !errors.Is(err, want) {
 		t.Fatalf("storage error lost cause: %v", err)
 	}
 	if string(store.files["profile.json"].Data) != "old" {
 		t.Fatal("failed store published output")
-	}
-	if err := good.RegisterEncoder(FormatJSON, func(io.Writer, string) error { return nil }); err == nil {
-		t.Fatal("local encoder registration replaced an existing encoder")
 	}
 }
 

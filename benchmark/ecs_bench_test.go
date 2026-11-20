@@ -35,7 +35,7 @@ func BenchmarkSpawnEntityThreeComponents(b *testing.B) {
 	for b.Loop() {
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: 1, Y: 2}},
-			spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 4, Y: 4}}},
+			spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 4, Y: 4}},
 			benchTag{},
 		); err != nil {
 			b.Fatal(err)
@@ -61,7 +61,7 @@ func BenchmarkSpawnEntitiesBatch(b *testing.B) {
 // destruction alone.
 func BenchmarkDestroyEntity(b *testing.B) {
 	world := core.NewWorld()
-	pool := make([]*core.Entity, 0, 10000)
+	pool := make([]core.Entity, 0, 10000)
 	next := 0
 	refill := func() {
 		pool = pool[:0]
@@ -94,7 +94,7 @@ func BenchmarkDestroyEntity(b *testing.B) {
 // the world, the per-tick cost systems pay for state access.
 func BenchmarkComponentRead(b *testing.B) {
 	world := core.NewWorld()
-	pool := make([]*core.Entity, 0, 10000)
+	pool := make([]core.Entity, 0, 10000)
 	for range 10000 {
 		e, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: 3, Y: 4}})
 		if err != nil {
@@ -162,7 +162,7 @@ func BenchmarkQuery2(b *testing.B) {
 			for range n {
 				if _, err := world.NewEntity(
 					core.Transform{},
-					spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}},
+					spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 2, Y: 2}},
 				); err != nil {
 					b.Fatal(err)
 				}
@@ -189,7 +189,7 @@ func BenchmarkQuery3(b *testing.B) {
 			for range n {
 				if _, err := world.NewEntity(
 					core.Transform{},
-					spr.Sprite{Drawable: spr.CircleShape{Radii: geom.Vector2{X: 2, Y: 2}}},
+					spr.Primitive{Shape: spr.ShapeCircle, Radii: geom.Vector2{X: 2, Y: 2}},
 					benchTag{},
 				); err != nil {
 					b.Fatal(err)
@@ -215,7 +215,8 @@ func BenchmarkQueryWhere(b *testing.B) {
 	for i := range 1000 {
 		sprite := spr.Sprite{}
 		if i%2 == 0 {
-			sprite.Drawable = spr.CircleShape{Radii: geom.Vector2{X: 1, Y: 1}}
+			sprite.Shape = spr.ShapeCircle
+			sprite.Radii = geom.Vector2{X: 1, Y: 1}
 		}
 		if _, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: 1, Y: 1}},
@@ -226,7 +227,7 @@ func BenchmarkQueryWhere(b *testing.B) {
 	}
 	query := core.NewQuery(world).With(core.Transform{}, spr.Sprite{}).Where(func(e core.Entry) bool {
 		s, _ := e.Component[spr.Sprite]()
-		return s.Drawable != nil
+		return s.Shape != spr.ShapeNone
 	})
 	matched := 0
 	for range query.Execute() {

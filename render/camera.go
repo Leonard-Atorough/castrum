@@ -94,12 +94,12 @@ func (c Camera) MovePosition(transform core.Transform, displacement geom.Vector2
 // SpawnCamera creates a camera entity in w at position with the given zoom.
 // A zoom of zero means 1. It returns an error for an invalid anchor or a
 // negative or non-finite zoom.
-func SpawnCamera(w *core.World, cam Camera, position geom.Vector2, zoom float64) (*core.Entity, error) {
+func SpawnCamera(w *core.World, cam Camera, position geom.Vector2, zoom float64) (core.Entity, error) {
 	if err := cam.Validate(); err != nil {
-		return nil, err
+		return core.Entity{}, err
 	}
 	if zoom < 0 || math.IsNaN(zoom) || math.IsInf(zoom, 0) {
-		return nil, fmt.Errorf("camera zoom must be finite and not negative, got %v", zoom)
+		return core.Entity{}, fmt.Errorf("camera zoom must be finite and not negative, got %v", zoom)
 	}
 	if zoom == 0 {
 		zoom = 1
@@ -116,7 +116,7 @@ type engineCamera struct{}
 // SpawnEngineCamera creates the engine's default primary camera at the world
 // origin with zoom 1. [Collector] uses it when no user-spawned primary camera
 // is available.
-func SpawnEngineCamera(w *core.World) (*core.Entity, error) {
+func SpawnEngineCamera(w *core.World) (core.Entity, error) {
 	return w.NewEntity(
 		Camera{Primary: true},
 		core.Transform{Position: geom.Vector2{}, Scale: geom.Vector2{X: 1, Y: 1}},

@@ -46,7 +46,7 @@ func TestSystem_AllocationsFollowMovement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var moving *core.Entity
+			var moving core.Entity
 			for i := range n {
 				entity, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: float64(i) * 100}}, collider)
 				if err != nil {
@@ -147,7 +147,7 @@ func TestSystem_MatchesFullPairDetection(t *testing.T) {
 	world := newCollisionWorld(t)
 	sys := NewSystem()
 	rng := rand.New(rand.NewPCG(72, 1))
-	var entities []*core.Entity
+	var entities []core.Entity
 	for i := range 24 {
 		var shape ColliderShape = Circle{Radius: 8}
 		if i%2 == 0 {
@@ -214,7 +214,7 @@ func TestSystem_MatchesFullPairDetection(t *testing.T) {
 				}
 				if hit.collided {
 					want = append(want, Contact{
-						Other: b.ID(), Point: hit.point, Normal: hit.normal,
+						Other: b, Point: hit.point, Normal: hit.normal,
 						Penetration: hit.penetration, Trigger: ac.Trigger || bc.Trigger,
 					})
 				}
