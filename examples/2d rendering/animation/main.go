@@ -1,6 +1,16 @@
-// Command animate loads an embedded JSON spritesheet and demonstrates
-// playback controls and completion. Run with go run .; -author writes
-// regenerated metadata without opening a window.
+// Command animation demonstrates playback of a spritesheet clip.
+//
+// SPACE pauses or resumes playback, R restarts, 1 plays once, 2 loops, and 4
+// swaps to a reversed clip. The built-in fixed-phase animation system advances
+// the [animation.AnimatedSprite]; the readout reports completion and loop events.
+//
+// The clip uses the torch_light_N regions of torch_light.json, authored with
+// [spritesheet.Grid]. See the spritesheets example for authoring. Run with
+// -author <file> to regenerate the metadata without opening a window.
+//
+// Run from this directory:
+//
+//	go run .
 package main
 
 import (
@@ -18,17 +28,38 @@ import (
 	"github.com/Leonard-Atorough/castrum/input"
 )
 
-//go:embed torch_light.png torch_light.sheet.json
+//go:embed torch_light.png torch_light.json
 var files embed.FS
 
 const (
-	sheetPath = "torch_light.sheet.json"
+	texturePath = "torch_light.png"
+	sheetPath   = "torch_light.json"
 
-	TorchLightFPS  = 10
-	TorchLightLoop = animation.LoopAll
+	torchFPS  = 10
+	torchLoop = animation.LoopAll
 
-	Scale = 4
+	// scale enlarges the 16x28 cells to 64x112 so the frames read clearly.
+	scale = 4
+
+	screenW, screenH = 1280, 720
 )
+
+var frames = []string{
+	"torch_light_0",
+	"torch_light_1",
+	"torch_light_2",
+	"torch_light_3",
+	"torch_light_4",
+	"torch_light_5",
+}
+
+func reversedFrames() []string {
+	out := make([]string, len(frames))
+	for i, name := range frames {
+		out[len(frames)-1-i] = name
+	}
+	return out
+}
 
 func main() {
 	output := flag.String("author", "", "write spritesheet metadata to this file without opening a window")
@@ -50,82 +81,94 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
 	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
 	if err != nil {
 		return err
 	}
+
 	return g.Run(runner)
 }
 
 func newGame() (*castrum.Game, error) {
 	g, err := castrum.New(
-		castrum.WithTitle("castrum - animate"),
+		castrum.WithTitle("castrum - animation"),
 		castrum.WithFilesystem(files),
 		castrum.WithBindings(input.Bindings{
 			"pause":   {input.KeyInput{Key: input.KeySpace}.Binding()},
 			"restart": {input.KeyInput{Key: input.KeyR}.Binding()},
 			"once":    {input.KeyInput{Key: input.Key1}.Binding()},
 			"loop":    {input.KeyInput{Key: input.Key2}.Binding()},
+			"swap":    {input.KeyInput{Key: input.Key4}.Binding()},
 		}),
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	// Resolve the sheet and validate every clip frame at setup, so a bad
+	// document or region name fails the launch, not the first frame.
 	loader := g.World().MustResource[*asset.Loader]()
 	source := asset.FileSheet(sheetPath)
 	sheet, err := source.Resolve(loader)
 	if err != nil {
 		return nil, err
 	}
-	texture, err := loader.Load[asset.TextureData](string(sheet.Texture))
+	texture, err := loader.Load[asset.TextureData](texturePath)
 	if err != nil {
 		return nil, err
 	}
 	if err := sheet.ValidateBounds(texture.Image.Bounds()); err != nil {
 		return nil, err
 	}
-
-	frames := []string{
-		"torch_light_0",
-		"torch_light_1",
-		"torch_light_2",
-		"torch_light_3",
-		"torch_light_4",
-		"torch_light_5",
-	}
 	for _, name := range frames {
 		if _, err := sheet.Region(name); err != nil {
 			return nil, err
 		}
 	}
-	clip, err := animation.NewSpriteClip(source, frames, TorchLightFPS)
+
+	clip, err := animation.NewSpriteClip(source, frames, torchFPS)
+	if err != nil {
+		return nil, err
+	}
+	reversed, err := animation.NewSpriteClip(source, reversedFrames(), torchFPS)
 	if err != nil {
 		return nil, err
 	}
 
-	torchAnimated, err := animation.NewAnimatedSprite(clip)
+	torch, err := animation.NewAnimatedSprite(clip)
 	if err != nil {
 		return nil, err
 	}
-	torchAnimated.Loop = TorchLightLoop
+	torch.Loop = torchLoop
 
-	torch, err := g.World().NewEntity(
-		torchAnimated,
+	// The engine camera frames the world from the screen's center, so
+	// world coordinates are screen coordinates at zoom 1.
+	camera := g.MainCamera()
+	if err := camera.Update(g.World(), func(t *core.Transform) {
+		t.Position = geom.Vector2{X: screenW / 2, Y: screenH / 2}
+	}); err != nil {
+		return nil, err
+	}
+
+	entity, err := g.World().NewEntity(
+		torch,
 		core.Transform{
-			Scale: geom.Vector2{X: Scale, Y: Scale},
+			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
+			Scale:    geom.Vector2{X: scale, Y: scale},
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := g.AddSystem(core.PhaseFrame, "animation.controls", playbackSystem(torch)); err != nil {
+
+	if err := g.AddSystem(core.PhaseFrame, "animation.controls", playbackSystem(entity, reversed)); err != nil {
 		return nil, err
 	}
 	panel := g.World().MustResource[*debug.Panel]()
-	panel.Status("controls", "SPACE: pause/resume   R: restart   1: play once   2: loop")
+	panel.Status("controls", "SPACE: pause/resume   R: restart   1: play once   2: loop   4: swap clip")
 	if err := g.AddSystem(core.PhaseFixed, "animation.readout", core.SystemFunc(func(ctx *core.Context) error {
-		value, ok := torch.Component[animation.AnimatedSprite](ctx.World)
+		value, ok := entity.Component[animation.AnimatedSprite](ctx.World)
 		if !ok {
 			return fmt.Errorf("animated torch has no playback component")
 		}
@@ -148,16 +191,17 @@ func newGame() (*castrum.Game, error) {
 	return g, nil
 }
 
-func playbackSystem(torch core.Entity) core.System {
+func playbackSystem(entity core.Entity, reversed animation.SpriteClip) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		pause := ctx.Actions.JustPressed("pause")
 		restart := ctx.Actions.JustPressed("restart")
 		once := ctx.Actions.JustPressed("once")
 		loop := ctx.Actions.JustPressed("loop")
-		if !pause && !restart && !once && !loop {
+		swap := ctx.Actions.JustPressed("swap")
+		if !pause && !restart && !once && !loop && !swap {
 			return nil
 		}
-		return torch.Update(ctx.World, func(value *animation.AnimatedSprite) {
+		return entity.Update(ctx.World, func(value *animation.AnimatedSprite) {
 			if pause {
 				value.Paused = !value.Paused
 			}
@@ -171,6 +215,13 @@ func playbackSystem(torch core.Entity) core.System {
 			if loop {
 				value.Loop = animation.LoopAll
 				value.Restart()
+			}
+			if swap {
+				// SetClip replaces the clip and resets completion; the
+				// reversed clip was validated in newGame.
+				if err := value.SetClip(reversed); err != nil {
+					panic(err)
+				}
 			}
 		})
 	})

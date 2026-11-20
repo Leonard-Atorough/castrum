@@ -1,4 +1,4 @@
-module github.com/Leonard-Atorough/castrum-examples/animate
+module github.com/Leonard-Atorough/castrum-examples/animation
 
 go 1.27.2
 

@@ -14,11 +14,11 @@ func authorSheet(name string) (err error) {
 	if err != nil {
 		return err
 	}
-	texture, err := loader.Load[asset.TextureData]("torch_light.png")
+	texture, err := loader.Load[asset.TextureData](texturePath)
 	if err != nil {
 		return err
 	}
-	sheet, err := spritesheet.Grid("torch_light.png", texture.Image.Bounds(), 16, 28, "torch_light")
+	sheet, err := spritesheet.Grid(texturePath, texture.Image.Bounds(), 16, 28, "torch_light")
 	if err != nil {
 		return err
 	}
