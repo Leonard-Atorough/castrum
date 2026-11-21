@@ -274,6 +274,27 @@ func newGame(opts ...option) (*Game, error) {
 	return g, nil
 }
 
+// wireInput provides the action map and registers the engine's input
+// systems first in their schedules, so feature and user systems in those
+// phases see fresh actions.
+func (g *Game) wireInput(bindings input.Bindings, deadzone float64) error {
+	am, err := input.New(bindings, deadzone)
+	if err != nil {
+		return fmt.Errorf("castrum: input bindings: %w", err)
+	}
+
+	if err := g.world.Provide(func(*core.World) (*input.ActionMap, error) {
+		return am, nil
+	}); err != nil {
+		return fmt.Errorf("castrum: provide action map: %w", err)
+	}
+
+	if err := g.addEngineFirst(core.PhasePreFrame, input.FrameSystemName, input.NewFrameSystem(am)); err != nil {
+		return err
+	}
+	return g.addEngineFirst(core.PhasePreFixed, input.TickSystemName, input.NewTickSystem(am))
+}
+
 // Options returns a copy of the game's configuration. Runners use it to read
 // the game title.
 func (g *Game) Options() Options {
