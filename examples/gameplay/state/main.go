@@ -38,10 +38,11 @@ func (d *demonstration) record(event string) {
 }
 
 func (d *demonstration) controls(ctx *core.Context) error {
-	if ctx.Actions.JustPressed("restart") {
+	actions, _ := ctx.World.Resource[*input.ActionMap]()
+	if actions.JustPressed("restart") {
 		return d.machine.Restart()
 	}
-	if ctx.Actions.JustPressed("next") {
+	if actions.JustPressed("next") {
 		switch d.machine.Current() {
 		case idle:
 			return d.machine.Request(playing)

@@ -79,7 +79,10 @@ func TestInputPreferencesPersistenceAndStartup(t *testing.T) {
 		t.Fatal(err)
 	}
 	game := New(WithInputPreferences(value))
-	actions := game.Context().Actions
+	actions, err := game.World().Resource[*input.ActionMap]()
+	if err != nil {
+		t.Fatal(err)
+	}
 	snapshot := &input.Snapshot{}
 	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
 	snapshot.Keys[input.KeyControlLeft].Held = true
@@ -106,15 +109,19 @@ func TestInputPreferencesStartupValidationAndOptionOrder(t *testing.T) {
 	p := input.Preferences{Bindings: samplePreferenceBindings(), Deadzone: 0.3}
 	replacement := input.Bindings{"move": {input.PadAxisInput{Axis: input.PadLeftStickX}.Binding()}}
 	game := New(WithInputPreferences(p), WithBindings(replacement))
+	actions, err := game.World().Resource[*input.ActionMap]()
+	if err != nil {
+		t.Fatal(err)
+	}
 	snapshot := &input.Snapshot{}
 	snapshot.Pads[0].Connected = true
 	snapshot.Pads[0].Axes[input.PadLeftStickX] = 0.2
-	game.Context().Actions.Update(snapshot, 0)
-	if !reflect.DeepEqual(game.Context().Actions.Bindings(), replacement) || game.Context().Actions.Axis("move") != 0 {
+	actions.Update(snapshot, 0)
+	if !reflect.DeepEqual(actions.Bindings(), replacement) || actions.Axis("move") != 0 {
 		t.Fatal("later bindings did not preserve the configured deadzone")
 	}
 	game = New(WithInputPreferences(p), WithBindings(nil))
-	if game.Context().Actions != nil {
+	if _, err := game.World().Resource[*input.ActionMap](); err == nil {
 		t.Fatal("later nil bindings did not disable the action map")
 	}
 }

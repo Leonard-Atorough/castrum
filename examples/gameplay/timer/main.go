@@ -150,10 +150,11 @@ func run() error {
 	// One fixed system reads all five timers and reacts to their
 	// state; it is the only gameplay logic in the program.
 	if err := g.AddSystem(core.PhaseFixed, "gametime.reactions", core.SystemFunc(func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[*input.ActionMap]()
 		// R restarts the one-shot from zero: elapsed time resets and
 		// the completion stamp clears, so the "fired" color reverts
 		// until it fires again.
-		if ctx.Actions.Pressed("restart_one_shot") {
+		if actions.Pressed("restart_one_shot") {
 			if err := oneShot.Update(ctx.World, func(t *gametime.Timer) { t.Restart() }); err != nil {
 				return err
 			}
@@ -162,7 +163,7 @@ func run() error {
 
 		// SPACE starts the paused timer by writing Running. The
 		// countdown then advances on its own.
-		if ctx.Actions.Pressed("start_held") {
+		if actions.Pressed("start_held") {
 			if err := held.Update(ctx.World, func(t *gametime.Timer) { t.Running = true }); err != nil {
 				return err
 			}
@@ -171,7 +172,7 @@ func run() error {
 
 		// P toggles the combat group. The write goes to the groups
 		// resource only; the combat timer's own state is untouched.
-		if ctx.Actions.Pressed("toggle_combat_group") {
+		if actions.Pressed("toggle_combat_group") {
 			if groups.Paused(combatGroup) {
 				groups.Resume(combatGroup)
 				panel.Message("combat group resumed")

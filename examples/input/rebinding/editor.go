@@ -54,6 +54,7 @@ func restore(directory *asset.Directory) (*editor, error) {
 }
 
 func (e *editor) update(ctx *core.Context) error {
+	actions, _ := ctx.World.Resource[*input.ActionMap]()
 	if !e.editing {
 		if ctx.Input.KeyPressed(input.KeyF2) {
 			value, err := e.prefs.Value()
@@ -62,7 +63,7 @@ func (e *editor) update(ctx *core.Context) error {
 			}
 			e.draft, e.candidate, e.editing = value, input.KeyNone, true
 			e.notice = "Press a candidate key. The active binding is unchanged."
-		} else if ctx.Actions.JustPressed("ping") {
+		} else if actions.JustPressed("ping") {
 			e.activations++
 		}
 		return nil
@@ -84,7 +85,7 @@ func (e *editor) update(ctx *core.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := ctx.Actions.SetPreferences(value); err != nil {
+		if err := actions.SetPreferences(value); err != nil {
 			return fmt.Errorf("apply controls: %w", err)
 		}
 		if err := e.saver.Save(controlsFile, value); err != nil {

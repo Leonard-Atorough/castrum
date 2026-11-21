@@ -23,7 +23,6 @@ func (g *Game) wireInput(bindings input.Bindings, deadzone float64) error {
 		return err
 	}
 
-	g.Context().Actions = am
 	return g.addEngineFirst(core.PhasePreFixed, input.TickSystemName, newInputTickSystem(am))
 }
 

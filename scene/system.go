@@ -7,6 +7,7 @@ import (
 
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/input"
 )
 
 const (
@@ -74,8 +75,10 @@ func (d *Director) execute(ctx *core.Context, loaderFor loaderSource) error {
 			errs = append(errs, err)
 		}
 	}
-	if ctx.Actions != nil {
-		ctx.Actions.FlushEdges()
+	if ctx.World != nil {
+		if am, err := ctx.World.Resource[*input.ActionMap](); err == nil {
+			am.FlushEdges()
+		}
 	}
 	return errors.Join(errs...)
 }

@@ -76,10 +76,6 @@ type Context struct {
 	// Input is the runner's current input snapshot. A nil snapshot reads as
 	// no input.
 	Input *input.Snapshot
-	// Actions is the game's action map when configured with `WithBindings`.
-	// It is the same instance as the ActionMap resource; a nil map reads as
-	// no actions.
-	Actions *input.ActionMap
 }
 
 // System is a unit of game logic that updates state during a schedule phase.

@@ -320,22 +320,23 @@ func over(stats core.Entity, ctx *core.Context) bool {
 
 func moveSystem(hull, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[*input.ActionMap]()
 		if over(stats, ctx) {
 			return nil
 		}
 		dt := ctx.DeltaTime.Seconds()
 		return hull.Update(ctx.World, func(t *core.Transform) {
 			facing := geom.Vector2{X: 0, Y: -1}.Rotate(t.Rotation)
-			if ctx.Actions.Held("move_forward") {
+			if actions.Held("move_forward") {
 				t.Position = t.Position.Add(facing.Mul(Speed * dt))
 			}
-			if ctx.Actions.Held("move_backward") {
+			if actions.Held("move_backward") {
 				t.Position = t.Position.Sub(facing.Mul(Speed * dt))
 			}
-			if ctx.Actions.Held("turn_left") {
+			if actions.Held("turn_left") {
 				t.Rotation -= TurnSpeed * dt
 			}
-			if ctx.Actions.Held("turn_right") {
+			if actions.Held("turn_right") {
 				t.Rotation += TurnSpeed * dt
 			}
 		})
@@ -399,10 +400,11 @@ func cameraSystem(camera, hull core.Entity) core.System {
 // taps that occur between fixed ticks.
 func fireSystem(turret, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[*input.ActionMap]()
 		if over(stats, ctx) {
 			return nil
 		}
-		if !ctx.Actions.Pressed("fire") {
+		if !actions.Pressed("fire") {
 			return nil
 		}
 		gun, _ := turret.Component[gametime.Timer](ctx.World)

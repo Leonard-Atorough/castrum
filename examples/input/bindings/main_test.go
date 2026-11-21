@@ -108,7 +108,12 @@ func TestTankMovementUsesBindingsAndFacing(t *testing.T) {
 				snapshot.Pads[0].Axes[input.PadRightStickX] = 1
 			}
 			actions.Update(snapshot, 0.25)
-			ctx := &core.Context{World: world, Actions: actions, Input: snapshot, DeltaTime: 250 * time.Millisecond}
+			if err := world.Provide(func(*core.World) (*input.ActionMap, error) {
+				return actions, nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			ctx := &core.Context{World: world, Input: snapshot, DeltaTime: 250 * time.Millisecond}
 			if err := tankBodySystem(body).Update(ctx); err != nil {
 				t.Fatal(err)
 			}

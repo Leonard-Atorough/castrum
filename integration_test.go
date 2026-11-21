@@ -251,12 +251,9 @@ func TestBindingEdgesReachEveryPhase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve action map: %v", err)
 	}
-	if g.Context().Actions != am {
-		t.Fatal("Context.Actions should be the same map the resource resolves")
-	}
 	var framePresses int
-	if err := g.AddSystem(core.PhaseFrame, "frame input", core.SystemFunc(func(ctx *core.Context) error {
-		if ctx.Actions.JustPressed("jump") {
+	if err := g.AddSystem(core.PhaseFrame, "frame input", core.SystemFunc(func(*core.Context) error {
+		if am.JustPressed("jump") {
 			framePresses++
 		}
 		return nil
@@ -265,14 +262,14 @@ func TestBindingEdgesReachEveryPhase(t *testing.T) {
 	}
 	type edges struct{ pressed, released bool }
 	var ticks, preTicks []edges
-	if err := g.AddSystem(core.PhasePreFixed, "pre-fixed input", core.SystemFunc(func(ctx *core.Context) error {
-		preTicks = append(preTicks, edges{ctx.Actions.Pressed("jump"), ctx.Actions.Released("jump")})
+	if err := g.AddSystem(core.PhasePreFixed, "pre-fixed input", core.SystemFunc(func(*core.Context) error {
+		preTicks = append(preTicks, edges{am.Pressed("jump"), am.Released("jump")})
 		return nil
 	})); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.AddSystem(core.PhaseFixed, "fixed input", core.SystemFunc(func(ctx *core.Context) error {
-		ticks = append(ticks, edges{ctx.Actions.Pressed("jump"), ctx.Actions.Released("jump")})
+	if err := g.AddSystem(core.PhaseFixed, "fixed input", core.SystemFunc(func(*core.Context) error {
+		ticks = append(ticks, edges{am.Pressed("jump"), am.Released("jump")})
 		return nil
 	})); err != nil {
 		t.Fatalf("AddSystem(fixed): %v", err)
@@ -318,7 +315,8 @@ func TestPressEdgeIsSeenOnceAcrossCatchUpTicks(t *testing.T) {
 	g.Context().Input = snapshot
 	var got []bool
 	addTestSystem(t, g, core.PhasePreFixed, "input", core.SystemFunc(func(ctx *core.Context) error {
-		got = append(got, ctx.Actions.Pressed("jump"))
+		am, _ := ctx.World.Resource[*input.ActionMap]()
+		got = append(got, am.Pressed("jump"))
 		return nil
 	}))
 	advanceTestGame(t, g, 750*time.Millisecond)
@@ -452,7 +450,8 @@ func TestStateTransitionsOrderAgainstScenesAndFrameWork(t *testing.T) {
 		return nil
 	}))
 	machine.OnEnter("play", core.SystemFunc(func(ctx *core.Context) error {
-		if !ctx.Actions.JustPressed("start") {
+		am, _ := ctx.World.Resource[*input.ActionMap]()
+		if !am.JustPressed("start") {
 			t.Fatal("state hook ran before frame input updated")
 		}
 		got = append(got, "state:play")

@@ -179,8 +179,9 @@ func cameraSystem(camera core.Entity, body core.Entity) core.System {
 
 func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[*input.ActionMap]()
 		// Keys express a rate; wheel offsets already express movement.
-		scaleChange := ctx.Actions.Axis("zoom")*zoomSpeed*ctx.DeltaTime.Seconds() + ctx.Input.Wheel().Y*wheelZoomStep
+		scaleChange := actions.Axis("zoom")*zoomSpeed*ctx.DeltaTime.Seconds() + ctx.Input.Wheel().Y*wheelZoomStep
 		if scaleChange == 0 {
 			return nil
 		}
@@ -204,21 +205,22 @@ func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
 // turret aims.
 func tankBodySystem(body core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[*input.ActionMap]()
 		return body.Update(ctx.World, func(t *core.Transform) {
 			// Forward is screen-up (negative Y in this world), rotated
 			// by the hull's rotation.
 			facing := geom.Vector2{X: 0, Y: -1}.Rotate(t.Rotation)
 
-			if ctx.Actions.Held("move_forward") {
+			if actions.Held("move_forward") {
 				t.Position = t.Position.Add(facing.Mul(moveSpeed * ctx.DeltaTime.Seconds()))
 			}
-			if ctx.Actions.Held("move_backward") {
+			if actions.Held("move_backward") {
 				t.Position = t.Position.Sub(facing.Mul(moveSpeed * ctx.DeltaTime.Seconds()))
 			}
-			if ctx.Actions.Held("turn_left") {
+			if actions.Held("turn_left") {
 				t.Rotation -= turnSpeed * ctx.DeltaTime.Seconds()
 			}
-			if ctx.Actions.Held("turn_right") {
+			if actions.Held("turn_right") {
 				t.Rotation += turnSpeed * ctx.DeltaTime.Seconds()
 			}
 		})
