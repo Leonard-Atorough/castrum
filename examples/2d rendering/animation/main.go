@@ -81,13 +81,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-
-	return g.Run(runner)
+	ebitrun.New(ebitrun.WithDebugOverlay()).Run(g)
+	return nil
 }
 
 func newGame() (*castrum.Game, error) {
@@ -102,9 +97,6 @@ func newGame() (*castrum.Game, error) {
 			"swap":    {input.KeyInput{Key: input.Key4}.Binding()},
 		}),
 	)
-	if err != nil {
-		return nil, err
-	}
 
 	// Resolve the sheet and validate every clip frame at setup, so a bad
 	// document or region name fails the launch, not the first frame.

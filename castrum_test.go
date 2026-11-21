@@ -135,7 +135,7 @@ func TestInvalidOptionsError(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			g, err := New(c.opts...)
+			g, err := newGame(c.opts...)
 			if err == nil {
 				t.Errorf("%s: expected an error", c.name)
 			}
@@ -262,20 +262,13 @@ func TestQuit(t *testing.T) {
 	}
 }
 
-type fakeRunner struct {
-	err error
-}
-
-func (f *fakeRunner) Run() error { return f.err }
-
-func TestRunOnce(t *testing.T) {
+func TestBeginRunOnce(t *testing.T) {
 	g := newTestGame(t)
-	boom := errors.New("runner failed")
-	if err := g.Run(&fakeRunner{err: boom}); !errors.Is(err, boom) {
-		t.Fatalf("Run error = %v, want %v", err, boom)
+	if err := g.BeginRun(); err != nil {
+		t.Fatalf("first BeginRun error = %v", err)
 	}
-	if err := g.Run(&fakeRunner{}); err == nil {
-		t.Error("second Run should return an error")
+	if err := g.BeginRun(); err == nil {
+		t.Error("second BeginRun should return an error")
 	}
 }
 

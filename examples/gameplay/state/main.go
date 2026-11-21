@@ -75,7 +75,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 			return nil
 		})
 	}
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - queued state changes"),
 		castrum.WithState(d.machine),
 		castrum.WithBindings(input.Bindings{
@@ -83,9 +83,6 @@ func newGame() (*castrum.Game, *demonstration, error) {
 			"restart": {input.KeyInput{Key: input.KeyR}.Binding()},
 		}),
 	)
-	if err != nil {
-		return nil, nil, err
-	}
 	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 		return nil, nil, err
 	}
@@ -150,11 +147,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	runner, err := ebitrun.New(g, ebitrun.WithWindowSize(960, 540), ebitrun.WithLogicalSize(960, 540))
-	if err != nil {
-		return err
-	}
-	return g.Run(runner)
+	runner := ebitrun.New(ebitrun.WithWindowSize(960, 540), ebitrun.WithLogicalSize(960, 540))
+	runner.Run(g)
+	return nil
 }
 
 func main() {

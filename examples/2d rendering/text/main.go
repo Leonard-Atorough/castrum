@@ -45,12 +45,9 @@ func main() {
 }
 
 func run() error {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - text"),
 	)
-	if err != nil {
-		return err
-	}
 	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 		return err
 	}
@@ -117,12 +114,10 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New()
 
 	// g.Run is the canonical entry: the guard against a second run
 	// lives on the game, not the runner.
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }

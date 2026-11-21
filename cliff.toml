@@ -49,6 +49,7 @@ commit_parsers = [
   { message = "^chore\\(release\\)", skip = true },
   # Skip changelog-refresh commits made by the Changelog workflow
   { message = "^chore\\(changelog\\)", skip = true },
+  {message = "^chore", skip = true },
   { message = "^[a-zA-Z]+\\(examples\\)!?:", skip = true },
   { message = "^docs: snapshot documentation for v[0-9]+\\.[0-9]+\\.[0-9]+", skip = true },
   { message = "^(fmt|go fmt|format fix|format fixes|format files|spacing fix)", skip = true },

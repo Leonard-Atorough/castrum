@@ -20,10 +20,7 @@ import (
 // enemies instead.
 func newTestGame(t *testing.T) (*castrum.Game, core.Entity, core.Entity) {
 	t.Helper()
-	g, err := castrum.New(castrum.WithTitle("test"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := castrum.New(castrum.WithTitle("test"))
 	// The runner normally publishes the logical size; the bullet
 	// system culls by what the camera can see, so the headless
 	// game needs it too.

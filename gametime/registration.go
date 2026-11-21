@@ -4,15 +4,16 @@ import "github.com/Leonard-Atorough/castrum/serialization"
 
 // Save keys are stable wire identities; renaming one is a breaking change.
 const (
+	// SimulationSaveKey identifies [Simulation] in save data.
 	SimulationSaveKey = "gametime.Simulation"
-	RealSaveKey       = "gametime.Real"
-	GroupsSaveKey     = "gametime.Groups"
+	// RealSaveKey identifies [Real] in save data.
+	RealSaveKey = "gametime.Real"
+	// GroupsSaveKey identifies [Groups] in save data.
+	GroupsSaveKey = "gametime.Groups"
 )
 
 // RegisterBlueprints registers the package's persistent state with reg:
-// the simulation and real-time resources and the timer groups. All three
-// are value-shaped - Simulation and Real through their JSON tags, Groups
-// through its own JSON projection.
+// the [Simulation], [Real], and [Groups] resources.
 func RegisterBlueprints(reg *serialization.Registry) error {
 	if err := reg.Resource[Simulation](SimulationSaveKey); err != nil {
 		return err

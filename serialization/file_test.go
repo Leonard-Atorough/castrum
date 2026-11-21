@@ -1,6 +1,8 @@
 package serialization
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -139,9 +141,6 @@ func TestSpawnPropagatesOverrideValidationError(t *testing.T) {
 }
 
 func TestOpenRejectsUnauthoredComponents(t *testing.T) {
-	// Authored content must contribute something: engine visual
-	// components implement core.Authored, and File.Open enforces it
-	// with the node path named.
 	reg := newFileTestRegistry(t)
 	if err := reg.Component[sprite.Sprite]("sprite.Sprite"); err != nil {
 		t.Fatalf("register sprite: %v", err)
@@ -213,4 +212,87 @@ func TestOpenRejectsUnknownAssetType(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "game.Mystery") || !strings.Contains(err.Error(), "root") {
 		t.Fatalf("Open error = %v, want it to name the asset key and node path", err)
 	}
+}
+
+func TestFileShape(t *testing.T) {
+	const authored = `{
+		"key": "root",
+		"persistent": true,
+		"components": [
+			{ "type": "game.Trader", "value": { "name": "orsa" } },
+			{ "type": "game.Station", "value": { "credits": 7 } }
+		],
+		"assets": [
+			{ "type": "game.TraderAsset", "id": "sprites.json" }
+		],
+		"children": [
+			{
+				"key": "kid",
+				"components": [
+					{ "type": "game.Trader", "value": { "name": "pup" } }
+				]
+			}
+		]
+	}`
+
+	t.Run("authored", func(t *testing.T) {
+		var f File
+		if err := json.Unmarshal([]byte(authored), &f); err != nil {
+			t.Fatalf("unmarshal authored file: %v", err)
+		}
+		if f.Key != "root" || !f.Persistent {
+			t.Fatalf("node header = %q persistent %v", f.Key, f.Persistent)
+		}
+		var compact bytes.Buffer
+		if err := json.Compact(&compact, f.Components[0].Value); err != nil {
+			t.Fatalf("compact component value: %v", err)
+		}
+		if len(f.Components) != 2 ||
+			f.Components[0].Type != "game.Trader" || compact.String() != `{"name":"orsa"}` ||
+			f.Components[1].Type != "game.Station" {
+			t.Fatalf("component entries = %+v", f.Components)
+		}
+		if string(f.Components[0].Value) != `{ "name": "orsa" }` {
+			t.Fatalf("value = %q, want the authored bytes verbatim", f.Components[0].Value)
+		}
+		if len(f.Assets) != 1 || f.Assets[0].Type != "game.TraderAsset" || f.Assets[0].ID != "sprites.json" {
+			t.Fatalf("asset entries = %+v", f.Assets)
+		}
+		if len(f.Children) != 1 || f.Children[0].Key != "kid" || len(f.Children[0].Components) != 1 {
+			t.Fatalf("children = %+v", f.Children)
+		}
+
+		reg := newFileTestRegistry(t)
+		if err := reg.Component[station]("game.Station"); err != nil {
+			t.Fatalf("Component: %v", err)
+		}
+		if err := reg.Asset[trader]("game.TraderAsset"); err != nil {
+			t.Fatalf("Asset: %v", err)
+		}
+		if _, err := f.Open(reg); err != nil {
+			t.Fatalf("Open authored file: %v", err)
+		}
+	})
+
+	t.Run("encoded", func(t *testing.T) {
+		f := File{
+			Key:        "root",
+			Persistent: true,
+			Components: []FileComponent{{Type: "game.Trader", Value: []byte(`{"name":"orsa"}`)}},
+			Assets:     []FileAsset{{Type: "game.TraderAsset", ID: "sprites.json"}},
+			Children:   []File{{Key: "kid"}},
+		}
+		data, err := json.Marshal(f)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		const want = `{"key":"root","persistent":true,` +
+			`"components":[{"type":"game.Trader","value":{"name":"orsa"}}],` +
+			`"assets":[{"type":"game.TraderAsset","id":"sprites.json"}],` +
+			`"children":[{"key":"kid","persistent":false,` +
+			`"components":null,"assets":null,"children":null}]}`
+		if strings.TrimSpace(string(data)) != want {
+			t.Fatalf("encoded shape = %s, want %s", data, want)
+		}
+	})
 }

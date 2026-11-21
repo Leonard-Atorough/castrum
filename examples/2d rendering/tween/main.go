@@ -51,15 +51,13 @@ func run() error {
 	panel.Status("controls", "space: pause/resume   1: half speed   2: normal speed   3: double speed   R: restart")
 	panel.Status("note", "movement tweens on fixed ticks, tint on frame time; both hold their endpoints")
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-	return g.Run(runner)
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
+	runner.Run(g)
+	return nil
 }
 
 func newGame() (*castrum.Game, *demo, error) {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - tween"),
 		castrum.WithBindings(input.Bindings{
 			"pause":   []input.Input{input.KeyInput{Key: input.KeySpace}.Binding()},
@@ -70,10 +68,8 @@ func newGame() (*castrum.Game, *demo, error) {
 			"quit":    []input.Input{input.KeyInput{Key: input.KeyEscape}.Binding()},
 		}),
 	)
-	if err != nil {
-		return nil, nil, err
-	}
 	d := &demo{}
+	var err error
 	d.motion, err = tween.NewTween(tweenDuration, geom.EaseInOutCubic)
 	if err != nil {
 		return nil, nil, err

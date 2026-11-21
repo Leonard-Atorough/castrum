@@ -49,10 +49,7 @@ func main() {
 }
 
 func run() error {
-	g, err := castrum.New(castrum.WithTitle("castrum — wander"), castrum.WithFilesystem(files))
-	if err != nil {
-		return err
-	}
+	g := castrum.New(castrum.WithTitle("castrum — wander"), castrum.WithFilesystem(files))
 
 	// Resolve the sheet document once at setup, before the window
 	// opens: a bad sheet or region name fails the launch, not the
@@ -94,14 +91,12 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
 
 	// g.Run is the canonical entry: the guard against a second run
 	// lives on the game, not the runner.
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }
 
 func wanderSystem(sprite core.Entity, nextTarget func() geom.Vector2) core.System {

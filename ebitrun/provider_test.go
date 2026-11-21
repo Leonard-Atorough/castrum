@@ -30,15 +30,8 @@ func newAssetTestFS(t *testing.T) fstest.MapFS {
 }
 
 func TestNewWiresAssetPipeline(t *testing.T) {
-	g, err := castrum.New()
-	if err != nil {
-		t.Fatalf("castrum.New: %v", err)
-	}
-	r, err := New(g)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	_ = r
+	g := castrum.New()
+	mustRunner(t, g)
 
 	// The loader and provider are locator resources, resolvable through
 	// the world the way systems and DrawFuncs will resolve them.
@@ -62,10 +55,8 @@ func TestNewWiresAssetPipeline(t *testing.T) {
 
 func TestNewWiresConfiguredFilesystem(t *testing.T) {
 	fs := newAssetTestFS(t)
-	g, _ := castrum.New(castrum.WithFilesystem(fs))
-	if _, err := New(g); err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	g := castrum.New(castrum.WithFilesystem(fs))
+	mustRunner(t, g)
 
 	loader, err := g.World().Resource[*asset.Loader]()
 	if err != nil {
@@ -129,10 +120,8 @@ func TestSubImageResolvesAndCaches(t *testing.T) {
 // Texture is the whole-texture half of the blit: convert once per path,
 // repeat calls are the same image, misses error naming the path.
 func TestTextureResolvesAndCaches(t *testing.T) {
-	g, _ := castrum.New(castrum.WithFilesystem(newAssetTestFS(t)))
-	if _, err := New(g); err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	g := castrum.New(castrum.WithFilesystem(newAssetTestFS(t)))
+	mustRunner(t, g)
 	provider, err := g.World().Resource[*TextureProvider]()
 	if err != nil {
 		t.Fatalf("Resource[*TextureProvider]: %v", err)

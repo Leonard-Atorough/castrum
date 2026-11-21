@@ -1,3 +1,4 @@
+// Command game runs the Castrum starter game.
 package main
 
 import (
@@ -19,10 +20,8 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New()
 
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }

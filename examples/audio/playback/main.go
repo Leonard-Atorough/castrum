@@ -27,17 +27,11 @@ func main() {
 }
 
 func run() error {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - audio playback"),
 		castrum.WithFilesystem(audioassets.Files),
 	)
-	if err != nil {
-		return err
-	}
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
 	// Register codecs through the runner before preloading. The first effect
 	// then has no decode latency; overlapping plays share cached PCM.
 	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](audioassets.Magic); err != nil {
@@ -59,7 +53,8 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFrame, "audio.playback", playbackSystem(entity, panel)); err != nil {
 		return err
 	}
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }
 
 func playbackSystem(music core.Entity, panel *debug.Panel) core.System {

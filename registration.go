@@ -11,23 +11,31 @@ import (
 // Save keys identify engine components on disk. Changing a key breaks
 // existing save files.
 const (
+	// TransformKey identifies [core.Transform] in save data.
 	TransformKey = "core.Transform"
-	ColliderKey  = "collision.Collider"
-	SpriteKey    = "sprite.Sprite"
-	TextKey      = "sprite.Text"
+	// ColliderKey identifies [collision.Collider] in save data.
+	ColliderKey = "collision.Collider"
+	// SpriteKey identifies [sprite.Sprite] in save data.
+	SpriteKey = "sprite.Sprite"
+	// TextKey identifies [sprite.Text] in save data.
+	TextKey = "sprite.Text"
+	// PrimitiveKey identifies [sprite.Primitive] in save data.
 	PrimitiveKey = "sprite.Primitive"
 )
 
 // Asset keys identify engine asset types in data files. Changing a key
 // breaks existing data files.
 const (
+	// TextureAssetKey identifies [asset.TextureData] in asset declarations.
 	TextureAssetKey = "asset.TextureData"
-	FontAssetKey    = "asset.FontData"
-	SheetAssetKey   = "asset.Sheet"
-	AudioAssetKey   = "asset.AudioData"
+	// FontAssetKey identifies [asset.FontData] in asset declarations.
+	FontAssetKey = "asset.FontData"
+	// SheetAssetKey identifies [asset.Sheet] in asset declarations.
+	SheetAssetKey = "asset.Sheet"
+	// AudioAssetKey identifies [asset.AudioData] in asset declarations.
+	AudioAssetKey = "asset.AudioData"
 )
 
-// registerEngine registers the engine's own components with reg.
 func registerEngine(reg *serialization.Registry) error {
 	if err := reg.Component[core.Transform](TransformKey); err != nil {
 		return err
@@ -44,8 +52,6 @@ func registerEngine(reg *serialization.Registry) error {
 	return reg.Component[sprite.Primitive](PrimitiveKey)
 }
 
-// registerAssets registers the engine's loadable asset types with reg so
-// data files can declare preloads by key.
 func registerAssets(reg *serialization.Registry) error {
 	if err := reg.Asset[asset.TextureData](TextureAssetKey); err != nil {
 		return err

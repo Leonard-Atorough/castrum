@@ -84,6 +84,7 @@ type Context struct {
 
 // System is a unit of game logic that updates state during a schedule phase.
 type System interface {
+	// Update runs the system for the current phase and returns any failure.
 	Update(ctx *Context) error
 }
 

@@ -31,14 +31,8 @@ func newSpriteGame(t *testing.T) (*castrum.Game, *Runner) {
 	t.Helper()
 	files := newAssetTestFS(t)
 	files["fonts/go.ttf"] = &fstest.MapFile{Data: goregular.TTF}
-	g, err := castrum.New(castrum.WithFilesystem(files))
-	if err != nil {
-		t.Fatalf("castrum.New: %v", err)
-	}
-	r, err := New(g)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	g := castrum.New(castrum.WithFilesystem(files))
+	r := mustRunner(t, g)
 	if _, err := g.World().NewEntity(
 		render.Camera{Primary: true},
 		core.Transform{Position: geom.Vector2{}, Scale: spriteScale},

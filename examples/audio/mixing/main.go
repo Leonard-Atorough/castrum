@@ -28,17 +28,11 @@ func main() {
 }
 
 func run() error {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - audio mixing"),
 		castrum.WithFilesystem(audioassets.Files),
 	)
-	if err != nil {
-		return err
-	}
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
 	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](audioassets.Magic); err != nil {
 		return err
 	}
@@ -58,7 +52,8 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFrame, "audio.mixing", mixingSystem(mixer, panel)); err != nil {
 		return err
 	}
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }
 
 func mixingSystem(mixer *audio.Mixer, panel *debug.Panel) core.System {

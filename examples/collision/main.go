@@ -120,13 +120,10 @@ func run() error {
 		"right": {input.KeyInput{Key: input.KeyD}.Binding(), input.KeyInput{Key: input.KeyArrowRight}.Binding()},
 	}
 
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - collision"),
 		castrum.WithBindings(bindings),
 	)
-	if err != nil {
-		return err
-	}
 
 	camera := g.MainCamera()
 	if err := camera.Update(g.World(), func(t *core.Transform) {
@@ -290,12 +287,10 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
 
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }
 
 func hazardSystem(player core.Entity, panel *debug.Panel) core.System {

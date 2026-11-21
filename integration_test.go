@@ -202,10 +202,7 @@ func TestFixedPhaseSignalsAndMovementShareTick(t *testing.T) {
 }
 
 func TestCollisionSignalsReachFrameAfterFixedTicks(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	g := New()
 	hub := g.World().MustResource[*signal.Hub]()
 
 	shape, err := collision.NewCollider(collision.Box{
@@ -249,10 +246,7 @@ func TestBindingEdgesReachEveryPhase(t *testing.T) {
 	bindings := input.Bindings{
 		"jump": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}
-	g, err := New(WithBindings(bindings), WithFixedTPS(4))
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	g := New(WithBindings(bindings), WithFixedTPS(4))
 	am, err := g.World().Resource[*input.ActionMap]()
 	if err != nil {
 		t.Fatalf("resolve action map: %v", err)
@@ -712,10 +706,7 @@ func TestTweenClocksFollowPauseAndTimeScale(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			g, err := New(WithFixedTPS(4))
-			if err != nil {
-				t.Fatalf("New() error: %v", err)
-			}
+			g := New(WithFixedTPS(4))
 			fixed, err := tween.NewTween(time.Second, geom.EaseInQuad)
 			if err != nil {
 				t.Fatalf("fixed NewTween() error: %v", err)
