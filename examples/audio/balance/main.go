@@ -29,13 +29,10 @@ func main() {
 }
 
 func run() error {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - audio balance"),
 		castrum.WithFilesystem(audioassets.Files),
 	)
-	if err != nil {
-		return err
-	}
 
 	p, err := audio.NewPlayer(audio.Track(audioassets.Music), audio.Settings{Load: audio.LoadStream, Loop: audio.LoopTrack, Volume: 1})
 	if err != nil {
@@ -51,11 +48,9 @@ func run() error {
 	if err := g.AddSystem(core.PhaseFrame, "audio.balance", balanceSystem(entity, panel)); err != nil {
 		return err
 	}
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-	return g.Run(runner)
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
+	runner.Run(g)
+	return nil
 }
 
 func balanceSystem(music core.Entity, panel *debug.Panel) core.System {

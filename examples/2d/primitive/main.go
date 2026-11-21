@@ -43,10 +43,7 @@ func main() {
 }
 
 func run() error {
-	g, err := castrum.New(castrum.WithTitle("castrum - primitives"))
-	if err != nil {
-		return err
-	}
+	g := castrum.New(castrum.WithTitle("castrum - primitives"))
 
 	camera := g.MainCamera()
 	if err := camera.Update(g.World(), func(t *core.Transform) {
@@ -148,10 +145,8 @@ func run() error {
 	panel.Message("rows: rect, circle, line")
 	panel.Message("columns: filled, outlined, spinning, stretched by scale, half-faded")
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
 
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }

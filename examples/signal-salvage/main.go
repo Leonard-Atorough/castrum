@@ -103,11 +103,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	runner, err := ebitrun.New(game, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-	return game.Run(runner)
+	ebitrun.New(ebitrun.WithDebugOverlay()).Run(game)
+	return nil
 }
 
 func newGame() (*castrum.Game, *runState, error) {
@@ -123,14 +120,11 @@ func newGame() (*castrum.Game, *runState, error) {
 		"start":   {input.KeyInput{Key: input.KeySpace}.Binding()},
 		"restart": {input.KeyInput{Key: input.KeyEnter}.Binding()},
 	}
-	game, err := castrum.New(
+	game := castrum.New(
 		castrum.WithTitle("Signal Salvage"),
 		castrum.WithBindings(bindings),
 		castrum.WithScenes(),
 	)
-	if err != nil {
-		return nil, nil, err
-	}
 	if err := game.MainCamera().Update(game.World(), func(t *core.Transform) {
 		t.Position = geom.Vector2{X: screenWidth / 2, Y: screenHeight / 2}
 	}); err != nil {
@@ -395,9 +389,6 @@ func makeBriefingScene() scene.Scene {
 
 func makeArenaScene() (scene.Scene, error) {
 	playerCollider, err := triggerCollider(16, playerLayer, coreLayer, droneLayer)
-	if err != nil {
-		return nil, err
-	}
 	coreCollider, err := triggerCollider(14, coreLayer, playerLayer)
 	if err != nil {
 		return nil, err

@@ -68,7 +68,7 @@ func defaultOptions() Options {
 
 // Runner drives a [castrum.Game] with Ebitengine.
 //
-// It implements [castrum.Runner]. Start the game with [castrum.Game.Run].
+// Start the game with [Runner.Run].
 type Runner struct {
 	g       *castrum.Game
 	opts    Options
@@ -79,72 +79,78 @@ type Runner struct {
 	drawErr error
 }
 
-var _ castrum.Runner = (*Runner)(nil)
-
 // AudioSystemName is the name of the game's audio reconciler.
 const AudioSystemName = audio.SystemName
 
-// New creates a Runner for g, applying opts over the defaults. It returns an
-// error for invalid options or if the runner's resources or audio controller
-// cannot be attached.
-//
-// g must come from [castrum.New], which provides the game's [asset.Loader].
-// New registers the [TextureProvider] and [FontProvider] as eager resources
-// and attaches its audio controller to the game.
-func New(g *castrum.Game, opts ...option) (*Runner, error) {
+// New creates a Runner with opts applied over the defaults. It panics for an
+// invalid option and performs no other setup until [Runner.Run].
+func New(opts ...option) *Runner {
 	options := defaultOptions()
 	for _, o := range opts {
 		o.apply(&options)
 	}
 	if err := options.validate(); err != nil {
-		return nil, err
+		panic(err)
 	}
+	return &Runner{opts: options}
+}
 
+// Run creates a Runner with opts and runs g. It is the one-call form of
+// [New] followed by [Runner.Run] and panics like both.
+func Run(g *castrum.Game, opts ...option) {
+	New(opts...).Run(g)
+}
+
+// bind attaches the runner to g before startup: it registers the
+// [TextureProvider] and [FontProvider] as eager resources, publishes the
+// logical size, and attaches the audio controller. g must come from
+// [castrum.New], which provides the game's [asset.Loader].
+func (r *Runner) bind(g *castrum.Game) error {
 	backend, err := g.World().Resource[*audio.Backend]()
 	if err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: resolve audio backend: %w", err)
+		return fmt.Errorf("castrum/ebiten: resolve audio backend: %w", err)
 	}
 	if backend.Controller() != nil {
-		return nil, fmt.Errorf("castrum/ebiten: audio controller already attached")
+		return fmt.Errorf("castrum/ebiten: audio controller already attached")
 	}
 	loader := g.World().MustResource[*asset.Loader]()
 	codecs := g.World().MustResource[*asset.Codecs]()
 	audioCtx := ebitaudio.CurrentContext()
 	if audioCtx == nil {
-		audioCtx = ebitaudio.NewContext(options.SampleRate)
+		audioCtx = ebitaudio.NewContext(r.opts.SampleRate)
 	}
 	controller, err := newAudioProvider(audioCtx, loader, codecs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	provider := newTextureProvider(loader)
 	if err := g.World().ProvideEager(func(*core.World) (*TextureProvider, error) {
 		return provider, nil
 	}); err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: provide texture provider: %w", err)
+		return fmt.Errorf("castrum/ebiten: provide texture provider: %w", err)
 	}
-	g.Context().LogicalWidth = options.Logical.Width
-	g.Context().LogicalHeight = options.Logical.Height
+	g.Context().LogicalWidth = r.opts.Logical.Width
+	g.Context().LogicalHeight = r.opts.Logical.Height
 
 	collector := render.NewCollector(g.World())
 	fonts := newFontProvider(loader)
 	if err := g.World().ProvideEager(func(*core.World) (*FontProvider, error) {
 		return fonts, nil
 	}); err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: provide font provider: %w", err)
+		return fmt.Errorf("castrum/ebiten: provide font provider: %w", err)
 	}
 
-	engineDraw := newEngineDrawFunc(collector, provider, fonts)
-
-	runner := &Runner{g: g, opts: options, last: time.Now(), engine: engineDraw}
-	if options.DebugOverlay {
+	if r.opts.DebugOverlay {
 		overlay := newDebugOverlay(g)
-		runner.AddDraw(overlay.draw)
+		r.AddDraw(overlay.draw)
 	}
 	if err := backend.Attach(controller); err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: attach audio controller: %w", err)
+		return fmt.Errorf("castrum/ebiten: attach audio controller: %w", err)
 	}
-	return runner, nil
+	r.g = g
+	r.engine = newEngineDrawFunc(collector, provider, fonts)
+	r.last = time.Now()
+	return nil
 }
 
 func (o *Options) validate() error {
@@ -166,11 +172,22 @@ func (r *Runner) AddDraw(f DrawFunc) {
 	r.draws = append(r.draws, f)
 }
 
-// Run applies the window settings, starts the game, and blocks in the
-// Ebitengine loop until it quits. A startup error is returned before the
-// window opens.
-func (r *Runner) Run() error {
-	ebiten.SetWindowTitle(r.g.Options().Title)
+// Run binds g, applies the window settings, starts the game, and blocks in
+// the Ebitengine loop until it quits. It panics on a running failure.
+func (r *Runner) Run(g *castrum.Game) {
+	if err := r.run(g); err != nil {
+		panic(err)
+	}
+}
+
+func (r *Runner) run(g *castrum.Game) error {
+	if err := g.BeginRun(); err != nil {
+		return err
+	}
+	if err := r.bind(g); err != nil {
+		return err
+	}
+	ebiten.SetWindowTitle(g.Options().Title)
 	ebiten.SetWindowSize(r.opts.Window.Width, r.opts.Window.Height)
 	mode := ebiten.WindowResizingModeDisabled
 	if r.opts.Resizable {
@@ -181,7 +198,7 @@ func (r *Runner) Run() error {
 	// The core accumulator owns pacing: Ebitengine must not pace Update
 	// itself, or fixed ticks and interpolation alpha break.
 	ebiten.SetTPS(ebiten.SyncWithFPS)
-	if err := r.g.Startup(); err != nil {
+	if err := g.Startup(); err != nil {
 		return err
 	}
 	r.last = time.Now()

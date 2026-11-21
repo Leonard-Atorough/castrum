@@ -26,10 +26,7 @@ func TestWheelZoomRunsOncePerFrame(t *testing.T) {
 		{"paused simulation", 30 * time.Millisecond, true, 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			g, err := castrum.New(castrum.WithFixedTPS(100))
-			if err != nil {
-				t.Fatal(err)
-			}
+			g := castrum.New(castrum.WithFixedTPS(100))
 
 			camera := g.MainCamera()
 			if err := camera.Update(g.World(), func(c *core.Transform) {

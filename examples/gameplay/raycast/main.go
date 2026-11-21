@@ -37,12 +37,9 @@ func main() {
 }
 
 func run() error {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - raycast"),
 	)
-	if err != nil {
-		return err
-	}
 
 	world := g.World()
 	queries := world.MustResource[*collision.Queries]()
@@ -140,11 +137,9 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-	return g.Run(runner)
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
+	runner.Run(g)
+	return nil
 }
 
 func addTarget(

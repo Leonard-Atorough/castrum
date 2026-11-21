@@ -76,13 +76,10 @@ func tankBindings() input.Bindings {
 }
 
 func run() error {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - input"),
 		castrum.WithBindings(tankBindings()),
 	)
-	if err != nil {
-		return err
-	}
 
 	// The engine camera frames the world; a follow system moves it.
 	camera := g.MainCamera()
@@ -161,14 +158,12 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
 
 	// g.Run is the canonical entry: the guard against a second run
 	// lives on the game, not the runner.
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }
 
 func cameraSystem(camera core.Entity, body core.Entity) core.System {

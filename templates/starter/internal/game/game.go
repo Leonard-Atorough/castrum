@@ -26,13 +26,10 @@ func New() (*castrum.Game, error) {
 		},
 	}
 
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("My Game"),
 		castrum.WithBindings(bindings),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("create game: %w", err)
-	}
 
 	player, err := g.World().NewEntity(
 		core.Transform{},

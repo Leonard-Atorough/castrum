@@ -86,13 +86,10 @@ func run() error {
 		"toggle_combat_group": {input.KeyInput{Key: input.KeyP}.Binding()},
 	}
 
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - timers"),
 		castrum.WithBindings(bindings),
 	)
-	if err != nil {
-		return err
-	}
 
 	// The groups resource is engine wiring: castrum.New provides it
 	// before the loop starts, so MustResource is the right read.
@@ -249,14 +246,12 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
 
 	// g.Run is the canonical entry: the guard against a second run
 	// lives on the game, not the runner.
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }
 
 // spawnBar places one visible bar with its own timer entity: the

@@ -25,13 +25,8 @@ import (
 
 func TestNewInstallsAudioCodecsOnSharedCodecs(t *testing.T) {
 	codecs := asset.NewCodecs()
-	game, err := castrum.New(castrum.WithAssetCodecs(codecs))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := New(game); err != nil {
-		t.Fatal(err)
-	}
+	game := castrum.New(castrum.WithAssetCodecs(codecs))
+	mustRunner(t, game)
 	for _, format := range []asset.Format{asset.FormatMP3, asset.FormatWAV, asset.FormatOGG} {
 		if !codecs.HasDecoder[asset.AudioData](format) {
 			t.Errorf("runner did not install a decoder for %q on the shared codecs", format)
@@ -54,13 +49,8 @@ func TestNewKeepsUserAudioDecoder(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	game, err := castrum.New(castrum.WithAssetCodecs(codecs))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := New(game); err != nil {
-		t.Fatalf("New with a user WAV decoder: %v", err)
-	}
+	game := castrum.New(castrum.WithAssetCodecs(codecs))
+	mustRunner(t, game)
 	loader := game.World().MustResource[*asset.Loader]()
 	value, err := loader.LoadReader[asset.AudioData](bytes.NewReader(nil), asset.FormatWAV)
 	if err != nil || value.SampleRate != 123 {
@@ -441,13 +431,8 @@ func TestRunnerAudioEntityRemoval(t *testing.T) {
 		t.Fatal(err)
 	}
 	files := &closeTrackingFS{fsys: os.DirFS(dir)}
-	game, err := castrum.New(castrum.WithFilesystem(files))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := New(game); err != nil {
-		t.Fatal(err)
-	}
+	game := castrum.New(castrum.WithFilesystem(files))
+	mustRunner(t, game)
 	provider, ok := game.World().MustResource[*audio.Backend]().Controller().(*audioProvider)
 	if !ok {
 		t.Fatal("runner did not attach its audio provider")
@@ -506,13 +491,8 @@ func TestRunnerAudioCompletionReclaimsOneShot(t *testing.T) {
 		t.Fatal(err)
 	}
 	files := &closeTrackingFS{fsys: os.DirFS(dir)}
-	game, err := castrum.New(castrum.WithFilesystem(files))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := New(game); err != nil {
-		t.Fatal(err)
-	}
+	game := castrum.New(castrum.WithFilesystem(files))
+	mustRunner(t, game)
 	world := game.World()
 	provider, ok := world.MustResource[*audio.Backend]().Controller().(*audioProvider)
 	if !ok {

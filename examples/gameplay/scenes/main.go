@@ -93,7 +93,7 @@ type demo struct {
 }
 
 func newGame() (*demo, error) {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("Scenes"),
 		castrum.WithScenes(),
 		castrum.WithBindings(input.Bindings{
@@ -101,9 +101,6 @@ func newGame() (*demo, error) {
 			"scanner": []input.Input{input.KeyInput{Key: input.KeyS}.Binding()},
 		}),
 	)
-	if err != nil {
-		return nil, err
-	}
 	if err := g.MainCamera().Update(g.World(), func(t *core.Transform) {
 		t.Position = geom.Vector2{X: 640, Y: 360}
 	}); err != nil {
@@ -135,11 +132,12 @@ func newGame() (*demo, error) {
 	}
 
 	// Load queues the first room for the scene startup system.
-	d.room, err = d.director.Load(roomScene, hangar,
+	room, err := d.director.Load(roomScene, hangar,
 		scene.WithName(hangar.name), scene.WithHooks(d.roomHooks(hangar.name)))
 	if err != nil {
 		return nil, err
 	}
+	d.room = room
 	return d, nil
 }
 
@@ -225,11 +223,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	runner, err := ebitrun.New(d.game, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-	return d.game.Run(runner)
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
+	runner.Run(d.game)
+	return nil
 }
 
 func main() {
