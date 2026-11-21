@@ -13,26 +13,14 @@ import (
 // The option is explicit and off by default: the runner registers no
 // draw callback without it and one with it.
 func TestDebugOverlayOption(t *testing.T) {
-	plain, err := castrum.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	runner, err := New(plain)
-	if err != nil {
-		t.Fatal(err)
-	}
+	plain := castrum.New()
+	runner := mustRunner(t, plain)
 	if len(runner.draws) != 0 {
 		t.Errorf("draws = %d, want none by default", len(runner.draws))
 	}
 
-	g, err := castrum.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	runner, err = New(g, WithDebugOverlay())
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := castrum.New()
+	runner = mustRunner(t, g, WithDebugOverlay())
 	if len(runner.draws) != 1 {
 		t.Errorf("draws = %d, want the overlay's callback", len(runner.draws))
 	}
@@ -41,10 +29,7 @@ func TestDebugOverlayOption(t *testing.T) {
 // The status line shows pause and scale only when they depart from the
 // defaults; the rates always render.
 func TestDebugOverlayStatusShowsTimeControl(t *testing.T) {
-	g, err := castrum.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := castrum.New()
 	o := newDebugOverlay(g)
 
 	line := o.status()
@@ -119,10 +104,7 @@ func almost(got, want, tolerance float64) bool {
 }
 
 func TestDebugOverlayStatusRespectsPanelToggles(t *testing.T) {
-	g, err := castrum.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := castrum.New()
 	o := newDebugOverlay(g)
 	panel := g.World().MustResource[*debug.Panel]()
 

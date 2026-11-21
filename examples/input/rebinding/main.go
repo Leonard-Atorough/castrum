@@ -27,7 +27,7 @@ func newGame(directory *asset.Directory) (*castrum.Game, *editor, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	g, err := castrum.New(castrum.WithTitle("castrum - persistent rebinding"), castrum.WithInputPreferences(value))
+	g := castrum.New(castrum.WithTitle("castrum - persistent rebinding"), castrum.WithInputPreferences(value))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -85,19 +85,14 @@ func run(root string) (err error) {
 		return err
 	}
 	directory, err := asset.NewDirectory(root)
-	if err != nil {
-		return err
-	}
 	defer func() { err = errors.Join(err, directory.Close()) }()
 	g, _, err := newGame(directory)
 	if err != nil {
 		return err
 	}
-	runner, err := ebitrun.New(g, ebitrun.WithWindowSize(1120, 400), ebitrun.WithLogicalSize(1120, 400))
-	if err != nil {
-		return err
-	}
-	return g.Run(runner)
+	runner := ebitrun.New(ebitrun.WithWindowSize(1120, 400), ebitrun.WithLogicalSize(1120, 400))
+	runner.Run(g)
+	return nil
 }
 
 func main() {

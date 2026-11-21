@@ -139,14 +139,11 @@ func run() error {
 		},
 	}
 
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("your first game"),
 		castrum.WithBindings(bindings),
 		castrum.WithFilesystem(files),
 	)
-	if err != nil {
-		return err
-	}
 
 	// Add the tutorial's looping background music as a streamed source.
 	music, err := audio.NewPlayer(audio.Track(AssetMusic), audio.Settings{
@@ -254,10 +251,7 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New()
 	if _, err := g.World().MustResource[*asset.Loader]().Load[asset.AudioData](AssetSFX); err != nil {
 		return err
 	}
@@ -314,7 +308,8 @@ func run() error {
 		return err
 	}
 
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }
 
 // over reports whether the run has reached a win or loss state.

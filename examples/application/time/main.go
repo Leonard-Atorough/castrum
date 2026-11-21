@@ -76,13 +76,10 @@ func timeBindings() input.Bindings {
 }
 
 func run() error {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum — time control"),
 		castrum.WithBindings(timeBindings()),
 	)
-	if err != nil {
-		return err
-	}
 	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 		return err
 	}
@@ -151,12 +148,10 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
 
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }
 
 func orbitSystem(inner, outer core.Entity) core.System {

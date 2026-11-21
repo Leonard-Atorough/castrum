@@ -85,13 +85,10 @@ func run() error {
 		},
 	}
 
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum — camera"),
 		castrum.WithBindings(bindings),
 	)
-	if err != nil {
-		return err
-	}
 	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 		return err
 	}
@@ -217,10 +214,8 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g)
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New()
 
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }

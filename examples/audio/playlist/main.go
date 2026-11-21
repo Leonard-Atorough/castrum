@@ -49,13 +49,10 @@ func (d *demonstration) controls(ctx *core.Context) error {
 }
 
 func newGame() (*castrum.Game, *demonstration, error) {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - playlist controls"),
 		castrum.WithFilesystem(audioassets.Files),
 	)
-	if err != nil {
-		return nil, nil, err
-	}
 	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
 		return nil, nil, err
 	}
@@ -135,11 +132,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	runner, err := ebitrun.New(g, ebitrun.WithWindowSize(1120, 400), ebitrun.WithLogicalSize(1120, 400))
-	if err != nil {
-		return err
-	}
-	return g.Run(runner)
+	runner := ebitrun.New(ebitrun.WithWindowSize(1120, 400), ebitrun.WithLogicalSize(1120, 400))
+	runner.Run(g)
+	return nil
 }
 
 func main() {

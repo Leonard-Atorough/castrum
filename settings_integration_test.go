@@ -13,10 +13,7 @@ func TestGameSettingsResourcesAndConsumers(t *testing.T) {
 	type accessibility struct{ TextSize int }
 	type gameplay struct{ Hints bool }
 
-	game, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	game := New()
 	prefs, err := settings.New(accessibility{TextSize: 16}, settings.Policy[accessibility]{})
 	if err != nil {
 		t.Fatal(err)

@@ -16,10 +16,7 @@ func TestGameInputPreferenceCodecDefaults(t *testing.T) {
 		"controls.json": {Data: []byte(`{"bindings":{"jump":[{"pad_button":{"button":0}}]},"deadzone":0.25}`)},
 	}
 	for _, codecs := range []*asset.Codecs{nil, NewAssetCodecs()} {
-		game, err := New(WithFilesystem(files), WithAssetCodecs(codecs))
-		if err != nil {
-			t.Fatal(err)
-		}
+		game := New(WithFilesystem(files), WithAssetCodecs(codecs))
 		loader := game.World().MustResource[*asset.Loader]()
 		controls, err := loader.Load[input.Preferences]("controls.json")
 		if err != nil {
@@ -81,10 +78,7 @@ func TestInputPreferencesPersistenceAndStartup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	game, err := New(WithInputPreferences(value))
-	if err != nil {
-		t.Fatal(err)
-	}
+	game := New(WithInputPreferences(value))
 	actions := game.Context().Actions
 	snapshot := &input.Snapshot{}
 	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
@@ -105,16 +99,13 @@ func TestInputPreferencesStartupValidationAndOptionOrder(t *testing.T) {
 		{Bindings: input.Bindings{}, Deadzone: -0.1},
 		{Bindings: input.Bindings{}, Deadzone: 1.1},
 	} {
-		if game, err := New(WithInputPreferences(invalid)); err == nil || game != nil {
+		if game, err := newGame(WithInputPreferences(invalid)); err == nil || game != nil {
 			t.Fatal("invalid startup preferences accepted")
 		}
 	}
 	p := input.Preferences{Bindings: samplePreferenceBindings(), Deadzone: 0.3}
 	replacement := input.Bindings{"move": {input.PadAxisInput{Axis: input.PadLeftStickX}.Binding()}}
-	game, err := New(WithInputPreferences(p), WithBindings(replacement))
-	if err != nil {
-		t.Fatal(err)
-	}
+	game := New(WithInputPreferences(p), WithBindings(replacement))
 	snapshot := &input.Snapshot{}
 	snapshot.Pads[0].Connected = true
 	snapshot.Pads[0].Axes[input.PadLeftStickX] = 0.2
@@ -122,8 +113,8 @@ func TestInputPreferencesStartupValidationAndOptionOrder(t *testing.T) {
 	if !reflect.DeepEqual(game.Context().Actions.Bindings(), replacement) || game.Context().Actions.Axis("move") != 0 {
 		t.Fatal("later bindings did not preserve the configured deadzone")
 	}
-	game, err = New(WithInputPreferences(p), WithBindings(nil))
-	if err != nil || game.Context().Actions != nil {
+	game = New(WithInputPreferences(p), WithBindings(nil))
+	if game.Context().Actions != nil {
 		t.Fatal("later nil bindings did not disable the action map")
 	}
 }
