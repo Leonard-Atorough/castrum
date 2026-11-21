@@ -114,10 +114,6 @@ func run() error {
 		return err
 	}
 
-	runner := ebitrun.New()
-
-	// g.Run is the canonical entry: the guard against a second run
-	// lives on the game, not the runner.
-	runner.Run(g)
+	ebitrun.New().Run(g)
 	return nil
 }
