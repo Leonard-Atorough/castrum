@@ -13,10 +13,7 @@ import (
 )
 
 func TestTimeControlsPauseScaleAndResumeOrbit(t *testing.T) {
-	g, err := castrum.New(castrum.WithFixedTPS(100), castrum.WithBindings(timeBindings()))
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := castrum.New(castrum.WithFixedTPS(100), castrum.WithBindings(timeBindings()))
 	inner, err := g.World().NewEntity(core.Transform{})
 	if err != nil {
 		t.Fatal(err)
@@ -98,10 +95,7 @@ func TestTimeScaleControlsClampWhilePaused(t *testing.T) {
 		{input.KeyArrowDown, 0.3, 0.25},
 		{input.KeyS, 1, 0.7},
 	} {
-		g, err := castrum.New(castrum.WithBindings(timeBindings()))
-		if err != nil {
-			t.Fatal(err)
-		}
+		g := castrum.New(castrum.WithBindings(timeBindings()))
 		state, err := g.World().NewEntity(spr.Text{Asset: "go.ttf", TextSize: 28})
 		if err != nil {
 			t.Fatal(err)

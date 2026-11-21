@@ -11,10 +11,7 @@ import (
 )
 
 func run(out io.Writer) error {
-	g, err := castrum.New()
-	if err != nil {
-		return err
-	}
+	g := castrum.New()
 	var sampled, applied int
 	if err := g.AddSystem(core.PhaseFrame, "apply", core.SystemFunc(func(*core.Context) error {
 		applied = sampled * 2

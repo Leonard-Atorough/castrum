@@ -15,10 +15,7 @@ import (
 )
 
 func TestSetGroupEnabledAcrossPhasesAndRegistrations(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	g := New()
 	var fixed, frame, late, other, ungrouped int
 	if err := g.AddSystem(core.PhaseFixed, "first fixed", core.SystemFunc(func(*core.Context) error {
 		fixed++
@@ -80,10 +77,7 @@ func TestSetGroupEnabledAcrossPhasesAndRegistrations(t *testing.T) {
 }
 
 func TestSetGroupEnabledRejectsUnknownGroups(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := New()
 	for _, name := range []string{"", "missing"} {
 		if err := g.SetGroupEnabled(name, false); err == nil {
 			t.Errorf("SetGroupEnabled(%q) accepted an invalid group", name)
@@ -105,10 +99,7 @@ func TestSetGroupEnabledRejectsUnknownGroups(t *testing.T) {
 }
 
 func TestSetGroupEnabledAffectsLaterSystemsInCurrentPhase(t *testing.T) {
-	g, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := New()
 	var updates int
 	if err := g.AddSystem(core.PhaseFrame, "disable", core.SystemFunc(func(*core.Context) error {
 		return g.SetGroupEnabled("mission", false)
@@ -369,10 +360,7 @@ func TestAdvanceKeepsWorldChangeTickInStepWithSimTick(t *testing.T) {
 
 func newTestGame(t *testing.T, opts ...option) *Game {
 	t.Helper()
-	g, err := New(opts...)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	g := New(opts...)
 	return g
 }
 

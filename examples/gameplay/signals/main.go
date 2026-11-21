@@ -101,12 +101,9 @@ func main() {
 }
 
 func run() error {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - signals"),
 	)
-	if err != nil {
-		return err
-	}
 
 	// The signal hub and debug panel are engine wiring, like the timer
 	// groups: MustResource is the right read for resources castrum.New
@@ -275,12 +272,10 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New(ebitrun.WithDebugOverlay())
 
-	return g.Run(runner)
+	runner.Run(g)
+	return nil
 }
 
 // sequence holds the launch sequence's signal-driven state.

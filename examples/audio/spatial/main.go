@@ -36,14 +36,11 @@ func run() error {
 		},
 	}
 
-	game, err := castrum.New(
+	game := castrum.New(
 		castrum.WithTitle("Spatial Audio"),
 		castrum.WithFilesystem(audioassets.Files),
 		castrum.WithBindings(bindings),
 	)
-	if err != nil {
-		return err
-	}
 
 	playerStart := geom.Vector2{X: -200}
 	player, err := game.World().NewEntity(
@@ -85,12 +82,10 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(game)
-	if err != nil {
-		return err
-	}
+	runner := ebitrun.New()
 
-	return game.Run(runner)
+	runner.Run(game)
+	return nil
 }
 
 func movementSystem(l *audio.Listener, p core.Entity) core.System {

@@ -15,10 +15,7 @@ import (
 func BenchmarkAdvanceEmptySystems(b *testing.B) {
 	for _, n := range []int{1, 10, 50} {
 		b.Run(intName(n), func(b *testing.B) {
-			g, err := castrum.New()
-			if err != nil {
-				b.Fatal(err)
-			}
+			g := castrum.New()
 			empty := core.SystemFunc(func(*core.Context) error { return nil })
 			for i := range n {
 				if err := g.AddSystem(core.PhaseFixed, "bench.empty."+intName(i), empty); err != nil {
@@ -45,10 +42,7 @@ func BenchmarkAdvanceEmptySystems(b *testing.B) {
 func BenchmarkAdvanceSimpleSystem(b *testing.B) {
 	for _, n := range benchSizes {
 		b.Run(intName(n), func(b *testing.B) {
-			g, err := castrum.New()
-			if err != nil {
-				b.Fatal(err)
-			}
+			g := castrum.New()
 			world := g.World()
 			for range n {
 				if _, err := world.NewEntity(core.Transform{Position: geom.Vector2{X: 1, Y: 1}}); err != nil {
@@ -91,10 +85,7 @@ func BenchmarkAdvanceSimpleSystem(b *testing.B) {
 // to games that use none of them. This is the acceptance gate for always-on
 // registration: the cost must stay negligible.
 func BenchmarkAdvanceIdleDeclarationDriven(b *testing.B) {
-	g, err := castrum.New()
-	if err != nil {
-		b.Fatal(err)
-	}
+	g := castrum.New()
 	if err := g.Startup(); err != nil {
 		b.Fatal(err)
 	}

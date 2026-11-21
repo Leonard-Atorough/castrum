@@ -16,10 +16,7 @@ import (
 func TestGameAudioPreferenceCodecDefaults(t *testing.T) {
 	files := fstest.MapFS{"audio.json": {Data: []byte(`{"master":0.5,"music":0.25,"sfx":0}`)}}
 	for _, codecs := range []*asset.Codecs{nil, NewAssetCodecs()} {
-		game, err := New(WithFilesystem(files), WithAssetCodecs(codecs))
-		if err != nil {
-			t.Fatal(err)
-		}
+		game := New(WithFilesystem(files), WithAssetCodecs(codecs))
 		levels, err := game.World().MustResource[*asset.Loader]().Load[audio.Preferences]("audio.json")
 		if err != nil || levels != (audio.Preferences{Master: 0.5, Music: 0.25}) {
 			t.Fatalf("audio preferences=%+v, error=%v", levels, err)
@@ -42,24 +39,15 @@ func TestAudioPreferencesPersistence(t *testing.T) {
 func TestPreferenceCodecOverridesReachBuiltGames(t *testing.T) {
 	files := fstest.MapFS{"audio.json": {Data: []byte(`{"master":0.5,"music":0.25,"sfx":0}`)}}
 	codecs := NewAssetCodecs()
-	first, err := New(WithFilesystem(files), WithAssetCodecs(codecs))
-	if err != nil {
-		t.Fatal(err)
-	}
+	first := New(WithFilesystem(files), WithAssetCodecs(codecs))
 	override := audio.Preferences{Master: 0.75, Music: 0.5, SFX: 0.25}
 	if err := codecs.SetDecoder(asset.FormatJSON, func(io.Reader) (audio.Preferences, error) {
 		return override, nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	second, err := New(WithFilesystem(files), WithAssetCodecs(codecs))
-	if err != nil {
-		t.Fatal(err)
-	}
-	fresh, err := New(WithFilesystem(files))
-	if err != nil {
-		t.Fatal(err)
-	}
+	second := New(WithFilesystem(files), WithAssetCodecs(codecs))
+	fresh := New(WithFilesystem(files))
 	for _, tt := range []struct {
 		game *Game
 		want audio.Preferences
@@ -73,10 +61,7 @@ func TestPreferenceCodecOverridesReachBuiltGames(t *testing.T) {
 			t.Fatalf("preferences=%+v, error=%v; want %+v", got, err, tt.want)
 		}
 	}
-	bare, err := New(WithFilesystem(files), WithAssetCodecs(&asset.Codecs{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	bare := New(WithFilesystem(files), WithAssetCodecs(&asset.Codecs{}))
 	if _, err := bare.World().MustResource[*asset.Loader]().Load[audio.Preferences]("audio.json"); err == nil {
 		t.Fatal("explicit empty codecs were replaced by engine defaults")
 	}

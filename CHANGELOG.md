@@ -68,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document the unreleased playlist API (#144)
 
 ### Fixed
+- **breaking:** Improve engine initialization by switching from errors to panics and reducing ceremony between game and runner (#261)
 - Clean up some godoc to read better and less like placeholders (#259)
 - Migrate fixtures off the removed sprite shape fields (#256)
 - Define Style.Color as straight alpha and restore its tints (#246)
@@ -91,7 +92,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Internal
 - Pin the File format's JSON shape (#258)
 - Pin entity-vs-query write validation matrix (#231)
-- Implement guide skill (#200)
 - Restore supported development commands (#170)
 
 ## [0.3.0] - 2026-10-30
@@ -179,8 +179,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Refactor animation to provide completion state accessors and remove unneeded methods (#57)
-
-### Internal
-- Add docs for contributors, update readme and fix deployments to release environment (#73)
 
 

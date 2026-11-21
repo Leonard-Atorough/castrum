@@ -13,10 +13,7 @@ import (
 
 func collisionGame(t *testing.T, stats playerStats) (*castrum.Game, core.Entity) {
 	t.Helper()
-	g, err := castrum.New(castrum.WithFixedTPS(100))
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := castrum.New(castrum.WithFixedTPS(100))
 	collider, err := collision.NewCollider(collision.Circle{Radius: playerRadius})
 	if err != nil {
 		t.Fatal(err)

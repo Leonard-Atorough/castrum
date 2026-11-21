@@ -159,7 +159,8 @@ func TestRunnerAudioIsProtectedAfterFrameSystems(t *testing.T) {
 func TestRunnerRejectsDuplicateAudioController(t *testing.T) {
 	g := mustGame(t)
 	mustRunner(t, g)
-	if _, err := New(g); err == nil {
+	r := New()
+	if err := r.bind(g); err == nil {
 		t.Fatal("runner accepted a duplicate audio controller")
 	}
 }
@@ -262,23 +263,19 @@ func TestDisplayPreferences(t *testing.T) {
 
 func mustGame(t *testing.T) *castrum.Game {
 	t.Helper()
-	g, err := castrum.New()
-	if err != nil {
-		t.Fatalf("castrum.New: %v", err)
-	}
-	return g
+	return castrum.New()
 }
 
 func mustRunner(t *testing.T, g *castrum.Game, opts ...option) *Runner {
 	t.Helper()
-	r, err := New(g, opts...)
-	if err != nil {
-		t.Fatalf("New runner: %v", err)
+	r := New(opts...)
+	if err := r.bind(g); err != nil {
+		t.Fatalf("bind runner: %v", err)
 	}
 	return r
 }
 
-func TestInvalidRunnerOptionsError(t *testing.T) {
+func TestInvalidRunnerOptionsPanic(t *testing.T) {
 	cases := []struct {
 		name string
 		opts []option
@@ -292,13 +289,12 @@ func TestInvalidRunnerOptionsError(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r, err := New(mustGame(t), c.opts...)
-			if err == nil {
-				t.Errorf("%s: expected an error", c.name)
-			}
-			if r != nil {
-				t.Errorf("%s: New must not return a half-built runner", c.name)
-			}
+			defer func() {
+				if recover() == nil {
+					t.Errorf("%s: expected a panic", c.name)
+				}
+			}()
+			New(c.opts...)
 		})
 	}
 }
@@ -328,10 +324,7 @@ func TestUpdateAdvancesGame(t *testing.T) {
 }
 
 func TestDrawSetsAlphaAndDefersErrors(t *testing.T) {
-	g, err := castrum.New(castrum.WithFixedTPS(4))
-	if err != nil {
-		t.Fatalf("castrum.New: %v", err)
-	}
+	g := castrum.New(castrum.WithFixedTPS(4))
 	if err := g.Advance(100 * time.Millisecond); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
@@ -353,7 +346,7 @@ func TestDrawSetsAlphaAndDefersErrors(t *testing.T) {
 	}
 
 	// Draw cannot return errors; the stored one surfaces from Update.
-	err = r.Update()
+	err := r.Update()
 	if !errors.Is(err, boom) {
 		t.Errorf("Update after draw error = %v, want wrapped %v", err, boom)
 	}

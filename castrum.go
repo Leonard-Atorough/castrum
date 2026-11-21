@@ -22,7 +22,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/signal"
 )
 
-// Game owns a game's world, configuration, and update schedules. A [Runner]
+// Game owns a game's world, configuration, and update schedules. A runner
 // supplies the platform loop, window, draw surface, and input.
 type Game struct {
 	opts        Options
@@ -43,12 +43,20 @@ type Game struct {
 	real *gametime.Real
 }
 
-// New creates a [Game] with default options overridden by opts. It returns
-// an error if the resulting configuration is invalid.
+// New creates a [Game] with default options overridden by opts. It panics
+// if the resulting configuration is invalid.
 //
 // The asset loader resolves engine-shipped assets under "builtin/" alongside
 // the configured filesystem.
-func New(opts ...option) (*Game, error) {
+func New(opts ...option) *Game {
+	g, err := newGame(opts...)
+	if err != nil {
+		panic(err)
+	}
+	return g
+}
+
+func newGame(opts ...option) (*Game, error) {
 	options := defaultOptions()
 	for _, o := range opts {
 		o.apply(&options)
@@ -582,20 +590,15 @@ func (g *Game) Quitting() bool {
 	return g.quit.Load()
 }
 
-// Runner drives a [Game] by owning the platform loop, draw surface, and input
-// and calling the game's loop hooks.
-type Runner interface {
-	// Run blocks until the platform loop exits and returns any failure.
-	Run() error
-}
-
-// Run hands control to r. It may be called once; a second call returns an
-// error.
-func (g *Game) Run(r Runner) error {
+// BeginRun prepares the game for running. Runners call it before entering
+// the platform loop.
+//
+// It errors if called more than once.
+func (g *Game) BeginRun() error {
 	if !g.started.CompareAndSwap(false, true) {
 		return errors.New("castrum: Run called twice")
 	}
-	return r.Run()
+	return nil
 }
 
 func (g *Game) run(s core.Phase) error {
