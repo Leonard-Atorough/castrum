@@ -40,9 +40,7 @@ func TestDebugOverlayStatusShowsTimeControl(t *testing.T) {
 		t.Errorf("status %q, want no time-control fields at defaults", line)
 	}
 
-	if err := g.SetTimeScale(0.5); err != nil {
-		t.Fatal(err)
-	}
+	g.SetTimeScale(0.5)
 	if line = o.status(); !strings.Contains(line, "scale 0.5") {
 		t.Errorf("status %q, want the half-speed scale", line)
 	}
