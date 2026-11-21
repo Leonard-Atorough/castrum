@@ -19,27 +19,8 @@ func (g *Game) wireInput(bindings input.Bindings, deadzone float64) error {
 		return fmt.Errorf("castrum: provide action map: %w", err)
 	}
 
-	if err := g.addEngineFirst(core.PhasePreFrame, input.FrameSystemName, newInputUpdateSystem(am)); err != nil {
+	if err := g.addEngineFirst(core.PhasePreFrame, input.FrameSystemName, input.NewFrameSystem(am)); err != nil {
 		return err
 	}
-
-	return g.addEngineFirst(core.PhasePreFixed, input.TickSystemName, newInputTickSystem(am))
-}
-
-// Capturing the provided map avoids per-frame resource resolution.
-// New registers this before user pre-frame systems.
-func newInputUpdateSystem(am *input.ActionMap) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
-		snapshot, _ := ctx.World.Resource[*input.Snapshot]()
-		am.Update(snapshot, ctx.DeltaTime.Seconds())
-		return nil
-	})
-}
-
-// New registers this before user pre-fixed systems.
-func newInputTickSystem(am *input.ActionMap) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
-		am.Tick()
-		return nil
-	})
+	return g.addEngineFirst(core.PhasePreFixed, input.TickSystemName, input.NewTickSystem(am))
 }
