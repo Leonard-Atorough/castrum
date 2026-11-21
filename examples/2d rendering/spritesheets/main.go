@@ -73,22 +73,15 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-
-	return g.Run(runner)
+	ebitrun.New(ebitrun.WithDebugOverlay()).Run(g)
+	return nil
 }
 
 func newGame() (*castrum.Game, error) {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - spritesheets"),
 		castrum.WithFilesystem(files),
 	)
-	if err != nil {
-		return nil, err
-	}
 
 	// Setup-time validation: resolve the document, check every region
 	// against the decoded texture, and confirm the regions named below.

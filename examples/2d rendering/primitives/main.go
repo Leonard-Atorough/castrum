@@ -47,19 +47,12 @@ func run() error {
 		return err
 	}
 
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-
-	return g.Run(runner)
+	ebitrun.New(ebitrun.WithDebugOverlay()).Run(g)
+	return nil
 }
 
 func newGame() (*castrum.Game, error) {
-	g, err := castrum.New(castrum.WithTitle("castrum - primitives"))
-	if err != nil {
-		return nil, err
-	}
+	g := castrum.New(castrum.WithTitle("castrum - primitives"))
 
 	camera := g.MainCamera()
 	if err := camera.Update(g.World(), func(t *core.Transform) {
