@@ -86,7 +86,7 @@ func run() error {
 }
 
 func newGame() (*castrum.Game, error) {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - animation"),
 		castrum.WithFilesystem(files),
 		castrum.WithBindings(input.Bindings{

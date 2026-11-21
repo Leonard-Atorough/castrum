@@ -62,23 +62,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
-
-	runner, err := ebitrun.New(g, ebitrun.WithDebugOverlay())
-	if err != nil {
-		return err
-	}
-
-	return g.Run(runner)
+	ebitrun.New(ebitrun.WithDebugOverlay()).Run(g)
+	return nil
 }
 
 func newGame() (*castrum.Game, error) {
-	g, err := castrum.New(
+	g := castrum.New(
 		castrum.WithTitle("castrum - textures"),
 		castrum.WithFilesystem(files),
 	)
-	if err != nil {
-		return nil, err
-	}
 
 	// Preload at setup: a missing or undecodable texture fails here, at
 	// launch, rather than surfacing as a first-frame collect error.
