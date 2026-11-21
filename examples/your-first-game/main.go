@@ -345,6 +345,7 @@ func moveSystem(hull, stats core.Entity) core.System {
 
 func turretSystem(turret, hull core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		view, err := ctx.World.Resource[*render.CameraView]()
 		if errors.Is(err, core.ErrResourceNotRegistered) {
@@ -355,7 +356,7 @@ func turretSystem(turret, hull core.Entity) core.System {
 			return err
 		}
 
-		cursor := view.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		cursor := view.ScreenToWorld(current.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
 		aim := cursor.Sub(hullTransform.Position)
 
 		return turret.Update(ctx.World, func(t *core.Transform) {

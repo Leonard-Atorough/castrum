@@ -17,6 +17,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/gametime"
+	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
@@ -79,6 +80,14 @@ func newGame(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide simulation time: %w", err)
 	}
 	g.sim = sim
+
+	// The runner overwrites the snapshot resource before each Advance. The
+	// zero value reads as no input until the first poll.
+	if err := g.world.Provide(func(*core.World) (*input.Snapshot, error) {
+		return &input.Snapshot{}, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide input snapshot: %w", err)
+	}
 
 	real := gametime.NewReal(options.MaxFrameTime)
 	if err := g.world.ProvideEager(func(*core.World) (*gametime.Real, error) {

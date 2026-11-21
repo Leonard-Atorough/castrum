@@ -30,7 +30,8 @@ func (g *Game) wireInput(bindings input.Bindings, deadzone float64) error {
 // New registers this before user pre-frame systems.
 func newInputUpdateSystem(am *input.ActionMap) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		am.Update(ctx.Input, ctx.DeltaTime.Seconds())
+		snapshot, _ := ctx.World.Resource[*input.Snapshot]()
+		am.Update(snapshot, ctx.DeltaTime.Seconds())
 		return nil
 	})
 }

@@ -44,7 +44,8 @@ func TestDraftCancelConfirmAndRestore(t *testing.T) {
 		t.Helper()
 		snapshot := &input.Snapshot{}
 		snapshot.Keys[key] = input.State{Pressed: true, Held: true}
-		g.Context().Input = snapshot
+		current, _ := g.World().Resource[*input.Snapshot]()
+		*current = *snapshot
 		if err := g.Advance(time.Millisecond); err != nil {
 			t.Fatal(err)
 		}
@@ -142,8 +143,9 @@ func TestRebindingPreservesRestoredDeadzoneAndOtherActions(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, key := range []input.Key{input.KeyF2, input.KeyJ, input.KeyEnter} {
-		g.Context().Input = &input.Snapshot{}
-		g.Context().Input.Keys[key] = input.State{Pressed: true, Held: true}
+		current, _ := g.World().Resource[*input.Snapshot]()
+		*current = input.Snapshot{}
+		current.Keys[key] = input.State{Pressed: true, Held: true}
 		if err := g.Advance(time.Millisecond); err != nil {
 			t.Fatal(err)
 		}
@@ -181,8 +183,9 @@ func TestSaveFailureIsReturnedAfterExplicitApplication(t *testing.T) {
 	value.Bindings["ping"] = []input.Input{input.KeyInput{Key: input.KeyJ}.Binding()}
 	e.draft, e.candidate, e.editing = value, input.KeyJ, true
 	ctx := g.Context()
-	ctx.Input = &input.Snapshot{}
-	ctx.Input.Keys[input.KeyEnter].Pressed = true
+	current, _ := g.World().Resource[*input.Snapshot]()
+	*current = input.Snapshot{}
+	current.Keys[input.KeyEnter].Pressed = true
 	if err := e.update(ctx); err == nil || !strings.Contains(err.Error(), "live controls changed but saving failed") {
 		t.Fatalf("save failure=%v", err)
 	}

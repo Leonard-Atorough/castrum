@@ -21,7 +21,8 @@ func TestQueuedTransitionsHooksAndRestart(t *testing.T) {
 		t.Helper()
 		snapshot := &input.Snapshot{}
 		snapshot.Keys[key] = input.State{Pressed: true, Held: true}
-		g.Context().Input = snapshot
+		current, _ := g.World().Resource[*input.Snapshot]()
+		*current = *snapshot
 		if err := g.Advance(time.Millisecond); err != nil {
 			t.Fatal(err)
 		}

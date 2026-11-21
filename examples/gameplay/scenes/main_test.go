@@ -118,7 +118,8 @@ func advance(t *testing.T, g *castrum.Game, keys ...input.Key) {
 	for _, key := range keys {
 		snapshot.Keys[key] = input.State{Pressed: true, Held: true}
 	}
-	g.Context().Input = snapshot
+	current, _ := g.World().Resource[*input.Snapshot]()
+	*current = *snapshot
 	if err := g.Advance(20 * time.Millisecond); err != nil {
 		t.Fatal(err)
 	}

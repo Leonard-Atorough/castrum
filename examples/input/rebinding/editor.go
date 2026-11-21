@@ -54,9 +54,10 @@ func restore(directory *asset.Directory) (*editor, error) {
 }
 
 func (e *editor) update(ctx *core.Context) error {
+	current, _ := ctx.World.Resource[*input.Snapshot]()
 	actions, _ := ctx.World.Resource[*input.ActionMap]()
 	if !e.editing {
-		if ctx.Input.KeyPressed(input.KeyF2) {
+		if current.KeyPressed(input.KeyF2) {
 			value, err := e.prefs.Value()
 			if err != nil {
 				return err
@@ -68,12 +69,12 @@ func (e *editor) update(ctx *core.Context) error {
 		}
 		return nil
 	}
-	if ctx.Input.KeyPressed(input.KeyEscape) {
+	if current.KeyPressed(input.KeyEscape) {
 		e.editing = false
 		e.notice = "Cancelled: active controls and saved file are unchanged."
 		return nil
 	}
-	if ctx.Input.KeyPressed(input.KeyEnter) {
+	if current.KeyPressed(input.KeyEnter) {
 		if e.candidate == input.KeyNone {
 			e.notice = "Choose a candidate key before confirming."
 			return nil
@@ -96,7 +97,7 @@ func (e *editor) update(ctx *core.Context) error {
 		return nil
 	}
 	for key := input.Key(1); key < input.NumKeys; key++ {
-		if key != input.KeyF2 && ctx.Input.KeyPressed(key) {
+		if key != input.KeyF2 && current.KeyPressed(key) {
 			e.candidate = key
 			e.draft.Bindings["ping"] = []input.Input{input.KeyInput{Key: key}.Binding()}
 			e.notice = "ENTER applies and saves; ESC discards this draft."

@@ -290,7 +290,8 @@ func TestBindingEdgesReachEveryPhase(t *testing.T) {
 		{&input.Snapshot{}, 50 * time.Millisecond},
 		{&input.Snapshot{}, 250 * time.Millisecond},
 	} {
-		g.Context().Input = step.input
+		current, _ := g.World().Resource[*input.Snapshot]()
+		*current = *step.input
 		if err := g.Advance(step.delta); err != nil {
 			t.Fatalf("Advance: %v", err)
 		}
@@ -312,7 +313,8 @@ func TestPressEdgeIsSeenOnceAcrossCatchUpTicks(t *testing.T) {
 	}))
 	snapshot := &input.Snapshot{}
 	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
-	g.Context().Input = snapshot
+	current, _ := g.World().Resource[*input.Snapshot]()
+	*current = *snapshot
 	var got []bool
 	addTestSystem(t, g, core.PhasePreFixed, "input", core.SystemFunc(func(ctx *core.Context) error {
 		am, _ := ctx.World.Resource[*input.ActionMap]()
@@ -510,7 +512,8 @@ func TestStateTransitionsOrderAgainstScenesAndFrameWork(t *testing.T) {
 	}
 	snapshot := &input.Snapshot{}
 	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
-	g.Context().Input = snapshot
+	current, _ := g.World().Resource[*input.Snapshot]()
+	*current = *snapshot
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance(): %v", err)
 	}

@@ -24,14 +24,15 @@ type demonstration struct {
 }
 
 func (d *demonstration) controls(ctx *core.Context) error {
-	if ctx.Input.KeyPressed(input.KeyN) || ctx.Input.KeyPressed(input.KeyP) || ctx.Input.KeyPressed(input.KeyR) {
+	current, _ := ctx.World.Resource[*input.Snapshot]()
+	if current.KeyPressed(input.KeyN) || current.KeyPressed(input.KeyP) || current.KeyPressed(input.KeyR) {
 		if err := d.entity.Update(ctx.World, func(p *audio.Player) {
-			if ctx.Input.KeyPressed(input.KeyN) {
+			if current.KeyPressed(input.KeyN) {
 				p.Next()
-			} else if ctx.Input.KeyPressed(input.KeyP) {
+			} else if current.KeyPressed(input.KeyP) {
 				p.Prev()
 			}
-			if ctx.Input.KeyPressed(input.KeyR) {
+			if current.KeyPressed(input.KeyR) {
 				if p.Settings.Loop == audio.LoopNone {
 					p.Settings.Loop = audio.LoopAll
 				} else {
@@ -42,7 +43,7 @@ func (d *demonstration) controls(ctx *core.Context) error {
 			return err
 		}
 	}
-	if ctx.Input.KeyPressed(input.KeySpace) {
+	if current.KeyPressed(input.KeySpace) {
 		return d.entity.Update(ctx.World, func(p *audio.Player) { p.Paused = !p.Paused })
 	}
 	return nil

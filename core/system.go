@@ -3,8 +3,6 @@ package core
 import (
 	"fmt"
 	"time"
-
-	"github.com/Leonard-Atorough/castrum/input"
 )
 
 // Phase identifies when a system runs.
@@ -52,9 +50,9 @@ func (s Phase) String() string {
 	return names[s]
 }
 
-// Context gives systems access to the world, simulation clocks, and input
-// published for the current frame. The engine and runner populate it; systems
-// should treat it as read-only.
+// Context gives systems access to the world and the simulation clocks for
+// the current phase. The engine and runner populate it; systems should treat
+// it as read-only beyond the fields they own.
 type Context struct {
 	// World is the game world.
 	World *World
@@ -73,9 +71,6 @@ type Context struct {
 	LogicalWidth int
 	// LogicalHeight is the render target's internal height in pixels.
 	LogicalHeight int
-	// Input is the runner's current input snapshot. A nil snapshot reads as
-	// no input.
-	Input *input.Snapshot
 }
 
 // System is a unit of game logic that updates state during a schedule phase.

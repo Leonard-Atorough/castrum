@@ -150,7 +150,8 @@ func run() error {
 	panel := g.World().MustResource[*debug.Panel]()
 	panel.Status("controls", "WASD or arrows or stick to drive, mouse aims the turret, QE or wheel zooms")
 	if err := g.AddSystem(core.PhaseFrame, "input.readout", core.SystemFunc(func(ctx *core.Context) error {
-		cursor, wheel := ctx.Input.Cursor(), ctx.Input.Wheel()
+		current, _ := ctx.World.Resource[*input.Snapshot]()
+		cursor, wheel := current.Cursor(), current.Wheel()
 		panel.Status("cursor", fmt.Sprintf("mouse (%g, %g)   wheel delta (%g, %g)",
 			cursor.X, cursor.Y, wheel.X, wheel.Y))
 		return nil
@@ -179,9 +180,10 @@ func cameraSystem(camera core.Entity, body core.Entity) core.System {
 
 func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
 		actions, _ := ctx.World.Resource[*input.ActionMap]()
 		// Keys express a rate; wheel offsets already express movement.
-		scaleChange := actions.Axis("zoom")*zoomSpeed*ctx.DeltaTime.Seconds() + ctx.Input.Wheel().Y*wheelZoomStep
+		scaleChange := actions.Axis("zoom")*zoomSpeed*ctx.DeltaTime.Seconds() + current.Wheel().Y*wheelZoomStep
 		if scaleChange == 0 {
 			return nil
 		}
@@ -192,7 +194,7 @@ func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
 			return err
 		}
 
-		if ctx.Input.Wheel().Y != 0 {
+		if current.Wheel().Y != 0 {
 			transform, _ := camera.Component[core.Transform](ctx.World)
 			panel.Message(fmt.Sprintf("zoom %.2fx", transform.Scale.X))
 		}
@@ -234,6 +236,7 @@ func tankBodySystem(body core.Entity) core.System {
 // so the aim angle is atan2(x, -y) of the direction to the cursor.
 func turretSystem(turret, body core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
 		hull, _ := body.Component[core.Transform](ctx.World)
 		view, err := ctx.World.Resource[*render.CameraView]()
 		if errors.Is(err, core.ErrResourceNotRegistered) {
@@ -246,7 +249,7 @@ func turretSystem(turret, body core.Entity) core.System {
 			return err
 		}
 
-		world := view.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		world := view.ScreenToWorld(current.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
 		aim := world.Sub(hull.Position)
 
 		return turret.Update(ctx.World, func(t *core.Transform) {
