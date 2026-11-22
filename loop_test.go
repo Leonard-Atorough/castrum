@@ -191,9 +191,14 @@ func TestRelativeSystemRegistrationRejectsInvalidTargetsAndNames(t *testing.T) {
 	g := newTestGame(t)
 	system := core.SystemFunc(func(*core.Context) error { return nil })
 
-	if err := g.AddSystem(core.PhaseFixed, "", system, Before("missing")); err == nil {
-		t.Fatal("AddSystem accepted an empty name")
-	}
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("AddSystem accepted an empty name")
+			}
+		}()
+		g.AddSystem(core.PhaseFixed, "", system, Before("missing"))
+	}()
 	if err := g.AddSystem(core.PhaseFixed, "new", system, After("missing")); err == nil {
 		t.Fatal("AddSystem accepted a missing target")
 	}
@@ -233,21 +238,29 @@ func TestAddSystemRejectsInvalidOptionsAndPhases(t *testing.T) {
 		name    string
 		phase   core.Phase
 		options []SystemOption
+		panics  bool
 	}{
-		{"negative phase", core.Phase(-1), nil},
-		{"unknown phase", core.Phase(core.PhasePostFixed + 1), nil},
-		{"zero option", core.PhaseFixed, []SystemOption{{}}},
-		{"empty group", core.PhaseFixed, []SystemOption{InGroup("")}},
-		{"empty before", core.PhaseFixed, []SystemOption{Before("")}},
-		{"empty after", core.PhaseFixed, []SystemOption{After("")}},
-		{"repeated group", core.PhaseFixed, []SystemOption{InGroup("one"), InGroup("two")}},
-		{"repeated before", core.PhaseFixed, []SystemOption{Before("anchor"), Before("anchor")}},
-		{"conflicting position", core.PhaseFixed, []SystemOption{Before("anchor"), After("anchor")}},
-		{"other phase target", core.PhaseFrame, []SystemOption{After("anchor")}},
-		{"missing target with group", core.PhaseFixed, []SystemOption{InGroup("unregistered"), Before("missing")}},
+		{"negative phase", core.Phase(-1), nil, false},
+		{"unknown phase", core.Phase(core.PhasePostFixed + 1), nil, false},
+		{"zero option", core.PhaseFixed, []SystemOption{{}}, false},
+		{"empty group", core.PhaseFixed, []SystemOption{InGroup("")}, false},
+		{"empty before", core.PhaseFixed, []SystemOption{Before("")}, false},
+		{"empty after", core.PhaseFixed, []SystemOption{After("")}, false},
+		{"repeated group", core.PhaseFixed, []SystemOption{InGroup("one"), InGroup("two")}, false},
+		{"repeated before", core.PhaseFixed, []SystemOption{Before("anchor"), Before("anchor")}, true},
+		{"conflicting position", core.PhaseFixed, []SystemOption{Before("anchor"), After("anchor")}, true},
+		{"other phase target", core.PhaseFrame, []SystemOption{After("anchor")}, false},
+		{"missing target with group", core.PhaseFixed, []SystemOption{InGroup("unregistered"), Before("missing")}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.panics {
+				defer func() {
+					if recover() == nil {
+						t.Fatal("invalid registration succeeded")
+					}
+				}()
+			}
 			if err := g.AddSystem(tt.phase, "candidate", system, tt.options...); err == nil {
 				t.Fatal("invalid registration succeeded")
 			}
@@ -426,9 +439,7 @@ func TestAdvanceAccumulatesFixedTicks(t *testing.T) {
 func TestAdvanceRejectsUnrepresentableScaledTime(t *testing.T) {
 	for _, scale := range []float64{1e12, math.Ldexp(1, 63)} {
 		g := newTestGame(t)
-		if err := g.SetTimeScale(scale); err != nil {
-			t.Fatal(err)
-		}
+		g.SetTimeScale(scale)
 		elapsed := 100 * time.Millisecond
 		if scale == math.Ldexp(1, 63) {
 			elapsed = time.Nanosecond
@@ -439,9 +450,7 @@ func TestAdvanceRejectsUnrepresentableScaledTime(t *testing.T) {
 		if g.acc != 0 || g.Context().Tick != 0 {
 			t.Fatalf("failed advance changed accumulator/tick: %v/%d", g.acc, g.Context().Tick)
 		}
-		if err := g.SetTimeScale(1); err != nil {
-			t.Fatal(err)
-		}
+		g.SetTimeScale(1)
 		advanceTestGame(t, g, g.Options().FixedDT())
 		if g.Context().Tick != 1 {
 			t.Fatal("failed contribution prevented recovery")
@@ -453,9 +462,7 @@ func TestAdvanceRejectsAccumulatorOverflow(t *testing.T) {
 	g := newTestGame(t)
 	advanceTestGame(t, g, 10*time.Millisecond)
 	before := g.acc
-	if err := g.SetTimeScale(math.Nextafter(math.Ldexp(1, 63), 0)); err != nil {
-		t.Fatal(err)
-	}
+	g.SetTimeScale(math.Nextafter(math.Ldexp(1, 63), 0))
 	if err := g.Advance(time.Nanosecond); err == nil || !strings.Contains(err.Error(), "accumulator") {
 		t.Fatalf("Advance() = %v, want accumulator overflow", err)
 	}

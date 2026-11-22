@@ -184,9 +184,7 @@ func timeControlSystem(g *castrum.Game, state core.Entity) core.System {
 				change = -change
 			}
 			next := math.Max(scaleMin, math.Min(scaleMax, g.TimeScale()+change))
-			if err := g.SetTimeScale(next); err != nil {
-				return err
-			}
+			g.SetTimeScale(next)
 		}
 
 		// The state line is frame-phase text, so it reports the paused
