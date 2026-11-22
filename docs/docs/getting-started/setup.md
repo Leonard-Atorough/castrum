@@ -71,19 +71,8 @@ import (
 )
 
 func main() {
-	game, err := castrum.New(castrum.WithTitle("Hello World"))
-	if err != nil {
-		panic(err)
-	}
-
-	runner, err := ebitrun.New(game)
-	if err != nil {
-		panic(err)
-	}
-
-	if err := game.Run(runner); err != nil {
-		panic(err)
-	}
+	game:= castrum.New(castrum.WithTitle("Hello World"))
+	ebitrun.New().Run(game)
 }
 ```
 
