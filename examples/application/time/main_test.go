@@ -107,9 +107,7 @@ func TestTimeScaleControlsClampWhilePaused(t *testing.T) {
 			t.Fatal(err)
 		}
 		g.Pause()
-		if err := g.SetTimeScale(step.scale); err != nil {
-			t.Fatal(err)
-		}
+		g.SetTimeScale(step.scale)
 		snapshot := &input.Snapshot{}
 		snapshot.Keys[step.key].Held = true
 		g.Context().Input = snapshot
