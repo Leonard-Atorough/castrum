@@ -16,6 +16,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/gametime"
+	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
@@ -92,6 +93,14 @@ func newGame(opts ...option) (*Game, error) {
 		return nil, fmt.Errorf("castrum: provide simulation time: %w", err)
 	}
 	g.sim = sim
+
+	// The runner overwrites the snapshot resource before each Advance. The
+	// zero value reads as no input until the first poll.
+	if err := g.world.Provide(func(*core.World) (*input.Snapshot, error) {
+		return &input.Snapshot{}, nil
+	}); err != nil {
+		return nil, fmt.Errorf("castrum: provide input snapshot: %w", err)
+	}
 
 	real := gametime.NewReal(options.MaxFrameTime)
 	if err := g.world.ProvideEager(func(*core.World) (*gametime.Real, error) {
@@ -276,6 +285,32 @@ func newGame(opts ...option) (*Game, error) {
 	}
 	g.mainCamera = camera
 	return g, nil
+}
+
+// wireInput provides the action map and registers the engine's input
+// systems first in their schedules, so feature and user systems in those
+// phases see fresh actions.
+func (g *Game) wireInput(bindings input.Bindings, deadzone float64) error {
+	am, err := input.New(bindings, deadzone)
+	if err != nil {
+		return fmt.Errorf("castrum: input bindings: %w", err)
+	}
+
+	if err := g.world.Provide(func(*core.World) (input.Actions, error) {
+		return am, nil
+	}); err != nil {
+		return fmt.Errorf("castrum: provide action map: %w", err)
+	}
+	if err := g.world.Provide(func(*core.World) (input.Edges, error) {
+		return am, nil
+	}); err != nil {
+		return fmt.Errorf("castrum: provide input edges: %w", err)
+	}
+
+	if err := g.addEngineFirst(core.PhasePreFrame, input.FrameSystemName, input.NewFrameSystem(am)); err != nil {
+		return err
+	}
+	return g.addEngineFirst(core.PhasePreFixed, input.TickSystemName, input.NewTickSystem(am))
 }
 
 // Options returns a copy of the game's configuration.

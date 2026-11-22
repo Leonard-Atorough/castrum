@@ -161,7 +161,8 @@ func newGame() (*castrum.Game, *runState, error) {
 		return nil, nil, err
 	}
 	if err := game.AddSystem(core.PhaseFrame, "demo.scene-controls", core.SystemFunc(func(ctx *core.Context) error {
-		if ctx.Actions.JustPressed("start") {
+		actions, _ := ctx.World.Resource[input.Actions]()
+		if actions.JustPressed("start") {
 			if !director.Live(state.briefing) {
 				return nil
 			}
@@ -177,7 +178,7 @@ func newGame() (*castrum.Game, *runState, error) {
 				return err
 			}
 		}
-		if ctx.Actions.JustPressed("restart") {
+		if actions.JustPressed("restart") {
 			if !director.Live(state.result) {
 				return nil
 			}
@@ -214,10 +215,11 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 		{
 			name: "round.player-motion",
 			run: core.SystemFunc(func(ctx *core.Context) error {
+				actions, _ := ctx.World.Resource[input.Actions]()
 				for entry := range playerQuery.Execute() {
 					direction := geom.Vector2{
-						X: ctx.Actions.Axis("move_x"),
-						Y: ctx.Actions.Axis("move_y"),
+						X: actions.Axis("move_x"),
+						Y: actions.Axis("move_y"),
 					}
 					if direction.Length() > 1 {
 						direction = direction.Normalize()

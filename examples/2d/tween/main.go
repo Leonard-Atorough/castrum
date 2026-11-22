@@ -122,8 +122,9 @@ func newGame() (*castrum.Game, *demo, error) {
 		return nil, nil, err
 	}
 	if err := g.AddSystem(core.PhaseFrame, "tween.presentation", core.SystemFunc(func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
 		panel := g.World().MustResource[*debug.Panel]()
-		if ctx.Actions.JustPressed("pause") {
+		if actions.JustPressed("pause") {
 			if g.Paused() {
 				g.Resume()
 				panel.Message("resumed")
@@ -140,17 +141,17 @@ func newGame() (*castrum.Game, *demo, error) {
 			{"normal", 1},
 			{"double", 2},
 		} {
-			if ctx.Actions.JustPressed(speed.action) {
+			if actions.JustPressed(speed.action) {
 				g.SetTimeScale(speed.scale)
 				panel.Message(fmt.Sprintf("simulation: %.1fx", speed.scale))
 			}
 		}
-		if ctx.Actions.JustPressed("restart") {
+		if actions.JustPressed("restart") {
 			d.motion.Reset()
 			d.tint.Reset()
 			panel.Message("both tweens restarted")
 		}
-		if ctx.Actions.JustPressed("quit") {
+		if actions.JustPressed("quit") {
 			g.Quit()
 		}
 

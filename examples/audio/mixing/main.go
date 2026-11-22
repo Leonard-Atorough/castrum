@@ -58,36 +58,37 @@ func run() error {
 
 func mixingSystem(mixer *audio.Mixer, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
 		panel.Status("mixer", fmt.Sprintf("master %3.0f%%   music %3.0f%%   sfx %3.0f%%   global pause: %t",
 			mixer.Master()*100, mixer.GroupVolume(audio.GroupMusic)*100,
 			mixer.GroupVolume(audio.GroupSFX)*100, mixer.Paused()))
 
 		step := volumeSpeed * ctx.DeltaTime.Seconds()
-		if ctx.Input.KeyHeld(input.KeyArrowUp) {
+		if current.KeyHeld(input.KeyArrowUp) {
 			if err := mixer.SetMaster(mixer.Master() + step); err != nil {
 				return err
 			}
 		}
-		if ctx.Input.KeyHeld(input.KeyArrowDown) {
+		if current.KeyHeld(input.KeyArrowDown) {
 			if err := mixer.SetMaster(mixer.Master() - step); err != nil {
 				return err
 			}
 		}
-		if ctx.Input.KeyHeld(input.KeyArrowRight) {
+		if current.KeyHeld(input.KeyArrowRight) {
 			if err := mixer.SetGroupVolume(audio.GroupMusic, mixer.GroupVolume(audio.GroupMusic)+step); err != nil {
 				return err
 			}
 		}
-		if ctx.Input.KeyHeld(input.KeyArrowLeft) {
+		if current.KeyHeld(input.KeyArrowLeft) {
 			if err := mixer.SetGroupVolume(audio.GroupMusic, mixer.GroupVolume(audio.GroupMusic)-step); err != nil {
 				return err
 			}
 		}
-		if ctx.Input.KeyPressed(input.KeyEnter) {
+		if current.KeyPressed(input.KeyEnter) {
 			mixer.TogglePause()
 			panel.Message("global pause toggled - music holds, effects play through")
 		}
-		if ctx.Input.KeyPressed(input.KeySpace) {
+		if current.KeyPressed(input.KeySpace) {
 			_, err := audio.OneShot(ctx.World, audio.Track(audioassets.Magic), audio.Settings{Pause: audio.PauseContinues, Volume: 1})
 			return err
 		}

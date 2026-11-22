@@ -221,11 +221,12 @@ func run() error {
 	// pickup. The contacts are already computed - the engine's
 	// collision system runs earlier in the same fixed phase.
 	if err := g.AddSystem(core.PhaseFixed, "player", core.SystemFunc(func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
 		stats, _ := player.Component[playerStats](ctx.World)
 		step := float64(stats.currentSpeed) * ctx.DeltaTime.Seconds()
 		delta := geom.Vector2{
-			X: axisValue(ctx.Actions.Held("right")) - axisValue(ctx.Actions.Held("left")),
-			Y: axisValue(ctx.Actions.Held("down")) - axisValue(ctx.Actions.Held("up")),
+			X: axisValue(actions.Held("right")) - axisValue(actions.Held("left")),
+			Y: axisValue(actions.Held("down")) - axisValue(actions.Held("up")),
 		}
 		if err := player.Update(ctx.World, func(t *core.Transform) {
 			t.Position = t.Position.Add(delta.Mul(step))

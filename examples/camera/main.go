@@ -153,6 +153,7 @@ func run() error {
 	}
 
 	if err := g.AddSystem(core.PhaseFixed, "camera.controls", core.SystemFunc(func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
 		dt := ctx.DeltaTime.Seconds()
 		cam, ok := camera.Component[render.Camera](ctx.World)
 		if !ok {
@@ -165,30 +166,30 @@ func run() error {
 		// Rotate screen-relative input into world space. Normalizing keeps
 		// diagonal movement at the same speed as movement along one axis.
 		pan := geom.Vector2{}
-		if ctx.Actions.Held("pan_left") {
+		if actions.Held("pan_left") {
 			pan.X -= 1
 		}
-		if ctx.Actions.Held("pan_right") {
+		if actions.Held("pan_right") {
 			pan.X += 1
 		}
-		if ctx.Actions.Held("pan_up") {
+		if actions.Held("pan_up") {
 			pan.Y -= 1
 		}
-		if ctx.Actions.Held("pan_down") {
+		if actions.Held("pan_down") {
 			pan.Y += 1
 		}
 		displacement := geom.Vector2{}
 		if !pan.IsZero() {
 			displacement = pan.Normalize().Mul(panSpeed * dt).Rotate(t.Rotation)
 		}
-		if ctx.Actions.Held("rotate_left") {
+		if actions.Held("rotate_left") {
 			t.Rotation -= rotateSpeed * dt
 		}
-		if ctx.Actions.Held("rotate_right") {
+		if actions.Held("rotate_right") {
 			t.Rotation += rotateSpeed * dt
 		}
-		if ctx.Actions.Held("zoom") {
-			change := ctx.Actions.Axis("zoom") * zoomRate * dt
+		if actions.Held("zoom") {
+			change := actions.Axis("zoom") * zoomRate * dt
 			t.Scale.X = math.Max(zoomMin, math.Min(zoomMax, t.Scale.X+change))
 			t.Scale.Y = t.Scale.X
 		}

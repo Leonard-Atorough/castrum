@@ -37,11 +37,12 @@ func TestTweenExamplePauseAndRestart(t *testing.T) {
 
 	snapshot := &input.Snapshot{}
 	snapshot.Keys[input.KeySpace].Pressed = true
-	g.Context().Input = snapshot
+	current, _ := g.World().Resource[*input.Snapshot]()
+	*current = *snapshot
 	if err := g.Advance(250 * time.Millisecond); err != nil {
 		t.Fatalf("pause Advance() error: %v", err)
 	}
-	g.Context().Input = nil
+	*current = input.Snapshot{}
 	if !g.Paused() {
 		t.Fatal("pause action did not pause the game")
 	}
@@ -70,11 +71,11 @@ func TestTweenExamplePauseAndRestart(t *testing.T) {
 
 	snapshot = &input.Snapshot{}
 	snapshot.Keys[input.KeyR].Pressed = true
-	g.Context().Input = snapshot
+	*current = *snapshot
 	if err := g.Advance(0); err != nil {
 		t.Fatalf("restart Advance() error: %v", err)
 	}
-	g.Context().Input = nil
+	*current = input.Snapshot{}
 	if d.motion.Progress() != 0 || d.tint.Progress() != 0 {
 		t.Error("restart did not reset both playheads")
 	}
@@ -89,11 +90,11 @@ func TestTweenExamplePauseAndRestart(t *testing.T) {
 
 	snapshot = &input.Snapshot{}
 	snapshot.Keys[input.KeySpace].Pressed = true
-	g.Context().Input = snapshot
+	*current = *snapshot
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("resume Advance() error: %v", err)
 	}
-	g.Context().Input = nil
+	*current = input.Snapshot{}
 	if g.Paused() || d.motion.Progress() <= 0 {
 		t.Error("resume did not advance the restarted movement")
 	}
@@ -154,7 +155,8 @@ func TestTweenExampleSpeedControls(t *testing.T) {
 			}
 			snapshot := &input.Snapshot{}
 			snapshot.Keys[tt.key].Pressed = true
-			g.Context().Input = snapshot
+			current, _ := g.World().Resource[*input.Snapshot]()
+			*current = *snapshot
 			delta := g.Options().FixedDT()
 			if err := g.Advance(delta); err != nil {
 				t.Fatalf("Advance() error: %v", err)

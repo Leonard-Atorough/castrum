@@ -320,22 +320,23 @@ func over(stats core.Entity, ctx *core.Context) bool {
 
 func moveSystem(hull, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
 		if over(stats, ctx) {
 			return nil
 		}
 		dt := ctx.DeltaTime.Seconds()
 		return hull.Update(ctx.World, func(t *core.Transform) {
 			facing := geom.Vector2{X: 0, Y: -1}.Rotate(t.Rotation)
-			if ctx.Actions.Held("move_forward") {
+			if actions.Held("move_forward") {
 				t.Position = t.Position.Add(facing.Mul(Speed * dt))
 			}
-			if ctx.Actions.Held("move_backward") {
+			if actions.Held("move_backward") {
 				t.Position = t.Position.Sub(facing.Mul(Speed * dt))
 			}
-			if ctx.Actions.Held("turn_left") {
+			if actions.Held("turn_left") {
 				t.Rotation -= TurnSpeed * dt
 			}
-			if ctx.Actions.Held("turn_right") {
+			if actions.Held("turn_right") {
 				t.Rotation += TurnSpeed * dt
 			}
 		})
@@ -344,6 +345,7 @@ func moveSystem(hull, stats core.Entity) core.System {
 
 func turretSystem(turret, hull core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		view, err := ctx.World.Resource[*render.CameraView]()
 		if errors.Is(err, core.ErrResourceNotRegistered) {
@@ -354,7 +356,7 @@ func turretSystem(turret, hull core.Entity) core.System {
 			return err
 		}
 
-		cursor := view.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		cursor := view.ScreenToWorld(current.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
 		aim := cursor.Sub(hullTransform.Position)
 
 		return turret.Update(ctx.World, func(t *core.Transform) {
@@ -399,10 +401,11 @@ func cameraSystem(camera, hull core.Entity) core.System {
 // taps that occur between fixed ticks.
 func fireSystem(turret, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
 		if over(stats, ctx) {
 			return nil
 		}
-		if !ctx.Actions.Pressed("fire") {
+		if !actions.Pressed("fire") {
 			return nil
 		}
 		gun, _ := turret.Component[gametime.Timer](ctx.World)
