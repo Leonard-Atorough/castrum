@@ -76,7 +76,7 @@ func (d *Director) execute(ctx *core.Context, loaderFor loaderSource) error {
 		}
 	}
 	if ctx.World != nil {
-		if am, err := ctx.World.Resource[*input.ActionMap](); err == nil {
+		if am, err := ctx.World.Resource[input.Edges](); err == nil {
 			am.FlushEdges()
 		}
 	}

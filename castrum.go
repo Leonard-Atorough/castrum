@@ -283,10 +283,15 @@ func (g *Game) wireInput(bindings input.Bindings, deadzone float64) error {
 		return fmt.Errorf("castrum: input bindings: %w", err)
 	}
 
-	if err := g.world.Provide(func(*core.World) (*input.ActionMap, error) {
+	if err := g.world.Provide(func(*core.World) (input.Actions, error) {
 		return am, nil
 	}); err != nil {
 		return fmt.Errorf("castrum: provide action map: %w", err)
+	}
+	if err := g.world.Provide(func(*core.World) (input.Edges, error) {
+		return am, nil
+	}); err != nil {
+		return fmt.Errorf("castrum: provide input edges: %w", err)
 	}
 
 	if err := g.addEngineFirst(core.PhasePreFrame, input.FrameSystemName, input.NewFrameSystem(am)); err != nil {
