@@ -70,7 +70,8 @@ func TestTimeControlsPauseScaleAndResumeOrbit(t *testing.T) {
 	} {
 		snapshot := &input.Snapshot{}
 		snapshot.Keys[step.key] = input.State{Held: true, Pressed: step.pressed}
-		g.Context().Input = snapshot
+		current, _ := g.World().Resource[*input.Snapshot]()
+		*current = *snapshot
 		if err := g.Advance(step.delta); err != nil {
 			t.Fatal(err)
 		}
@@ -107,12 +108,11 @@ func TestTimeScaleControlsClampWhilePaused(t *testing.T) {
 			t.Fatal(err)
 		}
 		g.Pause()
-		if err := g.SetTimeScale(step.scale); err != nil {
-			t.Fatal(err)
-		}
+		g.SetTimeScale(step.scale)
 		snapshot := &input.Snapshot{}
 		snapshot.Keys[step.key].Held = true
-		g.Context().Input = snapshot
+		current, _ := g.World().Resource[*input.Snapshot]()
+		*current = *snapshot
 		if err := g.Advance(200 * time.Millisecond); err != nil {
 			t.Fatal(err)
 		}

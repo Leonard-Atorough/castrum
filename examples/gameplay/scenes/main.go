@@ -142,8 +142,9 @@ func newGame() (*demo, error) {
 }
 
 func (d *demo) controls(ctx *core.Context) error {
+	actions, _ := ctx.World.Resource[input.Actions]()
 	// Give switching priority if both actions occur in the same frame.
-	if ctx.Actions.JustPressed("travel") {
+	if actions.JustPressed("travel") {
 		next := field
 		if d.location == field.name {
 			next = hangar
@@ -156,7 +157,7 @@ func (d *demo) controls(ctx *core.Context) error {
 		d.room = id
 		return nil
 	}
-	if ctx.Actions.JustPressed("scanner") {
+	if actions.JustPressed("scanner") {
 		if d.director.Live(d.scanner) {
 			return d.director.Remove(d.scanner)
 		}

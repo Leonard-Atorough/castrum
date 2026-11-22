@@ -117,7 +117,8 @@ func TestAnimationControlsAndCompletion(t *testing.T) {
 	}
 	tick := func(count int) {
 		t.Helper()
-		g.Context().Input = nil
+		current, _ := g.World().Resource[*input.Snapshot]()
+		*current = input.Snapshot{}
 		for range count {
 			if err := g.Advance(g.Options().FixedDT()); err != nil {
 				t.Fatal(err)
@@ -126,9 +127,10 @@ func TestAnimationControlsAndCompletion(t *testing.T) {
 	}
 	press := func(key input.Key) {
 		t.Helper()
+		current, _ := g.World().Resource[*input.Snapshot]()
 		snapshot := &input.Snapshot{}
 		snapshot.Keys[key].Pressed = true
-		g.Context().Input = snapshot
+		*current = *snapshot
 		if err := g.Advance(0); err != nil {
 			t.Fatal(err)
 		}

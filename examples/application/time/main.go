@@ -170,22 +170,21 @@ func orbitSystem(inner, outer core.Entity) core.System {
 
 func timeControlSystem(g *castrum.Game, state core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		if ctx.Actions.JustPressed("pause") {
+		actions, _ := ctx.World.Resource[input.Actions]()
+		if actions.JustPressed("pause") {
 			if g.Paused() {
 				g.Resume()
 			} else {
 				g.Pause()
 			}
 		}
-		if ctx.Actions.Held("speed_up") || ctx.Actions.Held("slow_down") {
+		if actions.Held("speed_up") || actions.Held("slow_down") {
 			change := scaleRate * ctx.DeltaTime.Seconds()
-			if !ctx.Actions.Held("speed_up") {
+			if !actions.Held("speed_up") {
 				change = -change
 			}
 			next := math.Max(scaleMin, math.Min(scaleMax, g.TimeScale()+change))
-			if err := g.SetTimeScale(next); err != nil {
-				return err
-			}
+			g.SetTimeScale(next)
 		}
 
 		// The state line is frame-phase text, so it reports the paused

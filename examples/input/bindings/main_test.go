@@ -52,7 +52,8 @@ func TestWheelZoomRunsOncePerFrame(t *testing.T) {
 			}
 			snapshot := &input.Snapshot{}
 			snapshot.Mouse.Wheel = geom.Vector2{X: 0.25, Y: 2.5}
-			g.Context().Input = snapshot
+			current, _ := g.World().Resource[*input.Snapshot]()
+			*current = *snapshot
 			if err := g.Advance(tt.elapsed); err != nil {
 				t.Fatal(err)
 			}
@@ -65,6 +66,7 @@ func TestWheelZoomRunsOncePerFrame(t *testing.T) {
 			}
 			g.Resume()
 			snapshot.Mouse.Wheel = geom.Vector2{}
+			*current = *snapshot
 			if err := g.Advance(30 * time.Millisecond); err != nil {
 				t.Fatal(err)
 			}
@@ -108,7 +110,12 @@ func TestTankMovementUsesBindingsAndFacing(t *testing.T) {
 				snapshot.Pads[0].Axes[input.PadRightStickX] = 1
 			}
 			actions.Update(snapshot, 0.25)
-			ctx := &core.Context{World: world, Actions: actions, Input: snapshot, DeltaTime: 250 * time.Millisecond}
+			if err := world.Provide(func(*core.World) (input.Actions, error) {
+				return actions, nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			ctx := &core.Context{World: world, DeltaTime: 250 * time.Millisecond}
 			if err := tankBodySystem(body).Update(ctx); err != nil {
 				t.Fatal(err)
 			}
@@ -135,7 +142,11 @@ func TestTurretUsesPublishedViewAndCameraFollowsHull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := &core.Context{World: world, Input: &input.Snapshot{}, LogicalWidth: 200, LogicalHeight: 100}
+	snapshot := &input.Snapshot{}
+	if err := world.Provide(func(*core.World) (*input.Snapshot, error) { return snapshot, nil }); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &core.Context{World: world, LogicalWidth: 200, LogicalHeight: 100}
 	system := turretSystem(turret, body)
 	if err := system.Update(ctx); err != nil {
 		t.Fatal(err)
@@ -157,7 +168,8 @@ func TestTurretUsesPublishedViewAndCameraFollowsHull(t *testing.T) {
 		{geom.Vector2{X: 100, Y: 10}, math.Pi / 2},
 		{geom.Vector2{X: 140, Y: 50}, -math.Pi + math.Atan(0.5)},
 	} {
-		ctx.Input.Mouse.Cursor = tt.cursor
+		current, _ := ctx.World.Resource[*input.Snapshot]()
+		current.Mouse.Cursor = tt.cursor
 		if err := system.Update(ctx); err != nil {
 			t.Fatal(err)
 		}

@@ -104,7 +104,8 @@ Add `"github.com/Leonard-Atorough/castrum/core"` and `"github.com/Leonard-Atorou
 ```go
 func audioControls(musicEntity core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		if ctx.Input.KeyPressed(input.KeyP) {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
+		if current.KeyPressed(input.KeyP) {
 			return musicEntity.Update(ctx.World, func(player *audio.Player) {
 				player.Paused = !player.Paused
 			})
@@ -133,12 +134,13 @@ What's a game without a sound effect? Let's play one when you press Space. Upate
 ```go
 func audioControls(musicEntity core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		if ctx.Input.KeyPressed(input.KeySpace) {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
+		if current.KeyPressed(input.KeySpace) {
 			if _, err := audio.OneShot(ctx.World, audio.Track("audio/effect.wav"), audio.DefaultSettings()); err != nil {
 				return err
 			}
 		}
-		if ctx.Input.KeyPressed(input.KeyP) {
+		if current.KeyPressed(input.KeyP) {
 			return musicEntity.Update(ctx.World, func(player *audio.Player) {
 				player.Paused = !player.Paused
 			})

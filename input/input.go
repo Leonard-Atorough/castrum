@@ -365,3 +365,23 @@ func (value KeyPairInput) Binding() Input { return Input{KeyPair: &value} }
 
 // Binding returns the chord as an [Input], retaining its member slice.
 func (value ChordInput) Binding() Input { return Input{Chord: &value} }
+
+// Actions defines the interface for querying input states, bindings, and preferences.
+type Actions interface {
+	JustPressed(Action) bool
+	JustReleased(Action) bool
+	Held(Action) bool
+	Pressed(Action) bool
+	Released(Action) bool
+	Duration(Action) float64
+	Axis(Action) float64
+
+	Bindings() Bindings
+	Preferences() Preferences
+	SetBindings(Bindings) error
+	SetPreferences(Preferences) error
+}
+
+type Edges interface {
+	FlushEdges()
+}

@@ -101,7 +101,8 @@ func startTestRound(t *testing.T) (*castrum.Game, *runState) {
 
 func advanceTestFrame(t *testing.T, game *castrum.Game, snapshot *input.Snapshot) {
 	t.Helper()
-	game.Context().Input = snapshot
+	current, _ := game.World().Resource[*input.Snapshot]()
+	*current = *snapshot
 	if err := game.Advance(17 * time.Millisecond); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}

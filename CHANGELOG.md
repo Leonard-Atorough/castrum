@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **breaking:** Provide input actions, edge flushing and snapshot as world resources (#263)
 - **breaking:** Update transform struct with tags and scene example (#247)
 - Register asset types and preload file assets (#243)
 - Register the sprite component under sprite.Sprite (#242)
@@ -48,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spawn entities owned by scene instances (#132)
 
 ### Changed
+- **breaking:** Replace error handling with panics in Game methods and simplify time scale tests (#262)
 - **breaking:** Compose visual components, replace the Drawable union (#239)
 - **breaking:** Update codec registration to allow shared access and immediate effect on loaders and savers (#236)
 - Rename package blueprint to serialization and update references (#227)

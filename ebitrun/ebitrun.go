@@ -14,6 +14,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
+	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
 )
 
@@ -219,9 +220,13 @@ func (r *Runner) Update() error {
 	r.last = now
 
 	// Poll before Advance: PhaseFrame systems read this frame's
-	// device state through the published snapshot.
+	// device state through the snapshot resource.
 	r.input.poll()
-	r.g.Context().Input = r.input.snapshotPtr()
+	snapshot, err := r.g.World().Resource[*input.Snapshot]()
+	if err != nil {
+		return err
+	}
+	*snapshot = *r.input.snapshotPtr()
 
 	if err := r.g.Advance(elapsed); err != nil {
 		return err

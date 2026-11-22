@@ -237,13 +237,6 @@ func frameCounter(count *int, delta *time.Duration) core.System {
 	})
 }
 
-func setTimeScale(t *testing.T, g *Game, scale float64) {
-	t.Helper()
-	if err := g.SetTimeScale(scale); err != nil {
-		t.Fatalf("SetTimeScale(%v): %v", scale, err)
-	}
-}
-
 func checkAlpha(t *testing.T, g *Game, want float64) {
 	t.Helper()
 	if math.Abs(g.Alpha()-want) > 1e-9 {
@@ -426,7 +419,7 @@ func TestFrameSystemTimeScaleAppliesWithinSameAdvance(t *testing.T) {
 	var ticks, frames int
 	addTestSystem(t, g, core.PhaseFrame, "scaler", core.SystemFunc(func(*core.Context) error {
 		frames++
-		setTimeScale(t, g, 2)
+		g.SetTimeScale(2)
 		return nil
 	}))
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
@@ -469,7 +462,7 @@ func TestTimeScaleScalesAccumulationOnly(t *testing.T) {
 	addTestSystem(t, g, core.PhaseFrame, "frame counter", frameCounter(&frames, &frameDT))
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
 
-	setTimeScale(t, g, 0.5)
+	g.SetTimeScale(0.5)
 	step := 100 * time.Millisecond
 	advanceTestGame(t, g, step)
 	if ticks != 0 || frames != 1 {
@@ -492,7 +485,7 @@ func TestTimeScaleFastForwardRespectsSpiralGuard(t *testing.T) {
 	var ticks int
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
 
-	setTimeScale(t, g, 10)
+	g.SetTimeScale(10)
 	advanceTestGame(t, g, time.Second)
 	if ticks != 5 {
 		t.Errorf("ticks = %d, want 5 (fast forward still capped at MaxTicksPerFrame)", ticks)
@@ -504,13 +497,13 @@ func TestTimeScaleChangePreservesRemainder(t *testing.T) {
 	g := newTestGame(t, WithFixedTPS(4))
 	var ticks int
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
-	setTimeScale(t, g, 0.5)
+	g.SetTimeScale(0.5)
 	advanceTestGame(t, g, 250*time.Millisecond)
 	if ticks != 0 {
 		t.Fatalf("half speed: ticks = %d, want 0", ticks)
 	}
 	checkAlpha(t, g, 0.5)
-	setTimeScale(t, g, 2)
+	g.SetTimeScale(2)
 	advanceTestGame(t, g, 125*time.Millisecond)
 	if ticks != 1 {
 		t.Fatalf("double speed: ticks = %d, want 1", ticks)
@@ -529,22 +522,27 @@ func TestSetTimeScaleRejectsNonPositive(t *testing.T) {
 		t.Fatalf("default TimeScale = %v, want 1", g.TimeScale())
 	}
 	for _, bad := range []float64{0, -0.5, -2} {
-		if err := g.SetTimeScale(bad); err == nil {
-			t.Errorf("SetTimeScale(%v) should return an error", bad)
-		}
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("SetTimeScale(%v) should panic", bad)
+				}
+			}()
+			g.SetTimeScale(bad)
+		}()
 	}
 	if g.TimeScale() != 1 {
 		t.Errorf("TimeScale after rejected values = %v, want 1 (unchanged)", g.TimeScale())
 	}
 
-	setTimeScale(t, g, 2)
+	g.SetTimeScale(2)
 	if g.TimeScale() != 2 {
 		t.Errorf("TimeScale = %v, want 2", g.TimeScale())
 	}
 
 	// Scale is remembered while paused and applies after Resume.
 	g.Pause()
-	setTimeScale(t, g, 0.25)
+	g.SetTimeScale(0.25)
 	g.Resume()
 	if g.TimeScale() != 0.25 {
 		t.Errorf("TimeScale after pause/resume = %v, want 0.25", g.TimeScale())
