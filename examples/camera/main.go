@@ -219,8 +219,6 @@ func run() error {
 		return err
 	}
 
-	runner := ebitrun.New()
-
-	runner.Run(g)
+	ebitrun.New().Run(g)
 	return nil
 }
