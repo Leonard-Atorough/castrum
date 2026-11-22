@@ -110,7 +110,7 @@ func TestTankMovementUsesBindingsAndFacing(t *testing.T) {
 				snapshot.Pads[0].Axes[input.PadRightStickX] = 1
 			}
 			actions.Update(snapshot, 0.25)
-			if err := world.Provide(func(*core.World) (*input.ActionMap, error) {
+			if err := world.Provide(func(*core.World) (input.Actions, error) {
 				return actions, nil
 			}); err != nil {
 				t.Fatal(err)

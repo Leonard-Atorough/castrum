@@ -183,7 +183,10 @@ func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
 		current, _ := ctx.World.Resource[*input.Snapshot]()
 		actions, _ := ctx.World.Resource[input.Actions]()
 		// Keys express a rate; wheel offsets already express movement.
-		scaleChange := actions.Axis("zoom")*zoomSpeed*ctx.DeltaTime.Seconds() + current.Wheel().Y*wheelZoomStep
+		scaleChange := current.Wheel().Y * wheelZoomStep
+		if actions != nil {
+			scaleChange += actions.Axis("zoom") * zoomSpeed * ctx.DeltaTime.Seconds()
+		}
 		if scaleChange == 0 {
 			return nil
 		}
@@ -208,6 +211,10 @@ func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
 func tankBodySystem(body core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		actions, _ := ctx.World.Resource[input.Actions]()
+		if actions == nil {
+			// Without bindings the tank has no controls.
+			return nil
+		}
 		return body.Update(ctx.World, func(t *core.Transform) {
 			// Forward is screen-up (negative Y in this world), rotated
 			// by the hull's rotation.
