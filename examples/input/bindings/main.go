@@ -181,7 +181,7 @@ func cameraSystem(camera core.Entity, body core.Entity) core.System {
 func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
 		current, _ := ctx.World.Resource[*input.Snapshot]()
-		actions, _ := ctx.World.Resource[*input.ActionMap]()
+		actions, _ := ctx.World.Resource[input.Actions]()
 		// Keys express a rate; wheel offsets already express movement.
 		scaleChange := actions.Axis("zoom")*zoomSpeed*ctx.DeltaTime.Seconds() + current.Wheel().Y*wheelZoomStep
 		if scaleChange == 0 {
@@ -207,7 +207,7 @@ func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
 // turret aims.
 func tankBodySystem(body core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[*input.ActionMap]()
+		actions, _ := ctx.World.Resource[input.Actions]()
 		return body.Update(ctx.World, func(t *core.Transform) {
 			// Forward is screen-up (negative Y in this world), rotated
 			// by the hull's rotation.

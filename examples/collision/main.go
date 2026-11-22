@@ -221,7 +221,7 @@ func run() error {
 	// pickup. The contacts are already computed - the engine's
 	// collision system runs earlier in the same fixed phase.
 	if err := g.AddSystem(core.PhaseFixed, "player", core.SystemFunc(func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[*input.ActionMap]()
+		actions, _ := ctx.World.Resource[input.Actions]()
 		stats, _ := player.Component[playerStats](ctx.World)
 		step := float64(stats.currentSpeed) * ctx.DeltaTime.Seconds()
 		delta := geom.Vector2{

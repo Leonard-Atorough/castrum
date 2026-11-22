@@ -247,7 +247,7 @@ func TestBindingEdgesReachEveryPhase(t *testing.T) {
 		"jump": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}
 	g := New(WithBindings(bindings), WithFixedTPS(4))
-	am, err := g.World().Resource[*input.ActionMap]()
+	am, err := g.World().Resource[input.Actions]()
 	if err != nil {
 		t.Fatalf("resolve action map: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestPressEdgeIsSeenOnceAcrossCatchUpTicks(t *testing.T) {
 	*current = *snapshot
 	var got []bool
 	addTestSystem(t, g, core.PhasePreFixed, "input", core.SystemFunc(func(ctx *core.Context) error {
-		am, _ := ctx.World.Resource[*input.ActionMap]()
+		am, _ := ctx.World.Resource[input.Actions]()
 		got = append(got, am.Pressed("jump"))
 		return nil
 	}))
@@ -452,7 +452,7 @@ func TestStateTransitionsOrderAgainstScenesAndFrameWork(t *testing.T) {
 		return nil
 	}))
 	machine.OnEnter("play", core.SystemFunc(func(ctx *core.Context) error {
-		am, _ := ctx.World.Resource[*input.ActionMap]()
+		am, _ := ctx.World.Resource[input.Actions]()
 		if !am.JustPressed("start") {
 			t.Fatal("state hook ran before frame input updated")
 		}

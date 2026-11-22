@@ -150,7 +150,7 @@ func run() error {
 	// One fixed system reads all five timers and reacts to their
 	// state; it is the only gameplay logic in the program.
 	if err := g.AddSystem(core.PhaseFixed, "gametime.reactions", core.SystemFunc(func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[*input.ActionMap]()
+		actions, _ := ctx.World.Resource[input.Actions]()
 		// R restarts the one-shot from zero: elapsed time resets and
 		// the completion stamp clears, so the "fired" color reverts
 		// until it fires again.

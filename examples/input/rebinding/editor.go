@@ -55,7 +55,7 @@ func restore(directory *asset.Directory) (*editor, error) {
 
 func (e *editor) update(ctx *core.Context) error {
 	current, _ := ctx.World.Resource[*input.Snapshot]()
-	actions, _ := ctx.World.Resource[*input.ActionMap]()
+	actions, _ := ctx.World.Resource[input.Actions]()
 	if !e.editing {
 		if current.KeyPressed(input.KeyF2) {
 			value, err := e.prefs.Value()

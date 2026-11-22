@@ -56,7 +56,7 @@ func TestDraftCancelConfirmAndRestore(t *testing.T) {
 		t.Fatal("confirmation without a candidate was not reported")
 	}
 	press(input.KeyJ)
-	actions, _ := g.World().Resource[*input.ActionMap]()
+	actions, _ := g.World().Resource[input.Actions]()
 	if actions.Bindings()["ping"][0].Key.Key != input.KeySpace {
 		t.Fatal("draft changed live controls")
 	}
@@ -94,7 +94,7 @@ func TestDraftCancelConfirmAndRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restoredActions, _ := restored.World().Resource[*input.ActionMap]()
+	restoredActions, _ := restored.World().Resource[input.Actions]()
 	if restoredActions.Bindings()["ping"][0].Key.Key != input.KeyJ {
 		t.Fatal("confirmed controls were not restored on startup")
 	}
@@ -154,7 +154,7 @@ func TestRebindingPreservesRestoredDeadzoneAndOtherActions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restoredActions, _ := restored.World().Resource[*input.ActionMap]()
+	restoredActions, _ := restored.World().Resource[input.Actions]()
 	got := restoredActions.Preferences()
 	if got.Deadzone != 0.4 || got.Bindings["other"][0].Key.Key != input.KeyA || got.Bindings["ping"][0].Key.Key != input.KeyJ {
 		t.Fatalf("rebind lost unrelated preferences: %+v", got)
@@ -189,7 +189,7 @@ func TestSaveFailureIsReturnedAfterExplicitApplication(t *testing.T) {
 	if err := e.update(ctx); err == nil || !strings.Contains(err.Error(), "live controls changed but saving failed") {
 		t.Fatalf("save failure=%v", err)
 	}
-	actions, _ := g.World().Resource[*input.ActionMap]()
+	actions, _ := g.World().Resource[input.Actions]()
 	if actions.Bindings()["ping"][0].Key.Key != input.KeyJ {
 		t.Fatal("application did not precede persistence")
 	}

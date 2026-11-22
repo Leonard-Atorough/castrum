@@ -320,7 +320,7 @@ func over(stats core.Entity, ctx *core.Context) bool {
 
 func moveSystem(hull, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[*input.ActionMap]()
+		actions, _ := ctx.World.Resource[input.Actions]()
 		if over(stats, ctx) {
 			return nil
 		}
@@ -401,7 +401,7 @@ func cameraSystem(camera, hull core.Entity) core.System {
 // taps that occur between fixed ticks.
 func fireSystem(turret, stats core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[*input.ActionMap]()
+		actions, _ := ctx.World.Resource[input.Actions]()
 		if over(stats, ctx) {
 			return nil
 		}

@@ -170,7 +170,7 @@ func orbitSystem(inner, outer core.Entity) core.System {
 
 func timeControlSystem(g *castrum.Game, state core.Entity) core.System {
 	return core.SystemFunc(func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[*input.ActionMap]()
+		actions, _ := ctx.World.Resource[input.Actions]()
 		if actions.JustPressed("pause") {
 			if g.Paused() {
 				g.Resume()

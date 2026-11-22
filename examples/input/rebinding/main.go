@@ -55,7 +55,7 @@ func newGame(directory *asset.Directory) (*castrum.Game, *editor, error) {
 		labels[line] = label
 	}
 	if err := g.AddSystem(core.PhaseFrame, "show controls", core.SystemFunc(func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[*input.ActionMap]()
+		actions, _ := ctx.World.Resource[input.Actions]()
 		var keys []string
 		for _, bound := range actions.Bindings()["ping"] {
 			if bound.Key != nil {

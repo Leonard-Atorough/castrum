@@ -422,7 +422,7 @@ func TestExecuteFlushesInputEdges(t *testing.T) {
 	if !am.JustPressed("confirm") {
 		t.Fatal("setup: no press edge")
 	}
-	if err := ctx.World.Provide(func(*core.World) (*input.ActionMap, error) {
+	if err := ctx.World.Provide(func(*core.World) (input.Edges, error) {
 		return am, nil
 	}); err != nil {
 		t.Fatal(err)

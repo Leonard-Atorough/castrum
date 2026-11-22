@@ -153,7 +153,7 @@ func run() error {
 	}
 
 	if err := g.AddSystem(core.PhaseFixed, "camera.controls", core.SystemFunc(func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[*input.ActionMap]()
+		actions, _ := ctx.World.Resource[input.Actions]()
 		dt := ctx.DeltaTime.Seconds()
 		cam, ok := camera.Component[render.Camera](ctx.World)
 		if !ok {

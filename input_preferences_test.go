@@ -31,7 +31,7 @@ func TestGameInputPreferenceCodecDefaults(t *testing.T) {
 	}
 }
 
-func applyInputPreferences(t *testing.T, prefs *settings.Group[input.Preferences], actions *input.ActionMap) {
+func applyInputPreferences(t *testing.T, prefs *settings.Group[input.Preferences], actions input.Actions) {
 	t.Helper()
 	value, err := prefs.Value()
 	if err != nil {
@@ -79,10 +79,6 @@ func TestInputPreferencesPersistenceAndStartup(t *testing.T) {
 		t.Fatal(err)
 	}
 	game := New(WithInputPreferences(value))
-	actions, err := game.World().Resource[*input.ActionMap]()
-	if err != nil {
-		t.Fatal(err)
-	}
 	snapshot := &input.Snapshot{}
 	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
 	snapshot.Keys[input.KeyControlLeft].Held = true
@@ -90,7 +86,15 @@ func TestInputPreferencesPersistenceAndStartup(t *testing.T) {
 	snapshot.Pads[0].Connected = true
 	snapshot.Pads[0].Axes[input.PadLeftStickX] = -0.5
 	snapshot.Pads[0].Axes[input.PadRightTrigger] = 0.6
-	actions.Update(snapshot, 0.1)
+	current, _ := game.World().Resource[*input.Snapshot]()
+	*current = *snapshot
+	if err := game.Advance(0); err != nil {
+		t.Fatal(err)
+	}
+	actions, err := game.World().Resource[input.Actions]()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !actions.JustPressed("jump") || actions.Axis("move") != -0.5 || !actions.Held("dash") || actions.Axis("global") != 0 {
 		t.Fatal("restored bindings and deadzones did not resolve their physical inputs")
 	}
@@ -109,19 +113,23 @@ func TestInputPreferencesStartupValidationAndOptionOrder(t *testing.T) {
 	p := input.Preferences{Bindings: samplePreferenceBindings(), Deadzone: 0.3}
 	replacement := input.Bindings{"move": {input.PadAxisInput{Axis: input.PadLeftStickX}.Binding()}}
 	game := New(WithInputPreferences(p), WithBindings(replacement))
-	actions, err := game.World().Resource[*input.ActionMap]()
-	if err != nil {
-		t.Fatal(err)
-	}
 	snapshot := &input.Snapshot{}
 	snapshot.Pads[0].Connected = true
 	snapshot.Pads[0].Axes[input.PadLeftStickX] = 0.2
-	actions.Update(snapshot, 0)
+	current, _ := game.World().Resource[*input.Snapshot]()
+	*current = *snapshot
+	if err := game.Advance(0); err != nil {
+		t.Fatal(err)
+	}
+	actions, err := game.World().Resource[input.Actions]()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !reflect.DeepEqual(actions.Bindings(), replacement) || actions.Axis("move") != 0 {
 		t.Fatal("later bindings did not preserve the configured deadzone")
 	}
 	game = New(WithInputPreferences(p), WithBindings(nil))
-	if _, err := game.World().Resource[*input.ActionMap](); err == nil {
+	if _, err := game.World().Resource[input.Actions](); err == nil {
 		t.Fatal("later nil bindings did not disable the action map")
 	}
 }
