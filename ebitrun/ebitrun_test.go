@@ -136,16 +136,16 @@ func TestRunnerAudioIsProtectedAfterFrameSystems(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := g.AddSystem(core.PhaseFrame, "remove invalid audio", core.SystemFunc(func(ctx *core.Context) error {
+			if err := g.AddSystem(core.PhaseFrame, "remove invalid audio", func(ctx *core.Context) error {
 				return ctx.World.DestroyEntity(entity)
-			})); err != nil {
+			}); err != nil {
 				t.Fatal(err)
 			}
 			if !runnerFirst {
 				mustRunner(t, g)
 			}
 			for _, option := range []castrum.SystemOption{castrum.Before(AudioSystemName), castrum.After(AudioSystemName)} {
-				if err := g.AddSystem(core.PhaseFrame, "relative audio", core.SystemFunc(func(*core.Context) error { return nil }), option); err == nil {
+				if err := g.AddSystem(core.PhaseFrame, "relative audio", func(*core.Context) error { return nil }, option); err == nil {
 					t.Fatal("relative insertion accepted engine audio")
 				}
 			}
@@ -167,7 +167,7 @@ func TestRunnerRejectsDuplicateAudioController(t *testing.T) {
 
 func TestAudioNameReservedBeforeRunner(t *testing.T) {
 	g := mustGame(t)
-	system := core.SystemFunc(func(*core.Context) error { return nil })
+	system := func(*core.Context) error { return nil }
 	if err := g.AddSystem(core.PhaseFrame, AudioSystemName, system); err == nil {
 		t.Fatal("game accepted the reserved audio name")
 	}
@@ -302,10 +302,10 @@ func TestInvalidRunnerOptionsPanic(t *testing.T) {
 func TestUpdateAdvancesGame(t *testing.T) {
 	g := mustGame(t)
 	var frames int
-	if err := g.AddSystem(core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "frame counter", func(ctx *core.Context) error {
 		frames++
 		return nil
-	})); err != nil {
+	}); err != nil {
 		t.Fatalf("AddSystem: %v", err)
 	}
 	r := mustRunner(t, g)

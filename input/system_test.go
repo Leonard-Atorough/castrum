@@ -23,7 +23,7 @@ func TestFrameSystemResolvesSnapshotResource(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := &core.Context{World: world, DeltaTime: time.Second}
-	if err := NewFrameSystem(am).Update(ctx); err != nil {
+	if err := NewFrameSystem(am)(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if !am.JustPressed("jump") {
@@ -39,7 +39,7 @@ func TestFrameSystemToleratesMissingSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := &core.Context{World: core.NewWorld(), DeltaTime: time.Second}
-	if err := NewFrameSystem(am).Update(ctx); err != nil {
+	if err := NewFrameSystem(am)(ctx); err != nil {
 		t.Fatalf("missing snapshot resource: %v", err)
 	}
 	if am.Held("jump") {
@@ -63,19 +63,19 @@ func TestTickSystemDeliversLatchedEdges(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := &core.Context{World: world, DeltaTime: time.Second}
-	if err := NewFrameSystem(am).Update(ctx); err != nil {
+	if err := NewFrameSystem(am)(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if am.Pressed("jump") {
 		t.Fatal("press latched before a tick")
 	}
-	if err := NewTickSystem(am).Update(ctx); err != nil {
+	if err := NewTickSystem(am)(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if !am.Pressed("jump") {
 		t.Fatal("tick system did not latch the accumulated press")
 	}
-	if err := NewTickSystem(am).Update(ctx); err != nil {
+	if err := NewTickSystem(am)(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if am.Pressed("jump") {

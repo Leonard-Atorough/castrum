@@ -11,9 +11,9 @@ import (
 	"github.com/Leonard-Atorough/castrum/signal"
 )
 
-func tick(t *testing.T, world *core.World, sys core.System) {
+func tick(t *testing.T, world *core.World, sys core.SystemFunc) {
 	t.Helper()
-	if err := sys.Update(&core.Context{World: world}); err != nil {
+	if err := sys(&core.Context{World: world}); err != nil {
 		t.Fatalf("collision tick: %v", err)
 	}
 }
@@ -346,14 +346,14 @@ func TestSystem_GeometryAndFilterChanges(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			world := newCollisionWorld(t)
-			sys := NewSystem().(*system)
+			sys := newSystem()
 			player, wall := playerAndWall(t, world)
 			if test.name == "rotation" {
 				if err := player.Update(world, func(c *Collider) { c.Offset.Y = 2 }); err != nil {
 					t.Fatal(err)
 				}
 			}
-			tick(t, world, sys)
+			tick(t, world, sys.Update)
 			original := contactsOf(t, world, player).Current[0]
 			collider, _ := player.Component[Collider](world)
 			transform, _ := player.Component[core.Transform](world)
@@ -364,7 +364,7 @@ func TestSystem_GeometryAndFilterChanges(t *testing.T) {
 			if err := player.SetComponent(world, transform); err != nil {
 				t.Fatal(err)
 			}
-			tick(t, world, sys)
+			tick(t, world, sys.Update)
 			for _, entity := range []core.Entity{player, wall} {
 				c := contactsOf(t, world, entity)
 				if (len(c.Current) == 1) != test.hit || len(c.Previous) != 1 {
@@ -374,7 +374,7 @@ func TestSystem_GeometryAndFilterChanges(t *testing.T) {
 			if got := contactsOf(t, world, player).Previous[0]; got != original {
 				t.Fatalf("previous contact overwritten: got %v, want %v", got, original)
 			}
-			tick(t, world, sys)
+			tick(t, world, sys.Update)
 			if !test.hit {
 				c := contactsOf(t, world, player)
 				if len(c.Current) != 0 || len(c.Previous) != 0 {
@@ -389,13 +389,13 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 	for _, action := range []string{"inactive", "collider removed", "transform removed", "destroyed"} {
 		t.Run(action, func(t *testing.T) {
 			world := newCollisionWorld(t)
-			sys := NewSystem().(*system)
+			sys := newSystem()
 			player, wall := playerAndWall(t, world)
 			if action == "transform removed" {
 				if err := wall.RemoveComponent[core.Transform](world); err != nil {
 					t.Fatal(err)
 				}
-				tick(t, world, sys)
+				tick(t, world, sys.Update)
 				if wall.HasComponent[Contacts](world) || len(sys.contacts) != 0 {
 					t.Fatal("collider without transform received contact state")
 				}
@@ -403,14 +403,14 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			tick(t, world, sys)
+			tick(t, world, sys.Update)
 			for _, entity := range []core.Entity{player, wall} {
 				c := contactsOf(t, world, entity)
 				if len(c.Current) != 1 || len(c.Previous) != 0 {
 					t.Fatalf("want initial enter, got %v", c)
 				}
 			}
-			tick(t, world, sys)
+			tick(t, world, sys.Update)
 			collider, _ := wall.Component[Collider](world)
 			transform, _ := wall.Component[core.Transform](world)
 			var err error
@@ -429,7 +429,7 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			tick(t, world, sys)
+			tick(t, world, sys.Update)
 			if action == "collider removed" || action == "transform removed" {
 				if wall.HasComponent[Contacts](world) || sys.contacts[wall.ID()] != nil {
 					t.Fatal("orphan contacts or private history survived component removal")
@@ -439,7 +439,7 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 			if len(c.Current) != 0 || len(c.Previous) != 1 {
 				t.Fatalf("want exit, got %v", c)
 			}
-			tick(t, world, sys)
+			tick(t, world, sys.Update)
 			c = contactsOf(t, world, player)
 			if len(c.Current) != 0 || len(c.Previous) != 0 {
 				t.Fatalf("want cleared exit, got %v", c)
@@ -457,14 +457,14 @@ func TestSystem_ReactivationAndComponentLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			tick(t, world, sys)
+			tick(t, world, sys.Update)
 			for _, entity := range []core.Entity{player, wall} {
 				c = contactsOf(t, world, entity)
 				if len(c.Current) != 1 || len(c.Previous) != 0 {
 					t.Fatalf("want fresh enter, got %v", c)
 				}
 			}
-			tick(t, world, sys)
+			tick(t, world, sys.Update)
 			for _, entity := range []core.Entity{player, wall} {
 				c = contactsOf(t, world, entity)
 				if len(c.Current) != 1 || !slices.Equal(c.Current, c.Previous) {

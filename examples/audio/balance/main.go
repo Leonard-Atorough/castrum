@@ -53,8 +53,8 @@ func run() error {
 	return nil
 }
 
-func balanceSystem(music core.Entity, panel *debug.Panel) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func balanceSystem(music core.Entity, panel *debug.Panel) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		current, _ := ctx.World.Resource[*input.Snapshot]()
 		return music.Update(ctx.World, func(s *audio.Player) {
 			step := balanceSpeed * ctx.DeltaTime.Seconds()
@@ -64,8 +64,7 @@ func balanceSystem(music core.Entity, panel *debug.Panel) core.System {
 			if current.KeyHeld(input.KeyArrowRight) {
 				s.Settings.Balance += step
 			}
-			// Source validation rejects out-of-range values rather than
-			// clamping them, so the interactive control supplies that bound.
+
 			s.Settings.Balance = math.Max(-1, math.Min(1, s.Settings.Balance))
 			if current.KeyPressed(input.Key1) {
 				s.Settings.Balance = -1
@@ -90,5 +89,5 @@ func balanceSystem(music core.Entity, panel *debug.Panel) core.System {
 				panel.Message(fmt.Sprintf("restarted, balance %+.2f kept", s.Settings.Balance))
 			}
 		})
-	})
+	}
 }

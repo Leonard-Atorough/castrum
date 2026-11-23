@@ -13,7 +13,7 @@ type entry struct {
 	name     string
 	dueTick  uint64
 	seq      uint64
-	action   core.System
+	action   core.SystemFunc
 	interval uint64 // zero for one-time entries
 }
 
@@ -72,7 +72,7 @@ func NewScheduler(world *core.World) *Scheduler {
 // The delay is measured in ticks relative to the world's current tick.
 //
 // Returns an error if the name is empty, the system is nil, or the delay is too large.
-func (s *Scheduler) Once(name string, delay uint64, sys core.System) error {
+func (s *Scheduler) Once(name string, delay uint64, sys core.SystemFunc) error {
 	if err := s.validate(name, sys, "scheduler.Once"); err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (s *Scheduler) Once(name string, delay uint64, sys core.System) error {
 //
 // Returns an error if the name is empty, the system is nil, the interval is zero, or
 // the interval is too large.
-func (s *Scheduler) Every(name string, interval uint64, sys core.System) error {
+func (s *Scheduler) Every(name string, interval uint64, sys core.SystemFunc) error {
 	if err := s.validate(name, sys, "scheduler.Every"); err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (s *Scheduler) Every(name string, interval uint64, sys core.System) error {
 // AtTick schedules a one-time execution of the given system at the specified tick.
 //
 // Returns an error if the name is empty, the system is nil, or the tick is in the past.
-func (s *Scheduler) AtTick(name string, tick uint64, sys core.System) error {
+func (s *Scheduler) AtTick(name string, tick uint64, sys core.SystemFunc) error {
 	if err := s.validate(name, sys, "scheduler.AtTick"); err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (s *Scheduler) NextDue(name string) (uint64, bool) {
 	return e.dueTick, true
 }
 
-func (s *Scheduler) validate(name string, sys core.System, source string) error {
+func (s *Scheduler) validate(name string, sys core.SystemFunc, source string) error {
 	if name == "" {
 		return fmt.Errorf("gametime: %s: name must not be empty", source)
 	}
@@ -170,14 +170,15 @@ func (s *Scheduler) insert(e *entry) {
 // the pre-fixed schedule.
 const SchedulerSystemName = "engine.scheduler"
 
-// NewSchedulerSystem creates a system that executes due entries from the scheduler.
-// It should be called within the world's update loop to process scheduled entries.
+// System returns the system that executes due entries from the scheduler.
+// Register it in [core.PhasePreFixed] as [SchedulerSystemName] so scheduled
+// entries run before the fixed phase's systems.
 //
 // An entry whose action returns an error stays registered and retries on the
 // next run; the rest of the batch still executes. All errors are joined and
 // reported after the batch completes.
-func NewSchedulerSystem(s *Scheduler) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func (s *Scheduler) System() core.SystemFunc {
+	return func(ctx *core.Context) error {
 		now := ctx.Tick
 		var due []*entry
 		for s.entries.Len() > 0 && (*s.entries)[0].dueTick <= now {
@@ -186,16 +187,16 @@ func NewSchedulerSystem(s *Scheduler) core.System {
 		var errs []error
 		for _, e := range due {
 			if _, ok := s.byName[e.name]; !ok {
-				continue // cancelled while collected
+				continue
 			}
-			if err := e.action.Update(ctx); err != nil {
-				// Retry on the next run at the same due tick.
+			if err := e.action(ctx); err != nil {
+
 				errs = append(errs, fmt.Errorf("gametime: scheduler system: failed to execute entry %q: %w", e.name, err))
 				heap.Push(s.entries, e)
 				continue
 			}
 			if _, ok := s.byName[e.name]; !ok {
-				continue // cancelled itself while executing
+				continue
 			}
 			if e.interval > 0 {
 				if e.dueTick > math.MaxUint64-e.interval {
@@ -209,5 +210,5 @@ func NewSchedulerSystem(s *Scheduler) core.System {
 			}
 		}
 		return errors.Join(errs...)
-	})
+	}
 }

@@ -97,11 +97,11 @@ func (r *Reader[T]) Consume(ctx *core.Context, update func(ctx *core.Context, va
 //
 // Use [Hub.NewReader] when one system reads several signal types or needs to
 // manage the reader's lifetime directly.
-func (h *Hub) Consumer[T any](update func(ctx *core.Context, value T) error) core.System {
+func (h *Hub) Consumer[T any](update func(ctx *core.Context, value T) error) core.SystemFunc {
 	reader := h.NewReader[T]()
-	return core.SystemFunc(func(ctx *core.Context) error {
+	return func(ctx *core.Context) error {
 		return reader.Consume(ctx, update)
-	})
+	}
 }
 
 // BeginFrame starts collecting frame signals.

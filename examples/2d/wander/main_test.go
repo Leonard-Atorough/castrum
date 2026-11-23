@@ -36,7 +36,7 @@ func TestWanderMovesAndSelectsTargetsOnArrival(t *testing.T) {
 		{100 * time.Millisecond, targets[1], 3},
 	} {
 		ctx.DeltaTime = step.delta
-		if err := system.Update(ctx); err != nil {
+		if err := system(ctx); err != nil {
 			t.Fatal(err)
 		}
 		got, ok := sprite.Component[core.Transform](world)
@@ -57,7 +57,7 @@ func TestWanderAlreadyAtTarget(t *testing.T) {
 		calls++
 		return geom.Vector2{X: 5, Y: 8}
 	})
-	if err := system.Update(&core.Context{World: world}); err != nil {
+	if err := system(&core.Context{World: world}); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := sprite.Component[core.Transform](world)

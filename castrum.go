@@ -157,7 +157,7 @@ func newGame(opts ...option) (*Game, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide scheduler: %w", err)
 	}
-	if err := g.addEngineFirst(core.PhasePreFixed, gametime.SchedulerSystemName, gametime.NewSchedulerSystem(scheduler)); err != nil {
+	if err := g.addEngineFirst(core.PhasePreFixed, gametime.SchedulerSystemName, scheduler.System()); err != nil {
 		return nil, err
 	}
 
@@ -190,28 +190,28 @@ func newGame(opts ...option) (*Game, error) {
 	g.hub = hub
 	if err := g.schedule(core.PhasePreFrame).SetOpening(runtime.Entry{
 		Name: "engine.signal-begin-frame",
-		System: core.SystemFunc(func(*core.Context) error {
+		System: func(*core.Context) error {
 			hub.BeginFrame()
 			return nil
-		}),
+		},
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: register signal begin-frame system: %w", err)
 	}
 	if err := g.schedule(core.PhasePostFrame).SetClosing(runtime.Entry{
 		Name: "engine.signal-end-frame",
-		System: core.SystemFunc(func(*core.Context) error {
+		System: func(*core.Context) error {
 			hub.EndFrame()
 			return nil
-		}),
+		},
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: register signal end-frame system: %w", err)
 	}
 	if err := g.schedule(core.PhasePostFixed).SetClosing(runtime.Entry{
 		Name: "engine.signal-end-tick",
-		System: core.SystemFunc(func(*core.Context) error {
+		System: func(*core.Context) error {
 			hub.EndTick()
 			return nil
-		}),
+		},
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: register signal end-tick system: %w", err)
 	}
@@ -240,24 +240,24 @@ func newGame(opts ...option) (*Game, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: provide audio backend: %w", err)
 	}
-	var reconciler core.System
+	var reconciler core.SystemFunc
 	// Capture before other frame systems so mid-phase attachments wait for the next pass.
-	if err := g.addEngineFirst(core.PhaseFrame, "engine.audio-prepare", core.SystemFunc(func(*core.Context) error {
+	if err := g.addEngineFirst(core.PhaseFrame, "engine.audio-prepare", func(*core.Context) error {
 		if controller := backend.Controller(); reconciler == nil && controller != nil {
 			reconciler = audio.NewAudioSystem(controller, mixer)
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return nil, err
 	}
 	if err := g.schedule(core.PhaseFrame).AddLast(runtime.Entry{
 		Name: audio.SystemName,
-		System: core.SystemFunc(func(ctx *core.Context) error {
+		System: func(ctx *core.Context) error {
 			if reconciler == nil {
 				return nil
 			}
-			return reconciler.Update(ctx)
-		}),
+			return reconciler(ctx)
+		},
 	}); err != nil {
 		return nil, fmt.Errorf("castrum: register audio system: %w", err)
 	}
@@ -371,7 +371,7 @@ func InGroup(group string) SystemOption {
 // It also returns an error for startup phases once [Game.Startup] begins.
 //
 // Systems added during a phase run are eligible on the next run of that phase.
-func (g *Game) AddSystem(phase core.Phase, name string, system core.System, options ...SystemOption) error {
+func (g *Game) AddSystem(phase core.Phase, name string, system core.SystemFunc, options ...SystemOption) error {
 	if phase < core.PhasePreStartup || phase > core.PhasePostFixed {
 		return fmt.Errorf("castrum: AddSystem: invalid phase %s", phase)
 	}
@@ -439,7 +439,7 @@ func (g *Game) schedule(phase core.Phase) *runtime.Schedule {
 	return sched
 }
 
-func (g *Game) addEngineFirst(phase core.Phase, name string, system core.System) error {
+func (g *Game) addEngineFirst(phase core.Phase, name string, system core.SystemFunc) error {
 	if err := g.schedule(phase).AddFirst(runtime.Entry{Name: name, System: system}); err != nil {
 		return fmt.Errorf("castrum: register engine system %q in phase %s: %w", name, phase, err)
 	}

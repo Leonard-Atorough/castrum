@@ -62,19 +62,17 @@ const PrevTransformSystemName = "engine.prev-transform"
 // Run it before systems that change transforms so the snapshot represents
 // the start of the tick. castrum.New registers it first in the pre-fixed phase
 // under [PrevTransformSystemName].
-func NewPrevTransformCapture() System {
+func NewPrevTransformCapture() SystemFunc {
 	var update *Query
-	return SystemFunc(func(ctx *Context) error {
+	return func(ctx *Context) error {
 		if update == nil {
 			update = NewQuery(ctx.World).With(Transform{}, PrevTransform{})
 		}
 
-		// Snapshot entities that already carry a previous state:
-		// zero-copy writes through the prefetched columns.
 		for e := range update.Execute() {
 			t, _ := e.Component[Transform]()
 			e.SetComponent(t.snapshot())
 		}
 		return nil
-	})
+	}
 }

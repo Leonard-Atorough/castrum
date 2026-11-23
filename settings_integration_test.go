@@ -49,14 +49,14 @@ func TestGameSettingsResourcesAndConsumers(t *testing.T) {
 		{"settings.first", &first},
 		{"settings.second", &second},
 	} {
-		if err := game.AddSystem(core.PhaseFrame, consumer.name, core.SystemFunc(func(*core.Context) error {
+		if err := game.AddSystem(core.PhaseFrame, consumer.name, func(*core.Context) error {
 			value, err := resolved.Value()
 			if err != nil {
 				return err
 			}
 			*consumer.values = append(*consumer.values, value.TextSize)
 			return nil
-		})); err != nil {
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}

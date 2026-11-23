@@ -6,9 +6,9 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-func runCapture(t *testing.T, capture System, w *World) {
+func runCapture(t *testing.T, capture SystemFunc, w *World) {
 	t.Helper()
-	if err := capture.Update(&Context{World: w}); err != nil {
+	if err := capture(&Context{World: w}); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
 }

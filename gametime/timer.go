@@ -236,8 +236,9 @@ const TimerSystemName = "engine.timer"
 // The game constructor registers this system under [TimerSystemName] for
 // every game: timers are declared by component presence, so the system is
 // always on and costs an empty query when no timers exist.
-func NewTimerSystem() core.System {
-	return &timerSystem{}
+func NewTimerSystem() core.SystemFunc {
+	s := &timerSystem{}
+	return s.Update
 }
 
 type timerSystem struct {

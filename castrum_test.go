@@ -223,18 +223,18 @@ func requireBuiltinFont(t *testing.T, loader *asset.Loader) {
 }
 
 // tickCounter returns a system that increments count on each run.
-func tickCounter(count *int) core.System {
-	return core.SystemFunc(func(*core.Context) error { *count++; return nil })
+func tickCounter(count *int) core.SystemFunc {
+	return func(*core.Context) error { *count++; return nil }
 }
 
 // frameCounter returns a system that increments count and records the delta
 // time of each run.
-func frameCounter(count *int, delta *time.Duration) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func frameCounter(count *int, delta *time.Duration) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		*count++
 		*delta = ctx.DeltaTime
 		return nil
-	})
+	}
 }
 
 func checkAlpha(t *testing.T, g *Game, want float64) {
@@ -379,11 +379,11 @@ func TestFrameSystemPauseAppliesWithinSameAdvance(t *testing.T) {
 	// The frame phase runs before Advance reads the paused flag.
 	g := newTestGame(t, WithFixedTPS(4))
 	var ticks, frames int
-	addTestSystem(t, g, core.PhaseFrame, "pauser", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "pauser", func(*core.Context) error {
 		frames++
 		g.Pause()
 		return nil
-	}))
+	})
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
 
 	advanceTestGame(t, g, 250*time.Millisecond)
@@ -400,11 +400,11 @@ func TestFrameSystemResumeAppliesWithinSameAdvance(t *testing.T) {
 	g := newTestGame(t, WithFixedTPS(4))
 	g.Pause()
 	var ticks, frames int
-	addTestSystem(t, g, core.PhaseFrame, "resumer", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "resumer", func(*core.Context) error {
 		frames++
 		g.Resume()
 		return nil
-	}))
+	})
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
 
 	advanceTestGame(t, g, 250*time.Millisecond)
@@ -417,11 +417,11 @@ func TestFrameSystemTimeScaleAppliesWithinSameAdvance(t *testing.T) {
 	// FixedTPS 10 => fixedDT = 100ms; scale 2 doubles the contribution.
 	g := newTestGame(t, WithFixedTPS(10))
 	var ticks, frames int
-	addTestSystem(t, g, core.PhaseFrame, "scaler", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "scaler", func(*core.Context) error {
 		frames++
 		g.SetTimeScale(2)
 		return nil
-	}))
+	})
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
 
 	advanceTestGame(t, g, 100*time.Millisecond)
@@ -436,14 +436,14 @@ func TestFixedPhaseControlChangeDoesNotInterruptCurrentAdvance(t *testing.T) {
 	g := newTestGame(t, WithFixedTPS(4), WithMaxFrameTime(time.Second))
 	var ticks int
 	pausedInTick := false
-	addTestSystem(t, g, core.PhaseFixed, "pauser", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFixed, "pauser", func(*core.Context) error {
 		ticks++
 		if !pausedInTick {
 			pausedInTick = true
 			g.Pause()
 		}
 		return nil
-	}))
+	})
 
 	advanceTestGame(t, g, 500*time.Millisecond)
 	if ticks != 2 {

@@ -68,7 +68,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 		return nil, nil, err
 	}
 	d := &demonstration{entity: entity}
-	if err := g.AddSystem(core.PhaseFrame, "playlist controls", core.SystemFunc(d.controls)); err != nil {
+	if err := g.AddSystem(core.PhaseFrame, "playlist controls", d.controls); err != nil {
 		return nil, nil, err
 	}
 	hub := g.World().MustResource[*signal.Hub]()
@@ -99,7 +99,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 		}
 		labels[line] = label
 	}
-	if err := g.AddSystem(core.PhasePostFrame, "show playlist", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhasePostFrame, "show playlist", func(ctx *core.Context) error {
 		p, ok := entity.Component[audio.Player](ctx.World)
 		if !ok {
 			return fmt.Errorf("player component is missing")
@@ -122,7 +122,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 			}
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return nil, nil, err
 	}
 	return g, d, nil

@@ -99,9 +99,9 @@ func run() error {
 	return nil
 }
 
-func wanderSystem(sprite core.Entity, nextTarget func() geom.Vector2) core.System {
+func wanderSystem(sprite core.Entity, nextTarget func() geom.Vector2) core.SystemFunc {
 	target := nextTarget()
-	return core.SystemFunc(func(ctx *core.Context) error {
+	return func(ctx *core.Context) error {
 		return sprite.Update(ctx.World, func(t *core.Transform) {
 			delta := target.Sub(t.Position)
 			distance := delta.Length()
@@ -113,7 +113,7 @@ func wanderSystem(sprite core.Entity, nextTarget func() geom.Vector2) core.Syste
 				t.Position = t.Position.Add(delta.Mul(step / distance))
 			}
 		})
-	})
+	}
 }
 
 // randomPoint picks a world point; with the camera framing the screen,

@@ -113,7 +113,7 @@ func newGame() (*demo, error) {
 	// Scene entities use ordinary components, so one fixed system can move
 	// field obstacles regardless of how or when they were spawned.
 	moving := core.NewQuery(g.World()).With(core.Transform{}, drift{})
-	if err := g.AddSystem(core.PhaseFixed, "drift", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "drift", func(ctx *core.Context) error {
 		for entity := range moving.Execute() {
 			motion, _ := entity.Component[drift]()
 			entity.Update(func(t *core.Transform) {
@@ -124,10 +124,10 @@ func newGame() (*demo, error) {
 			})
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return nil, err
 	}
-	if err := g.AddSystem(core.PhaseFrame, "scene controls", core.SystemFunc(d.controls)); err != nil {
+	if err := g.AddSystem(core.PhaseFrame, "scene controls", d.controls); err != nil {
 		return nil, err
 	}
 
