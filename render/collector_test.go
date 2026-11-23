@@ -65,7 +65,12 @@ func newFontWorld(t *testing.T) *core.World {
 }
 
 func drawContext(w *core.World, alpha float64) *core.Context {
-	return &core.Context{World: w, Alpha: alpha, LogicalWidth: 100, LogicalHeight: 100}
+	if _, err := w.Resource[Window](); err != nil {
+		_ = w.Provide(func(*core.World) (Window, error) {
+			return NewStaticWindow(Viewport{LogicalWidth: 100, LogicalHeight: 100, WindowWidth: 100, WindowHeight: 100}), nil
+		})
+	}
+	return &core.Context{World: w, Alpha: alpha}
 }
 
 func collect(t *testing.T, c *Collector, ctx *core.Context) DrawList {
@@ -883,7 +888,12 @@ func TestEngineCameraPreference(t *testing.T) {
 	if list.Camera.Position != (geom.Vector2{X: 30, Y: 30}) || list.Camera.Zoom != 2 {
 		t.Fatalf("user camera should win: view = %+v, want (30, 30) zoom 2", list.Camera)
 	}
-	view, ok, err := NewCameraResolver(w).Resolve(ctx.Alpha, ctx.LogicalWidth, ctx.LogicalHeight)
+	win, err := w.Resource[Window]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	vp := win.Viewport()
+	view, ok, err := NewCameraResolver(w).Resolve(ctx.Alpha, vp.LogicalWidth, vp.LogicalHeight)
 	if err != nil || !ok || view != list.Camera {
 		t.Fatalf("resolved camera = %+v, %v, %v; want collected view %+v", view, ok, err, list.Camera)
 	}

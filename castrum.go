@@ -86,6 +86,12 @@ func newGame(opts ...option) (*Game, error) {
 	}
 	g.ctx.World = g.world
 
+	// Provide a default static window until a runner replaces it.
+	g.world.SetResource[render.Window](render.NewStaticWindow(render.Viewport{
+		LogicalWidth: 1280, LogicalHeight: 720,
+		WindowWidth: 1280, WindowHeight: 720,
+	}))
+
 	sim := gametime.NewSimulation(options.fixedDT)
 	if err := g.world.ProvideEager(func(*core.World) (*gametime.Simulation, error) {
 		return sim, nil

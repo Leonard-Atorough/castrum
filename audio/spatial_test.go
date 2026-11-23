@@ -118,6 +118,16 @@ func TestSpatialLiveUpdatesAndPause(t *testing.T) {
 	}
 }
 
+func provideWindow(t *testing.T, world *core.World, size int) {
+	t.Helper()
+	err := world.Provide(func(*core.World) (render.Window, error) {
+		return render.NewStaticWindow(render.Viewport{LogicalWidth: size, LogicalHeight: size, WindowWidth: size, WindowHeight: size}), nil
+	})
+	if err != nil {
+		t.Fatalf("provide window: %v", err)
+	}
+}
+
 func TestDisabledListenerDoesNotRequireTransform(t *testing.T) {
 	h := newAudioHarness(t)
 	entity := h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true, Balance: 0.5})
@@ -130,7 +140,7 @@ func TestDisabledListenerDoesNotRequireTransform(t *testing.T) {
 func TestSpatialCameraFollow(t *testing.T) {
 	h := newAudioHarness(t)
 	entity := h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true})
-	h.ctx.LogicalWidth, h.ctx.LogicalHeight = 100, 100
+	provideWindow(t, h.world, 100)
 	if err := entity.AddComponent(h.world, core.Transform{Position: geom.Vector2{X: 100, Y: 150}}); err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +393,7 @@ func TestSpatialErrors(t *testing.T) {
 			*h.listener = *tc.listener
 			entity := h.spawn(Track("sound.wav"), Settings{Volume: 1, Spatial: true, Attenuation: tc.curve})
 			if !tc.noViewport {
-				h.ctx.LogicalWidth, h.ctx.LogicalHeight = 100, 100
+				provideWindow(t, h.world, 100)
 			}
 			if tc.transform != nil {
 				if err := entity.AddComponent(h.world, *tc.transform); err != nil {

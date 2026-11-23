@@ -121,6 +121,18 @@ func (w *World) MustResource[T any]() T {
 	return value
 }
 
+// SetResource stores value as the resource of type T, replacing any
+// constructor or instance already registered for T.
+func (w *World) SetResource[T any](value T) {
+	typ := reflect.TypeFor[T]()
+	if entry, exists := w.entries[typ]; exists {
+		entry.state = stateResolved
+		entry.instance = value
+		return
+	}
+	w.entries[typ] = &resourceEntry[any]{state: stateResolved, instance: value}
+}
+
 // ResolveEager resolves resources registered with [World.ProvideEager], in
 // registration order. It stops at and returns the first resolution error.
 func (w *World) ResolveEager() error {

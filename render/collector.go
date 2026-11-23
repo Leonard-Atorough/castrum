@@ -78,6 +78,7 @@ type workingItem struct {
 // sorts draw items for each frame. Reuse a Collector across frames.
 type Collector struct {
 	camera          *CameraResolver
+	win             Window
 	images          *core.Query
 	primitives      *core.Query
 	texts           *core.Query
@@ -153,7 +154,15 @@ func NewCollector(world *core.World) *Collector {
 // Among items with equal layer, sort order, and world Y, class order decides:
 // sprites, then primitives, then text, then animated sprites.
 func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
-	camera, ok, err := c.camera.Resolve(ctx.Alpha, ctx.LogicalWidth, ctx.LogicalHeight)
+	if c.win == nil {
+		win, err := ctx.World.Resource[Window]()
+		if err != nil {
+			return DrawList{}, fmt.Errorf("castrum: collect: resolve window: %w", err)
+		}
+		c.win = win
+	}
+	vp := c.win.Viewport()
+	camera, ok, err := c.camera.Resolve(ctx.Alpha, vp.LogicalWidth, vp.LogicalHeight)
 	if err != nil {
 		return DrawList{}, err
 	}

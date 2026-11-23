@@ -112,7 +112,13 @@ func run() error {
 			return fmt.Errorf("raycast example: get camera view: %w", err)
 		}
 
-		end := view.ScreenToWorld(current.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+
+		end := view.ScreenToWorld(current.Cursor(), vp.LogicalWidth, vp.LogicalHeight)
 		segment := geom.Segment{Start: origin, End: end}
 		hit, found := queries.Raycast(segment, collision.RaycastFilter{
 			Mask: collision.Layers(0, 1),

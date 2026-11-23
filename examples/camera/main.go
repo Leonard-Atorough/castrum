@@ -192,7 +192,12 @@ func run() error {
 			t.Scale.X = math.Max(zoomMin, math.Min(zoomMax, t.Scale.X+change))
 			t.Scale.Y = t.Scale.X
 		}
-		position, err := cam.MovePosition(t, displacement, ctx.LogicalWidth, ctx.LogicalHeight)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+		position, err := cam.MovePosition(t, displacement, vp.LogicalWidth, vp.LogicalHeight)
 		if err != nil {
 			return err
 		}
