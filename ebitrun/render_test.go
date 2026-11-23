@@ -51,7 +51,7 @@ func TestEngineDrawFailsFast(t *testing.T) {
 		t.Fatalf("spawn sprite: %v", err)
 	}
 
-	err := r.engine(g.Context(), ebiten.NewImage(100, 100))
+	err := r.engine(g.Context(), ebiten.NewImage(100, 100), 0)
 	if err == nil {
 		t.Fatal("engine draw should fail fast on an unloadable texture")
 	}
@@ -86,7 +86,7 @@ func TestEngineDrawSmoke(t *testing.T) {
 		t.Fatalf("spawn text sprite: %v", err)
 	}
 
-	if err := r.engine(g.Context(), ebiten.NewImage(100, 100)); err != nil {
+	if err := r.engine(g.Context(), ebiten.NewImage(100, 100), 0); err != nil {
 		t.Fatalf("engine draw smoke: %v", err)
 	}
 }
@@ -105,7 +105,7 @@ func TestDrawEngineErrorPrefixedAndUserDrawsRun(t *testing.T) {
 	}
 
 	ran := false
-	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
+	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image, alpha float64) error {
 		ran = true
 		return nil
 	})
@@ -282,7 +282,7 @@ func TestEngineDrawShapeSmoke(t *testing.T) {
 		t.Fatalf("spawn rotated ellipse: %v", err)
 	}
 
-	if err := r.engine(g.Context(), ebiten.NewImage(100, 100)); err != nil {
+	if err := r.engine(g.Context(), ebiten.NewImage(100, 100), 0); err != nil {
 		t.Fatalf("engine draw shape smoke: %v", err)
 	}
 }

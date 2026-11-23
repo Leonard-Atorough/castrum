@@ -64,18 +64,18 @@ func newFontWorld(t *testing.T) *core.World {
 	return w
 }
 
-func drawContext(w *core.World, alpha float64) *core.Context {
+func drawContext(w *core.World) *core.Context {
 	if _, err := w.Resource[Window](); err != nil {
 		_ = w.Provide(func(*core.World) (Window, error) {
 			return NewStaticWindow(Viewport{LogicalWidth: 100, LogicalHeight: 100, WindowWidth: 100, WindowHeight: 100}), nil
 		})
 	}
-	return &core.Context{World: w, Alpha: alpha}
+	return &core.Context{World: w}
 }
 
-func collect(t *testing.T, c *Collector, ctx *core.Context) DrawList {
+func collect(t *testing.T, c *Collector, ctx *core.Context, alpha float64) DrawList {
 	t.Helper()
-	list, err := c.Collect(ctx)
+	list, err := c.Collect(ctx, alpha)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestCollectWithoutPrimaryCameraReturnsEmptyList(t *testing.T) {
 	// happen on a no-camera path.
 	spawnTextureSprite(t, w, "missing.png", geom.Vector2{}, geom.Vector2{}, spr.Sprite{})
 
-	if list := collect(t, NewCollector(w), drawContext(w, 0.5)); len(list.Items) != 0 {
+	if list := collect(t, NewCollector(w), drawContext(w), 0.5); len(list.Items) != 0 {
 		t.Errorf("Items = %d, want 0", len(list.Items))
 	}
 }
@@ -182,7 +182,7 @@ func TestCollectNeverDraws(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			w := tc.world(t)
 			tc.setup(t, w)
-			list := collect(t, NewCollector(w), drawContext(w, 0))
+			list := collect(t, NewCollector(w), drawContext(w), 0)
 			if len(list.Items) != tc.want {
 				t.Fatalf("Items = %d, want %d", len(list.Items), tc.want)
 			}
@@ -209,7 +209,7 @@ func TestCollectInterpolatesCamera(t *testing.T) {
 		{0.5, geom.Vector2{X: 5, Y: 2}},
 		{1, geom.Vector2{X: 10, Y: 4}},
 	} {
-		list := collect(t, collector, drawContext(w, tc.alpha))
+		list := collect(t, collector, drawContext(w), tc.alpha)
 		if !list.Camera.Position.AlmostEqual(tc.want, 1e-9) {
 			t.Errorf("alpha %v: camera position = %v, want %v", tc.alpha, list.Camera.Position, tc.want)
 		}
@@ -224,7 +224,7 @@ func TestCollectFirstPrimaryCameraWins(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{X: 10, Y: 0}, 1, true)
 	spawnCamera(t, w, geom.Vector2{X: 100, Y: 0}, geom.Vector2{X: 200, Y: 0}, 1, true)
 
-	list := collect(t, NewCollector(w), drawContext(w, 0.5))
+	list := collect(t, NewCollector(w), drawContext(w), 0.5)
 	want := geom.Vector2{X: 5, Y: 0}
 	if !list.Camera.Position.AlmostEqual(want, 1e-9) {
 		t.Errorf("camera position = %v, want %v from the first primary", list.Camera.Position, want)
@@ -247,7 +247,7 @@ func TestCollectInterpolatesTextureSprites(t *testing.T) {
 		{0.5, geom.Vector2{X: 5, Y: 10}},
 		{1, geom.Vector2{X: 10, Y: 20}},
 	} {
-		list := collect(t, collector, drawContext(w, tc.alpha))
+		list := collect(t, collector, drawContext(w), tc.alpha)
 		if len(list.Items) != 1 {
 			t.Fatalf("alpha %v: Items = %d, want 1", tc.alpha, len(list.Items))
 		}
@@ -290,7 +290,7 @@ func TestCollectInterpolatesRotationAndScale(t *testing.T) {
 		{0.5, 0.5, geom.Vector2{X: 2, Y: 3}},
 		{1, 1, geom.Vector2{X: 3, Y: 5}},
 	} {
-		list := collect(t, collector, drawContext(w, tc.alpha))
+		list := collect(t, collector, drawContext(w), tc.alpha)
 		if len(list.Items) != 1 {
 			t.Fatalf("alpha %v: Items = %d, want 1", tc.alpha, len(list.Items))
 		}
@@ -335,7 +335,7 @@ func TestCollectInterpolatesRotationAcrossAngleBoundaries(t *testing.T) {
 			{0.5, tc.wantMid},
 			{1, tc.curr},
 		} {
-			list := collect(t, collector, drawContext(w, alpha.alpha))
+			list := collect(t, collector, drawContext(w), alpha.alpha)
 			if len(list.Items) != 1 {
 				t.Fatalf("%s: alpha %v: Items = %d, want 1", tc.name, alpha.alpha, len(list.Items))
 			}
@@ -368,7 +368,7 @@ func TestCollectInterpolatesNonUniformScale(t *testing.T) {
 		{0.5, geom.Vector2{X: 3, Y: 6}},
 		{1, geom.Vector2{X: 4, Y: 2}},
 	} {
-		list := collect(t, collector, drawContext(w, tc.alpha))
+		list := collect(t, collector, drawContext(w), tc.alpha)
 		if len(list.Items) != 1 {
 			t.Fatalf("alpha %v: Items = %d, want 1", tc.alpha, len(list.Items))
 		}
@@ -406,7 +406,7 @@ func TestCollectCameraRotationInterpolatesNumerically(t *testing.T) {
 			{0.5, tc.wantMid},
 			{1, tc.curr},
 		} {
-			list := collect(t, collector, drawContext(w, alpha.alpha))
+			list := collect(t, collector, drawContext(w), alpha.alpha)
 			if math.Abs(list.Camera.Rotation-alpha.want) > 1e-9 {
 				t.Errorf("%s: alpha %v: camera rotation = %v, want %v", tc.name, alpha.alpha, list.Camera.Rotation, alpha.want)
 			}
@@ -429,7 +429,7 @@ func TestCollectCullsByInterpolatedScale(t *testing.T) {
 
 	collector := NewCollector(w)
 
-	list := collect(t, collector, drawContext(w, 0.5))
+	list := collect(t, collector, drawContext(w), 0.5)
 	if len(list.Items) != 1 {
 		t.Fatalf("alpha 0.5: Items = %d, want 1 (the interpolated scale keeps it)", len(list.Items))
 	}
@@ -437,7 +437,7 @@ func TestCollectCullsByInterpolatedScale(t *testing.T) {
 		t.Errorf("alpha 0.5: scale = %v, want 5.5", list.Items[0].Scale)
 	}
 
-	if list := collect(t, collector, drawContext(w, 1)); len(list.Items) != 0 {
+	if list := collect(t, collector, drawContext(w), 1); len(list.Items) != 0 {
 		t.Fatalf("alpha 1: Items = %d, want 0 (the current scale culls it)", len(list.Items))
 	}
 }
@@ -463,7 +463,7 @@ func TestCollectResolvesSheetSprites(t *testing.T) {
 		}
 	}
 
-	list := collect(t, NewCollector(w), drawContext(w, 0))
+	list := collect(t, NewCollector(w), drawContext(w), 0)
 	if len(list.Items) != 2 {
 		t.Fatalf("Items = %d, want 2 (one per region; the off-screen copies culled)", len(list.Items))
 	}
@@ -496,7 +496,7 @@ func TestCollectZeroScaleReadsAsUnit(t *testing.T) {
 		t.Fatalf("spawn zero-scale sprite: %v", err)
 	}
 
-	list := collect(t, NewCollector(w), drawContext(w, 0))
+	list := collect(t, NewCollector(w), drawContext(w), 0)
 	if len(list.Items) != 1 {
 		t.Fatalf("Items = %d, want 1", len(list.Items))
 	}
@@ -526,7 +526,7 @@ func TestCollectCullsAgainstViewport(t *testing.T) {
 		t.Fatalf("spawn scaled sprite: %v", err)
 	}
 
-	list := collect(t, NewCollector(w), drawContext(w, 0))
+	list := collect(t, NewCollector(w), drawContext(w), 0)
 	if len(list.Items) != 3 {
 		t.Fatalf("Items = %d, want 3 (center, touching, and scaled; two culled)", len(list.Items))
 	}
@@ -541,7 +541,7 @@ func TestCollectCullsAgainstViewport(t *testing.T) {
 	zoomed := newCollectorWorld(t)
 	spawnCamera(t, zoomed, geom.Vector2{}, geom.Vector2{}, 2, true)
 	spawnTextureSprite(t, zoomed, "tex.png", geom.Vector2{X: 48}, geom.Vector2{X: 48}, spr.Sprite{})
-	if list := collect(t, NewCollector(zoomed), drawContext(zoomed, 0)); len(list.Items) != 0 {
+	if list := collect(t, NewCollector(zoomed), drawContext(zoomed), 0); len(list.Items) != 0 {
 		t.Errorf("Items = %d, want 0 under 2x zoom", len(list.Items))
 	}
 }
@@ -588,7 +588,7 @@ func TestCollectFailsFastNamingHandles(t *testing.T) {
 			spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 			tc.sprite(t, w)
 
-			list, err := NewCollector(w).Collect(drawContext(w, 0))
+			list, err := NewCollector(w).Collect(drawContext(w), 0)
 			if err == nil {
 				t.Fatalf("Collect should fail fast on %s", tc.name)
 			}
@@ -622,7 +622,7 @@ func TestCollectSortsLayerThenOrderThenY(t *testing.T) {
 
 	want := []float64{5, 4, 6, 1, 3, 2, 7}
 
-	list := collect(t, NewCollector(w), drawContext(w, 0))
+	list := collect(t, NewCollector(w), drawContext(w), 0)
 	if len(list.Items) != len(want) {
 		t.Fatalf("Items = %d, want %d", len(list.Items), len(want))
 	}
@@ -640,7 +640,7 @@ func TestCollectReusesBuffers(t *testing.T) {
 	spawnTextureSprite(t, w, "tex2.png", geom.Vector2{}, geom.Vector2{}, spr.Sprite{})
 
 	collector := NewCollector(w)
-	first := collect(t, collector, drawContext(w, 0))
+	first := collect(t, collector, drawContext(w), 0)
 	if len(first.Items) != 2 || first.Items[0].Texture != "tex.png" {
 		t.Fatalf("first Collect: Items = %v, want [tex.png tex2.png]", first.Items)
 	}
@@ -648,7 +648,7 @@ func TestCollectReusesBuffers(t *testing.T) {
 	if err := w.DestroyEntity(firstSprite); err != nil {
 		t.Fatalf("destroy first sprite: %v", err)
 	}
-	second := collect(t, collector, drawContext(w, 0))
+	second := collect(t, collector, drawContext(w), 0)
 	if len(second.Items) != 1 {
 		t.Fatalf("second Collect: Items = %d, want 1 with no stale entry", len(second.Items))
 	}
@@ -677,7 +677,7 @@ func TestCollectStagesShapeSprites(t *testing.T) {
 		spr.Primitive{Shape: spr.ShapeRect, Rect: geom.Vector2{X: 6, Y: 6}, Style: spr.Style{Outline: true, StrokeWidth: 2}},
 		core.Transform{})
 
-	list := collect(t, NewCollector(w), drawContext(w, 0.5))
+	list := collect(t, NewCollector(w), drawContext(w), 0.5)
 	if len(list.Items) != 4 {
 		t.Fatalf("Items = %d, want 4", len(list.Items))
 	}
@@ -742,7 +742,7 @@ func TestCollectOrdersShapesWithSprites(t *testing.T) {
 	spawnSprite(t, w, geom.Vector2{Y: 10}, geom.Vector2{Y: 10},
 		spr.Primitive{Shape: spr.ShapeLine, To: geom.Vector2{X: 8, Y: 0}, Style: spr.Style{Layer: 1}}, core.Transform{})
 
-	list := collect(t, NewCollector(w), drawContext(w, 0))
+	list := collect(t, NewCollector(w), drawContext(w), 0)
 	if len(list.Items) != 4 {
 		t.Fatalf("Items = %d, want 4", len(list.Items))
 	}
@@ -797,7 +797,7 @@ func TestCollectCullsShapes(t *testing.T) {
 		spr.Primitive{Shape: spr.ShapeLine, From: geom.Vector2{X: 80, Y: 0}, To: geom.Vector2{X: 110, Y: 0}},
 		core.Transform{})
 
-	list := collect(t, NewCollector(w), drawContext(w, 0))
+	list := collect(t, NewCollector(w), drawContext(w), 0)
 	if len(list.Items) != 2 {
 		t.Fatalf("Items = %d, want 2 (the near rect and the reaching line)", len(list.Items))
 	}
@@ -839,7 +839,7 @@ func TestCollectKeepsRotatedAndStrokedGeometry(t *testing.T) {
 			spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 			spawnSprite(t, w, test.position, test.position, test.visual,
 				core.Transform{Rotation: test.rotation, Scale: test.scale})
-			if got := collect(t, NewCollector(w), drawContext(w, 1)); len(got.Items) != test.want {
+			if got := collect(t, NewCollector(w), drawContext(w), 1); len(got.Items) != test.want {
 				t.Fatalf("collected %d items, want %d", len(got.Items), test.want)
 			}
 		})
@@ -861,7 +861,7 @@ func TestCollectCullsUsingInterpolatedDrawableRotation(t *testing.T) {
 		alpha float64
 		want  int
 	}{{0, 0}, {0.5, 1}, {1, 0}} {
-		if got := collect(t, collector, drawContext(w, test.alpha)); len(got.Items) != test.want {
+		if got := collect(t, collector, drawContext(w), test.alpha); len(got.Items) != test.want {
 			t.Fatalf("alpha %v: collected %d, want %d", test.alpha, len(got.Items), test.want)
 		}
 	}
@@ -869,22 +869,22 @@ func TestCollectCullsUsingInterpolatedDrawableRotation(t *testing.T) {
 
 func TestEngineCameraPreference(t *testing.T) {
 	w := newCollectorWorld(t)
-	ctx := drawContext(w, 0)
+	ctx := drawContext(w)
 
-	if list := collect(t, NewCollector(w), ctx); len(list.Items) != 0 || list.Camera != (CameraView{}) {
+	if list := collect(t, NewCollector(w), ctx, 0); len(list.Items) != 0 || list.Camera != (CameraView{}) {
 		t.Fatalf("no-camera list = %+v, want empty", list)
 	}
 
 	if _, err := SpawnEngineCamera(w); err != nil {
 		t.Fatalf("spawn engine camera: %v", err)
 	}
-	list := collect(t, NewCollector(w), ctx)
+	list := collect(t, NewCollector(w), ctx, 0)
 	if list.Camera.Position != (geom.Vector2{}) || list.Camera.Zoom != 1 {
 		t.Fatalf("engine camera view = %+v, want origin zoom 1", list.Camera)
 	}
 
 	spawnCamera(t, w, geom.Vector2{X: 30, Y: 30}, geom.Vector2{X: 30, Y: 30}, 2, true)
-	list = collect(t, NewCollector(w), ctx)
+	list = collect(t, NewCollector(w), ctx, 0)
 	if list.Camera.Position != (geom.Vector2{X: 30, Y: 30}) || list.Camera.Zoom != 2 {
 		t.Fatalf("user camera should win: view = %+v, want (30, 30) zoom 2", list.Camera)
 	}
@@ -893,7 +893,7 @@ func TestEngineCameraPreference(t *testing.T) {
 		t.Fatal(err)
 	}
 	vp := win.Viewport()
-	view, ok, err := NewCameraResolver(w).Resolve(ctx.Alpha, vp.LogicalWidth, vp.LogicalHeight)
+	view, ok, err := NewCameraResolver(w).Resolve(0, vp.LogicalWidth, vp.LogicalHeight)
 	if err != nil || !ok || view != list.Camera {
 		t.Fatalf("resolved camera = %+v, %v, %v; want collected view %+v", view, ok, err, list.Camera)
 	}
@@ -904,7 +904,7 @@ func TestCollectTextItem(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{X: 50, Y: 50}, geom.Vector2{X: 50, Y: 50}, 1, true)
 	spawnTextSprite(t, w, "score: 1", nil, geom.Vector2{X: 60, Y: 50})
 
-	list := collect(t, NewCollector(w), drawContext(w, 0.5))
+	list := collect(t, NewCollector(w), drawContext(w), 0.5)
 	if len(list.Items) != 1 {
 		t.Fatalf("collected %d items, want 1", len(list.Items))
 	}
@@ -928,7 +928,7 @@ func TestCollectTextKeepsSpriteColor(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{X: 50, Y: 50}, geom.Vector2{X: 50, Y: 50}, 1, true)
 	spawnTextSprite(t, w, "tinted", &color.RGBA{R: 200, G: 40, B: 40, A: 255}, geom.Vector2{X: 50, Y: 50})
 
-	list := collect(t, NewCollector(w), drawContext(w, 0.5))
+	list := collect(t, NewCollector(w), drawContext(w), 0.5)
 	if len(list.Items) != 1 {
 		t.Fatalf("collected %d items, want 1", len(list.Items))
 	}
@@ -948,7 +948,7 @@ func TestCollectMissingFontFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := NewCollector(w).Collect(drawContext(w, 0.5))
+	_, err := NewCollector(w).Collect(drawContext(w), 0.5)
 	if err == nil || !strings.Contains(err.Error(), "fonts/ghost.ttf") {
 		t.Errorf("missing font error = %v, want an error naming the font", err)
 	}
@@ -977,7 +977,7 @@ func TestCollectDrawableAssetRequirements(t *testing.T) {
 			w := tc.world(t)
 			spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 			tc.spawn(t, w)
-			if list := collect(t, NewCollector(w), drawContext(w, 1)); len(list.Items) != 1 {
+			if list := collect(t, NewCollector(w), drawContext(w), 1); len(list.Items) != 1 {
 				t.Fatalf("items = %d, want the %s drawable", len(list.Items), tc.name)
 			}
 		})
@@ -989,18 +989,18 @@ func TestCollectSheetLoaderIsResolvedLazily(t *testing.T) {
 	spawnSprite(t, w, geom.Vector2{}, geom.Vector2{},
 		spr.Sprite{Asset: "sprites.json", Region: "player"}, core.Transform{})
 	collector := NewCollector(w)
-	if list := collect(t, collector, drawContext(w, 1)); len(list.Items) != 0 {
+	if list := collect(t, collector, drawContext(w), 1); len(list.Items) != 0 {
 		t.Fatal("no-camera collection should not resolve the sheet")
 	}
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-	if _, err := collector.Collect(drawContext(w, 1)); err == nil || !strings.Contains(err.Error(), "asset loader") {
+	if _, err := collector.Collect(drawContext(w), 1); err == nil || !strings.Contains(err.Error(), "asset loader") {
 		t.Fatalf("missing loader error = %v", err)
 	}
 	loader := newCollectorWorld(t).MustResource[*asset.Loader]()
 	if err := w.Provide(func(*core.World) (*asset.Loader, error) { return loader, nil }); err != nil {
 		t.Fatal(err)
 	}
-	list := collect(t, collector, drawContext(w, 1))
+	list := collect(t, collector, drawContext(w), 1)
 	if len(list.Items) != 1 || list.Items[0].Texture != "tex.png" || list.Items[0].Rect != image.Rect(0, 0, 2, 2) {
 		t.Fatalf("sheet world produced %+v", list.Items)
 	}
@@ -1032,7 +1032,7 @@ func TestCollectMemoryClipAndFileShareDrawSource(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	list := collect(t, NewCollector(w), drawContext(w, 1))
+	list := collect(t, NewCollector(w), drawContext(w), 1)
 	if len(list.Items) != 2 || list.Items[0].Texture != list.Items[1].Texture || list.Items[0].Rect != list.Items[1].Rect {
 		t.Fatalf("file and memory sources disagree: %+v", list.Items)
 	}
@@ -1048,7 +1048,7 @@ func TestCollectTextureWithoutAssetLoaderErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := NewCollector(w).Collect(drawContext(w, 1))
+	_, err := NewCollector(w).Collect(drawContext(w), 1)
 	if err == nil {
 		t.Fatal("a texture drawable without an asset loader should error")
 	}
@@ -1070,7 +1070,7 @@ func TestCollectAnchorShiftsViewport(t *testing.T) {
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: -10, Y: 50}, geom.Vector2{X: -10, Y: 50}, spr.Sprite{})
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 150, Y: 50}, geom.Vector2{X: 150, Y: 50}, spr.Sprite{})
 
-	list := collect(t, NewCollector(w), drawContext(w, 0))
+	list := collect(t, NewCollector(w), drawContext(w), 0)
 	if len(list.Items) != 1 {
 		t.Fatalf("Items = %d, want 1 (only the in-view sprite)", len(list.Items))
 	}
@@ -1094,7 +1094,7 @@ func TestCollectRotationInterpolatesAndCullsConservatively(t *testing.T) {
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 65, Y: 65}, geom.Vector2{X: 65, Y: 65}, spr.Sprite{})
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{X: 90, Y: 90}, geom.Vector2{X: 90, Y: 90}, spr.Sprite{})
 
-	list := collect(t, NewCollector(w), drawContext(w, 0.5))
+	list := collect(t, NewCollector(w), drawContext(w), 0.5)
 	if want := math.Pi / 4; math.Abs(list.Camera.Rotation-want) > 1e-9 {
 		t.Errorf("Camera.Rotation = %v, want %v", list.Camera.Rotation, want)
 	}
@@ -1114,7 +1114,7 @@ func TestCollectClampsToBounds(t *testing.T) {
 	); err != nil {
 		t.Fatalf("spawn camera: %v", err)
 	}
-	list := collect(t, NewCollector(w), drawContext(w, 1))
+	list := collect(t, NewCollector(w), drawContext(w), 1)
 	// A 100x100 view in 200x100 bounds: x clamps into [50, 150], y pins
 	// to the only fitting value.
 	if want := (geom.Vector2{X: 50, Y: 50}); list.Camera.Position != want {
@@ -1131,7 +1131,7 @@ func TestCollectClampsToBounds(t *testing.T) {
 	); err != nil {
 		t.Fatalf("spawn camera: %v", err)
 	}
-	list = collect(t, NewCollector(zoomed), drawContext(zoomed, 1))
+	list = collect(t, NewCollector(zoomed), drawContext(zoomed), 1)
 	if want := (geom.Vector2{X: 100, Y: 50}); list.Camera.Position != want {
 		t.Errorf("pinned position = %v, want %v", list.Camera.Position, want)
 	}
@@ -1147,7 +1147,7 @@ func TestCollectClampsRotatedViewToBounds(t *testing.T) {
 		t.Fatalf("spawn camera: %v", err)
 	}
 
-	list := collect(t, NewCollector(w), drawContext(w, 1))
+	list := collect(t, NewCollector(w), drawContext(w), 1)
 	// At 45 degrees the 100x100 view occupies ~141 world units per
 	// axis: x clamps into the shrunk window while y, which cannot fit
 	// the 100-unit bounds, pins to the bounds center.
@@ -1176,7 +1176,7 @@ func TestCollectRejectsInvalidCameraScale(t *testing.T) {
 				t.Fatalf("spawn camera: %v", err)
 			}
 
-			_, err := NewCollector(w).Collect(drawContext(w, 0))
+			_, err := NewCollector(w).Collect(drawContext(w), 0)
 			if err == nil {
 				t.Fatalf("Collect should reject %s", tc.name)
 			}
@@ -1192,7 +1192,7 @@ func TestCollectPublishesViewResource(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{X: 10, Y: 10}, geom.Vector2{X: 20, Y: 20}, 1, true)
 
 	collector := NewCollector(w)
-	collect(t, collector, drawContext(w, 0))
+	collect(t, collector, drawContext(w), 0)
 	view, err := w.Resource[*CameraView]()
 	if err != nil {
 		t.Fatalf("resolve view resource: %v", err)
@@ -1201,13 +1201,13 @@ func TestCollectPublishesViewResource(t *testing.T) {
 		t.Errorf("resource position = %v, want %v", view.Position, want)
 	}
 
-	collect(t, collector, drawContext(w, 1))
+	collect(t, collector, drawContext(w), 1)
 	if want := (geom.Vector2{X: 20, Y: 20}); view.Position != want {
 		t.Errorf("resource position after update = %v, want %v", view.Position, want)
 	}
 
 	// A second collector adopts the same resource instead of failing.
-	collect(t, NewCollector(w), drawContext(w, 1))
+	collect(t, NewCollector(w), drawContext(w), 1)
 }
 
 func TestCollectFailurePublishesNoView(t *testing.T) {
@@ -1215,7 +1215,7 @@ func TestCollectFailurePublishesNoView(t *testing.T) {
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{X: 10, Y: 0}, 1, true)
 	spawnTextureSprite(t, w, "tex.png", geom.Vector2{}, geom.Vector2{}, spr.Sprite{})
 	collector := NewCollector(w)
-	collect(t, collector, drawContext(w, 0))
+	collect(t, collector, drawContext(w), 0)
 	view, err := w.Resource[*CameraView]()
 	if err != nil {
 		t.Fatalf("resolve view resource: %v", err)
@@ -1225,7 +1225,7 @@ func TestCollectFailurePublishesNoView(t *testing.T) {
 	}
 
 	spawnTextureSprite(t, w, "missing.png", geom.Vector2{}, geom.Vector2{}, spr.Sprite{})
-	if _, err := collector.Collect(drawContext(w, 1)); err == nil {
+	if _, err := collector.Collect(drawContext(w), 1); err == nil {
 		t.Fatal("second Collect should fail on the missing texture")
 	}
 	if view.Position != (geom.Vector2{}) {
@@ -1236,7 +1236,7 @@ func TestCollectFailurePublishesNoView(t *testing.T) {
 	broken := newCollectorWorld(t)
 	spawnCamera(t, broken, geom.Vector2{}, geom.Vector2{}, 1, true)
 	spawnTextureSprite(t, broken, "missing.png", geom.Vector2{}, geom.Vector2{}, spr.Sprite{})
-	if _, err := NewCollector(broken).Collect(drawContext(broken, 0)); err == nil {
+	if _, err := NewCollector(broken).Collect(drawContext(broken), 0); err == nil {
 		t.Fatal("broken Collect should fail")
 	}
 	if _, err := broken.Resource[*CameraView](); !errors.Is(err, core.ErrResourceNotRegistered) {
@@ -1278,7 +1278,7 @@ func TestCollectGathersAnimatedSprites(t *testing.T) {
 		t.Fatalf("spawn hidden animated sprite: %v", err)
 	}
 
-	list := collect(t, NewCollector(w), drawContext(w, 0))
+	list := collect(t, NewCollector(w), drawContext(w), 0)
 	if len(list.Items) != 1 {
 		t.Fatalf("Items = %d, want 1 (current frame plus a hidden sprite)", len(list.Items))
 	}
@@ -1302,7 +1302,7 @@ func TestCollectSkipsCliplessAnimatedSprite(t *testing.T) {
 		t.Fatalf("spawn clipless animated sprite: %v", err)
 	}
 
-	list, err := NewCollector(w).Collect(drawContext(w, 0))
+	list, err := NewCollector(w).Collect(drawContext(w), 0)
 	if err != nil {
 		t.Fatalf("Collect = %v, want no error for a clipless sprite", err)
 	}
@@ -1331,7 +1331,7 @@ func TestCollectDrawsPausedAnimatedSpriteFrameZero(t *testing.T) {
 		t.Fatalf("spawn paused animated sprite: %v", err)
 	}
 
-	list := collect(t, NewCollector(w), drawContext(w, 0))
+	list := collect(t, NewCollector(w), drawContext(w), 0)
 	if len(list.Items) != 1 {
 		t.Fatalf("Items = %d, want 1", len(list.Items))
 	}
@@ -1363,7 +1363,7 @@ func TestCollectStagesSpriteAndAnimatedSpriteTogether(t *testing.T) {
 		t.Fatalf("spawn co-staged components: %v", err)
 	}
 
-	list, err := NewCollector(w).Collect(drawContext(w, 0))
+	list, err := NewCollector(w).Collect(drawContext(w), 0)
 	if err != nil {
 		t.Fatalf("Collect = %v, want both visuals staged", err)
 	}
@@ -1401,7 +1401,7 @@ func TestCollectSurfacesInvalidAnimatedSpriteConfig(t *testing.T) {
 		a.PlaybackMultiplier = -1
 		e.SetComponent(a)
 	}
-	_, err = NewCollector(w).Collect(drawContext(w, 0))
+	_, err = NewCollector(w).Collect(drawContext(w), 0)
 	if err == nil || !strings.Contains(err.Error(), "playback multiplier") {
 		t.Fatalf("Collect error = %v, want the invalid playback multiplier surfaced", err)
 	}
@@ -1446,7 +1446,7 @@ func TestCollectStagesEveryVisualComponentClass(t *testing.T) {
 		t.Fatalf("multi-visual entity: %v", err)
 	}
 
-	list := collect(t, NewCollector(w), drawContext(w, 1))
+	list := collect(t, NewCollector(w), drawContext(w), 1)
 	if len(list.Items) != 3 {
 		t.Fatalf("Items = %d, want 3 (image, primitive, text)", len(list.Items))
 	}

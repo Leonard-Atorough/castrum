@@ -341,11 +341,11 @@ func TestDrawSetsAlphaAndDefersErrors(t *testing.T) {
 	var gotAlpha = -1.0
 	boom := errors.New("draw boom")
 	r := mustRunner(t, g)
-	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		gotAlpha = ctx.Alpha
+	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image, alpha float64) error {
+		gotAlpha = alpha
 		return nil
 	})
-	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
+	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image, alpha float64) error {
 		return boom
 	})
 

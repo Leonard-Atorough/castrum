@@ -11,11 +11,11 @@ func BenchmarkCollectShapes(b *testing.B) {
 	for _, n := range benchSizes {
 		b.Run(intName(n), func(b *testing.B) {
 			world, collector := spriteWorld(b, n, true, 1)
-			ctx := drawCtx(world, 0.5)
+			ctx := drawCtx(world)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for range b.N {
-				list, err := collector.Collect(ctx)
+				list, err := collector.Collect(ctx, 0.5)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -32,11 +32,11 @@ func BenchmarkCollectTextures(b *testing.B) {
 	for _, n := range benchSizes {
 		b.Run(intName(n), func(b *testing.B) {
 			world, collector := spriteWorld(b, n, false, 1)
-			ctx := drawCtx(world, 0.5)
+			ctx := drawCtx(world)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for range b.N {
-				list, err := collector.Collect(ctx)
+				list, err := collector.Collect(ctx, 0.5)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -51,11 +51,11 @@ func BenchmarkCollectTextures(b *testing.B) {
 // cost collection but never reach the draw list.
 func BenchmarkCollectCulled(b *testing.B) {
 	world, collector := spriteWorld(b, 1000, false, 0.25)
-	ctx := drawCtx(world, 0.5)
+	ctx := drawCtx(world)
 	b.ReportAllocs()
 
 	for b.Loop() {
-		list, err := collector.Collect(ctx)
+		list, err := collector.Collect(ctx, 0.5)
 		if err != nil {
 			b.Fatal(err)
 		}

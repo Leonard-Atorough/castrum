@@ -50,27 +50,21 @@ func (s Phase) String() string {
 	return names[s]
 }
 
-// Context gives systems access to the world and the simulation clocks for
-// the current phase. The engine and runner populate it; systems should treat
-// it as read-only beyond the fields they own.
+// Context gives systems access to the world and timing for the current phase.
+// The game populates its fields; systems should not modify them. The world
+// itself remains writable.
 type Context struct {
 	// World is the game world.
 	World *World
 	// Tick counts fixed simulation steps since startup.
 	Tick uint64
-	// Frame counts display frames since startup.
-	Frame uint64
-	// DeltaTime is elapsed frame time in [PhasePreFrame], [PhaseFrame], or
-	// [PhasePostFrame], or the fixed tick interval in [PhasePreFixed],
+	// DeltaTime is capped elapsed frame time in [PhasePreFrame], [PhaseFrame],
+	// or [PhasePostFrame], or the fixed tick interval in [PhasePreFixed],
 	// [PhaseFixed], or [PhasePostFixed].
 	DeltaTime time.Duration
-	// Alpha is the fixed-loop remainder for interpolation between ticks.
-	// A runner sets it when running draw systems.
-	Alpha float64
 }
 
-// SystemFunc is a unit of game logic that updates state during a schedule
-// phase. A system with state can be a struct method value: construct the
-// struct, return its Update method, and add the resulting SystemFunc to a
-// schedule.
+// SystemFunc runs game logic during a schedule phase.
+//
+// A non-nil error stops the schedule and is returned by the game.
 type SystemFunc func(ctx *Context) error

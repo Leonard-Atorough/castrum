@@ -510,7 +510,6 @@ func (g *Game) Advance(elapsed time.Duration) error {
 		elapsed = g.real.MaxFrameTime
 	}
 	g.real.Frame++
-	g.ctx.Frame = g.real.Frame
 	g.ctx.DeltaTime = elapsed
 	if err := g.run(core.PhasePreFrame); err != nil {
 		return err
@@ -569,6 +568,11 @@ func (g *Game) Advance(elapsed time.Duration) error {
 // for render interpolation.
 func (g *Game) Alpha() float64 {
 	return float64(g.acc) / float64(g.sim.Delta)
+}
+
+// Frame counts display frames since startup.
+func (g *Game) Frame() uint64 {
+	return g.real.Frame
 }
 
 // Pause suspends fixed updates and preserves the accumulated time.

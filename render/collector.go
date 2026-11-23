@@ -153,7 +153,7 @@ func NewCollector(world *core.World) *Collector {
 // and [animation.AnimatedSprite] together; each contributes its own item.
 // Among items with equal layer, sort order, and world Y, class order decides:
 // sprites, then primitives, then text, then animated sprites.
-func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
+func (c *Collector) Collect(ctx *core.Context, alpha float64) (DrawList, error) {
 	if c.win == nil {
 		win, err := ctx.World.Resource[Window]()
 		if err != nil {
@@ -162,7 +162,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		c.win = win
 	}
 	vp := c.win.Viewport()
-	camera, ok, err := c.camera.Resolve(ctx.Alpha, vp.LogicalWidth, vp.LogicalHeight)
+	camera, ok, err := c.camera.Resolve(alpha, vp.LogicalWidth, vp.LogicalHeight)
 	if err != nil {
 		return DrawList{}, err
 	}
@@ -190,7 +190,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		s, _ := e.Component[sprite.Sprite]()
 		transform, _ := e.Component[core.Transform]()
 		prev, _ := e.Component[core.PrevTransform]()
-		if err := c.collectImage(viewport, ctx.Alpha, assetLoader, s, prev, transform); err != nil {
+		if err := c.collectImage(viewport, alpha, assetLoader, s, prev, transform); err != nil {
 			return DrawList{}, err
 		}
 	}
@@ -199,7 +199,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		p, _ := e.Component[sprite.Primitive]()
 		transform, _ := e.Component[core.Transform]()
 		prev, _ := e.Component[core.PrevTransform]()
-		if err := c.collectPrimitive(viewport, ctx.Alpha, p, prev, transform); err != nil {
+		if err := c.collectPrimitive(viewport, alpha, p, prev, transform); err != nil {
 			return DrawList{}, err
 		}
 	}
@@ -208,7 +208,7 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		x, _ := e.Component[sprite.Text]()
 		transform, _ := e.Component[core.Transform]()
 		prev, _ := e.Component[core.PrevTransform]()
-		if err := c.collectTextSprite(viewport, ctx.Alpha, assetLoader, x, prev, transform); err != nil {
+		if err := c.collectTextSprite(viewport, alpha, assetLoader, x, prev, transform); err != nil {
 			return DrawList{}, err
 		}
 	}
@@ -231,14 +231,14 @@ func (c *Collector) Collect(ctx *core.Context) (DrawList, error) {
 		if transform.Scale.Y == 0 {
 			transform.Scale.Y = 1
 		}
-		scale := prev.Scale.Lerp(transform.Scale, ctx.Alpha)
-		rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*ctx.Alpha
+		scale := prev.Scale.Lerp(transform.Scale, alpha)
+		rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*alpha
 		item, size, err := c.collectSheet(assetLoader, a.Style, rotation, scale, ref, region)
 		if err != nil {
 			return DrawList{}, err
 		}
 		var zero geom.Vector2
-		c.stage(viewport, ctx.Alpha, a.Style.Layer, a.Style.SortOrder,
+		c.stage(viewport, alpha, a.Style.Layer, a.Style.SortOrder,
 			prev.Position, transform.Position, zero, size, item)
 	}
 
