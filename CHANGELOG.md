@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spawn entities owned by scene instances (#132)
 
 ### Changed
+- **breaking:** Redesign game context and rendering to streamline frame handling (#266)
 - **breaking:** Redesign system to a function instead of an interface (#264)
 - **breaking:** Replace error handling with panics in Game methods and simplify time scale tests (#262)
 - **breaking:** Compose visual components, replace the Drawable union (#239)
