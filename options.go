@@ -66,7 +66,7 @@ type Options struct {
 
 type stateRegistration struct {
 	name    string
-	system  core.System
+	system  core.SystemFunc
 	provide func(*core.World) error
 }
 
@@ -195,10 +195,10 @@ func WithScenes() option {
 			}); err != nil {
 				return fmt.Errorf("castrum: provide scene director: %w", err)
 			}
-			if err := g.addEngineFirst(core.PhaseStartup, scene.StartupSystemName, scene.NewSystem(director)); err != nil {
+			if err := g.addEngineFirst(core.PhaseStartup, scene.StartupSystemName, director.System()); err != nil {
 				return err
 			}
-			return g.addEngineFirst(core.PhasePreFrame, scene.FrameSystemName, scene.NewSystem(director))
+			return g.addEngineFirst(core.PhasePreFrame, scene.FrameSystemName, director.System())
 		})
 	})
 }
@@ -228,14 +228,14 @@ func WithState[S comparable](machine *state.Machine[S]) option {
 					return fmt.Errorf("castrum: provide state machine %s: %w", registration.name, err)
 				}
 			}
-			states := core.SystemFunc(func(ctx *core.Context) error {
+			states := func(ctx *core.Context) error {
 				for _, registration := range opts.states {
-					if err := registration.system.Update(ctx); err != nil {
+					if err := registration.system(ctx); err != nil {
 						return fmt.Errorf("%s: %w", registration.name, err)
 					}
 				}
 				return nil
-			})
+			}
 			if err := g.addEngineFirst(core.PhasePreStartup, state.SystemName, states); err != nil {
 				return err
 			}

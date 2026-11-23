@@ -191,7 +191,7 @@ func runHooks[S comparable](action string, value S, hooks []core.SystemFunc, ctx
 // SystemName is the registered name for the state system.
 const SystemName = "state"
 
-// NewSystem returns a [core.System] that processes a [Machine]'s initial entry
+// NewSystem returns a [core.SystemFunc] that processes a [Machine]'s initial entry
 // and queued transitions.
 //
 // Register it in [core.PhasePreStartup] and [core.PhasePreFrame] to run initial
@@ -212,9 +212,9 @@ const SystemName = "state"
 // [Changed] is emitted and the state has changed. Failed hooks are not retried,
 // and their side effects are not rolled back. A failed initial entry does not
 // emit [Initialized]. A nil machine returns an error from Update.
-func NewSystem[S comparable](machine *Machine[S]) core.System {
+func NewSystem[S comparable](machine *Machine[S]) core.SystemFunc {
 	var hub *signal.Hub
-	return core.SystemFunc(func(ctx *core.Context) error {
+	return func(ctx *core.Context) error {
 		if machine == nil {
 			return errors.New("state: machine must not be nil")
 		}
@@ -232,5 +232,5 @@ func NewSystem[S comparable](machine *Machine[S]) core.System {
 			hub = resolved
 		}
 		return machine.apply(ctx, hub)
-	})
+	}
 }

@@ -73,16 +73,8 @@ type Context struct {
 	LogicalHeight int
 }
 
-// System is a unit of game logic that updates state during a schedule phase.
-type System interface {
-	// Update runs the system for the current phase and returns any failure.
-	Update(ctx *Context) error
-}
-
-// SystemFunc adapts a function to the [System] interface.
+// SystemFunc is a unit of game logic that updates state during a schedule
+// phase. A system with state can be a struct method value: construct the
+// struct, return its Update method, and add the resulting SystemFunc to a
+// schedule.
 type SystemFunc func(ctx *Context) error
-
-// Update calls f with ctx.
-func (f SystemFunc) Update(ctx *Context) error {
-	return f(ctx)
-}

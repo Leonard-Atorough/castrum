@@ -31,7 +31,7 @@ func TestBroadphaseSyncIsTransactional(t *testing.T) {
 	if hit, ok := queries.Raycast(pointSegment(geom.Vector2{X: 1000}), RaycastFilter{Mask: math.MaxUint32}); ok {
 		t.Fatalf("raycast before first sync hit entity %d", hit.Entity)
 	}
-	if err := system.Update(&core.Context{World: world, Tick: 1}); err == nil {
+	if err := system(&core.Context{World: world, Tick: 1}); err == nil {
 		t.Fatal("sync with an unindexable transform should fail")
 	}
 	if queries.Tick() != 0 {
@@ -41,7 +41,7 @@ func TestBroadphaseSyncIsTransactional(t *testing.T) {
 	if err := invalid.SetComponent(world, core.Transform{Position: geom.Vector2{X: 2000}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := system.Update(&core.Context{World: world, Tick: 1}); err != nil {
+	if err := system(&core.Context{World: world, Tick: 1}); err != nil {
 		t.Fatalf("initial valid sync: %v", err)
 	}
 	if queries.Tick() != 1 {
@@ -57,7 +57,7 @@ func TestBroadphaseSyncIsTransactional(t *testing.T) {
 	if err := invalid.SetComponent(world, core.Transform{Position: geom.Vector2{X: math.MaxFloat64}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := system.Update(&core.Context{World: world, Tick: 2}); err == nil {
+	if err := system(&core.Context{World: world, Tick: 2}); err == nil {
 		t.Fatal("sync with a non-finite transform should fail")
 	}
 	if queries.Tick() != 1 {
@@ -73,7 +73,7 @@ func TestBroadphaseSyncIsTransactional(t *testing.T) {
 	if err := invalid.SetComponent(world, core.Transform{Position: geom.Vector2{X: 2000}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := system.Update(&core.Context{World: world, Tick: 2}); err != nil {
+	if err := system(&core.Context{World: world, Tick: 2}); err != nil {
 		t.Fatalf("retry sync: %v", err)
 	}
 	if queries.Tick() != 2 {
@@ -104,7 +104,7 @@ func TestBroadphaseIndexesLargeCollider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := NewSystem().Update(&core.Context{World: world, Tick: 1}); err != nil {
+	if err := NewSystem()(&core.Context{World: world, Tick: 1}); err != nil {
 		t.Fatal(err)
 	}
 	queries, err := world.Resource[*Queries]()

@@ -16,7 +16,7 @@ func BenchmarkAdvanceEmptySystems(b *testing.B) {
 	for _, n := range []int{1, 10, 50} {
 		b.Run(intName(n), func(b *testing.B) {
 			g := castrum.New()
-			empty := core.SystemFunc(func(*core.Context) error { return nil })
+			empty := func(*core.Context) error { return nil }
 			for i := range n {
 				if err := g.AddSystem(core.PhaseFixed, "bench.empty."+intName(i), empty); err != nil {
 					b.Fatal(err)
@@ -50,7 +50,7 @@ func BenchmarkAdvanceSimpleSystem(b *testing.B) {
 				}
 			}
 			var moveQuery *core.Query
-			move := core.SystemFunc(func(ctx *core.Context) error {
+			move := func(ctx *core.Context) error {
 				if moveQuery == nil {
 					moveQuery = core.NewQuery(ctx.World).With(core.Transform{})
 				}
@@ -61,7 +61,7 @@ func BenchmarkAdvanceSimpleSystem(b *testing.B) {
 					})
 				}
 				return nil
-			})
+			}
 			if err := g.AddSystem(core.PhaseFixed, "bench.move", move); err != nil {
 				b.Fatal(err)
 			}

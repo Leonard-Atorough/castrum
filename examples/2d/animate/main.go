@@ -118,7 +118,7 @@ func newGame() (*castrum.Game, error) {
 	}
 	panel := g.World().MustResource[*debug.Panel]()
 	panel.Status("controls", "SPACE: pause/resume   R: restart   1: play once   2: loop")
-	if err := g.AddSystem(core.PhaseFixed, "animation.readout", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "animation.readout", func(ctx *core.Context) error {
 		value, ok := torch.Component[animation.AnimatedSprite](ctx.World)
 		if !ok {
 			return fmt.Errorf("animated torch has no playback component")
@@ -136,14 +136,14 @@ func newGame() (*castrum.Game, error) {
 			}
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return nil, err
 	}
 	return g, nil
 }
 
-func playbackSystem(torch core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func playbackSystem(torch core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		actions, _ := ctx.World.Resource[input.Actions]()
 		pause := actions.JustPressed("pause")
 		restart := actions.JustPressed("restart")
@@ -168,5 +168,5 @@ func playbackSystem(torch core.Entity) core.System {
 				value.Restart()
 			}
 		})
-	})
+	}
 }

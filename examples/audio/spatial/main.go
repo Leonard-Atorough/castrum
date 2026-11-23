@@ -88,8 +88,8 @@ func run() error {
 	return nil
 }
 
-func movementSystem(l *audio.Listener, p core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func movementSystem(l *audio.Listener, p core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		actions, _ := ctx.World.Resource[input.Actions]()
 		dir := geom.Vector2{
 			X: actions.Axis("move_x"),
@@ -109,5 +109,5 @@ func movementSystem(l *audio.Listener, p core.Entity) core.System {
 		}
 		l.Position = position
 		return nil
-	})
+	}
 }

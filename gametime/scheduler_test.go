@@ -23,15 +23,15 @@ func newSchedulerAtTick(tick uint64) (*Scheduler, *core.World) {
 	return NewScheduler(world), world
 }
 
-func noop() core.System {
-	return core.SystemFunc(func(ctx *core.Context) error { return nil })
+func noop() core.SystemFunc {
+	return func(ctx *core.Context) error { return nil }
 }
 
-func record(log *[]string, name string) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func record(log *[]string, name string) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		*log = append(*log, name)
 		return nil
-	})
+	}
 }
 
 func advance(world *core.World, ticks uint64) {
@@ -41,7 +41,7 @@ func advance(world *core.World, ticks uint64) {
 }
 
 func run(s *Scheduler, world *core.World) error {
-	return NewSchedulerSystem(s).Update(&core.Context{World: world, Tick: world.Tick()})
+	return s.System()(&core.Context{World: world, Tick: world.Tick()})
 }
 
 var errBoom = errors.New("boom")
@@ -49,12 +49,12 @@ var errBoom = errors.New("boom")
 func TestValidation(t *testing.T) {
 	type method struct {
 		name string
-		fn   func(s *Scheduler, name string, sys core.System) error
+		fn   func(s *Scheduler, name string, sys core.SystemFunc) error
 	}
 	methods := []method{
-		{"Once", func(s *Scheduler, name string, sys core.System) error { return s.Once(name, 1, sys) }},
-		{"Every", func(s *Scheduler, name string, sys core.System) error { return s.Every(name, 1, sys) }},
-		{"AtTick", func(s *Scheduler, name string, sys core.System) error { return s.AtTick(name, 1, sys) }},
+		{"Once", func(s *Scheduler, name string, sys core.SystemFunc) error { return s.Once(name, 1, sys) }},
+		{"Every", func(s *Scheduler, name string, sys core.SystemFunc) error { return s.Every(name, 1, sys) }},
+		{"AtTick", func(s *Scheduler, name string, sys core.SystemFunc) error { return s.AtTick(name, 1, sys) }},
 	}
 
 	for i, m := range methods {
@@ -348,7 +348,7 @@ func TestExecuteEvery(t *testing.T) {
 func TestExecuteError(t *testing.T) {
 	s, w := newScheduler()
 	var log []string
-	boom := core.SystemFunc(func(ctx *core.Context) error { return errBoom })
+	boom := func(ctx *core.Context) error { return errBoom }
 	if err := s.AtTick("boom", 2, boom); err != nil {
 		t.Fatalf("setup: %v", err)
 	}
@@ -385,10 +385,10 @@ func TestExecuteCancelInterplay(t *testing.T) {
 	t.Run("cancelled while collected", func(t *testing.T) {
 		s, w := newScheduler()
 		var log []string
-		first := core.SystemFunc(func(ctx *core.Context) error {
+		first := func(ctx *core.Context) error {
 			log = append(log, "first")
 			return s.Cancel("second")
-		})
+		}
 		if err := s.AtTick("first", 1, first); err != nil {
 			t.Fatalf("setup: %v", err)
 		}
@@ -414,10 +414,10 @@ func TestExecuteCancelInterplay(t *testing.T) {
 	t.Run("cancelled by its own action", func(t *testing.T) {
 		s, w := newScheduler()
 		var log []string
-		self := core.SystemFunc(func(ctx *core.Context) error {
+		self := func(ctx *core.Context) error {
 			log = append(log, "self")
 			return s.Cancel("self")
-		})
+		}
 		if err := s.Every("self", 1, self); err != nil {
 			t.Fatalf("setup: %v", err)
 		}
@@ -444,7 +444,7 @@ func TestExecuteEveryOverflowDrops(t *testing.T) {
 	if err := s.Every("beat", math.MaxUint64, record(&log, "beat")); err != nil {
 		t.Fatalf("setup: %v", err)
 	}
-	err := NewSchedulerSystem(s).Update(&core.Context{World: w, Tick: math.MaxUint64})
+	err := s.System()(&core.Context{World: w, Tick: math.MaxUint64})
 	if err != nil {
 		t.Fatalf("run at max tick: %v", err)
 	}

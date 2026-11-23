@@ -103,7 +103,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 		}
 		labels[line] = label
 	}
-	if err := g.AddSystem(core.PhaseFrame, "request mode", core.SystemFunc(d.controls)); err != nil {
+	if err := g.AddSystem(core.PhaseFrame, "request mode", d.controls); err != nil {
 		return nil, nil, err
 	}
 	hub := g.World().MustResource[*signal.Hub]()
@@ -123,7 +123,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 	)); err != nil {
 		return nil, nil, err
 	}
-	if err := g.AddSystem(core.PhaseFrame, "show mode", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "show mode", func(ctx *core.Context) error {
 		lines := strings.Split(d.readout(), "\n")
 		for i, label := range labels {
 			text := ""
@@ -137,7 +137,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 			}
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return nil, nil, err
 	}
 	return g, d, nil

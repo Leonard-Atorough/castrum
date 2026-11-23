@@ -154,9 +154,9 @@ func run() error {
 	return nil
 }
 
-func orbitSystem(inner, outer core.Entity) core.System {
+func orbitSystem(inner, outer core.Entity) core.SystemFunc {
 	angle := 0.0
-	return core.SystemFunc(func(ctx *core.Context) error {
+	return func(ctx *core.Context) error {
 		angle += orbitSpeed * ctx.DeltaTime.Seconds()
 		center := geom.Vector2{X: screenW / 2, Y: screenH / 2}
 		innerPos := center.Add(geom.Vector2{X: 140 * math.Cos(angle), Y: 140 * math.Sin(angle)})
@@ -165,11 +165,11 @@ func orbitSystem(inner, outer core.Entity) core.System {
 			return err
 		}
 		return outer.Update(ctx.World, func(t *core.Transform) { t.Position = outerPos })
-	})
+	}
 }
 
-func timeControlSystem(g *castrum.Game, state core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func timeControlSystem(g *castrum.Game, state core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		actions, _ := ctx.World.Resource[input.Actions]()
 		if actions.JustPressed("pause") {
 			if g.Paused() {
@@ -187,8 +187,6 @@ func timeControlSystem(g *castrum.Game, state core.Entity) core.System {
 			g.SetTimeScale(next)
 		}
 
-		// The state line is frame-phase text, so it reports the paused
-		// simulation while the simulation itself stands still.
 		word := "running"
 		if g.Paused() {
 			word = "paused"
@@ -196,5 +194,5 @@ func timeControlSystem(g *castrum.Game, state core.Entity) core.System {
 		return state.Update(ctx.World, func(x *sprite.Text) {
 			x.Text = fmt.Sprintf("%.2fx, %s", g.TimeScale(), word)
 		})
-	})
+	}
 }

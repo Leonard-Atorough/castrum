@@ -13,31 +13,31 @@ import (
 func run(out io.Writer) error {
 	g := castrum.New()
 	var sampled, applied int
-	if err := g.AddSystem(core.PhaseFrame, "apply", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "apply", func(*core.Context) error {
 		applied = sampled * 2
 		_, err := fmt.Fprintln(out, "apply:", applied)
 		return err
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFrame, "report", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "report", func(*core.Context) error {
 		_, err := fmt.Fprintln(out, "report:", applied)
 		return err
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 	// Relative insertion targets must already exist in the same user phase.
-	if err := g.AddSystem(core.PhaseFrame, "sample", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "sample", func(*core.Context) error {
 		sampled = 21
 		_, err := fmt.Fprintln(out, "sample:", sampled)
 		return err
-	}), castrum.Before("apply")); err != nil {
+	}, castrum.Before("apply")); err != nil {
 		return err
 	}
-	if err := g.AddSystem(core.PhaseFrame, "audit", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "audit", func(*core.Context) error {
 		_, err := fmt.Fprintln(out, "audit:", applied)
 		return err
-	}), castrum.After("apply")); err != nil {
+	}, castrum.After("apply")); err != nil {
 		return err
 	}
 	if err := g.Startup(); err != nil {

@@ -10,21 +10,21 @@ import (
 // schedule so user systems in that phase see fresh actions.
 //
 // A missing snapshot resource reads as one frame with no input.
-func NewFrameSystem(am *ActionMap) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func NewFrameSystem(am *ActionMap) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		snapshot, _ := ctx.World.Resource[*Snapshot]()
 		am.Update(snapshot, ctx.DeltaTime.Seconds())
 		return nil
-	})
+	}
 }
 
 // NewTickSystem returns the pre-fixed updater that delivers the press and
 // release edges accumulated since the previous tick by calling
 // [ActionMap.Tick]. castrum.New registers it first in the pre-fixed
 // schedule so fixed systems read latched edges.
-func NewTickSystem(am *ActionMap) core.System {
-	return core.SystemFunc(func(*core.Context) error {
+func NewTickSystem(am *ActionMap) core.SystemFunc {
+	return func(*core.Context) error {
 		am.Tick()
 		return nil
-	})
+	}
 }

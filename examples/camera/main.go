@@ -152,7 +152,7 @@ func run() error {
 		return err
 	}
 
-	if err := g.AddSystem(core.PhaseFixed, "camera.controls", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "camera.controls", func(ctx *core.Context) error {
 		actions, _ := ctx.World.Resource[input.Actions]()
 		dt := ctx.DeltaTime.Seconds()
 		cam, ok := camera.Component[render.Camera](ctx.World)
@@ -163,8 +163,7 @@ func run() error {
 		if !ok {
 			return fmt.Errorf("camera controls: missing Transform component")
 		}
-		// Rotate screen-relative input into world space. Normalizing keeps
-		// diagonal movement at the same speed as movement along one axis.
+
 		pan := geom.Vector2{}
 		if actions.Held("pan_left") {
 			pan.X -= 1
@@ -199,19 +198,19 @@ func run() error {
 		}
 		t.Position = position
 		return camera.SetComponent(ctx.World, t)
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 
 	// Report rotation and zoom from the same transform the renderer
 	// uses to resolve the view.
-	if err := g.AddSystem(core.PhaseFrame, "camera.hud", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "camera.hud", func(ctx *core.Context) error {
 		transform, _ := camera.Component[core.Transform](ctx.World)
 		return state.Update(ctx.World, func(x *sprite.Text) {
 			x.Text = fmt.Sprintf("%.0f degrees, %.2fx",
 				transform.Rotation*180/math.Pi, transform.Scale.X)
 		})
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 

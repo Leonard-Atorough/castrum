@@ -16,7 +16,7 @@ func TestSystem_EnteredSignals(t *testing.T) {
 	entered := hub.NewReader[Entered]()
 	exited := hub.NewReader[Exited]()
 
-	if err := sys.Update(&core.Context{World: world, Tick: 1}); err != nil {
+	if err := sys(&core.Context{World: world, Tick: 1}); err != nil {
 		t.Fatalf("collision tick: %v", err)
 	}
 
@@ -40,7 +40,7 @@ func TestSystem_EnteredSignals(t *testing.T) {
 		t.Fatalf("wall's entered signal = %v, want %v", got, wantWall)
 	}
 
-	if err := sys.Update(&core.Context{World: world, Tick: 2}); err != nil {
+	if err := sys(&core.Context{World: world, Tick: 2}); err != nil {
 		t.Fatalf("collision tick: %v", err)
 	}
 	got = nil
@@ -106,13 +106,13 @@ func TestSystem_ExitedSignals(t *testing.T) {
 	entered := hub.NewReader[Entered]()
 	exited := hub.NewReader[Exited]()
 
-	if err := sys.Update(&core.Context{World: world, Tick: 1}); err != nil {
+	if err := sys(&core.Context{World: world, Tick: 1}); err != nil {
 		t.Fatalf("collision tick: %v", err)
 	}
 	if err := player.Update(world, func(tr *core.Transform) { tr.Position = geom.Vector2{X: -50} }); err != nil {
 		t.Fatalf("move player: %v", err)
 	}
-	if err := sys.Update(&core.Context{World: world, Tick: 2}); err != nil {
+	if err := sys(&core.Context{World: world, Tick: 2}); err != nil {
 		t.Fatalf("collision tick: %v", err)
 	}
 

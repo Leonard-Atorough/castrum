@@ -203,8 +203,9 @@ type animationSystem struct {
 // When registering it manually, provide a [*signal.Hub] resource and run it
 // in the fixed phase. Update returns an error if the hub is missing, a sprite
 // is invalid, or a frame advance cannot be represented.
-func NewSpriteAnimationSystem() core.System {
-	return &animationSystem{}
+func NewSpriteAnimationSystem() core.SystemFunc {
+	s := &animationSystem{}
+	return s.Update
 }
 
 func (s *animationSystem) Update(ctx *core.Context) error {

@@ -28,7 +28,7 @@ func TestQueriesRaycastUsesBroadphaseAndTargetLayers(t *testing.T) {
 	near := makeCollider(geom.Vector2{}, 1, 0)
 	far := makeCollider(geom.Vector2{X: 4}, 2, math.MaxUint32)
 	system := NewSystem()
-	if err := system.Update(&core.Context{World: world, Tick: 1}); err != nil {
+	if err := system(&core.Context{World: world, Tick: 1}); err != nil {
 		t.Fatal(err)
 	}
 	queries, err := world.Resource[*Queries]()
@@ -73,7 +73,7 @@ func TestQueriesRaycastLongSegment(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := NewSystem().Update(&core.Context{World: world, Tick: 1}); err != nil {
+		if err := NewSystem()(&core.Context{World: world, Tick: 1}); err != nil {
 			t.Fatal(err)
 		}
 		queries, err := world.Resource[*Queries]()

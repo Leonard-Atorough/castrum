@@ -38,10 +38,10 @@ func TestWheelZoomRunsOncePerFrame(t *testing.T) {
 				t.Fatal(err)
 			}
 			ticks := 0
-			if err := g.AddSystem(core.PhaseFixed, "counter", core.SystemFunc(func(ctx *core.Context) error {
+			if err := g.AddSystem(core.PhaseFixed, "counter", func(ctx *core.Context) error {
 				ticks++
 				return nil
-			})); err != nil {
+			}); err != nil {
 				t.Fatal(err)
 			}
 			if err := g.Startup(); err != nil {
@@ -116,7 +116,7 @@ func TestTankMovementUsesBindingsAndFacing(t *testing.T) {
 				t.Fatal(err)
 			}
 			ctx := &core.Context{World: world, DeltaTime: 250 * time.Millisecond}
-			if err := tankBodySystem(body).Update(ctx); err != nil {
+			if err := tankBodySystem(body)(ctx); err != nil {
 				t.Fatal(err)
 			}
 			got, _ := body.Component[core.Transform](world)
@@ -148,7 +148,7 @@ func TestTurretUsesPublishedViewAndCameraFollowsHull(t *testing.T) {
 	}
 	ctx := &core.Context{World: world, LogicalWidth: 200, LogicalHeight: 100}
 	system := turretSystem(turret, body)
-	if err := system.Update(ctx); err != nil {
+	if err := system(ctx); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := turret.Component[core.Transform](world)
@@ -170,7 +170,7 @@ func TestTurretUsesPublishedViewAndCameraFollowsHull(t *testing.T) {
 	} {
 		current, _ := ctx.World.Resource[*input.Snapshot]()
 		current.Mouse.Cursor = tt.cursor
-		if err := system.Update(ctx); err != nil {
+		if err := system(ctx); err != nil {
 			t.Fatal(err)
 		}
 		got, _ = turret.Component[core.Transform](world)
@@ -178,7 +178,7 @@ func TestTurretUsesPublishedViewAndCameraFollowsHull(t *testing.T) {
 			t.Fatalf("cursor %v: turret=%+v, want mounted at %v with rotation=%v", tt.cursor, got, hullPosition, tt.rotation)
 		}
 	}
-	if err := cameraSystem(camera, body).Update(ctx); err != nil {
+	if err := cameraSystem(camera, body)(ctx); err != nil {
 		t.Fatal(err)
 	}
 	transform, _ := camera.Component[core.Transform](world)

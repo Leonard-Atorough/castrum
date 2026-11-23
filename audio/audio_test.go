@@ -53,7 +53,7 @@ type harness struct {
 	listener   *Listener
 	controller *fakeController
 	ctx        *core.Context
-	system     core.System
+	system     core.SystemFunc
 	syncStart  int
 }
 
@@ -104,7 +104,7 @@ func (h *harness) spawn(source Source, settings Settings) core.Entity {
 func (h *harness) step() error {
 	h.t.Helper()
 	h.syncStart = len(h.controller.syncs)
-	return h.system.Update(h.ctx)
+	return h.system(h.ctx)
 }
 
 func (h *harness) update() {

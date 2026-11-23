@@ -208,7 +208,7 @@ func run() error {
 	// The paint system renders signal-driven state. Registered last
 	// among the fixed systems, it also owns the reset: when the flown
 	// core clears the screen, the sequence starts a fresh cycle.
-	if err := g.AddSystem(core.PhaseFixed, "core.paint", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "core.paint", func(ctx *core.Context) error {
 		if state.flash > 0 {
 			state.flash--
 		}
@@ -220,8 +220,7 @@ func run() error {
 		fill := runningColor
 		switch state.phase {
 		case countdown:
-			// The blink is presentation: paint may read state and tick
-			// freely; it never detects a transition.
+
 			if (ctx.Tick/ticksPerHalfSecond)%2 == 0 {
 				fill = countdownOn
 			} else {
@@ -237,8 +236,6 @@ func run() error {
 			return err
 		}
 
-		// Reset: the core has left the screen, so charge and countdown
-		// return to their starting state and the cycle repeats.
 		transform, _ := state.core.Component[core.Transform](ctx.World)
 		if state.phase == flying && transform.Position.Y < -float64(size) {
 			state.phase = charging
@@ -249,7 +246,7 @@ func run() error {
 			return state.countdown.Update(ctx.World, func(t *gametime.Timer) { t.Restart(); t.Running = false })
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 
@@ -257,7 +254,7 @@ func run() error {
 	// fixed ticks reach it in the next display frame through independent
 	// readers, and every transition it observes is narrated onto the
 	// debug panel.
-	if err := g.AddSystem(core.PhaseFrame, "core.announce", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "core.announce", func(ctx *core.Context) error {
 		if err := chargedFrame.Consume(ctx, func(_ *core.Context, _ coreCharged) error {
 			panel.Message("CORE CHARGED - arming launch countdown")
 			return nil
@@ -268,7 +265,7 @@ func run() error {
 			panel.Message(fmt.Sprintf("LAUNCHED on tick %d", event.tick))
 			return nil
 		})
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 

@@ -28,7 +28,7 @@ func TestMissingHubPreservesPendingState(t *testing.T) {
 		t.Fatal(err)
 	}
 	system := NewSystem(m)
-	if err := system.Update(ctx); !errors.Is(err, core.ErrResourceNotRegistered) {
+	if err := system(ctx); !errors.Is(err, core.ErrResourceNotRegistered) {
 		t.Fatalf("missing hub error = %v", err)
 	}
 	if pending, ok := m.Pending(); m.initialized || !m.Is(0) || !ok || pending != 1 {
@@ -40,7 +40,7 @@ func TestMissingHubPreservesPendingState(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if err := system.Update(ctx); err != nil {
+		if err := system(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -98,7 +98,7 @@ func TestRestartReentersCurrentState(t *testing.T) {
 	hub := ctx.World.MustResource[*signal.Hub]()
 	changed := hub.NewReader[Changed[int]]()
 	system := NewSystem(m)
-	if err := system.Update(ctx); err != nil {
+	if err := system(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(hooks, []string{"enter"}) {
@@ -127,7 +127,7 @@ func TestRestartReentersCurrentState(t *testing.T) {
 		t.Fatalf("Restart ran hooks before processing: %v", hooks)
 	}
 
-	if err := system.Update(ctx); err != nil {
+	if err := system(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(hooks, []string{"enter", "exit", "enter"}) {
@@ -155,7 +155,7 @@ func TestWithInitialCopiesConfiguration(t *testing.T) {
 	original := New[int]()
 	calls := 0
 	original.OnEnter(1, func(*core.Context) error { calls++; return nil })
-	if err := NewSystem(original).Update(testContext(t)); err != nil {
+	if err := NewSystem(original)(testContext(t)); err != nil {
 		t.Fatal(err)
 	}
 	if err := original.Request(2); err != nil {
@@ -170,7 +170,7 @@ func TestWithInitialCopiesConfiguration(t *testing.T) {
 		len(original.entryHooks[1]) != 1 {
 		t.Fatal("WithInitial modified the original machine or its hooks")
 	}
-	if err := NewSystem(configured).Update(testContext(t)); err != nil {
+	if err := NewSystem(configured)(testContext(t)); err != nil {
 		t.Fatal(err)
 	}
 	if calls != 2 {
@@ -221,14 +221,14 @@ func TestHookOrderAndContext(t *testing.T) {
 	if err := m.Request("play"); err != nil {
 		t.Fatal(err)
 	}
-	if err := system.Update(ctx); err != nil {
+	if err := system(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if !m.Is("boot") {
 		t.Fatal("first update processed a transition before initial entry")
 	}
 	for range 3 {
-		if err := system.Update(ctx); err != nil {
+		if err := system(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -268,7 +268,7 @@ func TestHookRequestsAreDeferred(t *testing.T) {
 			}
 			system := NewSystem(m)
 			ctx := testContext(t)
-			if err := system.Update(ctx); err != nil {
+			if err := system(ctx); err != nil {
 				t.Fatal(err)
 			}
 			want := 0
@@ -276,7 +276,7 @@ func TestHookRequestsAreDeferred(t *testing.T) {
 				if err := m.Request(1); err != nil {
 					t.Fatal(err)
 				}
-				if err := system.Update(ctx); err != nil {
+				if err := system(ctx); err != nil {
 					t.Fatal(err)
 				}
 				want = 1
@@ -287,7 +287,7 @@ func TestHookRequestsAreDeferred(t *testing.T) {
 			if next, ok := m.Pending(); !ok || next != 2 {
 				t.Fatalf("pending = %d, %v, want 2, true", next, ok)
 			}
-			if err := system.Update(ctx); err != nil {
+			if err := system(ctx); err != nil {
 				t.Fatal(err)
 			}
 			if !m.Is(2) {
@@ -327,7 +327,7 @@ func TestHookErrors(t *testing.T) {
 			hub := ctx.World.MustResource[*signal.Hub]()
 			initialized := hub.NewReader[Initialized[string]]()
 			changed := hub.NewReader[Changed[string]]()
-			err := system.Update(ctx)
+			err := system(ctx)
 			want := "boot"
 			if action != "initial enter" {
 				if err != nil {
@@ -336,7 +336,7 @@ func TestHookErrors(t *testing.T) {
 				if err := m.Request("play"); err != nil {
 					t.Fatal(err)
 				}
-				err = system.Update(ctx)
+				err = system(ctx)
 				if action == "enter" {
 					want = "play"
 				}
@@ -350,7 +350,7 @@ func TestHookErrors(t *testing.T) {
 			if _, ok := m.Pending(); ok {
 				t.Fatal("failed transition was not consumed")
 			}
-			if err := system.Update(ctx); err != nil {
+			if err := system(ctx); err != nil {
 				t.Fatalf("next update replayed a failed hook: %v", err)
 			}
 			if calls != 1 {
@@ -384,7 +384,7 @@ func TestZeroValueMachine(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if err := system.Update(ctx); err != nil {
+		if err := system(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -394,7 +394,7 @@ func TestZeroValueMachine(t *testing.T) {
 }
 
 func TestNilMachineReturnsError(t *testing.T) {
-	if err := NewSystem[int](nil).Update(&core.Context{}); err == nil {
+	if err := NewSystem[int](nil)(&core.Context{}); err == nil {
 		t.Fatal("nil machine did not return an error")
 	}
 }
@@ -402,7 +402,7 @@ func TestNilMachineReturnsError(t *testing.T) {
 func TestNilHookReturnsError(t *testing.T) {
 	m := New[int]()
 	m.OnEnter(0, nil)
-	if err := NewSystem(m).Update(testContext(t)); err == nil {
+	if err := NewSystem(m)(testContext(t)); err == nil {
 		t.Fatal("nil hook did not return an error")
 	}
 }
@@ -417,14 +417,14 @@ func TestExitHookCanRequestTheDestination(t *testing.T) {
 	})
 	system := NewSystem(m)
 	ctx := testContext(t)
-	if err := system.Update(ctx); err != nil {
+	if err := system(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.Request(1); err != nil {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if err := system.Update(ctx); err != nil {
+		if err := system(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -454,7 +454,7 @@ func TestHookRequestSurvivesHookError(t *testing.T) {
 			}
 			system := NewSystem(m)
 			ctx := testContext(t)
-			err := system.Update(ctx)
+			err := system(ctx)
 			if action != "initial enter" {
 				if err != nil {
 					t.Fatal(err)
@@ -462,7 +462,7 @@ func TestHookRequestSurvivesHookError(t *testing.T) {
 				if err := m.Request(1); err != nil {
 					t.Fatal(err)
 				}
-				err = system.Update(ctx)
+				err = system(ctx)
 			}
 			if !errors.Is(err, boom) {
 				t.Fatalf("error = %v, want hook error", err)
@@ -474,7 +474,7 @@ func TestHookRequestSurvivesHookError(t *testing.T) {
 				// Avoid replaying this deliberately failing exit hook.
 				m.exitHooks[0] = nil
 			}
-			if err := system.Update(ctx); err != nil {
+			if err := system(ctx); err != nil {
 				t.Fatal(err)
 			}
 			if !m.Is(2) {

@@ -59,7 +59,7 @@ func TestSystem_AllocationsFollowMovement(t *testing.T) {
 				tick(t, world, sys)
 			}
 			if allocs := testing.AllocsPerRun(20, func() {
-				if err := sys.Update(ctx); err != nil {
+				if err := sys(ctx); err != nil {
 					t.Fatal(err)
 				}
 			}); allocs != 0 {
@@ -72,7 +72,7 @@ func TestSystem_AllocationsFollowMovement(t *testing.T) {
 				if err := moving.SetComponent(world, core.Transform{Position: geom.Vector2{X: base + offset}}); err != nil {
 					t.Fatal(err)
 				}
-				if err := sys.Update(ctx); err != nil {
+				if err := sys(ctx); err != nil {
 					t.Fatal(err)
 				}
 			}); allocs > 3 {
@@ -91,7 +91,7 @@ func TestSystem_SettledContactsAllocateNothing(t *testing.T) {
 		tick(t, world, sys)
 	}
 	if allocs := testing.AllocsPerRun(20, func() {
-		if err := sys.Update(ctx); err != nil {
+		if err := sys(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}); allocs != 0 {
@@ -107,7 +107,7 @@ func TestSystem_ColliderOnlyAllocatesNothing(t *testing.T) {
 	for _, n := range []int{100, 1000} {
 		t.Run(fmt.Sprint(n), func(t *testing.T) {
 			world := newCollisionWorld(t)
-			sys := NewSystem().(*system)
+			sys := newSystem()
 			collider, err := NewCollider(Circle{Radius: 1})
 			if err != nil {
 				t.Fatal(err)
@@ -119,7 +119,7 @@ func TestSystem_ColliderOnlyAllocatesNothing(t *testing.T) {
 			}
 			ctx := &core.Context{World: world}
 			for range 4 {
-				tick(t, world, sys)
+				tick(t, world, sys.Update)
 			}
 			if allocs := testing.AllocsPerRun(20, func() {
 				ctx.Tick++

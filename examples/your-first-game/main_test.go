@@ -90,7 +90,7 @@ func newTestGame(t *testing.T) (*castrum.Game, core.Entity, core.Entity) {
 
 	for _, sys := range []struct {
 		name string
-		s    core.System
+		s    core.SystemFunc
 	}{
 		{"bullets", bulletsSystem(g.MainCamera(), stats)},
 		{"enemy.spawn", spawnSystem(spawner, hull, g.MainCamera(), stats)},

@@ -50,7 +50,11 @@ func canonicalPair(x, y core.EntityID) pairKey {
 // The system attaches [Contacts] to entities with both a [Collider] and a
 // [core.Transform], applies position and rotation but not scale, and retains
 // existing pairs long enough to report when a contact ends.
-func NewSystem() core.System {
+func NewSystem() core.SystemFunc {
+	return newSystem().Update
+}
+
+func newSystem() *system {
 	return &system{
 		contacts:       make(map[core.EntityID]*contactBuffers),
 		tested:         make(map[pairKey]struct{}),

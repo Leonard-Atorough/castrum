@@ -130,14 +130,14 @@ func run() error {
 	// The engine's prev-transform capture and the renderer's
 	// interpolation make the spin smooth at any display rate, with no
 	// per-frame work here.
-	if err := g.AddSystem(core.PhaseFixed, "spin", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "spin", func(ctx *core.Context) error {
 		for _, sprite := range spinners {
 			if err := sprite.Update(ctx.World, func(t *core.Transform) { t.Rotation += rotationSpeed }); err != nil {
 				return err
 			}
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 

@@ -10,7 +10,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/signal"
 )
 
-func newTimerHarness(t *testing.T) (*core.World, core.System) {
+func newTimerHarness(t *testing.T) (*core.World, core.SystemFunc) {
 	t.Helper()
 	world := core.NewWorld()
 	if err := world.Provide(func(*core.World) (*Groups, error) {
@@ -26,9 +26,9 @@ func newTimerHarness(t *testing.T) (*core.World, core.System) {
 	return world, NewTimerSystem()
 }
 
-func tick(t *testing.T, world *core.World, sys core.System, number uint64, dt time.Duration) {
+func tick(t *testing.T, world *core.World, sys core.SystemFunc, number uint64, dt time.Duration) {
 	t.Helper()
-	if err := sys.Update(&core.Context{World: world, Tick: number, DeltaTime: dt}); err != nil {
+	if err := sys(&core.Context{World: world, Tick: number, DeltaTime: dt}); err != nil {
 		t.Fatalf("timer tick %d: %v", number, err)
 	}
 }
@@ -468,7 +468,7 @@ func TestGroups_RegistryContract(t *testing.T) {
 
 func TestSystem_RequiresGroupsResource(t *testing.T) {
 	sys := NewTimerSystem()
-	err := sys.Update(&core.Context{World: core.NewWorld(), Tick: 1, DeltaTime: time.Second})
+	err := sys(&core.Context{World: core.NewWorld(), Tick: 1, DeltaTime: time.Second})
 	if err == nil || !strings.Contains(err.Error(), "timer groups") {
 		t.Errorf("system without groups = %v, want an error naming the timer groups resource", err)
 	}
@@ -495,7 +495,7 @@ func TestSystem_UnrepresentableGroupScaleFailsTick(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = sys.Update(&core.Context{World: world, Tick: 1, DeltaTime: 100 * time.Millisecond})
+	err = sys(&core.Context{World: world, Tick: 1, DeltaTime: 100 * time.Millisecond})
 	if err == nil || !strings.Contains(err.Error(), "not representable") {
 		t.Errorf("tick under an unrepresentable scale = %v, want an error naming the contribution", err)
 	}
@@ -535,7 +535,7 @@ func TestTimerRejectsRoundedDurationBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = sys.Update(&core.Context{World: world, Tick: 1, DeltaTime: time.Nanosecond})
+	err = sys(&core.Context{World: world, Tick: 1, DeltaTime: time.Nanosecond})
 	if err == nil || !strings.Contains(err.Error(), "not representable") {
 		t.Fatalf("Update() = %v, want boundary rejection", err)
 	}

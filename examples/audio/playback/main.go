@@ -57,8 +57,8 @@ func run() error {
 	return nil
 }
 
-func playbackSystem(music core.Entity, panel *debug.Panel) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func playbackSystem(music core.Entity, panel *debug.Panel) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		current, _ := ctx.World.Resource[*input.Snapshot]()
 		if current.KeyPressed(input.KeySpace) {
 			if _, err := audio.OneShot(ctx.World, audio.Track(audioassets.Magic), audio.DefaultSettings()); err != nil {
@@ -79,5 +79,5 @@ func playbackSystem(music core.Entity, panel *debug.Panel) core.System {
 				panel.Message("music restarted")
 			}
 		})
-	})
+	}
 }
