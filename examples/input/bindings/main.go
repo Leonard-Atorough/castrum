@@ -252,7 +252,13 @@ func turretSystem(turret, body core.Entity) core.SystemFunc {
 			return err
 		}
 
-		world := view.ScreenToWorld(current.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+
+		world := view.ScreenToWorld(current.Cursor(), vp.LogicalWidth, vp.LogicalHeight)
 		aim := world.Sub(hull.Position)
 
 		return turret.Update(ctx.World, func(t *core.Transform) {

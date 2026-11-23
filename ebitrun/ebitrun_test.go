@@ -19,6 +19,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
+	"github.com/Leonard-Atorough/castrum/render"
 )
 
 func TestDisplayPreferencesPersistence(t *testing.T) {
@@ -208,8 +209,16 @@ func TestRunnerOptions(t *testing.T) {
 			t.Errorf("Layout(%v) = %dx%d, want 640x360", outside, width, height)
 		}
 	}
-	if g.Context().LogicalWidth != 640 || g.Context().LogicalHeight != 360 {
-		t.Errorf("context logical size = %dx%d, want 640x360", g.Context().LogicalWidth, g.Context().LogicalHeight)
+	win, err := g.World().Resource[render.Window]()
+	if err != nil {
+		t.Fatalf("resolve render.Window: %v", err)
+	}
+	vp := win.Viewport()
+	if vp.LogicalWidth != 640 || vp.LogicalHeight != 360 {
+		t.Errorf("viewport logical size = %dx%d, want 640x360", vp.LogicalWidth, vp.LogicalHeight)
+	}
+	if vp.WindowWidth != 800 || vp.WindowHeight != 600 {
+		t.Errorf("viewport window size = %dx%d, want 800x600 after Layout", vp.WindowWidth, vp.WindowHeight)
 	}
 }
 

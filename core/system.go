@@ -67,10 +67,6 @@ type Context struct {
 	// Alpha is the fixed-loop remainder for interpolation between ticks.
 	// A runner sets it when running draw systems.
 	Alpha float64
-	// LogicalWidth is the render target's internal width in pixels.
-	LogicalWidth int
-	// LogicalHeight is the render target's internal height in pixels.
-	LogicalHeight int
 }
 
 // SystemFunc is a unit of game logic that updates state during a schedule

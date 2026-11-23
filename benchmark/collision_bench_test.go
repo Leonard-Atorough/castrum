@@ -124,7 +124,7 @@ func collisionTicks(b *testing.B, world *core.World, moving []core.Entity, detec
 	// Settle attachment, the index, and both contact history buffers.
 	for range 3 {
 		ctx.Tick++
-		if err := system.Update(ctx); err != nil {
+		if err := system(ctx); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -145,7 +145,7 @@ func collisionTicks(b *testing.B, world *core.World, moving []core.Entity, detec
 			b.StartTimer()
 		}
 		ctx.Tick++
-		if err := system.Update(ctx); err != nil {
+		if err := system(ctx); err != nil {
 			b.Fatal(err)
 		}
 	}

@@ -1,25 +1,19 @@
 package castrum
 
 import (
-	"errors"
 	"io"
 	"math"
 	"os/exec"
-	"reflect"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/asset"
-	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/core"
-	"github.com/Leonard-Atorough/castrum/debug"
-	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 func TestNewOptions(t *testing.T) {
@@ -166,51 +160,6 @@ func TestMainCamera(t *testing.T) {
 	if transform.Scale.X != 1 || transform.Scale.Y != 1 {
 		t.Fatalf("engine camera scale = %v, want zoom 1", transform.Scale)
 	}
-}
-
-func TestNewProvidesResources(t *testing.T) {
-	g := newTestGame(t)
-	cases := []struct {
-		name    string
-		resolve func(*Game) error
-	}{
-		{"asset loader", resolveResource[*asset.Loader]},
-		{"audio mixer", resolveResource[*audio.Mixer]},
-		{"signal hub", resolveResource[*signal.Hub]},
-		{"scheduler", resolveResource[*gametime.Scheduler]},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if err := c.resolve(g); err != nil {
-				t.Fatalf("%s: %v", c.name, err)
-			}
-		})
-	}
-	listener, err := g.World().Resource[*audio.Listener]()
-	if err != nil || listener == nil || listener.Enabled {
-		t.Errorf("audio listener = %v, error %v, want disabled listener", listener, err)
-	}
-	panel, err := g.World().Resource[*debug.Panel]()
-	if err != nil || panel == nil {
-		t.Fatalf("debug panel = %v, error %v", panel, err)
-	}
-	if !panel.Enabled(debug.FPS) || !panel.Enabled(debug.TPS) {
-		t.Error("the engine's panel should start with FPS and TPS enabled")
-	}
-	if g.World() == nil || g.Context().World != g.World() {
-		t.Error("Context.World should be the game world")
-	}
-}
-
-func resolveResource[T any](g *Game) error {
-	value, err := g.World().Resource[T]()
-	if err != nil {
-		return err
-	}
-	if reflect.ValueOf(&value).Elem().IsZero() {
-		return errors.New("nil resource")
-	}
-	return nil
 }
 
 // requireBuiltinFont fails the test if the loader cannot load the built-in

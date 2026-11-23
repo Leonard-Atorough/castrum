@@ -94,13 +94,16 @@ func benchFS(b *testing.B) fstest.MapFS {
 
 // drawCtx builds the context Collect runs under.
 func drawCtx(world *core.World, alpha float64) *core.Context {
+	if _, err := world.Resource[render.Window](); err != nil {
+		_ = world.Provide(func(*core.World) (render.Window, error) {
+			return render.NewStaticWindow(render.Viewport{LogicalWidth: 1280, LogicalHeight: 720, WindowWidth: 1280, WindowHeight: 720}), nil
+		})
+	}
 	return &core.Context{
-		World:         world,
-		Tick:          1,
-		DeltaTime:     time.Second / 60,
-		Alpha:         alpha,
-		LogicalWidth:  1280,
-		LogicalHeight: 720,
+		World:     world,
+		Tick:      1,
+		DeltaTime: time.Second / 60,
+		Alpha:     alpha,
 	}
 }
 

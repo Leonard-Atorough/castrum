@@ -16,6 +16,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 // Size is a pixel dimension used for window or logical resolution.
@@ -29,49 +30,13 @@ type Size struct {
 // DrawFunc renders one frame to the runner's Ebitengine canvas.
 type DrawFunc func(ctx *core.Context, screen *ebiten.Image) error
 
-// Options configures the Ebitengine window, logical render size, and audio
-// context.
-type Options struct {
-	// Window is the initial window size in pixels.
-	Window Size
-	// Resizable controls whether the window can be resized.
-	Resizable bool
-	// VSync enables vertical synchronization.
-	VSync bool
-	// Logical is the internal render size in pixels.
-	Logical Size
-	// SampleRate is the audio context's mixing rate in Hz, used when the
-	// runner creates the context.
-	SampleRate int
-	// DebugOverlay draws the frame and tick rates in the window's
-	// top-left corner. Default is off.
-	DebugOverlay bool
-}
-
-type option interface {
-	apply(*Options)
-}
-
-type optionFunc func(*Options)
-
-func (f optionFunc) apply(opts *Options) {
-	f(opts)
-}
-
-func defaultOptions() Options {
-	return Options{
-		Window:     Size{Width: 1280, Height: 720},
-		Logical:    Size{Width: 1280, Height: 720},
-		VSync:      true,
-		SampleRate: 44100,
-	}
-}
-
 // Runner drives a [castrum.Game] with Ebitengine.
 //
 // Start the game with [Runner.Run].
 type Runner struct {
 	g       *castrum.Game
+	win     *window
+	hub     *signal.Hub
 	opts    Options
 	draws   []DrawFunc
 	engine  DrawFunc
@@ -103,9 +68,9 @@ func Run(g *castrum.Game, opts ...option) {
 }
 
 // bind attaches the runner to g before startup: it registers the
-// [TextureProvider] and [FontProvider] as eager resources, publishes the
-// logical size, and attaches the audio controller. g must come from
-// [castrum.New], which provides the game's [asset.Loader].
+// [TextureProvider], [FontProvider], and [render.Window] resources, and
+// attaches the audio controller. g must come from [castrum.New], which
+// provides the game's [asset.Loader].
 func (r *Runner) bind(g *castrum.Game) error {
 	backend, err := g.World().Resource[*audio.Backend]()
 	if err != nil {
@@ -130,8 +95,25 @@ func (r *Runner) bind(g *castrum.Game) error {
 	}); err != nil {
 		return fmt.Errorf("castrum/ebiten: provide texture provider: %w", err)
 	}
-	g.Context().LogicalWidth = r.opts.Logical.Width
-	g.Context().LogicalHeight = r.opts.Logical.Height
+	win := &window{
+		vp: render.Viewport{
+			LogicalWidth:  r.opts.Logical.Width,
+			LogicalHeight: r.opts.Logical.Height,
+			WindowWidth:   r.opts.Window.Width,
+			WindowHeight:  r.opts.Window.Height,
+		},
+		state: render.WindowState{
+			Title:         "",
+			FullScreen:    r.opts.Fullscreen,
+			Bordered:      r.opts.Bordered,
+			Resizable:     r.opts.Resizable,
+			Vsync:         r.opts.VSync,
+			CursorVisible: true,
+		},
+	}
+	r.win = win
+	r.hub = g.World().MustResource[*signal.Hub]()
+	g.World().SetResource[render.Window](win)
 
 	collector := render.NewCollector(g.World())
 	fonts := newFontProvider(loader)
@@ -151,19 +133,6 @@ func (r *Runner) bind(g *castrum.Game) error {
 	r.g = g
 	r.engine = newEngineDrawFunc(collector, provider, fonts)
 	r.last = time.Now()
-	return nil
-}
-
-func (o *Options) validate() error {
-	if o.Window.Width <= 0 || o.Window.Height <= 0 {
-		return fmt.Errorf("castrum/ebiten: window size %dx%d is not positive", o.Window.Width, o.Window.Height)
-	}
-	if o.Logical.Width <= 0 || o.Logical.Height <= 0 {
-		return fmt.Errorf("castrum/ebiten: logical size %dx%d is not positive", o.Logical.Width, o.Logical.Height)
-	}
-	if o.SampleRate <= 0 {
-		return fmt.Errorf("castrum/ebiten: audio sample rate %d is not positive", o.SampleRate)
-	}
 	return nil
 }
 
@@ -188,14 +157,12 @@ func (r *Runner) run(g *castrum.Game) error {
 	if err := r.bind(g); err != nil {
 		return err
 	}
-	ebiten.SetWindowTitle(g.Options().Title)
-	ebiten.SetWindowSize(r.opts.Window.Width, r.opts.Window.Height)
-	mode := ebiten.WindowResizingModeDisabled
-	if r.opts.Resizable {
-		mode = ebiten.WindowResizingModeEnabled
-	}
-	ebiten.SetWindowResizingMode(mode)
-	ebiten.SetVsyncEnabled(r.opts.VSync)
+	r.win.SetTitle(g.Options().Title)
+	r.win.SetSize(r.opts.Window.Width, r.opts.Window.Height)
+	r.win.SetFullscreen(r.opts.Fullscreen)
+	r.win.SetBordered(r.opts.Bordered)
+	r.win.SetResizable(r.opts.Resizable)
+	r.win.SetVSync(r.opts.VSync)
 	// The core accumulator owns pacing: Ebitengine must not pace Update
 	// itself, or fixed ticks and interpolation alpha break.
 	ebiten.SetTPS(ebiten.SyncWithFPS)
@@ -227,6 +194,11 @@ func (r *Runner) Update() error {
 		return err
 	}
 	*snapshot = *r.input.snapshotPtr()
+	// Report the cursor in logical render coordinates so ScreenToWorld and
+	// camera math work at any window size.
+	if r.win != nil {
+		snapshot.Mouse.Cursor = r.win.Viewport().ToLogical(snapshot.Mouse.Cursor)
+	}
 
 	if err := r.g.Advance(elapsed); err != nil {
 		return err
@@ -254,48 +226,31 @@ func (r *Runner) Draw(screen *ebiten.Image) {
 	}
 }
 
-// Layout returns the logical render size, independent of the window size.
+// Layout returns the current logical render size, independent of the window
+// size, and records the window size in the [render.Window] resource.
 func (r *Runner) Layout(outsideWidth, outsideHeight int) (int, int) {
+	if r.win != nil {
+		if r.win.setWindowSize(outsideWidth, outsideHeight) && r.hub != nil {
+			r.hub.Emit(ViewportChanged{
+				OldWidth:  r.win.OldWidth(),
+				OldHeight: r.win.OldHeight(),
+				NewWidth:  outsideWidth,
+				NewHeight: outsideHeight,
+			})
+		}
+		vp := r.win.Viewport()
+		return vp.LogicalWidth, vp.LogicalHeight
+	}
 	return r.opts.Logical.Width, r.opts.Logical.Height
 }
 
-// WithWindowSize sets the window size in pixels. Default is 1280x720.
-// Invalid values are reported by [New].
-func WithWindowSize(width, height int) option {
-	return optionFunc(func(o *Options) { o.Window = Size{Width: width, Height: height} })
-}
-
-// WithLogicalSize sets the internal render resolution in pixels.
-// Default is 1280x720. Invalid values are reported by [New].
-func WithLogicalSize(width, height int) option {
-	return optionFunc(func(o *Options) { o.Logical = Size{Width: width, Height: height} })
-}
-
-// WithResizable enables window resizing. Default is a fixed-size window.
-func WithResizable() option {
-	return optionFunc(func(o *Options) { o.Resizable = true })
-}
-
-// WithoutVSync disables vsync. Default is on.
-func WithoutVSync() option {
-	return optionFunc(func(o *Options) { o.VSync = false })
-}
-
-// WithAudioSampleRate sets the sample rate in Hz for the audio context created
-// by the runner. An existing Ebitengine audio context is reused instead.
-// Audio sources are resampled to this rate when decoded. The default is
-// 44100; invalid values are reported by [New].
-func WithAudioSampleRate(sampleRate int) option {
-	return optionFunc(func(o *Options) { o.SampleRate = sampleRate })
-}
-
-// WithDebugOverlay draws a development overlay in the window's top-left
-// corner: fps counts the display frames rendered per second, tps counts
-// the fixed simulation ticks the engine advances per second, and the
-// game's paused state and time scale appear whenever they depart from
-// running at full speed. The overlay draws only - it never changes
-// simulation timing or game state - and is off unless the option is
-// passed.
-func WithDebugOverlay() option {
-	return optionFunc(func(o *Options) { o.DebugOverlay = true })
+// ViewportChanged is emitted when the window's viewport changes size. It contains
+// the old and new logical dimensions of the viewport.
+//
+// It is emitted by the [Runner] when the window's layout changes.
+type ViewportChanged struct {
+	OldWidth  int
+	OldHeight int
+	NewWidth  int
+	NewHeight int
 }

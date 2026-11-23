@@ -356,7 +356,13 @@ func turretSystem(turret, hull core.Entity) core.SystemFunc {
 			return err
 		}
 
-		cursor := view.ScreenToWorld(current.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+
+		cursor := view.ScreenToWorld(current.Cursor(), vp.LogicalWidth, vp.LogicalHeight)
 		aim := cursor.Sub(hullTransform.Position)
 
 		return turret.Update(ctx.World, func(t *core.Transform) {
@@ -370,8 +376,14 @@ func scoreSystem(hud, camera, stats core.Entity) core.SystemFunc {
 	return func(ctx *core.Context) error {
 		run, _ := stats.Component[game](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+		half := vp.Center()
+		halfW := half.X / cameraTransform.Scale.X
+		halfH := half.Y / cameraTransform.Scale.Y
 		if err := hud.Update(ctx.World, func(t *core.Transform) {
 			t.Position = cameraTransform.Position.
 				Sub(geom.Vector2{X: halfW, Y: halfH}).
@@ -464,8 +476,14 @@ func bulletsSystem(camera, stats core.Entity) core.SystemFunc {
 		dt := ctx.DeltaTime.Seconds()
 
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+		half := vp.Center()
+		halfW := half.X / cameraTransform.Scale.X
+		halfH := half.Y / cameraTransform.Scale.Y
 
 		for e := range live.Execute() {
 
@@ -535,8 +553,14 @@ func spawnSystem(spawner, hull, camera, stats core.Entity) core.SystemFunc {
 
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+		half := vp.Center()
+		halfW := half.X / cameraTransform.Scale.X
+		halfH := half.Y / cameraTransform.Scale.Y
 
 		angle := rand.Float64() * 2 * math.Pi
 		radius := math.Hypot(halfW, halfH) + CullMargin
@@ -544,7 +568,7 @@ func spawnSystem(spawner, hull, camera, stats core.Entity) core.SystemFunc {
 			X: math.Cos(angle) * radius,
 			Y: math.Sin(angle) * radius,
 		})
-		_, err := spawnEnemy(ctx.World, at)
+		_, err = spawnEnemy(ctx.World, at)
 		return err
 	}
 }
