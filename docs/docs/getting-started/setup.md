@@ -72,6 +72,7 @@ import (
 
 func main() {
 	game:= castrum.New(castrum.WithTitle("Hello World"))
+	// You can add systems, configure the world, or set up other game settings here before running the game.
 	ebitrun.New().Run(game)
 }
 ```
