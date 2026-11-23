@@ -1,3 +1,7 @@
+---
+sidebar_position: 1
+---
+
 # Game, Runner and World
 
 Every castrum program consists of two parts. The `Game` and the `Runner`. By default castrum uses Ebitenengine as its runner. The separation is intentionally designed to avoid a hard dependency on Ebiten and to allow for the integration of other programs or custome runners.
@@ -12,6 +16,7 @@ import (
 
 func main() {
 	game := castrum.New(castrum.WithTitle("Hello World"))
+	// Configure the game as needed before running it with the runner.
 	ebitrun.New().Run(game)
 }
 ```
