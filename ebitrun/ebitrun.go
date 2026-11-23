@@ -28,7 +28,7 @@ type Size struct {
 }
 
 // DrawFunc renders one frame to the runner's Ebitengine canvas.
-type DrawFunc func(ctx *core.Context, screen *ebiten.Image) error
+type DrawFunc func(ctx *core.Context, screen *ebiten.Image, alpha float64) error
 
 // Runner drives a [castrum.Game] with Ebitengine.
 //
@@ -214,13 +214,13 @@ func (r *Runner) Update() error {
 // the first error is returned by [Runner.Update] on the next frame.
 func (r *Runner) Draw(screen *ebiten.Image) {
 	ctx := r.g.Context()
-	ctx.Alpha = r.g.Alpha()
+	alpha := r.g.Alpha()
 
-	if err := r.engine(ctx, screen); err != nil && r.drawErr == nil {
+	if err := r.engine(ctx, screen, alpha); err != nil && r.drawErr == nil {
 		r.drawErr = fmt.Errorf("engine draw: %w", err)
 	}
 	for _, f := range r.draws {
-		if err := f(ctx, screen); err != nil && r.drawErr == nil {
+		if err := f(ctx, screen, alpha); err != nil && r.drawErr == nil {
 			r.drawErr = fmt.Errorf("draw: %w", err)
 		}
 	}

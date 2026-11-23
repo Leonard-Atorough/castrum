@@ -181,7 +181,6 @@ func TestWithInitialCopiesConfiguration(t *testing.T) {
 func TestHookOrderAndContext(t *testing.T) {
 	m := New[string]().WithInitial("boot")
 	ctx := testContext(t)
-	ctx.Frame = 7
 	hub := ctx.World.MustResource[*signal.Hub]()
 	initialized := hub.NewReader[Initialized[string]]()
 	changed := hub.NewReader[Changed[string]]()

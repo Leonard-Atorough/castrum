@@ -191,7 +191,7 @@ func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	list, err := render.NewCollector(g.World()).Collect(g.Context())
+	list, err := render.NewCollector(g.World()).Collect(g.Context(), 0)
 	if err != nil || len(list.Items) != 1 {
 		t.Fatalf("atlas collection = %+v, %v", list.Items, err)
 	}

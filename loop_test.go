@@ -674,7 +674,7 @@ func TestSignalLifecycleInGameLoop(t *testing.T) {
 	})
 	addTestSystem(t, g, core.PhaseFrame, "frame consumer", func(ctx *core.Context) error {
 		for _, ok := frameReader.Next(); ok; _, ok = frameReader.Next() {
-			frameAt = append(frameAt, ctx.Frame)
+			frameAt = append(frameAt, g.Frame())
 		}
 		return nil
 	})
@@ -705,19 +705,19 @@ func TestPostFrameSignalsExpireBeforeFixedAndNextFrame(t *testing.T) {
 
 	addTestSystem(t, g, core.PhasePreFrame, "pre-frame consumer", func(ctx *core.Context) error {
 		for _, ok := preReader.Next(); ok; _, ok = preReader.Next() {
-			preFrames = append(preFrames, ctx.Frame)
+			preFrames = append(preFrames, g.Frame())
 		}
 		return nil
 	})
 	addTestSystem(t, g, core.PhasePostFrame, "post-frame emitter", func(ctx *core.Context) error {
-		if ctx.Frame == 1 {
+		if g.Frame() == 1 {
 			hub.Emit(frameSignal{})
 		}
 		return nil
 	})
 	addTestSystem(t, g, core.PhasePostFrame, "post-frame consumer", func(ctx *core.Context) error {
 		for _, ok := postReader.Next(); ok; _, ok = postReader.Next() {
-			postFrames = append(postFrames, ctx.Frame)
+			postFrames = append(postFrames, g.Frame())
 		}
 		return nil
 	})
@@ -762,13 +762,13 @@ func TestPostFixedSignalsReachNextFrameAndExpireBeforeNextTick(t *testing.T) {
 	})
 	addTestSystem(t, g, core.PhasePreFrame, "pre-frame consumer", func(ctx *core.Context) error {
 		for _, ok := preFrameReader.Next(); ok; _, ok = preFrameReader.Next() {
-			preFrames = append(preFrames, ctx.Frame)
+			preFrames = append(preFrames, g.Frame())
 		}
 		return nil
 	})
 	addTestSystem(t, g, core.PhasePostFrame, "post-frame consumer", func(ctx *core.Context) error {
 		for _, ok := postFrameReader.Next(); ok; _, ok = postFrameReader.Next() {
-			postFrames = append(postFrames, ctx.Frame)
+			postFrames = append(postFrames, g.Frame())
 		}
 		return nil
 	})

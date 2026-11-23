@@ -69,7 +69,7 @@ func (o *debugOverlay) sample(now time.Time, tick uint64) {
 
 // draw samples and renders the status line, the panel's status lines, and
 // the panel's messages, in that order.
-func (o *debugOverlay) draw(ctx *core.Context, screen *ebiten.Image) error {
+func (o *debugOverlay) draw(ctx *core.Context, screen *ebiten.Image, alpha float64) error {
 	o.sample(time.Now(), ctx.Tick)
 	if line := o.status(); line != "" {
 		ebitenutil.DebugPrint(screen, line)
