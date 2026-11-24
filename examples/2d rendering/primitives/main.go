@@ -108,14 +108,10 @@ func newGame() (*castrum.Game, error) {
 	var spinners []core.Entity
 	for r, row := range spectrum {
 		for c, variant := range row.cells {
-			// The color's alpha channel is the drawable's opacity:
-			// the half-faded column declares its own color at half
-			// alpha, everyone else takes the row's hue.
+			// Set row color if none.
 			if variant.s.Style.Color == nil {
 				variant.s.Style.Color = row.color
 			}
-			// A zero scale reads as unscaled; only the stretched
-			// variants declare one.
 			position := geom.Vector2{X: float64(cellX0 + c*cellDX), Y: float64(rowY0 + r*rowDY)}
 			sprite, err := g.World().NewEntity(
 				variant.s,
@@ -130,10 +126,6 @@ func newGame() (*castrum.Game, error) {
 		}
 	}
 
-	// Spin: each fixed tick advances the spinning variants' rotation.
-	// The engine's prev-transform capture and the renderer's
-	// interpolation make the spin smooth at any display rate, with no
-	// per-frame work here.
 	if err := g.AddSystem(core.PhaseFixed, "spin", func(ctx *core.Context) error {
 		for _, sprite := range spinners {
 			if err := sprite.Update(ctx.World, func(t *core.Transform) { t.Rotation += rotationSpeed }); err != nil {
@@ -142,7 +134,7 @@ func newGame() (*castrum.Game, error) {
 		}
 		return nil
 	}); err != nil {
-		return err
+		return nil, err
 	}
 
 	panel := g.World().MustResource[*debug.Panel]()
