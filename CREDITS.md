@@ -28,3 +28,10 @@ All sound effects, currently:
 ## [The Go Fonts](https://go.googlesource.com/image/+/refs/heads/master/font/gofont) (BSD-style license)
 
 - `GoRegular.ttf` (the `builtin` package; based on the Go font family by Bigelow & Holmes)
+
+## [Mattz Art](https://xzany.itch.io)
+
+- `examples/2d/animate/ATTACK.png`
+- `examples/2d/animate/IDLE.png`
+- `examples/2d/animate/RUN.png`
+- `examples/2d/animate/HURT.png`
