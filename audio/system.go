@@ -89,11 +89,12 @@ type Controller interface {
 
 // NewAudioSystem returns a system that reconciles players with the controller.
 // It validates each player's settings before applying them to the controller.
-func NewAudioSystem(controller Controller, mixer *Mixer) core.System {
-	return &system{
+func NewAudioSystem(controller Controller, mixer *Mixer) core.SystemFunc {
+	s := &system{
 		controller: controller,
 		mixer:      mixer,
 	}
+	return s.Update
 }
 
 type system struct {

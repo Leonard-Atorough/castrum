@@ -12,7 +12,7 @@ type Entry struct {
 	// Name identifies the registration in execution errors.
 	Name string
 	// System runs when the entry is enabled.
-	System core.System
+	System core.SystemFunc
 	// Group determines the execution group for the system.
 	Group string
 }
@@ -133,7 +133,7 @@ func (s *Schedule) Run(ctx *core.Context) error {
 			if e.Group != "" && !s.groups[e.Group] {
 				continue
 			}
-			if err := e.System.Update(ctx); err != nil {
+			if err := e.System(ctx); err != nil {
 				return fmt.Errorf("%s system %q: %w", s.phase, e.Name, err)
 			}
 		}

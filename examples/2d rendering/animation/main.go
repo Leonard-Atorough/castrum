@@ -158,8 +158,8 @@ func newGame() (*castrum.Game, error) {
 		return nil, err
 	}
 	panel := g.World().MustResource[*debug.Panel]()
-	panel.Status("controls", "SPACE: pause/resume   R: restart   1: play once   2: loop   4: swap clip")
-	if err := g.AddSystem(core.PhaseFixed, "animation.readout", core.SystemFunc(func(ctx *core.Context) error {
+	panel.Status("controls", "SPACE: pause/resume   R: restart   1: play once   2: loop")
+	if err := g.AddSystem(core.PhaseFixed, "animation.readout", func(ctx *core.Context) error {
 		value, ok := entity.Component[animation.AnimatedSprite](ctx.World)
 		if !ok {
 			return fmt.Errorf("animated torch has no playback component")
@@ -177,19 +177,20 @@ func newGame() (*castrum.Game, error) {
 			}
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return nil, err
 	}
 	return g, nil
 }
 
-func playbackSystem(entity core.Entity, reversed animation.SpriteClip) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
-		pause := ctx.Actions.JustPressed("pause")
-		restart := ctx.Actions.JustPressed("restart")
-		once := ctx.Actions.JustPressed("once")
-		loop := ctx.Actions.JustPressed("loop")
-		swap := ctx.Actions.JustPressed("swap")
+func playbackSystem(entity core.Entity, reversed animation.SpriteClip) core.SystemFunc {
+	return func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
+		pause := actions.JustPressed("pause")
+		restart := actions.JustPressed("restart")
+		once := actions.JustPressed("once")
+		loop := actions.JustPressed("loop")
+		swap := actions.JustPressed("swap")
 		if !pause && !restart && !once && !loop && !swap {
 			return nil
 		}
@@ -216,5 +217,5 @@ func playbackSystem(entity core.Entity, reversed animation.SpriteClip) core.Syst
 				}
 			}
 		})
-	})
+	}
 }

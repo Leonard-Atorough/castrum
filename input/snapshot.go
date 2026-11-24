@@ -7,7 +7,7 @@ const MaxPads = 4
 
 // MouseSnapshot is the mouse state in one [Snapshot].
 type MouseSnapshot struct {
-	// Cursor is the cursor position in the runner's coordinate system.
+	// Cursor is the cursor position in logical render coordinates.
 	Cursor geom.Vector2
 	// Buttons stores the state of each [MouseButton].
 	Buttons [NumMouseButtons]State

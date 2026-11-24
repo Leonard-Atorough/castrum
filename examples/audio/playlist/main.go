@@ -24,14 +24,15 @@ type demonstration struct {
 }
 
 func (d *demonstration) controls(ctx *core.Context) error {
-	if ctx.Input.KeyPressed(input.KeyN) || ctx.Input.KeyPressed(input.KeyP) || ctx.Input.KeyPressed(input.KeyR) {
+	current, _ := ctx.World.Resource[*input.Snapshot]()
+	if current.KeyPressed(input.KeyN) || current.KeyPressed(input.KeyP) || current.KeyPressed(input.KeyR) {
 		if err := d.entity.Update(ctx.World, func(p *audio.Player) {
-			if ctx.Input.KeyPressed(input.KeyN) {
+			if current.KeyPressed(input.KeyN) {
 				p.Next()
-			} else if ctx.Input.KeyPressed(input.KeyP) {
+			} else if current.KeyPressed(input.KeyP) {
 				p.Prev()
 			}
-			if ctx.Input.KeyPressed(input.KeyR) {
+			if current.KeyPressed(input.KeyR) {
 				if p.Settings.Loop == audio.LoopNone {
 					p.Settings.Loop = audio.LoopAll
 				} else {
@@ -42,7 +43,7 @@ func (d *demonstration) controls(ctx *core.Context) error {
 			return err
 		}
 	}
-	if ctx.Input.KeyPressed(input.KeySpace) {
+	if current.KeyPressed(input.KeySpace) {
 		return d.entity.Update(ctx.World, func(p *audio.Player) { p.Paused = !p.Paused })
 	}
 	return nil
@@ -67,7 +68,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 		return nil, nil, err
 	}
 	d := &demonstration{entity: entity}
-	if err := g.AddSystem(core.PhaseFrame, "playlist controls", core.SystemFunc(d.controls)); err != nil {
+	if err := g.AddSystem(core.PhaseFrame, "playlist controls", d.controls); err != nil {
 		return nil, nil, err
 	}
 	hub := g.World().MustResource[*signal.Hub]()
@@ -98,7 +99,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 		}
 		labels[line] = label
 	}
-	if err := g.AddSystem(core.PhasePostFrame, "show playlist", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhasePostFrame, "show playlist", func(ctx *core.Context) error {
 		p, ok := entity.Component[audio.Player](ctx.World)
 		if !ok {
 			return fmt.Errorf("player component is missing")
@@ -121,7 +122,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 			}
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return nil, nil, err
 	}
 	return g, d, nil

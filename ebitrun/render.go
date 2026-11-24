@@ -17,8 +17,8 @@ import (
 // newEngineDrawFunc returns the world renderer. [Runner] draws it before user
 // [DrawFunc] callbacks so user content can appear over the world.
 func newEngineDrawFunc(collector *render.Collector, provider *TextureProvider, fonts *FontProvider) DrawFunc {
-	return DrawFunc(func(ctx *core.Context, screen *ebiten.Image) error {
-		list, err := collector.Collect(ctx)
+	return DrawFunc(func(ctx *core.Context, screen *ebiten.Image, alpha float64) error {
+		list, err := collector.Collect(ctx, alpha)
 		if err != nil {
 			return err
 		}

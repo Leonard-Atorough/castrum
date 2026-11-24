@@ -30,7 +30,7 @@ func countMarkers(world *core.World) int {
 	return n
 }
 
-func newTestSystem(t *testing.T) (*Director, core.System, *core.Context) {
+func newTestSystem(t *testing.T) (*Director, core.SystemFunc, *core.Context) {
 	t.Helper()
 	world := core.NewWorld()
 	if err := world.Provide(func(*core.World) (*asset.Loader, error) {
@@ -39,12 +39,12 @@ func newTestSystem(t *testing.T) (*Director, core.System, *core.Context) {
 		t.Fatalf("provide loader: %v", err)
 	}
 	d := NewDirector()
-	return d, NewSystem(d), &core.Context{World: world}
+	return d, d.System(), &core.Context{World: world}
 }
 
-func flush(t *testing.T, sys core.System, ctx *core.Context) {
+func flush(t *testing.T, sys core.SystemFunc, ctx *core.Context) {
 	t.Helper()
-	if err := sys.Update(ctx); err != nil {
+	if err := sys(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -154,7 +154,7 @@ func TestHooksFireAroundLifecycle(t *testing.T) {
 		},
 	}
 	id, _ := d.Load(lifeScene(), lifeProps{"r"}, WithHooks(hooks))
-	if err := sys.Update(ctx); err != nil {
+	if err := sys(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"enter"}; !equalStrings(events, want) {
@@ -164,7 +164,7 @@ func TestHooksFireAroundLifecycle(t *testing.T) {
 	if err := d.Remove(id); err != nil {
 		t.Fatal(err)
 	}
-	if err := sys.Update(ctx); err != nil {
+	if err := sys(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"enter", fmt.Sprintf("exit:%d", id)}; !equalStrings(events, want) {
@@ -198,7 +198,7 @@ func TestUnknownIdsFailAtExecution(t *testing.T) {
 	if err := d.Update(99, lifeScene(), lifeProps{"x"}); err != nil {
 		t.Fatal(err)
 	}
-	err := sys.Update(ctx)
+	err := sys(ctx)
 	if err == nil || !strings.Contains(err.Error(), "99") {
 		t.Fatalf("update of unknown id: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestUnknownIdsFailAtExecution(t *testing.T) {
 	if err := d.Remove(99); err != nil {
 		t.Fatal(err)
 	}
-	if err := sys.Update(ctx); err == nil || !strings.Contains(err.Error(), "99") {
+	if err := sys(ctx); err == nil || !strings.Contains(err.Error(), "99") {
 		t.Fatalf("remove of unknown id: %v", err)
 	}
 }
@@ -262,7 +262,7 @@ func TestEnterHookFailureRollsBackSwitch(t *testing.T) {
 		Enter: func(*core.Context, *Handle) error { return refuse },
 	}
 	b, _ := d.Switch(markerScene(), lifeProps{"b"}, WithHooks(failing))
-	err := sys.Update(ctx)
+	err := sys(ctx)
 	if err == nil || !errors.Is(err, refuse) {
 		t.Fatalf("failed Enter hook: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestUpdateRollsBackOnFailedStage(t *testing.T) {
 	if err := d.Update(id, markerScene(), lifeProps{"v2"}, WithHooks(failing)); err != nil {
 		t.Fatal(err)
 	}
-	if err := sys.Update(ctx); err == nil || !errors.Is(err, refuse) {
+	if err := sys(ctx); err == nil || !errors.Is(err, refuse) {
 		t.Fatalf("failed rebuild: %v", err)
 	}
 	if !d.Live(id) || d.Entities(id)[0] != oldEnt {
@@ -318,11 +318,11 @@ func TestUpdateRollsBackOnFailedStage(t *testing.T) {
 func TestLoaderFetchedLazily(t *testing.T) {
 	world := core.NewWorld()
 	d := NewDirector()
-	sys := NewSystem(d)
+	sys := d.System()
 	ctx := &core.Context{World: world}
 
 	id, _ := d.Switch(lifeScene(), lifeProps{"plain"})
-	if err := sys.Update(ctx); err != nil {
+	if err := sys(ctx); err != nil {
 		t.Fatalf("asset-free scene required loader resource: %v", err)
 	}
 	if !d.Live(id) {
@@ -336,7 +336,7 @@ func TestLoaderFetchedLazily(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sys.Update(ctx); err == nil || !strings.Contains(err.Error(), "scene: system") {
+	if err := sys(ctx); err == nil || !strings.Contains(err.Error(), "scene: system") {
 		t.Fatalf("wanted loader error, got %v", err)
 	}
 	if d.Live(hot) {
@@ -422,7 +422,11 @@ func TestExecuteFlushesInputEdges(t *testing.T) {
 	if !am.JustPressed("confirm") {
 		t.Fatal("setup: no press edge")
 	}
-	ctx.Actions = am
+	if err := ctx.World.Provide(func(*core.World) (input.Edges, error) {
+		return am, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := d.Switch(lifeScene(), lifeProps{"menu"}); err != nil {
 		t.Fatal(err)

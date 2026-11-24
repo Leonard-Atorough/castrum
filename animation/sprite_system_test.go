@@ -20,7 +20,7 @@ func newTestClip(t *testing.T, frames ...string) SpriteClip {
 	return clip
 }
 
-func newAnimatedSystemWorld(t *testing.T, animated AnimatedSprite, dt time.Duration) (core.Entity, core.System, *core.Context, *signal.Reader[Completed]) {
+func newAnimatedSystemWorld(t *testing.T, animated AnimatedSprite, dt time.Duration) (core.Entity, core.SystemFunc, *core.Context, *signal.Reader[Completed]) {
 	t.Helper()
 	w := core.NewWorld()
 	if err := w.Provide(func(*core.World) (*signal.Hub, error) {
@@ -62,10 +62,10 @@ func drainCompleted(r *signal.Reader[Completed]) []Completed {
 	return got
 }
 
-func tickAt(t *testing.T, sys core.System, ctx *core.Context, tick uint64) {
+func tickAt(t *testing.T, sys core.SystemFunc, ctx *core.Context, tick uint64) {
 	t.Helper()
 	ctx.Tick = tick
-	if err := sys.Update(ctx); err != nil {
+	if err := sys(ctx); err != nil {
 		t.Fatalf("update at tick %d: %v", tick, err)
 	}
 }
@@ -246,7 +246,7 @@ func TestSpriteAnimationSystemRejectsInvalidEntryWrites(t *testing.T) {
 				entry.SetComponent(anim)
 			}
 			before := readAnimated(t, entity, ctx.World)
-			if err := sys.Update(ctx); err == nil || !strings.Contains(err.Error(), "playback multiplier") {
+			if err := sys(ctx); err == nil || !strings.Contains(err.Error(), "playback multiplier") {
 				t.Fatalf("Update() = %v, want invalid multiplier error", err)
 			}
 			if got := readAnimated(t, entity, ctx.World); !reflect.DeepEqual(got, before) {
@@ -266,7 +266,7 @@ func TestSpriteAnimationSystemRejectsUnrepresentableAdvance(t *testing.T) {
 	}
 	animated.PlaybackMultiplier = math.MaxFloat64
 	entity, sys, ctx, reader := newAnimatedSystemWorld(t, animated, 100*time.Millisecond)
-	if err := sys.Update(ctx); err == nil || !strings.Contains(err.Error(), "not representable") {
+	if err := sys(ctx); err == nil || !strings.Contains(err.Error(), "not representable") {
 		t.Fatalf("Update() = %v, want a not-representable advance error", err)
 	}
 	if got := readAnimated(t, entity, ctx.World); !reflect.DeepEqual(got, animated) {

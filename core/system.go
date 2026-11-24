@@ -3,8 +3,6 @@ package core
 import (
 	"fmt"
 	"time"
-
-	"github.com/Leonard-Atorough/castrum/input"
 )
 
 // Phase identifies when a system runs.
@@ -52,46 +50,21 @@ func (s Phase) String() string {
 	return names[s]
 }
 
-// Context gives systems access to the world, simulation clocks, and input
-// published for the current frame. The engine and runner populate it; systems
-// should treat it as read-only.
+// Context gives systems access to the world and timing for the current phase.
+// The game populates its fields; systems should not modify them. The world
+// itself remains writable.
 type Context struct {
 	// World is the game world.
 	World *World
 	// Tick counts fixed simulation steps since startup.
 	Tick uint64
-	// Frame counts display frames since startup.
-	Frame uint64
-	// DeltaTime is elapsed frame time in [PhasePreFrame], [PhaseFrame], or
-	// [PhasePostFrame], or the fixed tick interval in [PhasePreFixed],
+	// DeltaTime is capped elapsed frame time in [PhasePreFrame], [PhaseFrame],
+	// or [PhasePostFrame], or the fixed tick interval in [PhasePreFixed],
 	// [PhaseFixed], or [PhasePostFixed].
 	DeltaTime time.Duration
-	// Alpha is the fixed-loop remainder for interpolation between ticks.
-	// A runner sets it when running draw systems.
-	Alpha float64
-	// LogicalWidth is the render target's internal width in pixels.
-	LogicalWidth int
-	// LogicalHeight is the render target's internal height in pixels.
-	LogicalHeight int
-	// Input is the runner's current input snapshot. A nil snapshot reads as
-	// no input.
-	Input *input.Snapshot
-	// Actions is the game's action map when configured with `WithBindings`.
-	// It is the same instance as the ActionMap resource; a nil map reads as
-	// no actions.
-	Actions *input.ActionMap
 }
 
-// System is a unit of game logic that updates state during a schedule phase.
-type System interface {
-	// Update runs the system for the current phase and returns any failure.
-	Update(ctx *Context) error
-}
-
-// SystemFunc adapts a function to the [System] interface.
+// SystemFunc runs game logic during a schedule phase.
+//
+// A non-nil error stops the schedule and is returned by the game.
 type SystemFunc func(ctx *Context) error
-
-// Update calls f with ctx.
-func (f SystemFunc) Update(ctx *Context) error {
-	return f(ctx)
-}

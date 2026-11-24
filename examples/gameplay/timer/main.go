@@ -149,29 +149,24 @@ func run() error {
 
 	// One fixed system reads all five timers and reacts to their
 	// state; it is the only gameplay logic in the program.
-	if err := g.AddSystem(core.PhaseFixed, "gametime.reactions", core.SystemFunc(func(ctx *core.Context) error {
-		// R restarts the one-shot from zero: elapsed time resets and
-		// the completion stamp clears, so the "fired" color reverts
-		// until it fires again.
-		if ctx.Actions.Pressed("restart_one_shot") {
+	if err := g.AddSystem(core.PhaseFixed, "gametime.reactions", func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
+
+		if actions.Pressed("restart_one_shot") {
 			if err := oneShot.Update(ctx.World, func(t *gametime.Timer) { t.Restart() }); err != nil {
 				return err
 			}
 			panel.Message("one-shot restarted")
 		}
 
-		// SPACE starts the paused timer by writing Running. The
-		// countdown then advances on its own.
-		if ctx.Actions.Pressed("start_held") {
+		if actions.Pressed("start_held") {
 			if err := held.Update(ctx.World, func(t *gametime.Timer) { t.Running = true }); err != nil {
 				return err
 			}
 			panel.Message("paused timer started")
 		}
 
-		// P toggles the combat group. The write goes to the groups
-		// resource only; the combat timer's own state is untouched.
-		if ctx.Actions.Pressed("toggle_combat_group") {
+		if actions.Pressed("toggle_combat_group") {
 			if groups.Paused(combatGroup) {
 				groups.Resume(combatGroup)
 				panel.Message("combat group resumed")
@@ -181,10 +176,6 @@ func run() error {
 			}
 		}
 
-		// The one-shot's color is state, not an event: while
-		// CompletedOn is zero it has not fired; once set it stays
-		// set, so the color sticks without anything remembering the
-		// completion.
 		oneShotColor := runningColor
 		if oneShotTimer, _ := oneShot.Component[gametime.Timer](ctx.World); oneShotTimer.CompletedOn != 0 {
 			oneShotColor = firedColor
@@ -196,9 +187,6 @@ func run() error {
 			return err
 		}
 
-		// The repeating timer flashes for exactly the tick of its
-		// completion: JustCompleted reads true this tick and false
-		// the next, with nothing to reset.
 		pulseColor := runningColor
 		if pulseTimer, _ := pulse.Component[gametime.Timer](ctx.World); pulseTimer.JustCompleted(ctx.Tick) {
 			pulseColor = flashColor
@@ -208,11 +196,6 @@ func run() error {
 			return err
 		}
 
-		// The paused timer shows its progress in color: gray while
-		// paused, blue while counting, green once fired. Fired is
-		// checked first: a completed one-shot has Running forced
-		// back false, so nesting the check under Running would
-		// leave it gray forever.
 		heldColor := pendingColor
 		if heldTimer, _ := held.Component[gametime.Timer](ctx.World); heldTimer.HasCompleted() {
 			heldColor = firedColor
@@ -223,9 +206,6 @@ func run() error {
 			return err
 		}
 
-		// The combat bar grays out with its group, even though its
-		// own Running field stays true - the group is the reason it
-		// stopped. The ui bar never sees the combat toggle.
 		combatColor := runningColor
 		if combatTimer, _ := combat.Component[gametime.Timer](ctx.World); combatTimer.JustCompleted(ctx.Tick) {
 			combatColor = flashColor
@@ -242,7 +222,7 @@ func run() error {
 			panel.Message(fmt.Sprintf("ui timer completed on tick %d", ctx.Tick))
 		}
 		return ui.SetComponent(ctx.World, barSprite(uiColor))
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 

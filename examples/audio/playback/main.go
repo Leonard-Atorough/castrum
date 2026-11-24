@@ -57,26 +57,27 @@ func run() error {
 	return nil
 }
 
-func playbackSystem(music core.Entity, panel *debug.Panel) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
-		if ctx.Input.KeyPressed(input.KeySpace) {
+func playbackSystem(music core.Entity, panel *debug.Panel) core.SystemFunc {
+	return func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
+		if current.KeyPressed(input.KeySpace) {
 			if _, err := audio.OneShot(ctx.World, audio.Track(audioassets.Magic), audio.DefaultSettings()); err != nil {
 				return err
 			}
 			panel.Message("OneShot playing")
 		}
-		if !ctx.Input.KeyPressed(input.KeyP) && !ctx.Input.KeyPressed(input.KeyR) {
+		if !current.KeyPressed(input.KeyP) && !current.KeyPressed(input.KeyR) {
 			return nil
 		}
 		return music.Update(ctx.World, func(s *audio.Player) {
-			if ctx.Input.KeyPressed(input.KeyP) {
+			if current.KeyPressed(input.KeyP) {
 				s.Paused = !s.Paused
 				panel.Message(fmt.Sprintf("music paused: %t", s.Paused))
 			}
-			if ctx.Input.KeyPressed(input.KeyR) {
+			if current.KeyPressed(input.KeyR) {
 				s.Restart()
 				panel.Message("music restarted")
 			}
 		})
-	})
+	}
 }

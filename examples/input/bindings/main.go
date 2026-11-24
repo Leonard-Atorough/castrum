@@ -149,12 +149,13 @@ func run() error {
 
 	panel := g.World().MustResource[*debug.Panel]()
 	panel.Status("controls", "WASD or arrows or stick to drive, mouse aims the turret, QE or wheel zooms")
-	if err := g.AddSystem(core.PhaseFrame, "input.readout", core.SystemFunc(func(ctx *core.Context) error {
-		cursor, wheel := ctx.Input.Cursor(), ctx.Input.Wheel()
+	if err := g.AddSystem(core.PhaseFrame, "input.readout", func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
+		cursor, wheel := current.Cursor(), current.Wheel()
 		panel.Status("cursor", fmt.Sprintf("mouse (%g, %g)   wheel delta (%g, %g)",
 			cursor.X, cursor.Y, wheel.X, wheel.Y))
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 
@@ -166,21 +167,25 @@ func run() error {
 	return nil
 }
 
-func cameraSystem(camera core.Entity, body core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func cameraSystem(camera core.Entity, body core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		hull, _ := body.Component[core.Transform](ctx.World)
 
-		// The camera follows the hull.
 		return camera.Update(ctx.World, func(t *core.Transform) {
 			t.Position = hull.Position
 		})
-	})
+	}
 }
 
-func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
-		// Keys express a rate; wheel offsets already express movement.
-		scaleChange := ctx.Actions.Axis("zoom")*zoomSpeed*ctx.DeltaTime.Seconds() + ctx.Input.Wheel().Y*wheelZoomStep
+func zoomSystem(camera core.Entity, panel *debug.Panel) core.SystemFunc {
+	return func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
+		actions, _ := ctx.World.Resource[input.Actions]()
+
+		scaleChange := current.Wheel().Y * wheelZoomStep
+		if actions != nil {
+			scaleChange += actions.Axis("zoom") * zoomSpeed * ctx.DeltaTime.Seconds()
+		}
 		if scaleChange == 0 {
 			return nil
 		}
@@ -191,38 +196,42 @@ func zoomSystem(camera core.Entity, panel *debug.Panel) core.System {
 			return err
 		}
 
-		if ctx.Input.Wheel().Y != 0 {
+		if current.Wheel().Y != 0 {
 			transform, _ := camera.Component[core.Transform](ctx.World)
 			panel.Message(fmt.Sprintf("zoom %.2fx", transform.Scale.X))
 		}
 		return nil
-	})
+	}
 }
 
 // tankBodySystem drives the hull like a tank: the bindings move it
 // along its facing and turn it in place, independent of where the
 // turret aims.
-func tankBodySystem(body core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func tankBodySystem(body core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
+		if actions == nil {
+
+			return nil
+		}
 		return body.Update(ctx.World, func(t *core.Transform) {
-			// Forward is screen-up (negative Y in this world), rotated
-			// by the hull's rotation.
+
 			facing := geom.Vector2{X: 0, Y: -1}.Rotate(t.Rotation)
 
-			if ctx.Actions.Held("move_forward") {
+			if actions.Held("move_forward") {
 				t.Position = t.Position.Add(facing.Mul(moveSpeed * ctx.DeltaTime.Seconds()))
 			}
-			if ctx.Actions.Held("move_backward") {
+			if actions.Held("move_backward") {
 				t.Position = t.Position.Sub(facing.Mul(moveSpeed * ctx.DeltaTime.Seconds()))
 			}
-			if ctx.Actions.Held("turn_left") {
+			if actions.Held("turn_left") {
 				t.Rotation -= turnSpeed * ctx.DeltaTime.Seconds()
 			}
-			if ctx.Actions.Held("turn_right") {
+			if actions.Held("turn_right") {
 				t.Rotation += turnSpeed * ctx.DeltaTime.Seconds()
 			}
 		})
-	})
+	}
 }
 
 // turretSystem mounts the barrel on the hull and aims it at the
@@ -230,26 +239,31 @@ func tankBodySystem(body core.Entity) core.System {
 // not through bindings - and projects to world space through the same
 // camera view the renderer frames with. Rotation 0 faces screen-up,
 // so the aim angle is atan2(x, -y) of the direction to the cursor.
-func turretSystem(turret, body core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func turretSystem(turret, body core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
 		hull, _ := body.Component[core.Transform](ctx.World)
 		view, err := ctx.World.Resource[*render.CameraView]()
 		if errors.Is(err, core.ErrResourceNotRegistered) {
-			// The first fixed tick runs before any draw has occurred,
-			// so the view resource does not exist yet. Skip aiming
-			// until it publishes.
+
 			return nil
 		}
 		if err != nil {
 			return err
 		}
 
-		world := view.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+
+		world := view.ScreenToWorld(current.Cursor(), vp.LogicalWidth, vp.LogicalHeight)
 		aim := world.Sub(hull.Position)
 
 		return turret.Update(ctx.World, func(t *core.Transform) {
 			t.Position = hull.Position
 			t.Rotation = math.Atan2(aim.X, -aim.Y)
 		})
-	})
+	}
 }

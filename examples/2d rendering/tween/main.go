@@ -110,7 +110,7 @@ func newGame() (*castrum.Game, *demo, error) {
 		return nil, nil, err
 	}
 
-	if err := g.AddSystem(core.PhaseFixed, "tween.motion", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "tween.motion", func(ctx *core.Context) error {
 		weight, err := d.motion.Update(ctx.DeltaTime)
 		if err != nil {
 			return err
@@ -118,12 +118,13 @@ func newGame() (*castrum.Game, *demo, error) {
 		return d.body.Update(ctx.World, func(t *core.Transform) {
 			t.Position = start.Lerp(end, weight)
 		})
-	})); err != nil {
+	}); err != nil {
 		return nil, nil, err
 	}
-	if err := g.AddSystem(core.PhaseFrame, "tween.presentation", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "tween.presentation", func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
 		panel := g.World().MustResource[*debug.Panel]()
-		if ctx.Actions.JustPressed("pause") {
+		if actions.JustPressed("pause") {
 			if g.Paused() {
 				g.Resume()
 				panel.Message("resumed")
@@ -140,19 +141,17 @@ func newGame() (*castrum.Game, *demo, error) {
 			{"normal", 1},
 			{"double", 2},
 		} {
-			if ctx.Actions.JustPressed(speed.action) {
-				if err := g.SetTimeScale(speed.scale); err != nil {
-					return err
-				}
+			if actions.JustPressed(speed.action) {
+				g.SetTimeScale(speed.scale)
 				panel.Message(fmt.Sprintf("simulation: %.1fx", speed.scale))
 			}
 		}
-		if ctx.Actions.JustPressed("restart") {
+		if actions.JustPressed("restart") {
 			d.motion.Reset()
 			d.tint.Reset()
 			panel.Message("both tweens restarted")
 		}
-		if ctx.Actions.JustPressed("quit") {
+		if actions.JustPressed("quit") {
 			g.Quit()
 		}
 
@@ -161,7 +160,6 @@ func newGame() (*castrum.Game, *demo, error) {
 			d.motion.Progress(), d.motion.IsComplete(),
 			d.tint.Progress(), d.tint.IsComplete()))
 
-		// Only tint changes on frame time; transform snapshots stay on fixed ticks.
 		weight, err := d.tint.Update(ctx.DeltaTime)
 		if err != nil {
 			return err
@@ -174,7 +172,7 @@ func newGame() (*castrum.Game, *demo, error) {
 				A: 255,
 			}
 		})
-	})); err != nil {
+	}); err != nil {
 		return nil, nil, err
 	}
 	return g, d, nil

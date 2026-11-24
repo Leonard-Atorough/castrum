@@ -269,11 +269,11 @@ func TestConsumerOwnsItsReader(t *testing.T) {
 	sysA := h.Consumer(func(ctx *core.Context, v ping) error { a = append(a, v); return nil })
 	sysB := h.Consumer(func(ctx *core.Context, v ping) error { b = append(b, v); return nil })
 
-	for _, sys := range []core.System{sysA, sysB} {
-		if err := sys.Update(ctx); err != nil {
+	for _, sys := range []core.SystemFunc{sysA, sysB} {
+		if err := sys(ctx); err != nil {
 			t.Fatalf("consumer update: %v", err)
 		}
-		if err := sys.Update(ctx); err != nil {
+		if err := sys(ctx); err != nil {
 			t.Fatalf("second update: %v", err)
 		}
 	}
@@ -295,10 +295,10 @@ func TestConsumerPropagatesHandlerError(t *testing.T) {
 		}
 		return nil
 	})
-	if err := sys.Update(&core.Context{}); !errors.Is(err, sentinel) {
+	if err := sys(&core.Context{}); !errors.Is(err, sentinel) {
 		t.Fatalf("consumer error: got %v, want %v", err, sentinel)
 	}
-	if err := sys.Update(&core.Context{}); err != nil {
+	if err := sys(&core.Context{}); err != nil {
 		t.Fatalf("consumer retry: %v", err)
 	}
 	want(t, "consumer signals across error", got, []ping{{1}, {2}})

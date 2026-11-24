@@ -91,12 +91,12 @@ func run() error {
 	}
 
 	elapsed := time.Duration(0)
-	if err := g.AddSystem(core.PhaseFixed, "score", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "score", func(ctx *core.Context) error {
 		elapsed += ctx.DeltaTime
 		return score.Update(ctx.World, func(s *sprite.Text) {
 			s.Text = fmt.Sprintf("score: %d", int(elapsed.Seconds()))
 		})
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 

@@ -19,6 +19,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/input"
+	"github.com/Leonard-Atorough/castrum/render"
 )
 
 func TestDisplayPreferencesPersistence(t *testing.T) {
@@ -136,16 +137,16 @@ func TestRunnerAudioIsProtectedAfterFrameSystems(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := g.AddSystem(core.PhaseFrame, "remove invalid audio", core.SystemFunc(func(ctx *core.Context) error {
+			if err := g.AddSystem(core.PhaseFrame, "remove invalid audio", func(ctx *core.Context) error {
 				return ctx.World.DestroyEntity(entity)
-			})); err != nil {
+			}); err != nil {
 				t.Fatal(err)
 			}
 			if !runnerFirst {
 				mustRunner(t, g)
 			}
 			for _, option := range []castrum.SystemOption{castrum.Before(AudioSystemName), castrum.After(AudioSystemName)} {
-				if err := g.AddSystem(core.PhaseFrame, "relative audio", core.SystemFunc(func(*core.Context) error { return nil }), option); err == nil {
+				if err := g.AddSystem(core.PhaseFrame, "relative audio", func(*core.Context) error { return nil }, option); err == nil {
 					t.Fatal("relative insertion accepted engine audio")
 				}
 			}
@@ -167,7 +168,7 @@ func TestRunnerRejectsDuplicateAudioController(t *testing.T) {
 
 func TestAudioNameReservedBeforeRunner(t *testing.T) {
 	g := mustGame(t)
-	system := core.SystemFunc(func(*core.Context) error { return nil })
+	system := func(*core.Context) error { return nil }
 	if err := g.AddSystem(core.PhaseFrame, AudioSystemName, system); err == nil {
 		t.Fatal("game accepted the reserved audio name")
 	}
@@ -208,8 +209,16 @@ func TestRunnerOptions(t *testing.T) {
 			t.Errorf("Layout(%v) = %dx%d, want 640x360", outside, width, height)
 		}
 	}
-	if g.Context().LogicalWidth != 640 || g.Context().LogicalHeight != 360 {
-		t.Errorf("context logical size = %dx%d, want 640x360", g.Context().LogicalWidth, g.Context().LogicalHeight)
+	win, err := g.World().Resource[render.Window]()
+	if err != nil {
+		t.Fatalf("resolve render.Window: %v", err)
+	}
+	vp := win.Viewport()
+	if vp.LogicalWidth != 640 || vp.LogicalHeight != 360 {
+		t.Errorf("viewport logical size = %dx%d, want 640x360", vp.LogicalWidth, vp.LogicalHeight)
+	}
+	if vp.WindowWidth != 800 || vp.WindowHeight != 600 {
+		t.Errorf("viewport window size = %dx%d, want 800x600 after Layout", vp.WindowWidth, vp.WindowHeight)
 	}
 }
 
@@ -302,10 +311,10 @@ func TestInvalidRunnerOptionsPanic(t *testing.T) {
 func TestUpdateAdvancesGame(t *testing.T) {
 	g := mustGame(t)
 	var frames int
-	if err := g.AddSystem(core.PhaseFrame, "frame counter", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "frame counter", func(ctx *core.Context) error {
 		frames++
 		return nil
-	})); err != nil {
+	}); err != nil {
 		t.Fatalf("AddSystem: %v", err)
 	}
 	r := mustRunner(t, g)
@@ -332,11 +341,11 @@ func TestDrawSetsAlphaAndDefersErrors(t *testing.T) {
 	var gotAlpha = -1.0
 	boom := errors.New("draw boom")
 	r := mustRunner(t, g)
-	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
-		gotAlpha = ctx.Alpha
+	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image, alpha float64) error {
+		gotAlpha = alpha
 		return nil
 	})
-	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image) error {
+	r.AddDraw(func(ctx *core.Context, screen *ebiten.Image, alpha float64) error {
 		return boom
 	})
 

@@ -132,7 +132,7 @@ func TestEngineSystemsRejectRelativeInsertion(t *testing.T) {
 	g := newTestGame(t, WithScenes(), WithState(state.New[string]().WithInitial("boot")), WithBindings(input.Bindings{
 		"jump": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}))
-	system := core.SystemFunc(func(*core.Context) error { return nil })
+	system := func(*core.Context) error { return nil }
 	for _, entry := range []struct {
 		phase core.Phase
 		name  string
@@ -183,10 +183,10 @@ func TestFixedPhaseSignalsAndMovementShareTick(t *testing.T) {
 	if _, err := g.World().NewEntity(core.Transform{}, shape); err != nil {
 		t.Fatal(err)
 	}
-	addTestSystem(t, g, core.PhasePreFixed, "move", core.SystemFunc(func(ctx *core.Context) error {
+	addTestSystem(t, g, core.PhasePreFixed, "move", func(ctx *core.Context) error {
 		return moving.Update(ctx.World, func(tr *core.Transform) { tr.Position.X = 1 })
-	}))
-	addTestSystem(t, g, core.PhaseFixed, "observe", core.SystemFunc(func(*core.Context) error {
+	})
+	addTestSystem(t, g, core.PhaseFixed, "observe", func(*core.Context) error {
 		if _, ok := timerReader.Next(); !ok {
 			t.Error("timer signal not visible in same tick")
 		}
@@ -197,7 +197,7 @@ func TestFixedPhaseSignalsAndMovementShareTick(t *testing.T) {
 			t.Error("pre-fixed movement not detected in same tick")
 		}
 		return nil
-	}))
+	})
 	advanceTestGame(t, g, 250*time.Millisecond)
 }
 
@@ -222,12 +222,12 @@ func TestCollisionSignalsReachFrameAfterFixedTicks(t *testing.T) {
 
 	reader := hub.NewReader[collision.Entered]()
 	var got []collision.Entered
-	addTestSystem(t, g, core.PhaseFrame, "signal collector", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "signal collector", func(*core.Context) error {
 		for event, ok := reader.Next(); ok; event, ok = reader.Next() {
 			got = append(got, event)
 		}
 		return nil
-	}))
+	})
 
 	step := time.Second / 60
 	for range 3 {
@@ -247,34 +247,31 @@ func TestBindingEdgesReachEveryPhase(t *testing.T) {
 		"jump": {input.KeyInput{Key: input.KeySpace}.Binding()},
 	}
 	g := New(WithBindings(bindings), WithFixedTPS(4))
-	am, err := g.World().Resource[*input.ActionMap]()
+	am, err := g.World().Resource[input.Actions]()
 	if err != nil {
 		t.Fatalf("resolve action map: %v", err)
 	}
-	if g.Context().Actions != am {
-		t.Fatal("Context.Actions should be the same map the resource resolves")
-	}
 	var framePresses int
-	if err := g.AddSystem(core.PhaseFrame, "frame input", core.SystemFunc(func(ctx *core.Context) error {
-		if ctx.Actions.JustPressed("jump") {
+	if err := g.AddSystem(core.PhaseFrame, "frame input", func(*core.Context) error {
+		if am.JustPressed("jump") {
 			framePresses++
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		t.Fatalf("AddSystem(frame): %v", err)
 	}
 	type edges struct{ pressed, released bool }
 	var ticks, preTicks []edges
-	if err := g.AddSystem(core.PhasePreFixed, "pre-fixed input", core.SystemFunc(func(ctx *core.Context) error {
-		preTicks = append(preTicks, edges{ctx.Actions.Pressed("jump"), ctx.Actions.Released("jump")})
+	if err := g.AddSystem(core.PhasePreFixed, "pre-fixed input", func(*core.Context) error {
+		preTicks = append(preTicks, edges{am.Pressed("jump"), am.Released("jump")})
 		return nil
-	})); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.AddSystem(core.PhaseFixed, "fixed input", core.SystemFunc(func(ctx *core.Context) error {
-		ticks = append(ticks, edges{ctx.Actions.Pressed("jump"), ctx.Actions.Released("jump")})
+	if err := g.AddSystem(core.PhaseFixed, "fixed input", func(*core.Context) error {
+		ticks = append(ticks, edges{am.Pressed("jump"), am.Released("jump")})
 		return nil
-	})); err != nil {
+	}); err != nil {
 		t.Fatalf("AddSystem(fixed): %v", err)
 	}
 	if err := g.Startup(); err != nil {
@@ -293,7 +290,8 @@ func TestBindingEdgesReachEveryPhase(t *testing.T) {
 		{&input.Snapshot{}, 50 * time.Millisecond},
 		{&input.Snapshot{}, 250 * time.Millisecond},
 	} {
-		g.Context().Input = step.input
+		current, _ := g.World().Resource[*input.Snapshot]()
+		*current = *step.input
 		if err := g.Advance(step.delta); err != nil {
 			t.Fatalf("Advance: %v", err)
 		}
@@ -315,12 +313,14 @@ func TestPressEdgeIsSeenOnceAcrossCatchUpTicks(t *testing.T) {
 	}))
 	snapshot := &input.Snapshot{}
 	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
-	g.Context().Input = snapshot
+	current, _ := g.World().Resource[*input.Snapshot]()
+	*current = *snapshot
 	var got []bool
-	addTestSystem(t, g, core.PhasePreFixed, "input", core.SystemFunc(func(ctx *core.Context) error {
-		got = append(got, ctx.Actions.Pressed("jump"))
+	addTestSystem(t, g, core.PhasePreFixed, "input", func(ctx *core.Context) error {
+		am, _ := ctx.World.Resource[input.Actions]()
+		got = append(got, am.Pressed("jump"))
 		return nil
-	}))
+	})
 	advanceTestGame(t, g, 750*time.Millisecond)
 	if want := []bool{true, false, false}; !slices.Equal(got, want) {
 		t.Fatalf("catch-up tick edges = %v, want %v", got, want)
@@ -338,9 +338,9 @@ func TestSpatialAudioFollowsFixedMovementDuringPause(t *testing.T) {
 	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
 		t.Fatal(err)
 	}
-	addTestSystem(t, g, core.PhaseFixed, "move", core.SystemFunc(func(ctx *core.Context) error {
+	addTestSystem(t, g, core.PhaseFixed, "move", func(ctx *core.Context) error {
 		return entity.Update(ctx.World, func(tr *core.Transform) { tr.Position.X += 50 })
-	}))
+	})
 	advanceTestGame(t, g, 250*time.Millisecond)
 	g.Pause()
 	advanceTestGame(t, g, 250*time.Millisecond)
@@ -358,28 +358,28 @@ func TestAudioFinishedSignalReachesPostFrameOnly(t *testing.T) {
 	post := hub.NewReader[audio.Finished]()
 	fixed := hub.NewReader[audio.Finished]()
 	nextFrame := hub.NewReader[audio.Finished]()
-	addTestSystem(t, g, core.PhaseFrame, "configure", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "configure", func(*core.Context) error {
 		return g.World().MustResource[*audio.Mixer]().SetMaster(0.5)
-	}))
+	})
 	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
 		t.Fatal(err)
 	}
 	var finished audio.Finished
 	var received bool
-	addTestSystem(t, g, core.PhasePostFrame, "finished", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhasePostFrame, "finished", func(*core.Context) error {
 		if signal, ok := post.Next(); ok {
 			finished, received = signal, true
 		}
 		return nil
-	}))
+	})
 	var fixedTicks int
-	addTestSystem(t, g, core.PhasePreFixed, "check expiration", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhasePreFixed, "check expiration", func(*core.Context) error {
 		fixedTicks++
 		if _, ok := fixed.Next(); ok {
 			t.Fatal("frame signal survived into fixed tick")
 		}
 		return nil
-	}))
+	})
 	advanceTestGame(t, g, g.Options().FixedDT())
 	if !received || finished.Entity != entity || finished.Audio != "sound" {
 		t.Fatalf("finished = %+v, received = %t; want entity %d and audio sound", finished, received, entity.ID())
@@ -391,13 +391,13 @@ func TestAudioFinishedSignalReachesPostFrameOnly(t *testing.T) {
 		t.Fatalf("controller synced entity %d and audio %q; want entity %d and audio sound", controller.entity, controller.source, entity.ID())
 	}
 	checkedNextFrame := false
-	addTestSystem(t, g, core.PhasePreFrame, "check next frame", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhasePreFrame, "check next frame", func(*core.Context) error {
 		checkedNextFrame = true
 		if _, ok := nextFrame.Next(); ok {
 			t.Fatal("frame signal survived into the next frame")
 		}
 		return nil
-	}))
+	})
 	advanceTestGame(t, g, time.Millisecond)
 	if !checkedNextFrame {
 		t.Fatal("next-frame signal check did not run")
@@ -442,25 +442,26 @@ func TestStateTransitionsOrderAgainstScenesAndFrameWork(t *testing.T) {
 	if _, err := director.Switch(rootScene, "setup", recordEntry(&got, "setup")); err != nil {
 		t.Fatalf("queue setup scene: %v", err)
 	}
-	machine.OnEnter("boot", core.SystemFunc(func(*core.Context) error {
+	machine.OnEnter("boot", func(*core.Context) error {
 		got = append(got, "state:boot")
 		_, err := director.Switch(rootScene, "startup", recordEntry(&got, "startup"))
 		return err
-	}))
-	machine.OnExit("boot", core.SystemFunc(func(*core.Context) error {
+	})
+	machine.OnExit("boot", func(*core.Context) error {
 		got = append(got, "state:exit-boot")
 		return nil
-	}))
-	machine.OnEnter("play", core.SystemFunc(func(ctx *core.Context) error {
-		if !ctx.Actions.JustPressed("start") {
+	})
+	machine.OnEnter("play", func(ctx *core.Context) error {
+		am, _ := ctx.World.Resource[input.Actions]()
+		if !am.JustPressed("start") {
 			t.Fatal("state hook ran before frame input updated")
 		}
 		got = append(got, "state:play")
 		_, err := director.Switch(rootScene, "frame", recordEntry(&got, "frame"))
 		return err
-	}))
+	})
 	loaded := false
-	addTestSystem(t, g, core.PhasePreFrame, "user.pre-frame", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhasePreFrame, "user.pre-frame", func(*core.Context) error {
 		got = append(got, "user:pre-frame")
 		if loaded {
 			return nil
@@ -468,16 +469,16 @@ func TestStateTransitionsOrderAgainstScenesAndFrameWork(t *testing.T) {
 		loaded = true
 		_, err := director.Load(rootScene, "pre-frame", recordEntry(&got, "pre-frame"))
 		return err
-	}))
-	addTestSystem(t, g, core.PhaseStartup, "user.startup", core.SystemFunc(func(*core.Context) error {
+	})
+	addTestSystem(t, g, core.PhaseStartup, "user.startup", func(*core.Context) error {
 		if event, ok := startupSignal.Next(); !ok || event.State != "boot" {
 			t.Fatalf("startup signal = %+v, %t", event, ok)
 		}
 		got = append(got, "user:startup")
 		return nil
-	}))
+	})
 	frames := 0
-	addTestSystem(t, g, core.PhaseFrame, "user.frame", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "user.frame", func(*core.Context) error {
 		frames++
 		if frames == 1 {
 			if event, ok := frameSignal.Next(); !ok || event.State != "boot" {
@@ -489,14 +490,14 @@ func TestStateTransitionsOrderAgainstScenesAndFrameWork(t *testing.T) {
 		}
 		got = append(got, "user:frame")
 		return nil
-	}))
-	addTestSystem(t, g, core.PhaseFixed, "user.fixed", core.SystemFunc(func(*core.Context) error {
+	})
+	addTestSystem(t, g, core.PhaseFixed, "user.fixed", func(*core.Context) error {
 		if _, ok := fixedSignal.Next(); ok {
 			t.Fatal("state signal did not expire before fixed ticks")
 		}
 		got = append(got, "user:fixed")
 		return nil
-	}))
+	})
 
 	if err := g.Startup(); err != nil {
 		t.Fatalf("Startup(): %v", err)
@@ -511,7 +512,8 @@ func TestStateTransitionsOrderAgainstScenesAndFrameWork(t *testing.T) {
 	}
 	snapshot := &input.Snapshot{}
 	snapshot.Keys[input.KeySpace] = input.State{Pressed: true, Held: true}
-	g.Context().Input = snapshot
+	current, _ := g.World().Resource[*input.Snapshot]()
+	*current = *snapshot
 	if err := g.Advance(g.Options().FixedDT()); err != nil {
 		t.Fatalf("Advance(): %v", err)
 	}
@@ -600,10 +602,10 @@ func TestSceneLifecycleLeavesGroupStateToGameCode(t *testing.T) {
 	director := g.World().MustResource[*scene.Director]()
 
 	var updates int
-	if err := g.AddSystem(core.PhaseFixed, "mission", core.SystemFunc(func(*core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "mission", func(*core.Context) error {
 		updates++
 		return nil
-	}), InGroup("mission")); err != nil {
+	}, InGroup("mission")); err != nil {
 		t.Fatalf("AddSystem: %v", err)
 	}
 	check := func(action string, want int) {
@@ -716,21 +718,21 @@ func TestTweenClocksFollowPauseAndTimeScale(t *testing.T) {
 				t.Fatalf("frame NewTween() error: %v", err)
 			}
 			var fixedCalls, frameCalls int
-			if err := g.AddSystem(core.PhaseFixed, "tween.fixed", core.SystemFunc(func(ctx *core.Context) error {
+			if err := g.AddSystem(core.PhaseFixed, "tween.fixed", func(ctx *core.Context) error {
 				fixedCalls++
 				if ctx.DeltaTime != 250*time.Millisecond {
 					t.Errorf("fixed DeltaTime = %v, want 250ms", ctx.DeltaTime)
 				}
 				_, err := fixed.Update(ctx.DeltaTime)
 				return err
-			})); err != nil {
+			}); err != nil {
 				t.Fatalf("AddSystem(fixed) error: %v", err)
 			}
-			if err := g.AddSystem(core.PhaseFrame, "tween.frame", core.SystemFunc(func(ctx *core.Context) error {
+			if err := g.AddSystem(core.PhaseFrame, "tween.frame", func(ctx *core.Context) error {
 				frameCalls++
 				_, err := frame.Update(ctx.DeltaTime)
 				return err
-			})); err != nil {
+			}); err != nil {
 				t.Fatalf("AddSystem(frame) error: %v", err)
 			}
 			if err := g.Startup(); err != nil {
@@ -745,9 +747,7 @@ func TestTweenClocksFollowPauseAndTimeScale(t *testing.T) {
 					g.Resume()
 				}
 				if step.scale > 0 {
-					if err := g.SetTimeScale(step.scale); err != nil {
-						t.Fatalf("step %d: SetTimeScale() error: %v", i, err)
-					}
+					g.SetTimeScale(step.scale)
 				}
 				if err := g.Advance(step.delta); err != nil {
 					t.Fatalf("step %d: Advance() error: %v", i, err)
@@ -778,10 +778,10 @@ func TestSchedulerWiredIntoEngine(t *testing.T) {
 	g := newTestGame(t)
 	scheduler := g.World().MustResource[*gametime.Scheduler]()
 	var ran int
-	if err := scheduler.Every("wired", 1, core.SystemFunc(func(*core.Context) error {
+	if err := scheduler.Every("wired", 1, func(*core.Context) error {
 		ran++
 		return nil
-	})); err != nil {
+	}); err != nil {
 		t.Fatalf("Every: %v", err)
 	}
 	advanceTestGame(t, g, 2*g.Options().FixedDT())

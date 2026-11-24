@@ -14,10 +14,10 @@ func TestScheduleOrderAndGroups(t *testing.T) {
 	s := NewSchedule(core.PhaseFixed, groups)
 	var got []string
 	add := func(name, group string) Entry {
-		return Entry{Name: name, Group: group, System: core.SystemFunc(func(*core.Context) error {
+		return Entry{Name: name, Group: group, System: func(*core.Context) error {
 			got = append(got, name)
 			return nil
-		})}
+		}}
 	}
 	if err := s.Run(&core.Context{}); err != nil {
 		t.Fatalf("empty schedule: %v", err)
@@ -52,10 +52,10 @@ func TestScheduleOuterBoundaries(t *testing.T) {
 	s := NewSchedule(core.PhasePostFrame, make(map[string]bool))
 	var got []string
 	entry := func(name string) Entry {
-		return Entry{Name: name, System: core.SystemFunc(func(*core.Context) error {
+		return Entry{Name: name, System: func(*core.Context) error {
 			got = append(got, name)
 			return nil
-		})}
+		}}
 	}
 	for _, step := range []struct {
 		add  func(Entry) error
@@ -95,12 +95,12 @@ func TestScheduleBoundaryAddedDuringRunWaits(t *testing.T) {
 	s := NewSchedule(core.PhaseFrame, make(map[string]bool))
 	var got []string
 	entry := func(name string) Entry {
-		return Entry{Name: name, System: core.SystemFunc(func(*core.Context) error {
+		return Entry{Name: name, System: func(*core.Context) error {
 			got = append(got, name)
 			return nil
-		})}
+		}}
 	}
-	if err := s.Add(Entry{Name: "user", System: core.SystemFunc(func(*core.Context) error {
+	if err := s.Add(Entry{Name: "user", System: func(*core.Context) error {
 		got = append(got, "user")
 		if len(got) == 1 {
 			if err := s.SetOpening(entry("open")); err != nil {
@@ -109,7 +109,7 @@ func TestScheduleBoundaryAddedDuringRunWaits(t *testing.T) {
 			return s.SetClosing(entry("close"))
 		}
 		return nil
-	})}); err != nil {
+	}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Run(&core.Context{}); err != nil {
@@ -131,10 +131,10 @@ func TestScheduleBoundaryAndRelativeOrder(t *testing.T) {
 	s := NewSchedule(core.PhaseFixed, make(map[string]bool))
 	var got []string
 	add := func(name string) Entry {
-		return Entry{Name: name, System: core.SystemFunc(func(*core.Context) error {
+		return Entry{Name: name, System: func(*core.Context) error {
 			got = append(got, name)
 			return nil
-		})}
+		}}
 	}
 	if err := s.AddFirst(add("first")); err != nil {
 		t.Fatal(err)
@@ -173,7 +173,7 @@ func TestScheduleInsertionsDuringRunTakeEffectOnNextRun(t *testing.T) {
 	inserted := false
 	var add func(string) Entry
 	add = func(name string) Entry {
-		return Entry{Name: name, System: core.SystemFunc(func(*core.Context) error {
+		return Entry{Name: name, System: func(*core.Context) error {
 			got = append(got, name)
 			if name == "inserter" && !inserted {
 				inserted = true
@@ -194,7 +194,7 @@ func TestScheduleInsertionsDuringRunTakeEffectOnNextRun(t *testing.T) {
 				}
 			}
 			return nil
-		})}
+		}}
 	}
 	for _, entry := range []Entry{add("inserter"), add("anchor")} {
 		if err := s.Add(entry); err != nil {
@@ -224,10 +224,10 @@ func TestScheduleFirstAndLastGroupsAreRegistered(t *testing.T) {
 	s := NewSchedule(core.PhaseFixed, groups)
 	var got []string
 	add := func(name, group string) Entry {
-		return Entry{Name: name, Group: group, System: core.SystemFunc(func(*core.Context) error {
+		return Entry{Name: name, Group: group, System: func(*core.Context) error {
 			got = append(got, name)
 			return nil
-		})}
+		}}
 	}
 	if err := s.AddFirst(add("first", "setup")); err != nil {
 		t.Fatal(err)
@@ -252,7 +252,7 @@ func TestScheduleFirstAndLastGroupsAreRegistered(t *testing.T) {
 func TestScheduleFailedInsertDoesNotReserveNames(t *testing.T) {
 	s := NewSchedule(core.PhaseFixed, make(map[string]bool))
 	add := func(name string) Entry {
-		return Entry{Name: name, System: core.SystemFunc(func(*core.Context) error { return nil })}
+		return Entry{Name: name, System: func(*core.Context) error { return nil }}
 	}
 	if err := s.Add(add("existing")); err != nil {
 		t.Fatal(err)
@@ -272,20 +272,20 @@ func TestScheduleStopsAtError(t *testing.T) {
 	s := NewSchedule(core.PhaseFixed, make(map[string]bool))
 	wantErr := errors.New("system error")
 	var got []string
-	if err := s.SetClosing(Entry{Name: "closing", System: core.SystemFunc(func(*core.Context) error {
+	if err := s.SetClosing(Entry{Name: "closing", System: func(*core.Context) error {
 		got = append(got, "closing")
 		return nil
-	})}); err != nil {
+	}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"first", "failing", "last"} {
-		if err := s.Add(Entry{Name: name, System: core.SystemFunc(func(*core.Context) error {
+		if err := s.Add(Entry{Name: name, System: func(*core.Context) error {
 			got = append(got, name)
 			if name == "failing" {
 				return wantErr
 			}
 			return nil
-		})}); err != nil {
+		}}); err != nil {
 			t.Fatal(err)
 		}
 	}

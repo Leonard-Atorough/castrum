@@ -220,12 +220,13 @@ func run() error {
 	// contacts: red while touching a solid, yellow while touching a
 	// pickup. The contacts are already computed - the engine's
 	// collision system runs earlier in the same fixed phase.
-	if err := g.AddSystem(core.PhaseFixed, "player", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "player", func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
 		stats, _ := player.Component[playerStats](ctx.World)
 		step := float64(stats.currentSpeed) * ctx.DeltaTime.Seconds()
 		delta := geom.Vector2{
-			X: axisValue(ctx.Actions.Held("right")) - axisValue(ctx.Actions.Held("left")),
-			Y: axisValue(ctx.Actions.Held("down")) - axisValue(ctx.Actions.Held("up")),
+			X: axisValue(actions.Held("right")) - axisValue(actions.Held("left")),
+			Y: axisValue(actions.Held("down")) - axisValue(actions.Held("up")),
 		}
 		if err := player.Update(ctx.World, func(t *core.Transform) {
 			t.Position = t.Position.Add(delta.Mul(step))
@@ -233,9 +234,6 @@ func run() error {
 			return err
 		}
 
-		// The tint scans the contacts rather than trusting the first:
-		// a solid contact wins over a trigger, so touching a hazard
-		// and a pickup in the same tick still shows the danger.
 		tint := playerColor
 		if contacts, ok := player.Component[collision.Contacts](ctx.World); ok && len(contacts.Current) > 0 {
 			tint = pickupColor
@@ -248,7 +246,7 @@ func run() error {
 		}
 		return player.SetComponent(ctx.World, sprite.Primitive{Shape: sprite.ShapeCircle, Radii: geom.Vector2{X: playerRadius, Y: playerRadius},
 			Style: sprite.Style{Color: tint}})
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 
@@ -266,7 +264,7 @@ func run() error {
 	// follows the rotation for free: the collision system transforms
 	// the shape by the transform every tick.
 	var spin *core.Query
-	if err := g.AddSystem(core.PhaseFixed, "bar", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "bar", func(ctx *core.Context) error {
 		if spin == nil {
 			spin = core.NewQuery(ctx.World).With(core.Transform{}, rotation(0))
 		}
@@ -275,7 +273,7 @@ func run() error {
 			e.Update(func(t *core.Transform) { t.Rotation += float64(speed) })
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 
@@ -293,8 +291,8 @@ func run() error {
 	return nil
 }
 
-func hazardSystem(player core.Entity, panel *debug.Panel) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func hazardSystem(player core.Entity, panel *debug.Panel) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		contacts, ok := player.Component[collision.Contacts](ctx.World)
 		if !ok {
 			return nil
@@ -321,11 +319,11 @@ func hazardSystem(player core.Entity, panel *debug.Panel) core.System {
 			return err
 		}
 		return nil
-	})
+	}
 }
 
-func pickupSystem(player core.Entity, pickups []core.Entity, score *int, panel *debug.Panel) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func pickupSystem(player core.Entity, pickups []core.Entity, score *int, panel *debug.Panel) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		for _, pickup := range pickups {
 			contacts, ok := pickup.Component[collision.Contacts](ctx.World)
 			if !ok {
@@ -349,7 +347,7 @@ func pickupSystem(player core.Entity, pickups []core.Entity, score *int, panel *
 			}
 		}
 		return nil
-	})
+	}
 }
 
 // spawnRect is a helper method to spawn a rectangular sprite and

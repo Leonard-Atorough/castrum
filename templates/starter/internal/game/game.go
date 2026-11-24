@@ -40,9 +40,10 @@ func New() (*castrum.Game, error) {
 		return nil, fmt.Errorf("create player: %w", err)
 	}
 
-	if err := g.AddSystem(core.PhaseFixed, "player-movement", core.SystemFunc(func(ctx *core.Context) error {
-		moveX := ctx.Actions.Axis("move_x")
-		moveY := ctx.Actions.Axis("move_y")
+	if err := g.AddSystem(core.PhaseFixed, "player-movement", func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
+		moveX := actions.Axis("move_x")
+		moveY := actions.Axis("move_y")
 		length := math.Hypot(moveX, moveY)
 		if length > 1 {
 			moveX /= length
@@ -60,7 +61,7 @@ func New() (*castrum.Game, error) {
 			return fmt.Errorf("move player: %w", err)
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return nil, fmt.Errorf("register player movement: %w", err)
 	}
 

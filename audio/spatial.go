@@ -63,10 +63,12 @@ func (p *spatialPass) resolve() error {
 	case FixedPosition:
 		p.position = listener.Position
 	case FollowCamera:
-		if p.ctx.LogicalWidth <= 0 || p.ctx.LogicalHeight <= 0 {
-			return fmt.Errorf("audio: camera listener requires a positive logical viewport, got %dx%d", p.ctx.LogicalWidth, p.ctx.LogicalHeight)
+		win, err := p.ctx.World.Resource[render.Window]()
+		if err != nil {
+			return fmt.Errorf("audio: camera listener requires a viewport (render.Window resource): %w", err)
 		}
-		view, ok, err := p.camera.Resolve(1, p.ctx.LogicalWidth, p.ctx.LogicalHeight)
+		vp := win.Viewport()
+		view, ok, err := p.camera.Resolve(1, vp.LogicalWidth, vp.LogicalHeight)
 		if err != nil {
 			return fmt.Errorf("audio: resolve listener camera: %w", err)
 		}

@@ -160,8 +160,9 @@ func newGame() (*castrum.Game, *runState, error) {
 	if err := game.SetGroupEnabled(roundGroup, false); err != nil {
 		return nil, nil, err
 	}
-	if err := game.AddSystem(core.PhaseFrame, "demo.scene-controls", core.SystemFunc(func(ctx *core.Context) error {
-		if ctx.Actions.JustPressed("start") {
+	if err := game.AddSystem(core.PhaseFrame, "demo.scene-controls", func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
+		if actions.JustPressed("start") {
 			if !director.Live(state.briefing) {
 				return nil
 			}
@@ -177,7 +178,7 @@ func newGame() (*castrum.Game, *runState, error) {
 				return err
 			}
 		}
-		if ctx.Actions.JustPressed("restart") {
+		if actions.JustPressed("restart") {
 			if !director.Live(state.result) {
 				return nil
 			}
@@ -188,7 +189,7 @@ func newGame() (*castrum.Game, *runState, error) {
 			state.briefing = id
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return nil, nil, err
 	}
 	panel.Status("controls", "WASD / arrows: move   SPACE: start   ENTER: briefing")
@@ -209,15 +210,16 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 	// on the final tick counts as a win rather than a timeout.
 	systems := []struct {
 		name string
-		run  core.System
+		run  core.SystemFunc
 	}{
 		{
 			name: "round.player-motion",
-			run: core.SystemFunc(func(ctx *core.Context) error {
+			run: func(ctx *core.Context) error {
+				actions, _ := ctx.World.Resource[input.Actions]()
 				for entry := range playerQuery.Execute() {
 					direction := geom.Vector2{
-						X: ctx.Actions.Axis("move_x"),
-						Y: ctx.Actions.Axis("move_y"),
+						X: actions.Axis("move_x"),
+						Y: actions.Axis("move_y"),
 					}
 					if direction.Length() > 1 {
 						direction = direction.Normalize()
@@ -229,11 +231,11 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 					})
 				}
 				return nil
-			}),
+			},
 		},
 		{
 			name: "round.pulse-motion",
-			run: core.SystemFunc(func(ctx *core.Context) error {
+			run: func(ctx *core.Context) error {
 				for entry := range droneQuery.Execute() {
 					drone, _ := entry.Component[pulseDrone]()
 					drone.phase += ctx.DeltaTime.Seconds() * 1.5
@@ -246,11 +248,11 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 					})
 				}
 				return nil
-			}),
+			},
 		},
 		{
 			name: "round.collision-events",
-			run: core.SystemFunc(func(ctx *core.Context) error {
+			run: func(ctx *core.Context) error {
 				player, ok := playerQuery.First()
 				if !ok {
 					return nil
@@ -282,7 +284,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 					}
 					return nil
 				})
-			}),
+			},
 		},
 		{
 			name: "round.score",
@@ -316,7 +318,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 		},
 		{
 			name: "round.clock-display",
-			run: core.SystemFunc(func(_ *core.Context) error {
+			run: func(_ *core.Context) error {
 				for entry := range clockQuery.Execute() {
 					clock, _ := entry.Component[gametime.Timer]()
 					seconds := int(math.Ceil(max(0, clock.Duration-clock.Elapsed).Seconds()))
@@ -329,7 +331,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 					})
 				}
 				return nil
-			}),
+			},
 		},
 		{
 			name: "round.resolve",

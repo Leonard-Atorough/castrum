@@ -38,10 +38,11 @@ func (d *demonstration) record(event string) {
 }
 
 func (d *demonstration) controls(ctx *core.Context) error {
-	if ctx.Actions.JustPressed("restart") {
+	actions, _ := ctx.World.Resource[input.Actions]()
+	if actions.JustPressed("restart") {
 		return d.machine.Restart()
 	}
-	if ctx.Actions.JustPressed("next") {
+	if actions.JustPressed("next") {
 		switch d.machine.Current() {
 		case idle:
 			return d.machine.Request(playing)
@@ -102,7 +103,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 		}
 		labels[line] = label
 	}
-	if err := g.AddSystem(core.PhaseFrame, "request mode", core.SystemFunc(d.controls)); err != nil {
+	if err := g.AddSystem(core.PhaseFrame, "request mode", d.controls); err != nil {
 		return nil, nil, err
 	}
 	hub := g.World().MustResource[*signal.Hub]()
@@ -122,7 +123,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 	)); err != nil {
 		return nil, nil, err
 	}
-	if err := g.AddSystem(core.PhaseFrame, "show mode", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFrame, "show mode", func(ctx *core.Context) error {
 		lines := strings.Split(d.readout(), "\n")
 		for i, label := range labels {
 			text := ""
@@ -136,7 +137,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 			}
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		return nil, nil, err
 	}
 	return g, d, nil

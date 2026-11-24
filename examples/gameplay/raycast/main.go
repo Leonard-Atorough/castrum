@@ -18,6 +18,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/sprite"
 )
@@ -101,7 +102,8 @@ func run() error {
 	}
 	panel.Status("aim", "Move the cursor to raycast from the yellow marker.")
 
-	if err := g.AddSystem(core.PhaseFixed, "raycast example", core.SystemFunc(func(ctx *core.Context) error {
+	if err := g.AddSystem(core.PhaseFixed, "raycast example", func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
 		view, err := ctx.World.Resource[*render.CameraView]()
 		if errors.Is(err, core.ErrResourceNotRegistered) {
 			return nil
@@ -110,7 +112,13 @@ func run() error {
 			return fmt.Errorf("raycast example: get camera view: %w", err)
 		}
 
-		end := view.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+
+		end := view.ScreenToWorld(current.Cursor(), vp.LogicalWidth, vp.LogicalHeight)
 		segment := geom.Segment{Start: origin, End: end}
 		hit, found := queries.Raycast(segment, collision.RaycastFilter{
 			Mask: collision.Layers(0, 1),
@@ -133,7 +141,7 @@ func run() error {
 		}
 		return beam.SetComponent(ctx.World, sprite.Primitive{Shape: sprite.ShapeLine, To: lineEnd,
 			Style: sprite.Style{StrokeWidth: 3, Color: lineColor}})
-	})); err != nil {
+	}); err != nil {
 		return err
 	}
 

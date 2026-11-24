@@ -506,12 +506,12 @@ func TestRunnerAudioCompletionReclaimsOneShot(t *testing.T) {
 	})
 	finished := world.MustResource[*signal.Hub]().NewReader[audio.Finished]()
 	var observed []audio.Finished
-	if err := game.AddSystem(core.PhasePostFrame, "record finished", core.SystemFunc(func(ctx *core.Context) error {
+	if err := game.AddSystem(core.PhasePostFrame, "record finished", func(ctx *core.Context) error {
 		for event, ok := finished.Next(); ok; event, ok = finished.Next() {
 			observed = append(observed, event)
 		}
 		return nil
-	})); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 

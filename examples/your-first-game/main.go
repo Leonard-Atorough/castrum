@@ -318,58 +318,72 @@ func over(stats core.Entity, ctx *core.Context) bool {
 	return run.Won || run.Lost
 }
 
-func moveSystem(hull, stats core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func moveSystem(hull, stats core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
 		if over(stats, ctx) {
 			return nil
 		}
 		dt := ctx.DeltaTime.Seconds()
 		return hull.Update(ctx.World, func(t *core.Transform) {
 			facing := geom.Vector2{X: 0, Y: -1}.Rotate(t.Rotation)
-			if ctx.Actions.Held("move_forward") {
+			if actions.Held("move_forward") {
 				t.Position = t.Position.Add(facing.Mul(Speed * dt))
 			}
-			if ctx.Actions.Held("move_backward") {
+			if actions.Held("move_backward") {
 				t.Position = t.Position.Sub(facing.Mul(Speed * dt))
 			}
-			if ctx.Actions.Held("turn_left") {
+			if actions.Held("turn_left") {
 				t.Rotation -= TurnSpeed * dt
 			}
-			if ctx.Actions.Held("turn_right") {
+			if actions.Held("turn_right") {
 				t.Rotation += TurnSpeed * dt
 			}
 		})
-	})
+	}
 }
 
-func turretSystem(turret, hull core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func turretSystem(turret, hull core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
+		current, _ := ctx.World.Resource[*input.Snapshot]()
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		view, err := ctx.World.Resource[*render.CameraView]()
 		if errors.Is(err, core.ErrResourceNotRegistered) {
-			// The first draw has not published a view yet, so skip aiming.
+
 			return nil
 		}
 		if err != nil {
 			return err
 		}
 
-		cursor := view.ScreenToWorld(ctx.Input.Cursor(), ctx.LogicalWidth, ctx.LogicalHeight)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+
+		cursor := view.ScreenToWorld(current.Cursor(), vp.LogicalWidth, vp.LogicalHeight)
 		aim := cursor.Sub(hullTransform.Position)
 
 		return turret.Update(ctx.World, func(t *core.Transform) {
 			t.Position = hullTransform.Position
 			t.Rotation = math.Atan2(aim.X, -aim.Y)
 		})
-	})
+	}
 }
 
-func scoreSystem(hud, camera, stats core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func scoreSystem(hud, camera, stats core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		run, _ := stats.Component[game](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+		half := vp.Center()
+		halfW := half.X / cameraTransform.Scale.X
+		halfH := half.Y / cameraTransform.Scale.Y
 		if err := hud.Update(ctx.World, func(t *core.Transform) {
 			t.Position = cameraTransform.Position.
 				Sub(geom.Vector2{X: halfW, Y: halfH}).
@@ -380,34 +394,35 @@ func scoreSystem(hud, camera, stats core.Entity) core.System {
 		return hud.Update(ctx.World, func(s *sprite.Text) {
 			s.Text = fmt.Sprintf("score %d / %d", run.Score, WinScore)
 		})
-	})
+	}
 }
 
 // cameraSystem centers the camera on the hull. The renderer interpolates
 // its transform to smooth the view between fixed ticks.
-func cameraSystem(camera, hull core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func cameraSystem(camera, hull core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		return camera.Update(ctx.World, func(t *core.Transform) {
 			t.Position = hullTransform.Position
 		})
-	})
+	}
 }
 
 // fireSystem fires on a tick-latched press when the cooldown is idle. It
 // spawns a bullet at the muzzle and restarts the cooldown. Pressed preserves
 // taps that occur between fixed ticks.
-func fireSystem(turret, stats core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func fireSystem(turret, stats core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
+		actions, _ := ctx.World.Resource[input.Actions]()
 		if over(stats, ctx) {
 			return nil
 		}
-		if !ctx.Actions.Pressed("fire") {
+		if !actions.Pressed("fire") {
 			return nil
 		}
 		gun, _ := turret.Component[gametime.Timer](ctx.World)
 		if gun.Running {
-			return nil // still reloading
+			return nil
 		}
 
 		transform, _ := turret.Component[core.Transform](ctx.World)
@@ -422,7 +437,7 @@ func fireSystem(turret, stats core.Entity) core.System {
 
 		_, err := audio.OneShot(ctx.World, audio.Track(AssetSFX), audio.Settings{Volume: 1, Pause: audio.PauseContinues})
 		return err
-	})
+	}
 }
 
 // spawnBullet creates a projectile at at with the given rotation. Its
@@ -449,9 +464,9 @@ func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (core.Ent
 // camera view. Bullets contact enemies only, so each hit can be scored as a
 // kill. Process hits from the bullet side: an enemy's contacts also include
 // the player, and scoring those would reward a ramming enemy.
-func bulletsSystem(camera, stats core.Entity) core.System {
+func bulletsSystem(camera, stats core.Entity) core.SystemFunc {
 	var live *core.Query
-	return core.SystemFunc(func(ctx *core.Context) error {
+	return func(ctx *core.Context) error {
 		if live == nil {
 			live = core.NewQuery(ctx.World).With(core.Transform{}, bullet{})
 		}
@@ -461,18 +476,23 @@ func bulletsSystem(camera, stats core.Entity) core.System {
 		dt := ctx.DeltaTime.Seconds()
 
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+		half := vp.Center()
+		halfW := half.X / cameraTransform.Scale.X
+		halfH := half.Y / cameraTransform.Scale.Y
 
 		for e := range live.Execute() {
-			// The query only prefetches Transform and bullet; fetch Contacts
-			// from the world through the entity handle.
+
 			contacts, hasContacts := e.Entity().Component[collision.Contacts](ctx.World)
 			if hasContacts && len(contacts.Current) > 0 {
 				for _, hit := range contacts.Current {
 					other := hit.Other
 					if _, ok := other.Component[enemy](ctx.World); !ok {
-						continue // Another bullet may have destroyed it this tick.
+						continue
 					}
 					if err := ctx.World.DestroyEntity(other); err != nil {
 						return err
@@ -506,14 +526,14 @@ func bulletsSystem(camera, stats core.Entity) core.System {
 			}
 		}
 		return nil
-	})
+	}
 }
 
 // spawnSystem shortens the interval as the score rises, down to
 // MinSpawnEvery. Each timer completion spawns one enemy at a random point
 // just outside the camera view.
-func spawnSystem(spawner, hull, camera, stats core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func spawnSystem(spawner, hull, camera, stats core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		if over(stats, ctx) {
 			return nil
 		}
@@ -533,8 +553,14 @@ func spawnSystem(spawner, hull, camera, stats core.Entity) core.System {
 
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		cameraTransform, _ := camera.Component[core.Transform](ctx.World)
-		halfW := float64(ctx.LogicalWidth) / (2 * cameraTransform.Scale.X)
-		halfH := float64(ctx.LogicalHeight) / (2 * cameraTransform.Scale.Y)
+		win, err := ctx.World.Resource[render.Window]()
+		if err != nil {
+			return err
+		}
+		vp := win.Viewport()
+		half := vp.Center()
+		halfW := half.X / cameraTransform.Scale.X
+		halfH := half.Y / cameraTransform.Scale.Y
 
 		angle := rand.Float64() * 2 * math.Pi
 		radius := math.Hypot(halfW, halfH) + CullMargin
@@ -542,9 +568,9 @@ func spawnSystem(spawner, hull, camera, stats core.Entity) core.System {
 			X: math.Cos(angle) * radius,
 			Y: math.Sin(angle) * radius,
 		})
-		_, err := spawnEnemy(ctx.World, at)
+		_, err = spawnEnemy(ctx.World, at)
 		return err
-	})
+	}
 }
 
 // spawnEnemy creates one enemy tank on the enemy layer, with collisions
@@ -566,9 +592,9 @@ func spawnEnemy(world *core.World, at geom.Vector2) (core.Entity, error) {
 }
 
 // enemiesSystem moves each enemy toward the tank.
-func enemiesSystem(hull, stats core.Entity) core.System {
+func enemiesSystem(hull, stats core.Entity) core.SystemFunc {
 	var targets *core.Query
-	return core.SystemFunc(func(ctx *core.Context) error {
+	return func(ctx *core.Context) error {
 		if targets == nil {
 			targets = core.NewQuery(ctx.World).With(core.Transform{}, enemy{})
 		}
@@ -586,24 +612,24 @@ func enemiesSystem(hull, stats core.Entity) core.System {
 			})
 		}
 		return nil
-	})
+	}
 }
 
 // dangerSystem marks the run lost when the hull contacts an enemy.
-func dangerSystem(hull, stats core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func dangerSystem(hull, stats core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		contacts, has := hull.Component[collision.Contacts](ctx.World)
 		if !has || len(contacts.Current) == 0 {
 			return nil
 		}
 		return stats.Update(ctx.World, func(s *game) { s.Lost = true })
-	})
+	}
 }
 
 // resultSystem hides the banner during play and displays the result over
 // the tank when the run ends.
-func resultSystem(banner, hull, stats core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func resultSystem(banner, hull, stats core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		run, _ := stats.Component[game](ctx.World)
 		if !run.Won && !run.Lost {
 			return banner.Update(ctx.World, func(s *sprite.Text) { s.Style.Hidden = true })
@@ -622,13 +648,13 @@ func resultSystem(banner, hull, stats core.Entity) core.System {
 			s.Style.Hidden = false
 			s.Text = text
 		})
-	})
+	}
 }
 
 // reloadReadoutSystem shows the remaining time while the cooldown runs and
 // hides the readout when the gun is ready.
-func reloadReadoutSystem(readout, turret, stats core.Entity) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func reloadReadoutSystem(readout, turret, stats core.Entity) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		if over(stats, ctx) {
 			return readout.Update(ctx.World, func(s *sprite.Text) { s.Style.Hidden = true })
 		}
@@ -647,5 +673,5 @@ func reloadReadoutSystem(readout, turret, stats core.Entity) core.System {
 				s.Style.Hidden = true
 			}
 		})
-	})
+	}
 }

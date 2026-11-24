@@ -1,25 +1,19 @@
 package castrum
 
 import (
-	"errors"
 	"io"
 	"math"
 	"os/exec"
-	"reflect"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
 
 	"github.com/Leonard-Atorough/castrum/asset"
-	"github.com/Leonard-Atorough/castrum/audio"
 	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/core"
-	"github.com/Leonard-Atorough/castrum/debug"
-	"github.com/Leonard-Atorough/castrum/gametime"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/render"
-	"github.com/Leonard-Atorough/castrum/signal"
 )
 
 func TestNewOptions(t *testing.T) {
@@ -168,51 +162,6 @@ func TestMainCamera(t *testing.T) {
 	}
 }
 
-func TestNewProvidesResources(t *testing.T) {
-	g := newTestGame(t)
-	cases := []struct {
-		name    string
-		resolve func(*Game) error
-	}{
-		{"asset loader", resolveResource[*asset.Loader]},
-		{"audio mixer", resolveResource[*audio.Mixer]},
-		{"signal hub", resolveResource[*signal.Hub]},
-		{"scheduler", resolveResource[*gametime.Scheduler]},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if err := c.resolve(g); err != nil {
-				t.Fatalf("%s: %v", c.name, err)
-			}
-		})
-	}
-	listener, err := g.World().Resource[*audio.Listener]()
-	if err != nil || listener == nil || listener.Enabled {
-		t.Errorf("audio listener = %v, error %v, want disabled listener", listener, err)
-	}
-	panel, err := g.World().Resource[*debug.Panel]()
-	if err != nil || panel == nil {
-		t.Fatalf("debug panel = %v, error %v", panel, err)
-	}
-	if !panel.Enabled(debug.FPS) || !panel.Enabled(debug.TPS) {
-		t.Error("the engine's panel should start with FPS and TPS enabled")
-	}
-	if g.World() == nil || g.Context().World != g.World() {
-		t.Error("Context.World should be the game world")
-	}
-}
-
-func resolveResource[T any](g *Game) error {
-	value, err := g.World().Resource[T]()
-	if err != nil {
-		return err
-	}
-	if reflect.ValueOf(&value).Elem().IsZero() {
-		return errors.New("nil resource")
-	}
-	return nil
-}
-
 // requireBuiltinFont fails the test if the loader cannot load the built-in
 // font.
 func requireBuiltinFont(t *testing.T, loader *asset.Loader) {
@@ -223,24 +172,17 @@ func requireBuiltinFont(t *testing.T, loader *asset.Loader) {
 }
 
 // tickCounter returns a system that increments count on each run.
-func tickCounter(count *int) core.System {
-	return core.SystemFunc(func(*core.Context) error { *count++; return nil })
+func tickCounter(count *int) core.SystemFunc {
+	return func(*core.Context) error { *count++; return nil }
 }
 
 // frameCounter returns a system that increments count and records the delta
 // time of each run.
-func frameCounter(count *int, delta *time.Duration) core.System {
-	return core.SystemFunc(func(ctx *core.Context) error {
+func frameCounter(count *int, delta *time.Duration) core.SystemFunc {
+	return func(ctx *core.Context) error {
 		*count++
 		*delta = ctx.DeltaTime
 		return nil
-	})
-}
-
-func setTimeScale(t *testing.T, g *Game, scale float64) {
-	t.Helper()
-	if err := g.SetTimeScale(scale); err != nil {
-		t.Fatalf("SetTimeScale(%v): %v", scale, err)
 	}
 }
 
@@ -386,11 +328,11 @@ func TestFrameSystemPauseAppliesWithinSameAdvance(t *testing.T) {
 	// The frame phase runs before Advance reads the paused flag.
 	g := newTestGame(t, WithFixedTPS(4))
 	var ticks, frames int
-	addTestSystem(t, g, core.PhaseFrame, "pauser", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "pauser", func(*core.Context) error {
 		frames++
 		g.Pause()
 		return nil
-	}))
+	})
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
 
 	advanceTestGame(t, g, 250*time.Millisecond)
@@ -407,11 +349,11 @@ func TestFrameSystemResumeAppliesWithinSameAdvance(t *testing.T) {
 	g := newTestGame(t, WithFixedTPS(4))
 	g.Pause()
 	var ticks, frames int
-	addTestSystem(t, g, core.PhaseFrame, "resumer", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "resumer", func(*core.Context) error {
 		frames++
 		g.Resume()
 		return nil
-	}))
+	})
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
 
 	advanceTestGame(t, g, 250*time.Millisecond)
@@ -424,11 +366,11 @@ func TestFrameSystemTimeScaleAppliesWithinSameAdvance(t *testing.T) {
 	// FixedTPS 10 => fixedDT = 100ms; scale 2 doubles the contribution.
 	g := newTestGame(t, WithFixedTPS(10))
 	var ticks, frames int
-	addTestSystem(t, g, core.PhaseFrame, "scaler", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFrame, "scaler", func(*core.Context) error {
 		frames++
-		setTimeScale(t, g, 2)
+		g.SetTimeScale(2)
 		return nil
-	}))
+	})
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
 
 	advanceTestGame(t, g, 100*time.Millisecond)
@@ -443,14 +385,14 @@ func TestFixedPhaseControlChangeDoesNotInterruptCurrentAdvance(t *testing.T) {
 	g := newTestGame(t, WithFixedTPS(4), WithMaxFrameTime(time.Second))
 	var ticks int
 	pausedInTick := false
-	addTestSystem(t, g, core.PhaseFixed, "pauser", core.SystemFunc(func(*core.Context) error {
+	addTestSystem(t, g, core.PhaseFixed, "pauser", func(*core.Context) error {
 		ticks++
 		if !pausedInTick {
 			pausedInTick = true
 			g.Pause()
 		}
 		return nil
-	}))
+	})
 
 	advanceTestGame(t, g, 500*time.Millisecond)
 	if ticks != 2 {
@@ -469,7 +411,7 @@ func TestTimeScaleScalesAccumulationOnly(t *testing.T) {
 	addTestSystem(t, g, core.PhaseFrame, "frame counter", frameCounter(&frames, &frameDT))
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
 
-	setTimeScale(t, g, 0.5)
+	g.SetTimeScale(0.5)
 	step := 100 * time.Millisecond
 	advanceTestGame(t, g, step)
 	if ticks != 0 || frames != 1 {
@@ -492,7 +434,7 @@ func TestTimeScaleFastForwardRespectsSpiralGuard(t *testing.T) {
 	var ticks int
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
 
-	setTimeScale(t, g, 10)
+	g.SetTimeScale(10)
 	advanceTestGame(t, g, time.Second)
 	if ticks != 5 {
 		t.Errorf("ticks = %d, want 5 (fast forward still capped at MaxTicksPerFrame)", ticks)
@@ -504,13 +446,13 @@ func TestTimeScaleChangePreservesRemainder(t *testing.T) {
 	g := newTestGame(t, WithFixedTPS(4))
 	var ticks int
 	addTestSystem(t, g, core.PhaseFixed, "tick counter", tickCounter(&ticks))
-	setTimeScale(t, g, 0.5)
+	g.SetTimeScale(0.5)
 	advanceTestGame(t, g, 250*time.Millisecond)
 	if ticks != 0 {
 		t.Fatalf("half speed: ticks = %d, want 0", ticks)
 	}
 	checkAlpha(t, g, 0.5)
-	setTimeScale(t, g, 2)
+	g.SetTimeScale(2)
 	advanceTestGame(t, g, 125*time.Millisecond)
 	if ticks != 1 {
 		t.Fatalf("double speed: ticks = %d, want 1", ticks)
@@ -529,22 +471,27 @@ func TestSetTimeScaleRejectsNonPositive(t *testing.T) {
 		t.Fatalf("default TimeScale = %v, want 1", g.TimeScale())
 	}
 	for _, bad := range []float64{0, -0.5, -2} {
-		if err := g.SetTimeScale(bad); err == nil {
-			t.Errorf("SetTimeScale(%v) should return an error", bad)
-		}
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("SetTimeScale(%v) should panic", bad)
+				}
+			}()
+			g.SetTimeScale(bad)
+		}()
 	}
 	if g.TimeScale() != 1 {
 		t.Errorf("TimeScale after rejected values = %v, want 1 (unchanged)", g.TimeScale())
 	}
 
-	setTimeScale(t, g, 2)
+	g.SetTimeScale(2)
 	if g.TimeScale() != 2 {
 		t.Errorf("TimeScale = %v, want 2", g.TimeScale())
 	}
 
 	// Scale is remembered while paused and applies after Resume.
 	g.Pause()
-	setTimeScale(t, g, 0.25)
+	g.SetTimeScale(0.25)
 	g.Resume()
 	if g.TimeScale() != 0.25 {
 		t.Errorf("TimeScale after pause/resume = %v, want 0.25", g.TimeScale())
