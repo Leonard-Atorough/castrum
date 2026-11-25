@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"golang.org/x/image/font/gofont/goregular"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/geom"
+	"github.com/Leonard-Atorough/castrum/signal"
 	spr "github.com/Leonard-Atorough/castrum/sprite"
 )
 
@@ -1006,35 +1008,71 @@ func TestCollectSheetLoaderIsResolvedLazily(t *testing.T) {
 	}
 }
 
-func TestCollectMemoryClipAndFileShareDrawSource(t *testing.T) {
-	// Sprite components reference sheets by file ID; memory sheets are
-	// runtime-only and reach the renderer through animation clips.
+// animatorSets registers a one-state test set over the collector test sheet:
+// body plays player/enemy, overlay layers enemy on top.
+func animatorSets(t *testing.T, w *core.World) animation.Sets {
+	t.Helper()
+	sets, err := animation.NewSets(map[string]animation.Set{
+		"test": {Name: "test", States: map[string]animation.State{
+			"play": {
+				Name: "play", Loop: animation.Loop,
+				Tracks: []animation.Track{
+					{Name: "body", Source: "sprites.json", Frames: []string{"player", "enemy"}, FPS: 10},
+					{Name: "overlay", Source: "sprites.json", Frames: []string{"enemy"}, FPS: 10},
+				},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.SetResource(sets)
+	return sets
+}
+
+// startAnimators runs the animation system once so animators enter their
+// desired state; a dt below one frame keeps frame zero.
+func startAnimators(t *testing.T, w *core.World, dt time.Duration) {
+	t.Helper()
+	if err := w.Provide(func(*core.World) (*signal.Hub, error) { return signal.NewHub(), nil }); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &core.Context{World: w, DeltaTime: dt, Tick: 1}
+	if err := animation.Animate(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func newAnimator(t *testing.T) animation.Animator {
+	t.Helper()
+	a, err := animation.NewAnimator("test", "play")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+func TestCollectDrawsEachAnimatorLayer(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
-	sheet, err := asset.NewSheet("./tex.png", map[string]asset.SheetRegion{"player": {W: 2, H: 2}})
-	if err != nil {
-		t.Fatal(err)
+	animatorSets(t, w)
+	if _, err := w.NewEntity(
+		newAnimator(t),
+		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
+	); err != nil {
+		t.Fatalf("spawn animator: %v", err)
 	}
-	memoryClip, err := animation.NewSpriteClip(asset.MemorySheet(sheet), []string{"player"}, 10)
-	if err != nil {
-		t.Fatal(err)
+	startAnimators(t, w, time.Millisecond)
+
+	list := collect(t, NewCollector(w), drawContext(w), 0)
+	if len(list.Items) != 2 {
+		t.Fatalf("Items = %d, want 2 (body plus overlay layer)", len(list.Items))
 	}
-	fileClip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"player"}, 10)
-	if err != nil {
-		t.Fatal(err)
+	if list.Items[0].Texture != "tex.png" || list.Items[0].Rect != image.Rect(0, 0, 2, 2) {
+		t.Errorf("body = %q/%v, want tex.png player region", list.Items[0].Texture, list.Items[0].Rect)
 	}
-	for _, clip := range []animation.SpriteClip{memoryClip, fileClip} {
-		animated, err := animation.NewAnimatedSprite(clip)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := w.NewEntity(animated, core.Transform{}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	list := collect(t, NewCollector(w), drawContext(w), 1)
-	if len(list.Items) != 2 || list.Items[0].Texture != list.Items[1].Texture || list.Items[0].Rect != list.Items[1].Rect {
-		t.Fatalf("file and memory sources disagree: %+v", list.Items)
+	if list.Items[1].Texture != "tex.png" || list.Items[1].Rect != image.Rect(2, 2, 4, 4) {
+		t.Errorf("overlay = %q/%v, want tex.png enemy region", list.Items[1].Texture, list.Items[1].Rect)
 	}
 }
 
@@ -1244,166 +1282,140 @@ func TestCollectFailurePublishesNoView(t *testing.T) {
 	}
 }
 
-func TestCollectGathersAnimatedSprites(t *testing.T) {
+func TestCollectGathersAnimators(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	animatorSets(t, w)
 
-	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"player", "enemy"}, 10)
-	if err != nil {
-		t.Fatalf("clip: %v", err)
-	}
-	animated, err := animation.NewAnimatedSprite(clip)
-	if err != nil {
-		t.Fatalf("animated sprite: %v", err)
-	}
+	animated := newAnimator(t)
 	animated.Style.FlipH = true
 	animated.Style.Color = &color.RGBA{R: 255, A: 255}
 	if _, err := w.NewEntity(
 		animated,
 		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
 	); err != nil {
-		t.Fatalf("spawn animated sprite: %v", err)
+		t.Fatalf("spawn animator: %v", err)
 	}
 
-	// Hidden animated sprites stay excluded, like hidden sprites.
-	hidden, err := animation.NewAnimatedSprite(clip)
-	if err != nil {
-		t.Fatalf("hidden animated sprite: %v", err)
-	}
+	// Hidden animators stay excluded, like hidden sprites.
+	hidden := newAnimator(t)
 	hidden.Style.Hidden = true
 	if _, err := w.NewEntity(
 		hidden,
 		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
 	); err != nil {
-		t.Fatalf("spawn hidden animated sprite: %v", err)
+		t.Fatalf("spawn hidden animator: %v", err)
 	}
+	startAnimators(t, w, time.Millisecond)
 
 	list := collect(t, NewCollector(w), drawContext(w), 0)
-	if len(list.Items) != 1 {
-		t.Fatalf("Items = %d, want 1 (current frame plus a hidden sprite)", len(list.Items))
+	if len(list.Items) != 2 {
+		t.Fatalf("Items = %d, want 2 (two layers of the one visible animator)", len(list.Items))
 	}
 	item := list.Items[0]
 	if item.Texture != "tex.png" || item.Rect != (image.Rect(0, 0, 2, 2)) {
 		t.Errorf("texture/rect = %q/%v, want tex.png frame zero of the player region", item.Texture, item.Rect)
 	}
 	if !item.FlipH || item.Color != color.Color(color.RGBA{R: 255, A: 255}) {
-		t.Errorf("flip/color = %v/%v, want the animated sprite's own style", item.FlipH, item.Color)
+		t.Errorf("flip/color = %v/%v, want the animator's own style", item.FlipH, item.Color)
 	}
 }
 
-func TestCollectSkipsCliplessAnimatedSprite(t *testing.T) {
+func TestCollectSkipsUnstartedAnimator(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
 
+	// No Sets resource and no system run: an unstarted animator draws nothing.
 	if _, err := w.NewEntity(
-		animation.AnimatedSprite{},
+		newAnimator(t),
 		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
 	); err != nil {
-		t.Fatalf("spawn clipless animated sprite: %v", err)
+		t.Fatalf("spawn animator: %v", err)
 	}
 
 	list, err := NewCollector(w).Collect(drawContext(w), 0)
 	if err != nil {
-		t.Fatalf("Collect = %v, want no error for a clipless sprite", err)
+		t.Fatalf("Collect = %v, want no error for an unstarted animator", err)
 	}
 	if len(list.Items) != 0 {
 		t.Fatalf("Items = %d, want 0", len(list.Items))
 	}
 }
 
-func TestCollectDrawsPausedAnimatedSpriteFrameZero(t *testing.T) {
+func TestCollectDrawsPausedAnimatorFrameZero(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	animatorSets(t, w)
 
-	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"player", "enemy"}, 10)
-	if err != nil {
-		t.Fatalf("clip: %v", err)
-	}
-	paused, err := animation.NewAnimatedSprite(clip)
-	if err != nil {
-		t.Fatalf("animated sprite: %v", err)
-	}
+	paused := newAnimator(t)
 	paused.Paused = true
 	if _, err := w.NewEntity(
 		paused,
 		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
 	); err != nil {
-		t.Fatalf("spawn paused animated sprite: %v", err)
+		t.Fatalf("spawn paused animator: %v", err)
 	}
+	startAnimators(t, w, 100*time.Millisecond)
 
 	list := collect(t, NewCollector(w), drawContext(w), 0)
-	if len(list.Items) != 1 {
-		t.Fatalf("Items = %d, want 1", len(list.Items))
+	if len(list.Items) != 2 {
+		t.Fatalf("Items = %d, want 2 layers", len(list.Items))
 	}
 	if list.Items[0].Texture != "tex.png" || list.Items[0].Rect != (image.Rect(0, 0, 2, 2)) {
 		t.Errorf("texture/rect = %q/%v, want frame zero drawn while paused", list.Items[0].Texture, list.Items[0].Rect)
 	}
 }
 
-func TestCollectStagesSpriteAndAnimatedSpriteTogether(t *testing.T) {
-	// The union-era conflict error is gone: sprite.Sprite and the
-	// animated sprite stage as independent visuals, the static image
-	// first and the animated frame after it.
+func TestCollectStagesSpriteAndAnimatorTogether(t *testing.T) {
+	// sprite.Sprite and the animator stage as independent visuals, the
+	// static image first and the animator's layers after it.
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	animatorSets(t, w)
 
-	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"player"}, 10)
-	if err != nil {
-		t.Fatalf("clip: %v", err)
-	}
-	animated, err := animation.NewAnimatedSprite(clip)
-	if err != nil {
-		t.Fatalf("animated sprite: %v", err)
-	}
 	if _, err := w.NewEntity(
-		animated,
+		newAnimator(t),
 		spr.Sprite{Asset: "tex.png"},
 		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
 	); err != nil {
 		t.Fatalf("spawn co-staged components: %v", err)
 	}
+	startAnimators(t, w, time.Millisecond)
 
 	list, err := NewCollector(w).Collect(drawContext(w), 0)
 	if err != nil {
 		t.Fatalf("Collect = %v, want both visuals staged", err)
 	}
-	if len(list.Items) != 2 {
-		t.Fatalf("Items = %d, want 2 (static image, animated frame)", len(list.Items))
+	if len(list.Items) != 3 {
+		t.Fatalf("Items = %d, want 3 (static image, two animator layers)", len(list.Items))
 	}
-	if list.Items[0].Texture != "tex.png" {
-		t.Errorf("first item texture = %q, want the static image first", list.Items[0].Texture)
+	if list.Items[0].Texture != "tex.png" || list.Items[0].Rect != (image.Rectangle{}) {
+		t.Errorf("first item = %q/%v, want the static image first", list.Items[0].Texture, list.Items[0].Rect)
 	}
 }
 
-func TestCollectSurfacesInvalidAnimatedSpriteConfig(t *testing.T) {
+func TestCollectSurfacesInvalidAnimatorConfig(t *testing.T) {
 	w := newCollectorWorld(t)
 	spawnCamera(t, w, geom.Vector2{}, geom.Vector2{}, 1, true)
+	animatorSets(t, w)
 
-	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"player", "enemy"}, 10)
-	if err != nil {
-		t.Fatalf("clip: %v", err)
-	}
-	animated, err := animation.NewAnimatedSprite(clip)
-	if err != nil {
-		t.Fatalf("animated sprite: %v", err)
-	}
 	if _, err := w.NewEntity(
-		animated,
+		newAnimator(t),
 		core.Transform{Position: geom.Vector2{}, Scale: unitScale},
 	); err != nil {
-		t.Fatalf("spawn animated sprite: %v", err)
+		t.Fatalf("spawn animator: %v", err)
 	}
 
 	// The write path a system uses: read through the entry, mutate, write
 	// back. Entry.SetComponent skips component validation.
-	for e := range core.NewQuery(w).With(animation.AnimatedSprite{}).Execute() {
-		a, _ := e.Component[animation.AnimatedSprite]()
-		a.PlaybackMultiplier = -1
+	for e := range core.NewQuery(w).With(animation.Animator{}).Execute() {
+		a, _ := e.Component[animation.Animator]()
+		a.Speed = -1
 		e.SetComponent(a)
 	}
-	_, err = NewCollector(w).Collect(drawContext(w), 0)
-	if err == nil || !strings.Contains(err.Error(), "playback multiplier") {
-		t.Fatalf("Collect error = %v, want the invalid playback multiplier surfaced", err)
+	_, err := NewCollector(w).Collect(drawContext(w), 0)
+	if err == nil || !strings.Contains(err.Error(), "speed") {
+		t.Fatalf("Collect error = %v, want the invalid speed surfaced", err)
 	}
 }
 
