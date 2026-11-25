@@ -19,7 +19,7 @@ import (
 )
 
 // DrawItem is one drawable resolved from a [sprite.Sprite], [sprite.Text],
-// [sprite.Primitive], or [animation.AnimatedSprite] for a frame.
+// [sprite.Primitive], or one layer of an [animation.Animator] for a frame.
 type DrawItem struct {
 	// Texture is the source texture for a texture item; empty for text and shapes.
 	Texture asset.ID
@@ -61,9 +61,9 @@ type DrawItem struct {
 type DrawList struct {
 	// Camera is the resolved primary camera view.
 	Camera CameraView
-	// Items is the sorted set of drawables. When returned by [Collector.Collect],
-	// the collector owns the slice and overwrites it on its next call; callers
-	// must not modify or retain it.
+	// Items is the sorted set of drawables.
+	// When returned by [Collector.Collect], the slice is collector-owned; copy it
+	// before modifying it or retaining it across later collection calls.
 	Items []DrawItem
 }
 
@@ -74,26 +74,23 @@ type workingItem struct {
 	worldY    float64 // interpolated, the Y-fallback sort key
 }
 
-// Collector resolves drawable assets, culls against the camera viewport, and
-// sorts draw items for each frame. Reuse a Collector across frames.
+// Collector collects draw items for a world and can be reused across frames.
 type Collector struct {
-	camera          *CameraResolver
-	win             Window
-	images          *core.Query
-	primitives      *core.Query
-	texts           *core.Query
-	animatedSprites *core.Query
-	working         []workingItem
-	// view is the published [*CameraView] resource; every Collect writes
-	// the resolved view into it.
+	camera     *CameraResolver
+	win        Window
+	images     *core.Query
+	primitives *core.Query
+	texts      *core.Query
+	animators  *core.Query
+	working    []workingItem
+	// view is the published [CameraView] resource; successful collection
+	// with a camera updates it.
 	view *CameraView
-	// SortedItems is the storage behind [DrawList.Items] and follows its
-	// ownership rule.
+	// SortedItems is the storage behind the items returned by [Collector.Collect].
 	SortedItems []DrawItem
 }
 
-// NewCollector creates a [Collector] for world. A user primary camera takes
-// precedence over the engine camera.
+// NewCollector creates a [Collector] for world.
 func NewCollector(world *core.World) *Collector {
 	images := core.NewQuery(world).
 		With(sprite.Sprite{}, core.Transform{}, core.PrevTransform{}).
@@ -117,42 +114,35 @@ func NewCollector(world *core.World) *Collector {
 		})
 
 	animated := core.NewQuery(world).
-		With(animation.AnimatedSprite{}, core.Transform{}, core.PrevTransform{}).
+		With(animation.Animator{}, core.Transform{}, core.PrevTransform{}).
 		Where(func(e core.Entry) bool {
-			a, ok := e.Component[animation.AnimatedSprite]()
+			a, ok := e.Component[animation.Animator]()
 			return ok && !a.Style.Hidden
 		})
 
 	return &Collector{
-		camera:          NewCameraResolver(world),
-		images:          images,
-		primitives:      primitives,
-		texts:           texts,
-		animatedSprites: animated,
-		working:         make([]workingItem, 0),
-		SortedItems:     make([]DrawItem, 0),
+		camera:      NewCameraResolver(world),
+		images:      images,
+		primitives:  primitives,
+		texts:       texts,
+		animators:   animated,
+		working:     make([]workingItem, 0),
+		SortedItems: make([]DrawItem, 0),
 	}
 }
 
-// Collect resolves the draw list for the current frame. Items outside the
-// camera view are culled, and the rest are sorted by layer, sort order, then
-// world Y.
+// Collect resolves the draw list for the current frame using alpha to
+// interpolate transforms. An alpha of 1 uses current transforms.
 //
-// When a primary camera is available, Collect publishes the resolved view as
-// the world's [*CameraView] resource once collection succeeds: the resource
-// always describes a drawn frame. A failed Collect publishes nothing; the
-// resource keeps the previous frame's view, and a first Collect that fails
-// registers no resource. Calls without a primary camera leave the resource
-// unchanged.
+// Items outside the camera view are culled; the rest are sorted by layer,
+// sort order, and world Y. Ties preserve class order: sprites, primitives,
+// text, then animators. An animator contributes one item per weighted frame
+// layer.
 //
 // If no primary camera is available, Collect returns an empty list without an
-// error. Asset lookup and loading errors are returned; shapes require no assets.
-// Sheet documents, textures, and text resolve through the world's [asset.Loader].
-// Sheet regions are checked against the decoded texture before staging.
-// An entity may carry [sprite.Sprite], [sprite.Text], [sprite.Primitive],
-// and [animation.AnimatedSprite] together; each contributes its own item.
-// Among items with equal layer, sort order, and world Y, class order decides:
-// sprites, then primitives, then text, then animated sprites.
+// error. A successful collection with a camera publishes a [CameraView];
+// failure or absence of a camera leaves the previously published view unchanged.
+// It returns an error if camera, resource, asset, or animation resolution fails.
 func (c *Collector) Collect(ctx *core.Context, alpha float64) (DrawList, error) {
 	if c.win == nil {
 		win, err := ctx.World.Resource[Window]()
@@ -213,17 +203,20 @@ func (c *Collector) Collect(ctx *core.Context, alpha float64) (DrawList, error) 
 		}
 	}
 
-	for e := range c.animatedSprites.Execute() {
-		a, _ := e.Component[animation.AnimatedSprite]()
+	// Resolve the animation sets once per Collect, and only when an animator
+	// exists: without a registered Sets resource an unstarted animator draws
+	// nothing, while a started one reports the unknown set through Frames.
+	var sets animation.Sets
+	if _, ok := c.animators.First(); ok {
+		sets, _ = ctx.World.Resource[animation.Sets]()
+	}
+	for e := range c.animators.Execute() {
+		a, _ := e.Component[animation.Animator]()
 		transform, _ := e.Component[core.Transform]()
 		prev, _ := e.Component[core.PrevTransform]()
-		ref, region, ok, err := a.CurrentFrame()
+		frames, err := a.Frames(sets)
 		if err != nil {
-			return DrawList{}, fmt.Errorf("castrum: collect: animated sprite: entity %d: %w", e.ID(), err)
-		}
-		if !ok {
-			// A clipless sprite is legal and draws nothing.
-			continue
+			return DrawList{}, fmt.Errorf("castrum: collect: animator: entity %d: %w", e.ID(), err)
 		}
 		if transform.Scale.X == 0 {
 			transform.Scale.X = 1
@@ -233,13 +226,19 @@ func (c *Collector) Collect(ctx *core.Context, alpha float64) (DrawList, error) 
 		}
 		scale := prev.Scale.Lerp(transform.Scale, alpha)
 		rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*alpha
-		item, size, err := c.collectSheet(assetLoader, a.Style, rotation, scale, ref, region)
-		if err != nil {
-			return DrawList{}, err
-		}
 		var zero geom.Vector2
-		c.stage(viewport, alpha, a.Style.Layer, a.Style.SortOrder,
-			prev.Position, transform.Position, zero, size, item)
+		for _, frame := range frames {
+			style := a.Style
+			if frame.Weight < 1 {
+				style.Color = blendAlpha(style.Color, frame.Weight)
+			}
+			item, size, err := c.collectSheet(assetLoader, style, rotation, scale, frame.Source, frame.Region)
+			if err != nil {
+				return DrawList{}, err
+			}
+			c.stage(viewport, alpha, a.Style.Layer, a.Style.SortOrder,
+				prev.Position, transform.Position, zero, size, item)
+		}
 	}
 
 	slices.SortStableFunc(c.working, func(a, b workingItem) int {
@@ -532,6 +531,15 @@ func shapeItem(style sprite.Style, rotation float64, scale geom.Vector2, shape s
 		Outline:     style.Outline,
 		StrokeWidth: style.StrokeWidth,
 	}
+}
+
+func blendAlpha(clr *color.RGBA, weight float64) *color.RGBA {
+	out := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	if clr != nil {
+		out = *clr
+	}
+	out.A = uint8(math.Round(float64(out.A) * weight))
+	return &out
 }
 
 func styleTint(clr *color.RGBA, fallback color.Color) color.Color {
