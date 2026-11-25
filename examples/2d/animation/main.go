@@ -130,7 +130,9 @@ func newGame() (*castrum.Game, error) {
 	if err != nil {
 		return nil, err
 	}
-	g.World().SetResource(sets)
+	if err := g.AddResource(sets); err != nil {
+		return nil, err
+	}
 
 	animator, err := animation.NewAnimator("samurai", "idle")
 	if err != nil {

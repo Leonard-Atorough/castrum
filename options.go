@@ -60,8 +60,9 @@ type Options struct {
 
 	fixedDT time.Duration
 
-	features []feature
-	states   []stateRegistration
+	features  []feature
+	states    []stateRegistration
+	resources []func(*core.World) error
 }
 
 type stateRegistration struct {
