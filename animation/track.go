@@ -8,8 +8,8 @@ import (
 	"github.com/Leonard-Atorough/castrum/asset"
 )
 
-// Track is one layer of an [Entry]: a named sequence of sheet regions at a
-// fixed rate. Tracks in one entry play together (layers).
+// Track is one layer of a [State]: a named sequence of sheet regions at a
+// fixed rate. Tracks in one state play together.
 type Track struct {
 	// Name is the track's name.
 	Name string `json:"name"`

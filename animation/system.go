@@ -1,3 +1,4 @@
+// Package animation provides state-based sprite animation and playback signals.
 package animation
 
 import (
@@ -12,15 +13,14 @@ import (
 // transitions; the other tracks only resolve their own frame at a boundary.
 const primaryTrack = 0
 
+// SystemName is the registered name of [Animate].
 const SystemName = "animation"
 
-// Animate is the system responsible for updating and applying animation
-// states to entities. Games created by castrum.New register it in
-// [core.PhaseFixed] automatically; when registering it manually, provide an
-// [Sets] resource (World.SetResource) and a [*signal.Hub] resource.
+// Animate advances [Animator] components and emits playback signals.
 //
-// The resources are resolved only when an [Animator] exists, so worlds
-// without animators never require them.
+// Games created by [github.com/Leonard-Atorough/castrum.New] register it in
+// [core.PhaseFixed]. When an animator exists, the world must provide [Sets]
+// and [signal.Hub] resources.
 func Animate(ctx *core.Context) error {
 	animators := core.NewQuery(ctx.World).With(Animator{})
 	if _, ok := animators.First(); !ok {

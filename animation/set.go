@@ -7,14 +7,13 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
-// Sets is the named collection of animation sets, intended to be registered as
-// a world resource. The map is unexported so holders of the resource value
-// cannot mutate it; build one with [NewSets], which validates and deep-copies.
+// Sets is a named collection of animation sets, intended as a world resource.
 type Sets struct {
 	sets map[string]Set
 }
 
-// Validate reports whether every set is valid and keyed by its own name.
+// Validate returns an error if the collection is empty or contains an invalid
+// set or a set whose name does not match its key.
 func (ss Sets) Validate() error {
 	if len(ss.sets) == 0 {
 		return fmt.Errorf("animation: sets must have at least one set")
@@ -30,9 +29,8 @@ func (ss Sets) Validate() error {
 	return nil
 }
 
-// NewSets returns a [Sets] built from sets, validating each set and its name
-// against its key and deep-copying all nested maps and slices so later changes
-// to the input do not leak in. It returns an error instead of a partial result.
+// NewSets returns a validated [Sets] containing deep copies of the input sets.
+// It returns an error if the collection is empty or any set or key is invalid.
 func NewSets(sets map[string]Set) (Sets, error) {
 	out := Sets{sets: make(map[string]Set, len(sets))}
 	for name, set := range sets {
@@ -50,11 +48,14 @@ func NewSets(sets map[string]Set) (Sets, error) {
 	return out, nil
 }
 
+// Get returns the named set and whether it exists.
+// The returned set's maps and slices share storage with the collection.
 func (ss Sets) Get(name string) (Set, bool) {
 	set, ok := ss.sets[name]
 	return set, ok
 }
 
+// Names returns the set names in unspecified order.
 func (ss Sets) Names() []string {
 	names := make([]string, 0, len(ss.sets))
 	for name := range ss.sets {
@@ -63,10 +64,12 @@ func (ss Sets) Names() []string {
 	return names
 }
 
+// MarshalJSON encodes the collection as a JSON object keyed by set name.
 func (ss Sets) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ss.sets)
 }
 
+// UnmarshalJSON decodes a JSON object into the collection without validating it.
 func (ss *Sets) UnmarshalJSON(data []byte) error {
 	if ss.sets == nil {
 		ss.sets = make(map[string]Set)
@@ -78,18 +81,19 @@ func (ss *Sets) UnmarshalJSON(data []byte) error {
 type Set struct {
 	// Name is the set's name.
 	Name string `json:"name"`
-	// States maps state names to entries.
+	// States maps state names to states.
 	States map[string]State `json:"states"`
 }
 
 // NewSet returns a set with an initialized, empty state map.
+// The set is invalid until it has a name and at least one state.
 func NewSet() Set {
 	return Set{
 		States: make(map[string]State),
 	}
 }
 
-// Validate returns an error if the set, its entries, or their transitions are invalid.
+// Validate returns an error if the set, its states, or their transitions are invalid.
 func (s Set) Validate() error {
 	if s.Name == "" {
 		return fmt.Errorf("set name cannot be empty")
@@ -129,16 +133,17 @@ type State struct {
 	Tracks []Track `json:"tracks"`
 	// Loop controls whether the state repeats.
 	Loop LoopMode `json:"loop,omitempty"`
-	// EnterBlend is the duration of the transition into the state.
+	// EnterBlend is the duration in seconds of the transition into the state.
 	EnterBlend float64 `json:"enterBlend,omitempty"`
 	// BlendEase names the easing function for the enter transition. Empty
-	// defaults to linear; unknown names are rejected by Validate.
+	// defaults to linear; unknown names are rejected by [State.Validate].
 	BlendEase string `json:"blendEase,omitempty"`
-	// Next is the name of the state to enter after this state.
+	// Next is the state to enter when the primary track reaches a boundary.
+	// An empty name disables the automatic transition.
 	Next string `json:"next,omitempty"`
 }
 
-// Validate returns an error if the entry or its tracks are invalid.
+// Validate returns an error if the state or its tracks are invalid.
 func (e State) Validate() error {
 	if e.Name == "" {
 		return fmt.Errorf("entry name cannot be empty")
@@ -183,12 +188,12 @@ func (s State) clone() State {
 type LoopMode int
 
 const (
-	// LoopOnce plays the clip once, then pauses on its final frame. It is the
-	// zero value, so animations play once by default.
+	// LoopOnce plays the state once and holds its final frame if there is no
+	// automatic transition. It is the zero value.
 	LoopOnce LoopMode = iota
 	// Loop wraps from the final frame back to the first.
 	Loop
-	// LoopPingPong plays the clip forward, then backward, repeatedly.
+	// LoopPingPong plays the state forward, then backward, repeatedly.
 	LoopPingPong
 )
 

@@ -25,7 +25,7 @@ type Animator struct {
 	current  string       // state actually playing
 	tracks   []trackState // runtime, one per track of the current entry
 	blend    blendState   // active enter-transition, if any
-	reversed bool         // playback direction: true if reversed
+	reversed bool
 	finished bool
 }
 
@@ -106,15 +106,17 @@ func (a Animator) Current() string {
 }
 
 // Finished reports whether a [LoopOnce] state has completed and is holding
-// its final frame. It stays true until the desired State changes.
+// its final frame. It remains true until [Animate] starts another state.
 func (a Animator) Finished() bool {
 	return a.finished
 }
 
 // Frames returns the current state's weighted layers for drawing.
+// It returns nil without error before playback starts.
+//
 // During a blend, outgoing layers precede incoming layers.
 // It returns an error if the [Animator] is invalid or a required set or state
-// is missing.
+// is missing, or if the blend easing name is unknown.
 func (a Animator) Frames(sets Sets) ([]WeightedFrame, error) {
 	if err := a.Validate(); err != nil {
 		return nil, err
