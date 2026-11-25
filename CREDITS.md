@@ -31,7 +31,7 @@ All sound effects, currently:
 
 ## [Mattz Art](https://xzany.itch.io)
 
-- `examples/2d/animate/ATTACK.png`
-- `examples/2d/animate/IDLE.png`
-- `examples/2d/animate/RUN.png`
-- `examples/2d/animate/HURT.png`
+- `examples/2d/animation/ATTACK.png`
+- `examples/2d/animation/IDLE.png`
+- `examples/2d/animation/RUN.png`
+- `examples/2d/animation/HURT.png`
