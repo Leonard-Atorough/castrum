@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Implement engine wrapper resource management with WithResource and AddResource functions (#272)
 - Implement window resource and remove window fields from context (#265)
 - **breaking:** Provide input actions, edge flushing and snapshot as world resources (#263)
 - **breaking:** Update transform struct with tags and scene example (#247)
