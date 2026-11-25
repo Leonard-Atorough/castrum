@@ -175,9 +175,6 @@ func newGame(opts ...option) (*Game, error) {
 	if err := g.addEngineFirst(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
 		return nil, err
 	}
-	if err := g.addEngineFirst(core.PhaseFixed, animation.SpriteAnimationSystem, animation.NewSpriteAnimationSystem()); err != nil {
-		return nil, err
-	}
 	if err := g.addEngineFirst(core.PhaseFixed, animation.SystemName, animation.Animate); err != nil {
 		return nil, err
 	}

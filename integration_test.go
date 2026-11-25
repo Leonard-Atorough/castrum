@@ -81,18 +81,6 @@ func TestEngineDefaultsRunWithoutOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("spawn timer: %v", err)
 	}
-	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"frame_0", "frame_1"}, 120)
-	if err != nil {
-		t.Fatalf("clip: %v", err)
-	}
-	animated, err := animation.NewAnimatedSprite(clip)
-	if err != nil {
-		t.Fatalf("animated sprite: %v", err)
-	}
-	animatedEntity, err := g.World().NewEntity(animated, core.Transform{})
-	if err != nil {
-		t.Fatalf("spawn animated sprite: %v", err)
-	}
 	var colliders []core.Entity
 	for _, x := range []float64{0, 1} {
 		shape, err := collision.NewCollider(collision.Circle{Radius: 8})
@@ -106,19 +94,10 @@ func TestEngineDefaultsRunWithoutOptions(t *testing.T) {
 		colliders = append(colliders, entity)
 	}
 
-	// One fixed tick: the timer completes, the sprite advances one frame,
-	// and the overlapping pair gains a contact.
 	advanceTestGame(t, g, fixedDT)
 
 	if tm, ok := timer.Component[gametime.Timer](g.World()); !ok || tm.CompletedOn == 0 {
 		t.Errorf("timer = %+v, found %t; want completion without any option", tm, ok)
-	}
-	value, ok := animatedEntity.Component[animation.AnimatedSprite](g.World())
-	if !ok {
-		t.Fatal("animated entity lost its component")
-	}
-	if _, region, ok, err := value.CurrentFrame(); err != nil || !ok || region != "frame_1" {
-		t.Errorf("CurrentFrame = %v, %t, %v; want frame_1 without any option", region, ok, err)
 	}
 	for _, entity := range colliders {
 		contacts, ok := entity.Component[collision.Contacts](g.World())
@@ -142,7 +121,7 @@ func TestEngineSystemsRejectRelativeInsertion(t *testing.T) {
 		{core.PhaseFrame, scene.FrameSystemName}, {core.PhaseFrame, audio.SystemName},
 		{core.PhasePreFixed, core.PrevTransformSystemName},
 		{core.PhasePreFixed, input.TickSystemName}, {core.PhaseFixed, gametime.TimerSystemName},
-		{core.PhaseFixed, animation.SpriteAnimationSystem}, {core.PhaseFixed, collision.SystemName},
+		{core.PhaseFixed, animation.SystemName}, {core.PhaseFixed, collision.SystemName},
 	} {
 		for _, option := range []SystemOption{Before(entry.name), After(entry.name)} {
 			if err := g.AddSystem(entry.phase, "relative", system, option); err == nil {
@@ -161,15 +140,22 @@ func TestFixedPhaseSignalsAndMovementShareTick(t *testing.T) {
 	if _, err := g.World().NewEntity(gametime.NewTimer(250*time.Millisecond, false)); err != nil {
 		t.Fatal(err)
 	}
-	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"frame_0", "frame_1"}, 120)
+	sets, err := animation.NewSets(map[string]animation.Set{
+		"test": {Name: "test", States: map[string]animation.State{
+			"run": {Name: "run", Tracks: []animation.Track{
+				{Name: "body", Source: "sprites.json", Frames: []string{"frame_0", "frame_1"}, FPS: 60},
+			}},
+		}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	animated, err := animation.NewAnimatedSprite(clip)
+	g.World().SetResource(sets)
+	animator, err := animation.NewAnimator("test", "run")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := g.World().NewEntity(animated, core.Transform{}); err != nil {
+	if _, err := g.World().NewEntity(animator, core.Transform{}); err != nil {
 		t.Fatal(err)
 	}
 	shape, err := collision.NewCollider(collision.Circle{Radius: 1})
