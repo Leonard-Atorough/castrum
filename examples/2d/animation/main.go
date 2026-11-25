@@ -65,6 +65,35 @@ func run() error {
 	return nil
 }
 
+// buildSets is a [castrum.WithResourceProvider] constructor. It runs after the engine
+// has provided the asset loader, so the strips can be loaded from it.
+func buildSets(w *core.World) (animation.Sets, error) {
+	loader, err := w.Resource[*asset.Loader]()
+	if err != nil {
+		return animation.Sets{}, err
+	}
+	tracks := make(map[string]animation.Track, len(strips))
+	for _, strip := range strips {
+		tr, err := track(loader, strip)
+		if err != nil {
+			return animation.Sets{}, err
+		}
+		tracks[strip.prefix] = tr
+	}
+	body := func(name string) []animation.Track { return []animation.Track{tracks[name]} }
+	return animation.NewSets(map[string]animation.Set{
+		"samurai": {
+			Name: "samurai",
+			States: map[string]animation.State{
+				"idle":   {Name: "idle", Loop: animation.Loop, Tracks: body("idle")},
+				"run":    {Name: "run", Loop: animation.Loop, Tracks: body("run")},
+				"attack": {Name: "attack", Next: "idle", Tracks: body("attack")},
+				"hurt":   {Name: "hurt", Next: "idle", EnterBlend: 0.1, Tracks: body("hurt")},
+			},
+		},
+	})
+}
+
 // track builds a track over strip's frames, validating every region against
 // the decoded sheet.
 func track(loader *asset.Loader, strip struct {
@@ -104,33 +133,11 @@ func newGame() (*castrum.Game, error) {
 			"hurt":   {input.KeyInput{Key: input.Key2}.Binding()},
 			"run":    {input.KeyPairInput{Negative: input.KeyArrowLeft, Positive: input.KeyArrowRight}.Binding()},
 		}),
+		castrum.WithResourceProvider(buildSets),
 	)
 
-	loader := g.World().MustResource[*asset.Loader]()
-	tracks := make(map[string]animation.Track, len(strips))
-	for _, strip := range strips {
-		tr, err := track(loader, strip)
-		if err != nil {
-			return nil, err
-		}
-		tracks[strip.prefix] = tr
-	}
-	body := func(name string) []animation.Track { return []animation.Track{tracks[name]} }
-	sets, err := animation.NewSets(map[string]animation.Set{
-		"samurai": {
-			Name: "samurai",
-			States: map[string]animation.State{
-				"idle":   {Name: "idle", Loop: animation.Loop, Tracks: body("idle")},
-				"run":    {Name: "run", Loop: animation.Loop, Tracks: body("run")},
-				"attack": {Name: "attack", Next: "idle", Tracks: body("attack")},
-				"hurt":   {Name: "hurt", Next: "idle", EnterBlend: 0.1, Tracks: body("hurt")},
-			},
-		},
-	})
+	sets, err := g.World().Resource[animation.Sets]()
 	if err != nil {
-		return nil, err
-	}
-	if err := g.AddResource(sets); err != nil {
 		return nil, err
 	}
 

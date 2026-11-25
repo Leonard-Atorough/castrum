@@ -23,7 +23,9 @@ func runScenario(t *testing.T, sys core.SystemFunc, sets Sets, anim Animator, dt
 	if err := w.Provide(func(*core.World) (*signal.Hub, error) { return signal.NewHub(), nil }); err != nil {
 		t.Fatal(err)
 	}
-	w.SetResource(sets)
+	if err := w.InsertResource(sets); err != nil {
+		t.Fatal(err)
+	}
 	entity, err := w.NewEntity(anim)
 	if err != nil {
 		t.Fatal(err)

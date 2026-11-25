@@ -150,7 +150,9 @@ func TestFixedPhaseSignalsAndMovementShareTick(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.World().SetResource(sets)
+	if err := g.World().InsertResource(sets); err != nil {
+		t.Fatal(err)
+	}
 	animator, err := animation.NewAnimator("test", "run")
 	if err != nil {
 		t.Fatal(err)

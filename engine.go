@@ -22,32 +22,28 @@ import (
 // systems in their schedules.
 func (g *Game) wireEngine(options *Options) error {
 	// Provide a default static window until a runner replaces it.
-	g.world.SetResource[render.Window](render.NewStaticWindow(render.Viewport{
+	if err := g.world.InsertResource[render.Window](render.NewStaticWindow(render.Viewport{
 		LogicalWidth: 1280, LogicalHeight: 720,
 		WindowWidth: 1280, WindowHeight: 720,
-	}))
+	})); err != nil {
+		return fmt.Errorf("castrum: set static window: %w", err)
+	}
 
 	sim := gametime.NewSimulation(options.fixedDT)
-	if err := g.world.ProvideEager(func(*core.World) (*gametime.Simulation, error) {
-		return sim, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide simulation time: %w", err)
+	if err := g.world.InsertResource(sim); err != nil {
+		return fmt.Errorf("castrum: set simulation time: %w", err)
 	}
 	g.sim = sim
 
 	// The runner overwrites the snapshot resource before each Advance. The
 	// zero value reads as no input until the first poll.
-	if err := g.world.Provide(func(*core.World) (*input.Snapshot, error) {
-		return &input.Snapshot{}, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide input snapshot: %w", err)
+	if err := g.world.InsertResource(&input.Snapshot{}); err != nil {
+		return fmt.Errorf("castrum: insert input snapshot: %w", err)
 	}
 
 	real := gametime.NewReal(options.MaxFrameTime)
-	if err := g.world.ProvideEager(func(*core.World) (*gametime.Real, error) {
-		return real, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide real time: %w", err)
+	if err := g.world.InsertResource(real); err != nil {
+		return fmt.Errorf("castrum: insert real time: %w", err)
 	}
 	g.real = real
 
@@ -61,15 +57,11 @@ func (g *Game) wireEngine(options *Options) error {
 	if err != nil {
 		return fmt.Errorf("castrum: create asset loader: %w", err)
 	}
-	if err := g.world.Provide(func(*core.World) (*asset.Loader, error) {
-		return loader, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide asset loader: %w", err)
+	if err := g.world.InsertResource(loader); err != nil {
+		return fmt.Errorf("castrum: insert asset loader: %w", err)
 	}
-	if err := g.world.Provide(func(*core.World) (*asset.Codecs, error) {
-		return codecs, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide asset codecs: %w", err)
+	if err := g.world.InsertResource(codecs); err != nil {
+		return fmt.Errorf("castrum: insert asset codecs: %w", err)
 	}
 
 	reg := serialization.NewRegistry(g.world)
@@ -82,10 +74,8 @@ func (g *Game) wireEngine(options *Options) error {
 	if err := registerAssets(reg); err != nil {
 		return fmt.Errorf("castrum: engine assets: %w", err)
 	}
-	if err := g.world.Provide(func(*core.World) (*serialization.Registry, error) {
-		return reg, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide blueprint registry: %w", err)
+	if err := g.world.InsertResource(reg); err != nil {
+		return fmt.Errorf("castrum: insert blueprint registry: %w", err)
 	}
 
 	if err := g.addEngineFirst(core.PhasePreFixed, core.PrevTransformSystemName, core.NewPrevTransformCapture()); err != nil {
@@ -93,19 +83,15 @@ func (g *Game) wireEngine(options *Options) error {
 	}
 
 	scheduler := gametime.NewScheduler(g.world)
-	if err := g.world.Provide(func(*core.World) (*gametime.Scheduler, error) {
-		return scheduler, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide scheduler: %w", err)
+	if err := g.world.InsertResource(scheduler); err != nil {
+		return fmt.Errorf("castrum: insert scheduler: %w", err)
 	}
 	if err := g.addEngineFirst(core.PhasePreFixed, gametime.SchedulerSystemName, scheduler.System()); err != nil {
 		return err
 	}
 
-	if err := g.world.Provide(func(*core.World) (*gametime.Groups, error) {
-		return gametime.NewGroups(), nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide timer groups: %w", err)
+	if err := g.world.InsertResource(gametime.NewGroups()); err != nil {
+		return fmt.Errorf("castrum: insert timer groups: %w", err)
 	}
 	if err := g.addEngineFirst(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
 		return err
@@ -123,10 +109,8 @@ func (g *Game) wireEngine(options *Options) error {
 	}
 
 	hub := signal.NewHub()
-	if err := g.world.Provide(func(*core.World) (*signal.Hub, error) {
-		return hub, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide signal hub: %w", err)
+	if err := g.world.InsertResource(hub); err != nil {
+		return fmt.Errorf("castrum: insert signal hub: %w", err)
 	}
 	g.hub = hub
 	if err := g.schedule(core.PhasePreFrame).SetOpening(runtime.Entry{
@@ -158,28 +142,20 @@ func (g *Game) wireEngine(options *Options) error {
 	}
 
 	panel := debug.NewPanel()
-	if err := g.world.Provide(func(*core.World) (*debug.Panel, error) {
-		return panel, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide debug panel: %w", err)
+	if err := g.world.InsertResource(panel); err != nil {
+		return fmt.Errorf("castrum: insert debug panel: %w", err)
 	}
 
 	mixer := audio.NewMixer()
-	if err := g.world.Provide(func(*core.World) (*audio.Mixer, error) {
-		return mixer, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide audio mixer: %w", err)
+	if err := g.world.InsertResource(mixer); err != nil {
+		return fmt.Errorf("castrum: insert audio mixer: %w", err)
 	}
-	if err := g.world.Provide(func(*core.World) (*audio.Listener, error) {
-		return &audio.Listener{}, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide audio listener: %w", err)
+	if err := g.world.InsertResource(&audio.Listener{}); err != nil {
+		return fmt.Errorf("castrum: insert audio listener: %w", err)
 	}
 	backend := &audio.Backend{}
-	if err := g.world.Provide(func(*core.World) (*audio.Backend, error) {
-		return backend, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide audio backend: %w", err)
+	if err := g.world.InsertResource(backend); err != nil {
+		return fmt.Errorf("castrum: insert audio backend: %w", err)
 	}
 	var reconciler core.SystemFunc
 	// Capture before other frame systems so mid-phase attachments wait for the next pass.
@@ -214,15 +190,11 @@ func (g *Game) wireInput(bindings input.Bindings, deadzone float64) error {
 		return fmt.Errorf("castrum: input bindings: %w", err)
 	}
 
-	if err := g.world.Provide(func(*core.World) (input.Actions, error) {
-		return am, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide action map: %w", err)
+	if err := g.world.InsertResource[input.Actions](am); err != nil {
+		return fmt.Errorf("castrum: insert action map: %w", err)
 	}
-	if err := g.world.Provide(func(*core.World) (input.Edges, error) {
-		return am, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide input edges: %w", err)
+	if err := g.world.InsertResource[input.Edges](am); err != nil {
+		return fmt.Errorf("castrum: insert input edges: %w", err)
 	}
 
 	if err := g.addEngineFirst(core.PhasePreFrame, input.FrameSystemName, input.NewFrameSystem(am)); err != nil {

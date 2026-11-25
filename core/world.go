@@ -12,8 +12,8 @@ import (
 )
 
 // ErrResourceNotRegistered reports that [World.Resource] or
-// [World.MustResource] was called for a type no [World.Provide] call
-// registered. Distinguish it from resolution failures with errors.Is.
+// [World.MustResource] was called for a type that is not registered.
+// Distinguish it from resolution failures with errors.Is.
 var ErrResourceNotRegistered = errors.New("resource is not registered")
 
 type resourceState int
@@ -61,13 +61,14 @@ func NewWorld() *World {
 }
 
 // Provide registers a resource constructor. The resource is created on its
-// first [World.Resource] request.
+// first [World.Resource] request. It returns an error if T is already
+// registered.
 func (w *World) Provide[T any](ctor func(*World) (T, error)) error {
 	return w.provide(ctor, false)
 }
 
 // ProvideEager registers a resource constructor for resolution by
-// [World.ResolveEager].
+// [World.ResolveEager]. It returns an error if T is already registered.
 func (w *World) ProvideEager[T any](ctor func(*World) (T, error)) error {
 	return w.provide(ctor, true)
 }
@@ -121,16 +122,45 @@ func (w *World) MustResource[T any]() T {
 	return value
 }
 
-// SetResource stores value as the resource of type T, replacing any
-// constructor or instance already registered for T.
-func (w *World) SetResource[T any](value T) {
+// InsertResource stores value as the resource of type T, returning an error if a
+// resource of the same type is already registered.
+func (w *World) InsertResource[T any](value T) error {
 	typ := reflect.TypeFor[T]()
-	if entry, exists := w.entries[typ]; exists {
-		entry.state = stateResolved
-		entry.instance = value
-		return
+	if err := validateResource(typ, value); err != nil {
+		return err
+	}
+	if _, exists := w.entries[typ]; exists {
+		return fmt.Errorf("resource of type %s is already registered", typ)
 	}
 	w.entries[typ] = &resourceEntry[any]{state: stateResolved, instance: value}
+	return nil
+}
+
+// ReplaceResource replaces the resource of type T with value, discarding any
+// pending constructor for T. It returns an error if T is not registered, or if
+// value is nil or its Validate() error fails. On error the world is unchanged.
+func (w *World) ReplaceResource[T any](value T) error {
+	typ := reflect.TypeFor[T]()
+	if err := validateResource(typ, value); err != nil {
+		return err
+	}
+	entry, exists := w.entries[typ]
+	if !exists {
+		return fmt.Errorf("resource of type %s is not registered", typ)
+	}
+	if entry.state == stateResolving {
+		return fmt.Errorf("cannot replace resource of type %s while it is being resolved", typ)
+	}
+	w.entries[typ] = &resourceEntry[any]{state: stateResolved, instance: value}
+	return nil
+}
+
+// HasResource reports whether a resource of type T is registered. It does not
+// resolve the resource.
+func (w *World) HasResource[T any]() bool {
+	typ := reflect.TypeFor[T]()
+	_, exists := w.entries[typ]
+	return exists
 }
 
 // ResolveEager resolves resources registered with [World.ProvideEager], in
@@ -155,6 +185,10 @@ func (w *World) resolve(key reflect.Type) error {
 		entry.state = stateResolving
 		instance, err := entry.ctor(w)
 		if err != nil {
+			entry.state = stateRegistered
+			return err
+		}
+		if err := validateInstance(key, instance); err != nil {
 			entry.state = stateRegistered
 			return err
 		}
@@ -294,6 +328,28 @@ func validateComponents(components []any) error {
 func validateComponentPointer(component any) error {
 	if typ := reflect.TypeOf(component); typ != nil && typ.Kind() == reflect.Pointer {
 		return fmt.Errorf("component %T is a pointer", component)
+	}
+	return nil
+}
+
+func validateResource(typ reflect.Type, value any) error {
+	if value == nil {
+		return fmt.Errorf("resource of type %s is nil", typ)
+	}
+	if reflect.ValueOf(value).Kind() == reflect.Pointer && reflect.ValueOf(value).IsNil() {
+		return fmt.Errorf("resource of type %s is a nil pointer", typ)
+	}
+	return validateInstance(typ, value)
+}
+
+func validateInstance(typ reflect.Type, value any) error {
+	if value == nil || (reflect.ValueOf(value).Kind() == reflect.Pointer && reflect.ValueOf(value).IsNil()) {
+		return nil
+	}
+	if v, ok := value.(Validatable); ok {
+		if err := v.Validate(); err != nil {
+			return fmt.Errorf("resource of type %s is invalid: %w", typ, err)
+		}
 	}
 	return nil
 }
