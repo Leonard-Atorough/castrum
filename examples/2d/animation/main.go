@@ -148,7 +148,7 @@ func newGame() (*castrum.Game, error) {
 		return nil, err
 	}
 	panel := g.World().MustResource[*debug.Panel]()
-	panel.Status("controls", "LEFT/RIGHT: run   SPACE: pause   3: attack   4: hurt   (idle is the default)")
+	panel.Status("controls", "LEFT/RIGHT: run   SPACE: pause   1: attack   2: hurt   (idle is the default)")
 	completed := g.World().MustResource[*signal.Hub]().NewReader[animation.Completed]()
 	if err := g.AddSystem(core.PhaseFixed, "animation.readout", func(ctx *core.Context) error {
 		value, ok := samurai.Component[animation.Animator](ctx.World)
