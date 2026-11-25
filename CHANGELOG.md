@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spawn entities owned by scene instances (#132)
 
 ### Changed
+- Deduplicate collector creation and improve tests (#271)
 - **breaking:** Implement new ECS driven, multi-state animation engine (#270)
 - **breaking:** Redesign game context and rendering to streamline frame handling (#266)
 - **breaking:** Redesign system to a function instead of an interface (#264)
