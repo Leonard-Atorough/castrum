@@ -112,7 +112,7 @@ func TestAnimatedSpriteSetClipAndRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	animated.Loop = LoopAll
+	animated.Loop = Loop
 	animated.PlaybackMultiplier = 2
 	animated.Style.Layer = 7
 	animated.frame = 1
@@ -135,7 +135,7 @@ func TestAnimatedSpriteSetClipAndRestart(t *testing.T) {
 	if animated.frame != 0 || animated.elapsed != 0 || animated.completedOn != 0 || animated.completed || animated.Paused {
 		t.Fatalf("SetClip did not reset playback: %+v", animated)
 	}
-	if animated.Loop != LoopAll || animated.PlaybackMultiplier != 2 || animated.Style.Layer != 7 {
+	if animated.Loop != Loop || animated.PlaybackMultiplier != 2 || animated.Style.Layer != 7 {
 		t.Fatalf("SetClip changed playback settings or style: %+v", animated)
 	}
 	if ref, region, ok, err := animated.CurrentFrame(); err != nil || !ok || region != "a" || ref != animSheet {

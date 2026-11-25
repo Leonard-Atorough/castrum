@@ -4,7 +4,6 @@ package animation
 
 import (
 	"fmt"
-	"math"
 	"slices"
 
 	"github.com/Leonard-Atorough/castrum/asset"
@@ -12,29 +11,6 @@ import (
 	"github.com/Leonard-Atorough/castrum/signal"
 	"github.com/Leonard-Atorough/castrum/sprite"
 )
-
-// LoopMode controls what happens after an animation reaches its final frame.
-type LoopMode int
-
-const (
-	// LoopNone plays the clip once, then pauses on its final frame. It is the
-	// zero value, so animations play once by default.
-	LoopNone LoopMode = iota
-	// LoopAll wraps from the final frame back to the first.
-	LoopAll
-)
-
-// Completed is emitted when an [AnimatedSprite] reaches the end of its clip.
-// The system emits one signal per sprite per update, even if a looping clip
-// wraps multiple times.
-type Completed struct {
-	// Entity is the entity whose clip completed.
-	Entity core.Entity
-	// Tick is the fixed tick of the completion.
-	Tick uint64
-	// Loops is the number of wraps in this update; 1 for a LoopNone completion.
-	Loops uint64
-}
 
 // SpriteClip is a reusable sequence of named sheet regions and a playback rate.
 // Its frames are copied on construction and can be shared by animated sprites.
@@ -115,7 +91,7 @@ func (a AnimatedSprite) Validate() error {
 	if err := a.Style.Validate(); err != nil {
 		return fmt.Errorf("animation: style: %w", err)
 	}
-	if a.Loop != LoopNone && a.Loop != LoopAll {
+	if a.Loop != LoopOnce && a.Loop != Loop {
 		return fmt.Errorf("animation: invalid loop mode %v", a.Loop)
 	}
 	if !isFinite(a.PlaybackMultiplier) || a.PlaybackMultiplier < 0 {
@@ -140,8 +116,7 @@ func (a AnimatedSprite) Validate() error {
 }
 
 // CurrentFrame returns the sheet reference and region name of the frame
-// to draw. It reports false for a clipless sprite and an error if the
-// sprite is invalid.
+// to draw. It reports false for a clipless sprite and an error if the sprite is invalid.
 func (a AnimatedSprite) CurrentFrame() (asset.SheetRef, string, bool, error) {
 	if err := a.Validate(); err != nil {
 		return asset.SheetRef{}, "", false, err
@@ -161,7 +136,7 @@ func (a AnimatedSprite) JustCompleted(tick uint64) bool {
 // HasCompleted reports whether a non-looping clip has completed since its
 // last [AnimatedSprite.Restart] or [AnimatedSprite.SetClip].
 func (a AnimatedSprite) HasCompleted() bool {
-	return a.hasClip && a.Loop == LoopNone && a.completed
+	return a.hasClip && a.Loop == LoopOnce && a.completed
 }
 
 // SetClip replaces the clip, selects its first frame, and resumes playback.
@@ -252,7 +227,7 @@ func (s *animationSystem) Update(ctx *core.Context) error {
 			switch {
 			case total < frameCount:
 				anim.frame = total
-			case anim.Loop == LoopAll:
+			case anim.Loop == Loop:
 				anim.completedOn = ctx.Tick
 				anim.frame = total % frameCount
 				s.hub.Emit(Completed{Entity: e.Entity(), Tick: ctx.Tick, Loops: uint64(total / frameCount)})
@@ -267,8 +242,4 @@ func (s *animationSystem) Update(ctx *core.Context) error {
 		e.SetComponent(anim)
 	}
 	return nil
-}
-
-func isFinite(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }

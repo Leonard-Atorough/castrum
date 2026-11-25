@@ -25,7 +25,7 @@ const (
 	sheetPath = "torch_light.sheet.json"
 
 	TorchLightFPS  = 10
-	TorchLightLoop = animation.LoopAll
+	TorchLightLoop = animation.Loop
 
 	Scale = 4
 )
@@ -160,11 +160,11 @@ func playbackSystem(torch core.Entity) core.SystemFunc {
 				value.Restart()
 			}
 			if once {
-				value.Loop = animation.LoopNone
+				value.Loop = animation.LoopOnce
 				value.Restart()
 			}
 			if loop {
-				value.Loop = animation.LoopAll
+				value.Loop = animation.Loop
 				value.Restart()
 			}
 		})

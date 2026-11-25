@@ -178,6 +178,9 @@ func newGame(opts ...option) (*Game, error) {
 	if err := g.addEngineFirst(core.PhaseFixed, animation.SpriteAnimationSystem, animation.NewSpriteAnimationSystem()); err != nil {
 		return nil, err
 	}
+	if err := g.addEngineFirst(core.PhaseFixed, animation.SystemName, animation.Animate); err != nil {
+		return nil, err
+	}
 	if err := g.world.ProvideEager(func(*core.World) (*collision.Queries, error) {
 		return collision.NewQueries()
 	}); err != nil {

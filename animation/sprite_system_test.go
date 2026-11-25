@@ -150,7 +150,7 @@ func TestSpriteAnimationSystemLooping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	animated.Loop = LoopAll
+	animated.Loop = Loop
 	entity, sys, ctx, reader := newAnimatedSystemWorld(t, animated, 100*time.Millisecond)
 	for i, tt := range []struct {
 		dt     time.Duration
@@ -179,9 +179,9 @@ func TestSpriteAnimationSystemLooping(t *testing.T) {
 		}
 	}
 	anim := readAnimated(t, entity, ctx.World)
-	anim.Loop = LoopNone
+	anim.Loop = LoopOnce
 	if anim.HasCompleted() {
-		t.Fatal("switching to LoopNone treated a wrap as one-shot completion")
+		t.Fatal("switching to LoopOnce treated a wrap as one-shot completion")
 	}
 }
 
