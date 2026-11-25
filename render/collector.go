@@ -74,10 +74,13 @@ type workingItem struct {
 	worldY    float64 // interpolated, the Y-fallback sort key
 }
 
+var zeroVec geom.Vector2
+
 // Collector collects draw items for a world and can be reused across frames.
 type Collector struct {
 	camera     *CameraResolver
 	win        Window
+	loader     *asset.Loader
 	images     *core.Query
 	primitives *core.Query
 	texts      *core.Query
@@ -90,45 +93,60 @@ type Collector struct {
 	SortedItems []DrawItem
 }
 
+func visibleQuery[C any](world *core.World, visible func(C) bool) *core.Query {
+	var marker C
+	return core.NewQuery(world).
+		With(marker, core.Transform{}, core.PrevTransform{}).
+		Where(func(e core.Entry) bool {
+			c, ok := e.Component[C]()
+			return ok && visible(c)
+		})
+}
+
 // NewCollector creates a [Collector] for world.
 func NewCollector(world *core.World) *Collector {
-	images := core.NewQuery(world).
-		With(sprite.Sprite{}, core.Transform{}, core.PrevTransform{}).
-		Where(func(e core.Entry) bool {
-			s, ok := e.Component[sprite.Sprite]()
-			return ok && !s.Style.Hidden
-		})
-
-	primitives := core.NewQuery(world).
-		With(sprite.Primitive{}, core.Transform{}, core.PrevTransform{}).
-		Where(func(e core.Entry) bool {
-			p, ok := e.Component[sprite.Primitive]()
-			return ok && !p.Style.Hidden
-		})
-
-	texts := core.NewQuery(world).
-		With(sprite.Text{}, core.Transform{}, core.PrevTransform{}).
-		Where(func(e core.Entry) bool {
-			x, ok := e.Component[sprite.Text]()
-			return ok && !x.Style.Hidden
-		})
-
-	animated := core.NewQuery(world).
-		With(animation.Animator{}, core.Transform{}, core.PrevTransform{}).
-		Where(func(e core.Entry) bool {
-			a, ok := e.Component[animation.Animator]()
-			return ok && !a.Style.Hidden
-		})
-
+	hidden := func(s sprite.Style) bool { return s.Hidden }
 	return &Collector{
-		camera:      NewCameraResolver(world),
-		images:      images,
-		primitives:  primitives,
-		texts:       texts,
-		animators:   animated,
+		camera: NewCameraResolver(world),
+		images: visibleQuery(world, func(s sprite.Sprite) bool {
+			return !hidden(s.Style)
+		}),
+		primitives: visibleQuery(world, func(p sprite.Primitive) bool {
+			return !hidden(p.Style)
+		}),
+		texts: visibleQuery(world, func(x sprite.Text) bool {
+			return !hidden(x.Style)
+		}),
+		animators: visibleQuery(world, func(a animation.Animator) bool {
+			return !hidden(a.Style)
+		}),
 		working:     make([]workingItem, 0),
 		SortedItems: make([]DrawItem, 0),
 	}
+}
+
+func collectAll[C any](q *core.Query, fn func(e core.Entry, comp C, prev core.PrevTransform, tr core.Transform) error) error {
+	for e := range q.Execute() {
+		comp, _ := e.Component[C]()
+		tr, _ := e.Component[core.Transform]()
+		prev, _ := e.Component[core.PrevTransform]()
+		if err := fn(e, comp, prev, tr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func interpolate(prev core.PrevTransform, tr core.Transform, alpha float64) (geom.Vector2, float64, geom.Vector2) {
+	if tr.Scale.X == 0 {
+		tr.Scale.X = 1
+	}
+	if tr.Scale.Y == 0 {
+		tr.Scale.Y = 1
+	}
+	return prev.Position.Lerp(tr.Position, alpha),
+		prev.Rotation + (tr.Rotation-prev.Rotation)*alpha,
+		prev.Scale.Lerp(tr.Scale, alpha)
 }
 
 // Collect resolves the draw list for the current frame using alpha to
@@ -161,46 +179,24 @@ func (c *Collector) Collect(ctx *core.Context, alpha float64) (DrawList, error) 
 	}
 
 	viewport := camera.aabb
-
-	var loader *asset.Loader
-	assetLoader := func() (*asset.Loader, error) {
-		if loader == nil {
-			s, err := ctx.World.Resource[*asset.Loader]()
-			if err != nil {
-				return nil, fmt.Errorf("castrum: collect: resolve asset loader: %w", err)
-			}
-			loader = s
-		}
-		return loader, nil
-	}
-
 	c.working = c.working[:0]
 
-	for e := range c.images.Execute() {
-		s, _ := e.Component[sprite.Sprite]()
-		transform, _ := e.Component[core.Transform]()
-		prev, _ := e.Component[core.PrevTransform]()
-		if err := c.collectImage(viewport, alpha, assetLoader, s, prev, transform); err != nil {
-			return DrawList{}, err
-		}
+	if err := collectAll(c.images, func(_ core.Entry, s sprite.Sprite, prev core.PrevTransform, tr core.Transform) error {
+		return c.collectImage(ctx, viewport, alpha, s, prev, tr)
+	}); err != nil {
+		return DrawList{}, err
 	}
 
-	for e := range c.primitives.Execute() {
-		p, _ := e.Component[sprite.Primitive]()
-		transform, _ := e.Component[core.Transform]()
-		prev, _ := e.Component[core.PrevTransform]()
-		if err := c.collectPrimitive(viewport, alpha, p, prev, transform); err != nil {
-			return DrawList{}, err
-		}
+	if err := collectAll(c.primitives, func(_ core.Entry, p sprite.Primitive, prev core.PrevTransform, tr core.Transform) error {
+		return c.collectPrimitive(viewport, alpha, p, prev, tr)
+	}); err != nil {
+		return DrawList{}, err
 	}
 
-	for e := range c.texts.Execute() {
-		x, _ := e.Component[sprite.Text]()
-		transform, _ := e.Component[core.Transform]()
-		prev, _ := e.Component[core.PrevTransform]()
-		if err := c.collectTextSprite(viewport, alpha, assetLoader, x, prev, transform); err != nil {
-			return DrawList{}, err
-		}
+	if err := collectAll(c.texts, func(_ core.Entry, x sprite.Text, prev core.PrevTransform, tr core.Transform) error {
+		return c.collectTextItem(ctx, viewport, alpha, x, prev, tr)
+	}); err != nil {
+		return DrawList{}, err
 	}
 
 	// Resolve the animation sets once per Collect, and only when an animator
@@ -210,35 +206,26 @@ func (c *Collector) Collect(ctx *core.Context, alpha float64) (DrawList, error) 
 	if _, ok := c.animators.First(); ok {
 		sets, _ = ctx.World.Resource[animation.Sets]()
 	}
-	for e := range c.animators.Execute() {
-		a, _ := e.Component[animation.Animator]()
-		transform, _ := e.Component[core.Transform]()
-		prev, _ := e.Component[core.PrevTransform]()
+	if err := collectAll(c.animators, func(e core.Entry, a animation.Animator, prev core.PrevTransform, tr core.Transform) error {
 		frames, err := a.Frames(sets)
 		if err != nil {
-			return DrawList{}, fmt.Errorf("castrum: collect: animator: entity %d: %w", e.ID(), err)
+			return fmt.Errorf("castrum: collect: animator: entity %d: %w", e.ID(), err)
 		}
-		if transform.Scale.X == 0 {
-			transform.Scale.X = 1
-		}
-		if transform.Scale.Y == 0 {
-			transform.Scale.Y = 1
-		}
-		scale := prev.Scale.Lerp(transform.Scale, alpha)
-		rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*alpha
-		var zero geom.Vector2
+		position, rotation, scale := interpolate(prev, tr, alpha)
 		for _, frame := range frames {
 			style := a.Style
 			if frame.Weight < 1 {
 				style.Color = blendAlpha(style.Color, frame.Weight)
 			}
-			item, size, err := c.collectSheet(assetLoader, style, rotation, scale, frame.Source, frame.Region)
+			item, size, err := c.collectSheet(ctx, style, rotation, scale, frame.Source, frame.Region)
 			if err != nil {
-				return DrawList{}, err
+				return err
 			}
-			c.stage(viewport, alpha, a.Style.Layer, a.Style.SortOrder,
-				prev.Position, transform.Position, zero, size, item)
+			c.stage(viewport, a.Style.Layer, a.Style.SortOrder, position, zeroVec, size, item)
 		}
+		return nil
+	}); err != nil {
+		return DrawList{}, err
 	}
 
 	slices.SortStableFunc(c.working, func(a, b workingItem) int {
@@ -263,53 +250,45 @@ func (c *Collector) Collect(ctx *core.Context, alpha float64) (DrawList, error) 
 	return DrawList{Camera: camera, Items: c.SortedItems}, nil
 }
 
-func (c *Collector) collectImage(viewport geom.Rect, alpha float64, loadAsset func() (*asset.Loader, error), s sprite.Sprite, prev core.PrevTransform, transform core.Transform) error {
+func (c *Collector) assetLoader(ctx *core.Context) (*asset.Loader, error) {
+	if c.loader == nil {
+		loader, err := ctx.World.Resource[*asset.Loader]()
+		if err != nil {
+			return nil, fmt.Errorf("castrum: collect: resolve asset loader: %w", err)
+		}
+		c.loader = loader
+	}
+	return c.loader, nil
+}
+
+func (c *Collector) collectImage(ctx *core.Context, viewport geom.Rect, alpha float64, s sprite.Sprite, prev core.PrevTransform, tr core.Transform) error {
 	if s.Asset == "" {
 		// Style without a picture: legal, not drawn.
 		return nil
 	}
-	if transform.Scale.X == 0 {
-		transform.Scale.X = 1
-	}
-	if transform.Scale.Y == 0 {
-		transform.Scale.Y = 1
-	}
-
-	scale := prev.Scale.Lerp(transform.Scale, alpha)
-	rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*alpha
+	position, rotation, scale := interpolate(prev, tr, alpha)
 
 	var item DrawItem
-	var offset, size geom.Vector2
+	var size geom.Vector2
 	var err error
 	if s.Region == "" {
-		if err := c.collectTexture(loadAsset, s, rotation, scale, &item, &size); err != nil {
-			return err
-		}
+		item, size, err = c.collectTexture(ctx, s, rotation, scale)
 	} else {
-		item, size, err = c.collectSheet(loadAsset, s.Style, rotation, scale, asset.FileSheet(s.Asset), s.Region)
-		if err != nil {
-			return err
-		}
+		item, size, err = c.collectSheet(ctx, s.Style, rotation, scale, asset.FileSheet(s.Asset), s.Region)
 	}
-	c.stage(viewport, alpha, s.Style.Layer, s.Style.SortOrder,
-		prev.Position, transform.Position, offset, size, item)
+	if err != nil {
+		return err
+	}
+	c.stage(viewport, s.Style.Layer, s.Style.SortOrder, position, zeroVec, size, item)
 	return nil
 }
 
-func (c *Collector) collectPrimitive(viewport geom.Rect, alpha float64, p sprite.Primitive, prev core.PrevTransform, transform core.Transform) error {
+func (c *Collector) collectPrimitive(viewport geom.Rect, alpha float64, p sprite.Primitive, prev core.PrevTransform, tr core.Transform) error {
 	if p.Shape == sprite.ShapeNone {
 		// Style without geometry: legal, not drawn.
 		return nil
 	}
-	if transform.Scale.X == 0 {
-		transform.Scale.X = 1
-	}
-	if transform.Scale.Y == 0 {
-		transform.Scale.Y = 1
-	}
-
-	scale := prev.Scale.Lerp(transform.Scale, alpha)
-	rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*alpha
+	position, rotation, scale := interpolate(prev, tr, alpha)
 
 	var item DrawItem
 	var offset, size geom.Vector2
@@ -347,38 +326,27 @@ func (c *Collector) collectPrimitive(viewport geom.Rect, alpha float64, p sprite
 		// Unreachable: Validate rejects unknown shapes at the boundary.
 		return nil
 	}
-	c.stage(viewport, alpha, p.Style.Layer, p.Style.SortOrder,
-		prev.Position, transform.Position, offset, size, item)
+	c.stage(viewport, p.Style.Layer, p.Style.SortOrder, position, offset, size, item)
 	return nil
 }
 
-func (c *Collector) collectTextSprite(viewport geom.Rect, alpha float64, loadAsset func() (*asset.Loader, error), x sprite.Text, prev core.PrevTransform, transform core.Transform) error {
+func (c *Collector) collectTextItem(ctx *core.Context, viewport geom.Rect, alpha float64, x sprite.Text, prev core.PrevTransform, tr core.Transform) error {
 	if x.Asset == "" || x.Text == "" {
 		// No font or nothing to say: legal, not drawn.
 		return nil
 	}
-	if transform.Scale.X == 0 {
-		transform.Scale.X = 1
-	}
-	if transform.Scale.Y == 0 {
-		transform.Scale.Y = 1
-	}
+	position, rotation, scale := interpolate(prev, tr, alpha)
 
-	scale := prev.Scale.Lerp(transform.Scale, alpha)
-	rotation := prev.Rotation + (transform.Rotation-prev.Rotation)*alpha
-
-	var item DrawItem
-	var offset, size geom.Vector2
-	if err := c.collectText(loadAsset, x, rotation, scale, &item, &size); err != nil {
+	item, size, err := c.collectText(ctx, x, rotation, scale)
+	if err != nil {
 		return err
 	}
-	c.stage(viewport, alpha, x.Style.Layer, x.Style.SortOrder,
-		prev.Position, transform.Position, offset, size, item)
+	c.stage(viewport, x.Style.Layer, x.Style.SortOrder, position, zeroVec, size, item)
 	return nil
 }
 
-func (c *Collector) collectSheet(loadAsset func() (*asset.Loader, error), style sprite.Style, rotation float64, scale geom.Vector2, ref asset.SheetRef, region string) (DrawItem, geom.Vector2, error) {
-	srv, err := loadAsset()
+func (c *Collector) collectSheet(ctx *core.Context, style sprite.Style, rotation float64, scale geom.Vector2, ref asset.SheetRef, region string) (DrawItem, geom.Vector2, error) {
+	srv, err := c.assetLoader(ctx)
 	if err != nil {
 		return DrawItem{}, geom.Vector2{}, err
 	}
@@ -408,39 +376,38 @@ func (c *Collector) collectSheet(loadAsset func() (*asset.Loader, error), style 
 	return textureItem(style, rotation, scale, sheet.Texture, regionRect), size, nil
 }
 
-func (c *Collector) collectTexture(loadAsset func() (*asset.Loader, error), s sprite.Sprite, rotation float64, scale geom.Vector2, item *DrawItem, size *geom.Vector2) error {
-	srv, err := loadAsset()
+func (c *Collector) collectTexture(ctx *core.Context, s sprite.Sprite, rotation float64, scale geom.Vector2) (DrawItem, geom.Vector2, error) {
+	srv, err := c.assetLoader(ctx)
 	if err != nil {
-		return err
+		return DrawItem{}, geom.Vector2{}, err
 	}
 	data, err := srv.Load[asset.TextureData](string(s.Asset))
 	if err != nil {
-		return fmt.Errorf("castrum: collect: texture %q: %w", s.Asset, err)
+		return DrawItem{}, geom.Vector2{}, fmt.Errorf("castrum: collect: texture %q: %w", s.Asset, err)
 	}
-	*size = geom.Vector2{
+	size := geom.Vector2{
 		X: float64(data.Width) * scale.X,
 		Y: float64(data.Height) * scale.Y,
 	}
-	*item = textureItem(s.Style, rotation, scale, s.Asset, image.Rectangle{})
-	return nil
+	return textureItem(s.Style, rotation, scale, s.Asset, image.Rectangle{}), size, nil
 }
 
-func (c *Collector) collectText(loadAsset func() (*asset.Loader, error), x sprite.Text, rotation float64, scale geom.Vector2, item *DrawItem, size *geom.Vector2) error {
-	srv, err := loadAsset()
+func (c *Collector) collectText(ctx *core.Context, x sprite.Text, rotation float64, scale geom.Vector2) (DrawItem, geom.Vector2, error) {
+	srv, err := c.assetLoader(ctx)
 	if err != nil {
-		return err
+		return DrawItem{}, geom.Vector2{}, err
 	}
 	font, err := srv.Load[asset.FontData](string(x.Asset))
 	if err != nil {
-		return fmt.Errorf("castrum: collect: font %q: %w", x.Asset, err)
+		return DrawItem{}, geom.Vector2{}, fmt.Errorf("castrum: collect: font %q: %w", x.Asset, err)
 	}
 	textWidth, textHeight := font.Measure(x.TextSize, x.Text)
 	fill := styleTint(x.Style.Color, color.White)
-	*size = geom.Vector2{
+	size := geom.Vector2{
 		X: textWidth * scale.X,
 		Y: textHeight * scale.Y,
 	}
-	*item = DrawItem{
+	item := DrawItem{
 		Text:       x.Text,
 		Font:       x.Asset,
 		TextSize:   x.TextSize,
@@ -450,11 +417,10 @@ func (c *Collector) collectText(loadAsset func() (*asset.Loader, error), x sprit
 		Scale:      scale,
 		Color:      fill,
 	}
-	return nil
+	return item, size, nil
 }
 
-func (c *Collector) stage(viewport geom.Rect, alpha float64, layer uint8, sortOrder int8, prev, curr, offset, size geom.Vector2, item DrawItem) {
-	position := prev.Lerp(curr, alpha)
+func (c *Collector) stage(viewport geom.Rect, layer uint8, sortOrder int8, position, offset, size geom.Vector2, item DrawItem) {
 	half := geom.Vector2{X: math.Abs(size.X) / 2, Y: math.Abs(size.Y) / 2}
 	_, line := item.Shape.(sprite.LineShape)
 	if item.Outline || line {
@@ -533,6 +499,8 @@ func shapeItem(style sprite.Style, rotation float64, scale geom.Vector2, shape s
 	}
 }
 
+// blendAlpha returns a tint whose alpha is scaled by a frame layer's blend
+// weight; a nil style color becomes opaque white at that weight.
 func blendAlpha(clr *color.RGBA, weight float64) *color.RGBA {
 	out := color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	if clr != nil {
