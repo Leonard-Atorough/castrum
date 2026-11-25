@@ -100,10 +100,9 @@ func newGame() (*castrum.Game, error) {
 		castrum.WithFilesystem(files),
 		castrum.WithBindings(input.Bindings{
 			"pause":  {input.KeyInput{Key: input.KeySpace}.Binding()},
-			"idle":   {input.KeyInput{Key: input.Key1}.Binding()},
-			"run":    {input.KeyInput{Key: input.Key2}.Binding()},
-			"attack": {input.KeyInput{Key: input.Key3}.Binding()},
-			"hurt":   {input.KeyInput{Key: input.Key4}.Binding()},
+			"attack": {input.KeyInput{Key: input.Key1}.Binding()},
+			"hurt":   {input.KeyInput{Key: input.Key2}.Binding()},
+			"run":    {input.KeyPairInput{Negative: input.KeyArrowLeft, Positive: input.KeyArrowRight}.Binding()},
 		}),
 	)
 
@@ -149,7 +148,7 @@ func newGame() (*castrum.Game, error) {
 		return nil, err
 	}
 	panel := g.World().MustResource[*debug.Panel]()
-	panel.Status("controls", "SPACE: pause   1: idle   2: run   3: attack   4: hurt")
+	panel.Status("controls", "LEFT/RIGHT: run   SPACE: pause   3: attack   4: hurt   (idle is the default)")
 	completed := g.World().MustResource[*signal.Hub]().NewReader[animation.Completed]()
 	if err := g.AddSystem(core.PhaseFixed, "animation.readout", func(ctx *core.Context) error {
 		value, ok := samurai.Component[animation.Animator](ctx.World)
@@ -181,15 +180,25 @@ func newGame() (*castrum.Game, error) {
 func playbackSystem(samurai core.Entity) core.SystemFunc {
 	return func(ctx *core.Context) error {
 		actions, _ := ctx.World.Resource[input.Actions]()
-		pause := actions.JustPressed("pause")
-		next := ""
-		for _, kv := range []struct {
-			action, state string
-		}{{"idle", "idle"}, {"run", "run"}, {"attack", "attack"}, {"hurt", "hurt"}} {
-			if actions.JustPressed(input.Action(kv.action)) {
-				next = kv.state
-			}
+		value, ok := samurai.Component[animation.Animator](ctx.World)
+		if !ok {
+			return fmt.Errorf("samurai has no animator component")
 		}
+		next := ""
+		flip := value.Style.FlipH
+		axis := actions.Axis("run")
+		if actions.JustPressed("attack") {
+			next = "attack"
+		} else if actions.JustPressed("hurt") {
+			next = "hurt"
+		} else if axis != 0 && (value.Current() == "idle" || value.Current() == "run") {
+			// Movement only interrupts idle/run, never a one-shot attack/hurt.
+			next, flip = "run", axis < 0
+		} else if value.Current() == "run" && axis == 0 {
+			next = "idle" // run key released
+		}
+
+		pause := actions.JustPressed("pause")
 		if !pause && next == "" {
 			return nil
 		}
@@ -200,6 +209,7 @@ func playbackSystem(samurai core.Entity) core.SystemFunc {
 			if next != "" {
 				value.State = next
 			}
+			value.Style.FlipH = flip
 		})
 	}
 }
