@@ -40,7 +40,7 @@ func TestWithResourceRegistersAndValidates(t *testing.T) {
 
 func TestAddResourceValidates(t *testing.T) {
 	g := New()
-	if err := g.AddResource(animation.Sets{}); err == nil || !strings.Contains(err.Error(), "at least one set") {
+	if err := g.InsertResource(animation.Sets{}); err == nil || !strings.Contains(err.Error(), "at least one set") {
 		t.Fatalf("AddResource(invalid) = %v, want validation error", err)
 	}
 	if _, err := g.World().Resource[animation.Sets](); !errors.Is(err, core.ErrResourceNotRegistered) {

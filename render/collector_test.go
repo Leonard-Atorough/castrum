@@ -1028,7 +1028,9 @@ func animatorSets(t *testing.T, w *core.World) animation.Sets {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.SetResource(sets)
+	if err := w.InsertResource(sets); err != nil {
+		t.Fatal(err)
+	}
 	return sets
 }
 

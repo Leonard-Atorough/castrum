@@ -1,38 +1,55 @@
 package castrum
 
 import (
-	"fmt"
-
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
 // WithResource registers value as a world resource when [New] builds the game.
-// If the resource type implements Validate() error, the value is validated and
-// [New] panics on failure. Resources apply after the engine's own resources
-// and before features, in option order; a later WithResource for the same type
-// replaces the earlier one.
+// A nil value, or one whose Validate() error fails, makes [New] panic. A type
+// already registered by the engine or another option also makes [New] panic;
+// use [WithResourceOverride] to replace it. Resources apply after the engine's
+// own resources and before features, in option order.
 func WithResource[T any](value T) option {
 	return optionFunc(func(o *Options) {
 		o.resources = append(o.resources, func(w *core.World) error {
-			return registerResource(w, value)
+			return w.InsertResource(value)
 		})
 	})
 }
 
-// AddResource registers value as a world resource on an existing game,
-// replacing any resource of the same type. It returns an error without
-// changing the world if the type implements Validate() error and the value
-// is invalid.
-func (g *Game) AddResource[T any](value T) error {
-	return registerResource(g.world, value)
+// WithResourceOverride replaces the resource or provider of type T when [New]
+// builds the game. It makes [New] panic if T is not already registered at that
+// point in option order, or if value is nil or fails Validate().
+func WithResourceOverride[T any](value T) option {
+	return optionFunc(func(o *Options) {
+		o.resources = append(o.resources, func(w *core.World) error {
+			return w.ReplaceResource(value)
+		})
+	})
 }
 
-func registerResource[T any](w *core.World, value T) error {
-	if v, ok := any(value).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return fmt.Errorf("castrum: resource %T: %w", value, err)
-		}
-	}
-	w.SetResource(value)
-	return nil
+// WithResourceProvider registers ctor to build the world resource of type T when
+// [New] builds the game. ctor runs on first use and may read other resources from
+// the world. A type already registered makes [New] panic; use
+// [WithResourceOverride] to replace it.
+func WithResourceProvider[T any](ctor func(*core.World) (T, error)) option {
+	return optionFunc(func(o *Options) {
+		o.resources = append(o.resources, func(w *core.World) error {
+			return w.Provide(ctor)
+		})
+	})
+}
+
+// InsertResource sets value as a world resource on an existing game. It returns an
+// error without changing the world if T is already registered, or if value is
+// nil or fails Validate(). Use [Game.ReplaceResource] to replace a resource.
+func (g *Game) InsertResource[T any](value T) error {
+	return g.world.InsertResource(value)
+}
+
+// ReplaceResource replaces the resource of type T on an existing game. It
+// returns an error without changing the world if T is not registered, or if
+// value is nil or fails Validate().
+func (g *Game) ReplaceResource[T any](value T) error {
+	return g.world.ReplaceResource(value)
 }

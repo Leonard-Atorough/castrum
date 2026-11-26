@@ -199,12 +199,14 @@ func (c *Collector) Collect(ctx *core.Context, alpha float64) (DrawList, error) 
 		return DrawList{}, err
 	}
 
-	// Resolve the animation sets once per Collect, and only when an animator
-	// exists: without a registered Sets resource an unstarted animator draws
-	// nothing, while a started one reports the unknown set through Frames.
 	var sets animation.Sets
 	if _, ok := c.animators.First(); ok {
-		sets, _ = ctx.World.Resource[animation.Sets]()
+		if ctx.World.HasResource[animation.Sets]() {
+			sets, err = ctx.World.Resource[animation.Sets]()
+			if err != nil {
+				return DrawList{}, fmt.Errorf("castrum: collect: resolve animation sets: %w", err)
+			}
+		}
 	}
 	if err := collectAll(c.animators, func(e core.Entry, a animation.Animator, prev core.PrevTransform, tr core.Transform) error {
 		frames, err := a.Frames(sets)

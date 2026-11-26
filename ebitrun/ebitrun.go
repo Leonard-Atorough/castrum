@@ -113,7 +113,9 @@ func (r *Runner) bind(g *castrum.Game) error {
 	}
 	r.win = win
 	r.hub = g.World().MustResource[*signal.Hub]()
-	g.World().SetResource[render.Window](win)
+	if err := g.World().ReplaceResource[render.Window](win); err != nil {
+		return fmt.Errorf("castrum/ebiten: set render window: %w", err)
+	}
 
 	collector := render.NewCollector(g.World())
 	fonts := newFontProvider(loader)

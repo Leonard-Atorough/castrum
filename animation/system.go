@@ -28,7 +28,7 @@ func Animate(ctx *core.Context) error {
 	}
 	animations, err := ctx.World.Resource[Sets]()
 	if err != nil {
-		return fmt.Errorf("animation: %w; register animation sets with World.SetResource", err)
+		return fmt.Errorf("animation: %w; register animation sets with World.InsertResource", err)
 	}
 	hub, err := ctx.World.Resource[*signal.Hub]()
 	if err != nil {
