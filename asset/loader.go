@@ -283,12 +283,9 @@ type codecValue[T any] struct {
 }
 
 type cache struct {
-	mu      sync.RWMutex
-	entries map[loadKey]any
-	pending map[loadKey]*loadCall
-	// decoding records the goroutine ID of the owner currently decoding each
-	// key, so a recursive same-key Load on that goroutine can be detected and
-	// rejected instead of deadlocking on the in-flight call.
+	mu       sync.RWMutex
+	entries  map[loadKey]any
+	pending  map[loadKey]*loadCall
 	decoding map[loadKey]uint64
 }
 
@@ -314,8 +311,6 @@ func (c *cache) decodingOwner(key loadKey) (uint64, bool) {
 	return id, ok
 }
 
-// setDecoding records key's mid-decode owner; owner 0 means "unknown ID"
-// (parse failure), which still compares equal to itself on the same goroutine.
 func (c *cache) setDecoding(key loadKey, owner uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -161,7 +161,7 @@ func newGame() (*castrum.Game, *runState, error) {
 		return nil, nil, err
 	}
 	if err := game.AddSystem(core.PhaseFrame, "demo.scene-controls", func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[input.Actions]()
+		actions := ctx.World.MustResource[input.Actions]()
 		if actions.JustPressed("start") {
 			if !director.Live(state.briefing) {
 				return nil
@@ -215,7 +215,7 @@ func addRoundSystems(game *castrum.Game, director *scene.Director, hub *signal.H
 		{
 			name: "round.player-motion",
 			run: func(ctx *core.Context) error {
-				actions, _ := ctx.World.Resource[input.Actions]()
+				actions := ctx.World.MustResource[input.Actions]()
 				for entry := range playerQuery.Execute() {
 					direction := geom.Vector2{
 						X: actions.Axis("move_x"),

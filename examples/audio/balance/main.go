@@ -55,7 +55,7 @@ func run() error {
 
 func balanceSystem(music core.Entity, panel *debug.Panel) core.SystemFunc {
 	return func(ctx *core.Context) error {
-		current, _ := ctx.World.Resource[*input.Snapshot]()
+		current := ctx.World.MustResource[*input.Snapshot]()
 		return music.Update(ctx.World, func(s *audio.Player) {
 			step := balanceSpeed * ctx.DeltaTime.Seconds()
 			if current.KeyHeld(input.KeyArrowLeft) {
