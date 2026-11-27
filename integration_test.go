@@ -81,18 +81,6 @@ func TestEngineDefaultsRunWithoutOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("spawn timer: %v", err)
 	}
-	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"frame_0", "frame_1"}, 120)
-	if err != nil {
-		t.Fatalf("clip: %v", err)
-	}
-	animated, err := animation.NewAnimatedSprite(clip)
-	if err != nil {
-		t.Fatalf("animated sprite: %v", err)
-	}
-	animatedEntity, err := g.World().NewEntity(animated, core.Transform{})
-	if err != nil {
-		t.Fatalf("spawn animated sprite: %v", err)
-	}
 	var colliders []core.Entity
 	for _, x := range []float64{0, 1} {
 		shape, err := collision.NewCollider(collision.Circle{Radius: 8})
@@ -106,19 +94,10 @@ func TestEngineDefaultsRunWithoutOptions(t *testing.T) {
 		colliders = append(colliders, entity)
 	}
 
-	// One fixed tick: the timer completes, the sprite advances one frame,
-	// and the overlapping pair gains a contact.
 	advanceTestGame(t, g, fixedDT)
 
 	if tm, ok := timer.Component[gametime.Timer](g.World()); !ok || tm.CompletedOn == 0 {
 		t.Errorf("timer = %+v, found %t; want completion without any option", tm, ok)
-	}
-	value, ok := animatedEntity.Component[animation.AnimatedSprite](g.World())
-	if !ok {
-		t.Fatal("animated entity lost its component")
-	}
-	if _, region, ok, err := value.CurrentFrame(); err != nil || !ok || region != "frame_1" {
-		t.Errorf("CurrentFrame = %v, %t, %v; want frame_1 without any option", region, ok, err)
 	}
 	for _, entity := range colliders {
 		contacts, ok := entity.Component[collision.Contacts](g.World())
@@ -142,7 +121,7 @@ func TestEngineSystemsRejectRelativeInsertion(t *testing.T) {
 		{core.PhaseFrame, scene.FrameSystemName}, {core.PhaseFrame, audio.SystemName},
 		{core.PhasePreFixed, core.PrevTransformSystemName},
 		{core.PhasePreFixed, input.TickSystemName}, {core.PhaseFixed, gametime.TimerSystemName},
-		{core.PhaseFixed, animation.SpriteAnimationSystem}, {core.PhaseFixed, collision.SystemName},
+		{core.PhaseFixed, animation.SystemName}, {core.PhaseFixed, collision.SystemName},
 	} {
 		for _, option := range []SystemOption{Before(entry.name), After(entry.name)} {
 			if err := g.AddSystem(entry.phase, "relative", system, option); err == nil {
@@ -161,15 +140,24 @@ func TestFixedPhaseSignalsAndMovementShareTick(t *testing.T) {
 	if _, err := g.World().NewEntity(gametime.NewTimer(250*time.Millisecond, false)); err != nil {
 		t.Fatal(err)
 	}
-	clip, err := animation.NewSpriteClip(asset.FileSheet("sprites.json"), []string{"frame_0", "frame_1"}, 120)
+	sets, err := animation.NewSets(map[string]animation.Set{
+		"test": {Name: "test", States: map[string]animation.State{
+			"run": {Name: "run", Tracks: []animation.Track{
+				{Name: "body", Source: "sprites.json", Frames: []string{"frame_0", "frame_1"}, FPS: 60},
+			}},
+		}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	animated, err := animation.NewAnimatedSprite(clip)
+	if err := g.World().InsertResource(sets); err != nil {
+		t.Fatal(err)
+	}
+	animator, err := animation.NewAnimator("test", "run")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := g.World().NewEntity(animated, core.Transform{}); err != nil {
+	if _, err := g.World().NewEntity(animator, core.Transform{}); err != nil {
 		t.Fatal(err)
 	}
 	shape, err := collision.NewCollider(collision.Circle{Radius: 1})
@@ -350,6 +338,30 @@ func TestSpatialAudioFollowsFixedMovementDuringPause(t *testing.T) {
 	}
 }
 
+func TestAudioFadeAdvancesWithAndWithoutBackend(t *testing.T) {
+	g := newTestGame(t, WithMaxFrameTime(time.Second))
+	mixer := g.World().MustResource[*audio.Mixer]()
+	if err := mixer.FadeMaster(0, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	advanceTestGame(t, g, 250*time.Millisecond)
+	if mixer.MasterVolume() != 0.75 {
+		t.Fatalf("headless master volume = %v, want 0.75", mixer.MasterVolume())
+	}
+
+	newTestAudioEntity(t, g, audio.DefaultSettings())
+	newTestAudioEntity(t, g, audio.DefaultSettings())
+	controller := &integrationAudioController{}
+	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
+		t.Fatal(err)
+	}
+	advanceTestGame(t, g, 250*time.Millisecond)
+	if mixer.MasterVolume() != 0.5 || len(controller.playbacks) != 2 ||
+		controller.playbacks[0].Volume != 0.5 || controller.playbacks[1].Volume != 0.5 {
+		t.Fatalf("master volume = %v, playbacks = %+v; want 0.5 for both", mixer.MasterVolume(), controller.playbacks)
+	}
+}
+
 func TestAudioFinishedSignalReachesPostFrameOnly(t *testing.T) {
 	g := newTestGame(t)
 	controller := &integrationAudioController{finished: true}
@@ -359,7 +371,7 @@ func TestAudioFinishedSignalReachesPostFrameOnly(t *testing.T) {
 	fixed := hub.NewReader[audio.Finished]()
 	nextFrame := hub.NewReader[audio.Finished]()
 	addTestSystem(t, g, core.PhaseFrame, "configure", func(*core.Context) error {
-		return g.World().MustResource[*audio.Mixer]().SetMaster(0.5)
+		return g.World().MustResource[*audio.Mixer]().SetMasterVolume(0.5)
 	})
 	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
 		t.Fatal(err)

@@ -159,6 +159,37 @@ func TestProvideDuplicateRejected(t *testing.T) {
 	}
 }
 
+func TestInsertAndReplaceResource(t *testing.T) {
+	w := NewWorld()
+	if w.HasResource[*atlas]() {
+		t.Fatal("HasResource reports an unregistered type")
+	}
+	if err := w.ReplaceResource(&atlas{name: "missing"}); err == nil {
+		t.Fatal("ReplaceResource on an unregistered type should return an error")
+	}
+
+	if err := w.InsertResource(&atlas{name: "first"}); err != nil {
+		t.Fatalf("InsertResource: %v", err)
+	}
+	if !w.HasResource[*atlas]() {
+		t.Fatal("HasResource reports a registered type as absent")
+	}
+	if err := w.InsertResource(&atlas{name: "second"}); err == nil {
+		t.Fatal("duplicate InsertResource should return an error")
+	}
+
+	if err := w.ReplaceResource(&atlas{name: "replaced"}); err != nil {
+		t.Fatalf("ReplaceResource: %v", err)
+	}
+	a, err := w.Resource[*atlas]()
+	if err != nil {
+		t.Fatalf("Resource after replace: %v", err)
+	}
+	if a.name != "replaced" {
+		t.Errorf("instance = %q, want replaced", a.name)
+	}
+}
+
 func TestCtorFailureNotCached(t *testing.T) {
 	w := NewWorld()
 	ctors := 0

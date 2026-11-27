@@ -100,13 +100,13 @@ func WithDebugOverlay() option {
 
 func (o *Options) validate() error {
 	if o.Window.Width <= 0 || o.Window.Height <= 0 {
-		return fmt.Errorf("castrum/ebiten: window size %dx%d is not positive", o.Window.Width, o.Window.Height)
+		return fmt.Errorf("ebitrun: window size %dx%d is not positive", o.Window.Width, o.Window.Height)
 	}
 	if o.Logical.Width <= 0 || o.Logical.Height <= 0 {
-		return fmt.Errorf("castrum/ebiten: logical size %dx%d is not positive", o.Logical.Width, o.Logical.Height)
+		return fmt.Errorf("ebitrun: logical size %dx%d is not positive", o.Logical.Width, o.Logical.Height)
 	}
 	if o.SampleRate <= 0 {
-		return fmt.Errorf("castrum/ebiten: audio sample rate %d is not positive", o.SampleRate)
+		return fmt.Errorf("ebitrun: audio sample rate %d is not positive", o.SampleRate)
 	}
 	return nil
 }

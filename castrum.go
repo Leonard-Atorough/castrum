@@ -6,17 +6,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/Leonard-Atorough/castrum/animation"
-	"github.com/Leonard-Atorough/castrum/asset"
-	"github.com/Leonard-Atorough/castrum/audio"
-	"github.com/Leonard-Atorough/castrum/serialization"
-
-	"github.com/Leonard-Atorough/castrum/builtin"
-	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
-	"github.com/Leonard-Atorough/castrum/debug"
 	"github.com/Leonard-Atorough/castrum/gametime"
-	"github.com/Leonard-Atorough/castrum/input"
 	"github.com/Leonard-Atorough/castrum/internal/runtime"
 	"github.com/Leonard-Atorough/castrum/render"
 	"github.com/Leonard-Atorough/castrum/signal"
@@ -58,10 +49,7 @@ const (
 func (l lifecycle) has(flag lifecycle) bool { return l&flag != 0 }
 
 // New creates a [Game] with default options overridden by opts. It panics
-// if the resulting configuration is invalid.
-//
-// The asset loader resolves engine-shipped assets under "builtin/" alongside
-// the configured filesystem.
+// if the configuration is invalid or game initialization fails.
 func New(opts ...option) *Game {
 	g, err := newGame(opts...)
 	if err != nil {
@@ -86,186 +74,16 @@ func newGame(opts ...option) (*Game, error) {
 	}
 	g.ctx.World = g.world
 
-	// Provide a default static window until a runner replaces it.
-	g.world.SetResource[render.Window](render.NewStaticWindow(render.Viewport{
-		LogicalWidth: 1280, LogicalHeight: 720,
-		WindowWidth: 1280, WindowHeight: 720,
-	}))
-
-	sim := gametime.NewSimulation(options.fixedDT)
-	if err := g.world.ProvideEager(func(*core.World) (*gametime.Simulation, error) {
-		return sim, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide simulation time: %w", err)
-	}
-	g.sim = sim
-
-	// The runner overwrites the snapshot resource before each Advance. The
-	// zero value reads as no input until the first poll.
-	if err := g.world.Provide(func(*core.World) (*input.Snapshot, error) {
-		return &input.Snapshot{}, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide input snapshot: %w", err)
-	}
-
-	real := gametime.NewReal(options.MaxFrameTime)
-	if err := g.world.ProvideEager(func(*core.World) (*gametime.Real, error) {
-		return real, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide real time: %w", err)
-	}
-	g.real = real
-
-	codecs := options.AssetCodecs
-	if codecs == nil {
-		codecs = NewAssetCodecs()
-	}
-	loader, err := asset.NewLoader(builtin.WithFilesystem(options.Filesystem), asset.LoaderOptions{
-		Codecs: codecs,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("castrum: create asset loader: %w", err)
-	}
-	if err := g.world.Provide(func(*core.World) (*asset.Loader, error) {
-		return loader, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide asset loader: %w", err)
-	}
-	if err := g.world.Provide(func(*core.World) (*asset.Codecs, error) {
-		return codecs, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide asset codecs: %w", err)
-	}
-
-	reg := serialization.NewRegistry(g.world)
-	if err := gametime.RegisterBlueprints(reg); err != nil {
-		return nil, fmt.Errorf("castrum: engine blueprints: %w", err)
-	}
-	if err := registerEngine(reg); err != nil {
-		return nil, fmt.Errorf("castrum: engine components: %w", err)
-	}
-	if err := registerAssets(reg); err != nil {
-		return nil, fmt.Errorf("castrum: engine assets: %w", err)
-	}
-	if err := g.world.Provide(func(*core.World) (*serialization.Registry, error) {
-		return reg, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide blueprint registry: %w", err)
-	}
-
-	if err := g.addEngineFirst(core.PhasePreFixed, core.PrevTransformSystemName, core.NewPrevTransformCapture()); err != nil {
+	if err := g.wireEngine(&options); err != nil {
 		return nil, err
 	}
 
-	scheduler := gametime.NewScheduler(g.world)
-	if err := g.world.Provide(func(*core.World) (*gametime.Scheduler, error) {
-		return scheduler, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide scheduler: %w", err)
-	}
-	if err := g.addEngineFirst(core.PhasePreFixed, gametime.SchedulerSystemName, scheduler.System()); err != nil {
-		return nil, err
-	}
-
-	if err := g.world.Provide(func(*core.World) (*gametime.Groups, error) {
-		return gametime.NewGroups(), nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide timer groups: %w", err)
-	}
-	if err := g.addEngineFirst(core.PhaseFixed, gametime.TimerSystemName, gametime.NewTimerSystem()); err != nil {
-		return nil, err
-	}
-	if err := g.addEngineFirst(core.PhaseFixed, animation.SpriteAnimationSystem, animation.NewSpriteAnimationSystem()); err != nil {
-		return nil, err
-	}
-	if err := g.world.ProvideEager(func(*core.World) (*collision.Queries, error) {
-		return collision.NewQueries()
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide collision queries: %w", err)
-	}
-	if err := g.addEngineFirst(core.PhaseFixed, collision.SystemName, collision.NewSystem()); err != nil {
-		return nil, err
-	}
-
-	hub := signal.NewHub()
-	if err := g.world.Provide(func(*core.World) (*signal.Hub, error) {
-		return hub, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide signal hub: %w", err)
-	}
-	g.hub = hub
-	if err := g.schedule(core.PhasePreFrame).SetOpening(runtime.Entry{
-		Name: "engine.signal-begin-frame",
-		System: func(*core.Context) error {
-			hub.BeginFrame()
-			return nil
-		},
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: register signal begin-frame system: %w", err)
-	}
-	if err := g.schedule(core.PhasePostFrame).SetClosing(runtime.Entry{
-		Name: "engine.signal-end-frame",
-		System: func(*core.Context) error {
-			hub.EndFrame()
-			return nil
-		},
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: register signal end-frame system: %w", err)
-	}
-	if err := g.schedule(core.PhasePostFixed).SetClosing(runtime.Entry{
-		Name: "engine.signal-end-tick",
-		System: func(*core.Context) error {
-			hub.EndTick()
-			return nil
-		},
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: register signal end-tick system: %w", err)
-	}
-
-	panel := debug.NewPanel()
-	if err := g.world.Provide(func(*core.World) (*debug.Panel, error) {
-		return panel, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide debug panel: %w", err)
-	}
-
-	mixer := audio.NewMixer()
-	if err := g.world.Provide(func(*core.World) (*audio.Mixer, error) {
-		return mixer, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide audio mixer: %w", err)
-	}
-	if err := g.world.Provide(func(*core.World) (*audio.Listener, error) {
-		return &audio.Listener{}, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide audio listener: %w", err)
-	}
-	backend := &audio.Backend{}
-	if err := g.world.Provide(func(*core.World) (*audio.Backend, error) {
-		return backend, nil
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: provide audio backend: %w", err)
-	}
-	var reconciler core.SystemFunc
-	// Capture before other frame systems so mid-phase attachments wait for the next pass.
-	if err := g.addEngineFirst(core.PhaseFrame, "engine.audio-prepare", func(*core.Context) error {
-		if controller := backend.Controller(); reconciler == nil && controller != nil {
-			reconciler = audio.NewAudioSystem(controller, mixer)
+	// User resources apply after engine resources and before features, so
+	// feature systems can rely on them.
+	for _, register := range options.resources {
+		if err := register(g.world); err != nil {
+			return nil, err
 		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	if err := g.schedule(core.PhaseFrame).AddLast(runtime.Entry{
-		Name: audio.SystemName,
-		System: func(ctx *core.Context) error {
-			if reconciler == nil {
-				return nil
-			}
-			return reconciler(ctx)
-		},
-	}); err != nil {
-		return nil, fmt.Errorf("castrum: register audio system: %w", err)
 	}
 
 	if options.InputBindings != nil {
@@ -293,33 +111,7 @@ func newGame(opts ...option) (*Game, error) {
 	return g, nil
 }
 
-// wireInput provides the action map and registers the engine's input
-// systems first in their schedules, so feature and user systems in those
-// phases see fresh actions.
-func (g *Game) wireInput(bindings input.Bindings, deadzone float64) error {
-	am, err := input.New(bindings, deadzone)
-	if err != nil {
-		return fmt.Errorf("castrum: input bindings: %w", err)
-	}
-
-	if err := g.world.Provide(func(*core.World) (input.Actions, error) {
-		return am, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide action map: %w", err)
-	}
-	if err := g.world.Provide(func(*core.World) (input.Edges, error) {
-		return am, nil
-	}); err != nil {
-		return fmt.Errorf("castrum: provide input edges: %w", err)
-	}
-
-	if err := g.addEngineFirst(core.PhasePreFrame, input.FrameSystemName, input.NewFrameSystem(am)); err != nil {
-		return err
-	}
-	return g.addEngineFirst(core.PhasePreFixed, input.TickSystemName, input.NewTickSystem(am))
-}
-
-// Options returns a copy of the game's configuration.
+// Options returns a shallow copy of the game's configuration.
 func (g *Game) Options() Options {
 	return g.opts
 }
@@ -371,15 +163,15 @@ func InGroup(group string) SystemOption {
 // previously registered user systems. [Before] and [After] change its
 // position, and [InGroup] assigns it to a group.
 //
-// AddSystem panics for an empty name or multiple position options. It
-// returns an error for an invalid phase, a duplicate name in the phase,
-// an invalid target, an invalid option, an empty group, or multiple group options.
-// It also returns an error for startup phases once [Game.Startup] begins.
+// AddSystem panics for an invalid phase, an empty name, an empty option
+// value, an invalid option, or multiple position or group options. It returns
+// an error for a name already registered in the phase, a target not yet
+// registered, or a startup phase once [Game.Startup] has begun.
 //
 // Systems added during a phase run are eligible on the next run of that phase.
 func (g *Game) AddSystem(phase core.Phase, name string, system core.SystemFunc, options ...SystemOption) error {
 	if phase < core.PhasePreStartup || phase > core.PhasePostFixed {
-		return fmt.Errorf("castrum: AddSystem: invalid phase %s", phase)
+		panic(fmt.Errorf("castrum: AddSystem: invalid phase %s", phase))
 	}
 	if phase <= core.PhasePostStartup && g.state.has(lifecycleStartupBegun) {
 		return fmt.Errorf("castrum: AddSystem: startup has already begun (phase %s)", phase)
@@ -397,19 +189,19 @@ func (g *Game) AddSystem(phase core.Phase, name string, system core.SystemFunc, 
 				panic(fmt.Errorf("castrum: AddSystem: multiple position options"))
 			}
 			if option.value == "" {
-				return fmt.Errorf("castrum: AddSystem: target must not be empty")
+				panic(fmt.Errorf("castrum: AddSystem: target must not be empty"))
 			}
 			position, target = option.kind, option.value
 		case systemOptionGroup:
 			if groupSet {
-				return fmt.Errorf("castrum: AddSystem: multiple group options")
+				panic(fmt.Errorf("castrum: AddSystem: multiple group options"))
 			}
 			if option.value == "" {
-				return fmt.Errorf("castrum: AddSystem: group must not be empty")
+				panic(fmt.Errorf("castrum: AddSystem: group must not be empty"))
 			}
 			group, groupSet = option.value, true
 		default:
-			return fmt.Errorf("castrum: AddSystem: invalid system option")
+			panic(fmt.Errorf("castrum: AddSystem: invalid system option"))
 		}
 	}
 	entry := runtime.Entry{Name: name, System: system, Group: group}
@@ -453,12 +245,13 @@ func (g *Game) addEngineFirst(phase core.Phase, name string, system core.SystemF
 }
 
 // SetGroupEnabled enables or disables a registered group across all phases.
-// The state also applies to systems registered in the group later. It returns
-// an error if group is empty or has no registered systems. A change affects
-// subsequent systems, including later systems in the current phase.
+// The state also applies to systems registered in the group later. It panics
+// for an empty group name and returns an error if the group has no
+// registered systems. A change affects subsequent systems, including later
+// systems in the current phase.
 func (g *Game) SetGroupEnabled(group string, enabled bool) error {
 	if group == "" {
-		return fmt.Errorf("castrum: SetGroupEnabled: group must not be empty")
+		panic(fmt.Errorf("castrum: SetGroupEnabled: group must not be empty"))
 	}
 	if _, registered := g.groupStates[group]; !registered {
 		return fmt.Errorf("castrum: SetGroupEnabled: group %q is not registered", group)
@@ -469,7 +262,8 @@ func (g *Game) SetGroupEnabled(group string, enabled bool) error {
 
 // Startup runs [core.PhasePreStartup], [core.PhaseStartup], and
 // [core.PhasePostStartup] once, after resolving eager resources. Runners call
-// it before entering the platform loop; a second call returns an error.
+// it before entering the platform loop. A second call returns an error, even
+// if the first call failed.
 func (g *Game) Startup() error {
 	if g.state.has(lifecycleStartupBegun) {
 		return errors.New("castrum: Startup already ran")
@@ -570,7 +364,7 @@ func (g *Game) Alpha() float64 {
 	return float64(g.acc) / float64(g.sim.Delta)
 }
 
-// Frame counts display frames since startup.
+// Frame returns the number of frames advanced by [Game.Advance].
 func (g *Game) Frame() uint64 {
 	return g.real.Frame
 }

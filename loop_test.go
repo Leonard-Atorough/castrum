@@ -76,12 +76,20 @@ func TestSetGroupEnabledAcrossPhasesAndRegistrations(t *testing.T) {
 	}
 }
 
-func TestSetGroupEnabledRejectsUnknownGroups(t *testing.T) {
+func TestSetGroupEnabledPanicsOnEmptyGroup(t *testing.T) {
 	g := New()
-	for _, name := range []string{"", "missing"} {
-		if err := g.SetGroupEnabled(name, false); err == nil {
-			t.Errorf("SetGroupEnabled(%q) accepted an invalid group", name)
+	defer func() {
+		if recover() == nil {
+			t.Error("SetGroupEnabled accepted an empty group name")
 		}
+	}()
+	g.SetGroupEnabled("", false)
+}
+
+func TestSetGroupEnabledReturnsErrorForUnregisteredGroups(t *testing.T) {
+	g := New()
+	if err := g.SetGroupEnabled("missing", false); err == nil {
+		t.Errorf("SetGroupEnabled(%q) accepted an invalid group", "missing")
 	}
 	var updates int
 	if err := g.AddSystem(core.PhaseFixed, "later", func(*core.Context) error {
@@ -240,13 +248,13 @@ func TestAddSystemRejectsInvalidOptionsAndPhases(t *testing.T) {
 		options []SystemOption
 		panics  bool
 	}{
-		{"negative phase", core.Phase(-1), nil, false},
-		{"unknown phase", core.Phase(core.PhasePostFixed + 1), nil, false},
-		{"zero option", core.PhaseFixed, []SystemOption{{}}, false},
-		{"empty group", core.PhaseFixed, []SystemOption{InGroup("")}, false},
-		{"empty before", core.PhaseFixed, []SystemOption{Before("")}, false},
-		{"empty after", core.PhaseFixed, []SystemOption{After("")}, false},
-		{"repeated group", core.PhaseFixed, []SystemOption{InGroup("one"), InGroup("two")}, false},
+		{"negative phase", core.Phase(-1), nil, true},
+		{"unknown phase", core.Phase(core.PhasePostFixed + 1), nil, true},
+		{"zero option", core.PhaseFixed, []SystemOption{{}}, true},
+		{"empty group", core.PhaseFixed, []SystemOption{InGroup("")}, true},
+		{"empty before", core.PhaseFixed, []SystemOption{Before("")}, true},
+		{"empty after", core.PhaseFixed, []SystemOption{After("")}, true},
+		{"repeated group", core.PhaseFixed, []SystemOption{InGroup("one"), InGroup("two")}, true},
 		{"repeated before", core.PhaseFixed, []SystemOption{Before("anchor"), Before("anchor")}, true},
 		{"conflicting position", core.PhaseFixed, []SystemOption{Before("anchor"), After("anchor")}, true},
 		{"other phase target", core.PhaseFrame, []SystemOption{After("anchor")}, false},

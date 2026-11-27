@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Implement engine wrapper resource management with WithResource and AddResource functions (#272)
 - Implement window resource and remove window fields from context (#265)
 - **breaking:** Provide input actions, edge flushing and snapshot as world resources (#263)
 - **breaking:** Update transform struct with tags and scene example (#247)
@@ -50,6 +51,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spawn entities owned by scene instances (#132)
 
 ### Changed
+- Update error handling to panic for invalid options and empty group names (#276)
+- Rename error messages to use ebitrun prefix (#275)
+- **breaking:** Redesign mixer resource to support custom buses and bus controls (#274)
+- **breaking:** Refactor resource insertion and provide better method semantics for inserting vs replacing vs providing a resource (#273)
+- Deduplicate collector creation and improve tests (#271)
+- **breaking:** Implement new ECS driven, multi-state animation engine (#270)
 - **breaking:** Redesign game context and rendering to streamline frame handling (#266)
 - **breaking:** Redesign system to a function instead of an interface (#264)
 - **breaking:** Replace error handling with panics in Game methods and simplify time scale tests (#262)

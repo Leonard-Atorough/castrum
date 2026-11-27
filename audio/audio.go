@@ -25,16 +25,6 @@ const (
 	LoadStream
 )
 
-// Group selects the volume bus a play mixes through.
-type Group int
-
-const (
-	// GroupSFX is the sound-effects bus.
-	GroupSFX Group = iota
-	// GroupMusic is the music bus.
-	GroupMusic
-)
-
 // LoopMode controls how a player advances and repeats its tracks.
 type LoopMode int
 
@@ -95,8 +85,8 @@ func (s Source) Validate() error {
 
 // Settings controls how a [Player] plays its source.
 type Settings struct {
-	// Group selects the mixer volume bus.
-	Group Group
+	// Bus selects the mixer volume bus; the zero value selects the empty-named bus.
+	Bus BusName
 	// Volume is the finite per-player volume in (0, 1].
 	Volume float64
 	// Loop selects how the player advances and repeats tracks. The ebitrun
@@ -143,9 +133,6 @@ func (s Settings) Validate() error {
 	}
 	if s.Load != LoadEager && s.Load != LoadStream {
 		return fmt.Errorf("audio: invalid load mode %d", s.Load)
-	}
-	if s.Group != GroupSFX && s.Group != GroupMusic {
-		return fmt.Errorf("audio: invalid group %d", s.Group)
 	}
 	if math.IsNaN(s.Balance) || s.Balance < -1 || s.Balance > 1 {
 		return fmt.Errorf("audio: settings balance must be finite and in [-1, 1], got %v", s.Balance)
@@ -307,91 +294,6 @@ func (p *Player) Remove(i int) error {
 		p.selectionVersion++
 	}
 	return nil
-}
-
-// Mixer holds the master and group volume levels and the global pause state
-// used by [NewAudioSystem].
-type Mixer struct {
-	master float64
-	groups map[Group]float64
-	paused bool
-}
-
-// NewMixer returns a mixer at unity master volume with no group
-// overrides and not paused.
-func NewMixer() *Mixer {
-	return &Mixer{master: 1, groups: make(map[Group]float64)}
-}
-
-// Master returns the master volume, from 0 (silence) to 1
-// (unity).
-func (m *Mixer) Master() float64 {
-	return m.master
-}
-
-// SetMaster sets the master volume, clamped to [0, 1].
-//
-// It returns an error for NaN without changing the volume.
-func (m *Mixer) SetMaster(volume float64) error {
-	if math.IsNaN(volume) {
-		return fmt.Errorf("audio: master volume must not be NaN")
-	}
-	m.master = clamp01(volume)
-	return nil
-}
-
-// GroupVolume returns the group's volume, from 0 (silence) to 1
-// (unity). A group without an override reads unity.
-func (m *Mixer) GroupVolume(group Group) float64 {
-	if volume, ok := m.groups[group]; ok {
-		return volume
-	}
-	return 1
-}
-
-// SetGroupVolume sets the group's volume, clamped to [0, 1].
-//
-// It returns an error for NaN without changing the volume.
-func (m *Mixer) SetGroupVolume(group Group, volume float64) error {
-	if math.IsNaN(volume) {
-		return fmt.Errorf("audio: group volume must not be NaN")
-	}
-	m.groups[group] = clamp01(volume)
-	return nil
-}
-
-// Paused reports whether the mixer is globally paused. Each play's
-// [PauseMode] decides what a pause does to its playback.
-func (m *Mixer) Paused() bool {
-	return m.paused
-}
-
-// PauseAll pauses the mixer globally.
-func (m *Mixer) PauseAll() {
-	m.paused = true
-}
-
-// ResumeAll clears the global pause.
-func (m *Mixer) ResumeAll() {
-	m.paused = false
-}
-
-// TogglePause flips the global pause and reports the new state.
-// Each play's [PauseMode] decides what the new state does to its
-// playback.
-func (m *Mixer) TogglePause() bool {
-	m.paused = !m.paused
-	return m.paused
-}
-
-func clamp01(v float64) float64 {
-	if v < 0 {
-		return 0
-	}
-	if v > 1 {
-		return 1
-	}
-	return v
 }
 
 type oneshot struct{}

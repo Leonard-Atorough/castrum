@@ -1,6 +1,7 @@
 package castrum
 
 import (
+	"github.com/Leonard-Atorough/castrum/animation"
 	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/collision"
 	"github.com/Leonard-Atorough/castrum/core"
@@ -21,6 +22,8 @@ const (
 	TextKey = "sprite.Text"
 	// PrimitiveKey identifies [sprite.Primitive] in save data.
 	PrimitiveKey = "sprite.Primitive"
+	// AnimatorKey identifies [animation.Animator] in save data.
+	AnimatorKey = "animation.Animator"
 )
 
 // Asset keys identify engine asset types in data files. Changing a key
@@ -49,7 +52,10 @@ func registerEngine(reg *serialization.Registry) error {
 	if err := reg.Component[sprite.Text](TextKey); err != nil {
 		return err
 	}
-	return reg.Component[sprite.Primitive](PrimitiveKey)
+	if err := reg.Component[sprite.Primitive](PrimitiveKey); err != nil {
+		return err
+	}
+	return reg.Component[animation.Animator](AnimatorKey)
 }
 
 func registerAssets(reg *serialization.Registry) error {
