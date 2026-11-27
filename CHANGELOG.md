@@ -81,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document the unreleased playlist API (#144)
 
 ### Fixed
+- Reject recursive same-key loads instead of deadlocking (#302)
 - **breaking:** Improve engine initialization by switching from errors to panics and reducing ceremony between game and runner (#261)
 - Clean up some godoc to read better and less like placeholders (#259)
 - Migrate fixtures off the removed sprite shape fields (#256)
