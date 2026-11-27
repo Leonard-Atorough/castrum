@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spawn entities owned by scene instances (#132)
 
 ### Changed
+- DrawItem handling refactored to separate drawables (#301)
 - Update error handling to panic for invalid options and empty group names (#276)
 - Rename error messages to use ebitrun prefix (#275)
 - **breaking:** Redesign mixer resource to support custom buses and bus controls (#274)
