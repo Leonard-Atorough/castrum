@@ -18,45 +18,6 @@ import (
 	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
-// DrawItem is one drawable resolved from a [sprite.Sprite], [sprite.Text],
-// [sprite.Primitive], or one layer of an [animation.Animator] for a frame.
-type DrawItem struct {
-	// Texture is the source texture for a texture item; empty for text and shapes.
-	Texture asset.ID
-	// Rect is the source region in Texture, in pixels. An empty rectangle
-	// selects the whole texture.
-	Rect image.Rectangle
-	// Shape is the geometry of a shape item; nil for texture and text items.
-	Shape sprite.DrawShape
-	// Text is the text to draw; empty for non-text items.
-	Text string
-	// Font is the font asset for a text item; empty for non-text items.
-	Font asset.ID
-	// TextSize is the font size in pixels before applying Scale.
-	TextSize float64
-	// TextWidth is the font-measured text width in pixels before applying Scale.
-	TextWidth float64
-	// TextHeight is the font-measured text height in pixels before applying Scale.
-	TextHeight float64
-	// Position is the interpolated position in world space.
-	Position geom.Vector2
-	// Rotation is the rotation in world space, in radians.
-	Rotation float64
-	// Scale is the drawable's scale in world space.
-	Scale geom.Vector2
-	// FlipH mirrors texture items horizontally.
-	FlipH bool
-	// FlipV mirrors texture items vertically.
-	FlipV bool
-	// Color tints texture pixels or sets the text or shape color. Its alpha
-	// controls opacity; nil means no tint on a texture item.
-	Color color.Color
-	// Outline strokes a shape's border instead of filling it.
-	Outline bool
-	// StrokeWidth is the outline width in world units.
-	StrokeWidth float64
-}
-
 // DrawList contains the camera view and sorted draw items for one frame.
 type DrawList struct {
 	// Camera is the resolved primary camera view.
@@ -219,11 +180,11 @@ func (c *Collector) Collect(ctx *core.Context, alpha float64) (DrawList, error) 
 			if frame.Weight < 1 {
 				style.Color = blendAlpha(style.Color, frame.Weight)
 			}
-			item, size, err := c.collectSheet(ctx, style, rotation, scale, frame.Source, frame.Region)
+			item, texSize, err := c.collectSheet(ctx, style, rotation, scale, frame.Source, frame.Region)
 			if err != nil {
 				return err
 			}
-			c.stage(viewport, a.Style.Layer, a.Style.SortOrder, position, zeroVec, size, item)
+			c.stage(viewport, a.Style.Layer, a.Style.SortOrder, position, texSize, item)
 		}
 		return nil
 	}); err != nil {
@@ -271,17 +232,17 @@ func (c *Collector) collectImage(ctx *core.Context, viewport geom.Rect, alpha fl
 	position, rotation, scale := interpolate(prev, tr, alpha)
 
 	var item DrawItem
-	var size geom.Vector2
+	var texSize geom.Vector2
 	var err error
 	if s.Region == "" {
-		item, size, err = c.collectTexture(ctx, s, rotation, scale)
+		item, texSize, err = c.collectTexture(ctx, s, rotation, scale)
 	} else {
-		item, size, err = c.collectSheet(ctx, s.Style, rotation, scale, asset.FileSheet(s.Asset), s.Region)
+		item, texSize, err = c.collectSheet(ctx, s.Style, rotation, scale, asset.FileSheet(s.Asset), s.Region)
 	}
 	if err != nil {
 		return err
 	}
-	c.stage(viewport, s.Style.Layer, s.Style.SortOrder, position, zeroVec, size, item)
+	c.stage(viewport, s.Style.Layer, s.Style.SortOrder, position, texSize, item)
 	return nil
 }
 
@@ -293,42 +254,18 @@ func (c *Collector) collectPrimitive(viewport geom.Rect, alpha float64, p sprite
 	position, rotation, scale := interpolate(prev, tr, alpha)
 
 	var item DrawItem
-	var offset, size geom.Vector2
 	switch p.Shape {
 	case sprite.ShapeRect:
-		shape := sprite.RectShape{Size: p.Rect}
-		size = geom.Vector2{
-			X: shape.Size.X * scale.X,
-			Y: shape.Size.Y * scale.Y,
-		}
-		item = shapeItem(p.Style, rotation, scale, shape)
+		item = shapeItem(p.Style, rotation, scale, sprite.RectShape{Size: p.Rect})
 	case sprite.ShapeCircle:
-		shape := sprite.CircleShape{Radii: p.Radii}
-		size = geom.Vector2{
-			X: 2 * shape.Radii.X * scale.X,
-			Y: 2 * shape.Radii.Y * scale.Y,
-		}
-		item = shapeItem(p.Style, rotation, scale, shape)
+		item = shapeItem(p.Style, rotation, scale, sprite.CircleShape{Radii: p.Radii})
 	case sprite.ShapeLine:
-		shape := sprite.LineShape{From: p.From, To: p.To}
-		segment := geom.Segment{
-			Start: geom.Vector2{
-				X: shape.From.X * scale.X,
-				Y: shape.From.Y * scale.Y,
-			},
-			End: geom.Vector2{
-				X: shape.To.X * scale.X,
-				Y: shape.To.Y * scale.Y,
-			},
-		}
-		bounds := segment.BoundingBox()
-		offset, size = bounds.Center(), bounds.Size()
-		item = shapeItem(p.Style, rotation, scale, shape)
+		item = shapeItem(p.Style, rotation, scale, sprite.LineShape{From: p.From, To: p.To})
 	default:
 		// Unreachable: Validate rejects unknown shapes at the boundary.
 		return nil
 	}
-	c.stage(viewport, p.Style.Layer, p.Style.SortOrder, position, offset, size, item)
+	c.stage(viewport, p.Style.Layer, p.Style.SortOrder, position, zeroVec, item)
 	return nil
 }
 
@@ -339,11 +276,11 @@ func (c *Collector) collectTextItem(ctx *core.Context, viewport geom.Rect, alpha
 	}
 	position, rotation, scale := interpolate(prev, tr, alpha)
 
-	item, size, err := c.collectText(ctx, x, rotation, scale)
+	item, err := c.collectText(ctx, x, rotation, scale)
 	if err != nil {
 		return err
 	}
-	c.stage(viewport, x.Style.Layer, x.Style.SortOrder, position, zeroVec, size, item)
+	c.stage(viewport, x.Style.Layer, x.Style.SortOrder, position, zeroVec, item)
 	return nil
 }
 
@@ -371,11 +308,8 @@ func (c *Collector) collectSheet(ctx *core.Context, style sprite.Style, rotation
 		return DrawItem{}, geom.Vector2{}, fmt.Errorf("castrum: collect: sheet region %q falls outside texture %q bounds %v",
 			region, sheet.Texture, texture.Image.Bounds())
 	}
-	size := geom.Vector2{
-		X: float64(regionRect.Dx()) * scale.X,
-		Y: float64(regionRect.Dy()) * scale.Y,
-	}
-	return textureItem(style, rotation, scale, sheet.Texture, regionRect), size, nil
+	texSize := geom.Vector2{X: float64(texture.Width), Y: float64(texture.Height)}
+	return textureItem(style, rotation, scale, sheet.Texture, regionRect), texSize, nil
 }
 
 func (c *Collector) collectTexture(ctx *core.Context, s sprite.Sprite, rotation float64, scale geom.Vector2) (DrawItem, geom.Vector2, error) {
@@ -387,47 +321,70 @@ func (c *Collector) collectTexture(ctx *core.Context, s sprite.Sprite, rotation 
 	if err != nil {
 		return DrawItem{}, geom.Vector2{}, fmt.Errorf("castrum: collect: texture %q: %w", s.Asset, err)
 	}
-	size := geom.Vector2{
-		X: float64(data.Width) * scale.X,
-		Y: float64(data.Height) * scale.Y,
-	}
-	return textureItem(s.Style, rotation, scale, s.Asset, image.Rectangle{}), size, nil
+	texSize := geom.Vector2{X: float64(data.Width), Y: float64(data.Height)}
+	return textureItem(s.Style, rotation, scale, s.Asset, image.Rectangle{}), texSize, nil
 }
 
-func (c *Collector) collectText(ctx *core.Context, x sprite.Text, rotation float64, scale geom.Vector2) (DrawItem, geom.Vector2, error) {
+func (c *Collector) collectText(ctx *core.Context, x sprite.Text, rotation float64, scale geom.Vector2) (DrawItem, error) {
 	srv, err := c.assetLoader(ctx)
 	if err != nil {
-		return DrawItem{}, geom.Vector2{}, err
+		return DrawItem{}, err
 	}
 	font, err := srv.Load[asset.FontData](string(x.Asset))
 	if err != nil {
-		return DrawItem{}, geom.Vector2{}, fmt.Errorf("castrum: collect: font %q: %w", x.Asset, err)
+		return DrawItem{}, fmt.Errorf("castrum: collect: font %q: %w", x.Asset, err)
 	}
 	textWidth, textHeight := font.Measure(x.TextSize, x.Text)
 	fill := styleTint(x.Style.Color, color.White)
-	size := geom.Vector2{
-		X: textWidth * scale.X,
-		Y: textHeight * scale.Y,
-	}
 	item := DrawItem{
-		Text:       x.Text,
-		Font:       x.Asset,
-		TextSize:   x.TextSize,
-		TextWidth:  textWidth,
-		TextHeight: textHeight,
-		Rotation:   rotation,
-		Scale:      scale,
-		Color:      fill,
+		Rotation: rotation,
+		Scale:    scale,
+		Color:    fill,
+		payload: TextDraw{
+			Text:   x.Text,
+			Font:   x.Asset,
+			Size:   x.TextSize,
+			Bounds: geom.Vector2{X: textWidth, Y: textHeight},
+		},
 	}
-	return item, size, nil
+	return item, nil
 }
 
-func (c *Collector) stage(viewport geom.Rect, layer uint8, sortOrder int8, position, offset, size geom.Vector2, item DrawItem) {
-	half := geom.Vector2{X: math.Abs(size.X) / 2, Y: math.Abs(size.Y) / 2}
-	_, line := item.Shape.(sprite.LineShape)
-	if item.Outline || line {
-		half.X += item.StrokeWidth / 2
-		half.Y += item.StrokeWidth / 2
+func payloadBounds(p DrawPayload, scale, texSize geom.Vector2) (offset, size geom.Vector2, expand float64) {
+	switch p := p.(type) {
+	case TextureDraw:
+		size = texSize
+		if !p.Rect.Empty() {
+			size = geom.Vector2{X: float64(p.Rect.Dx()), Y: float64(p.Rect.Dy())}
+		}
+		size = geom.Vector2{X: size.X * scale.X, Y: size.Y * scale.Y}
+	case TextDraw:
+		size = geom.Vector2{X: p.Bounds.X * scale.X, Y: p.Bounds.Y * scale.Y}
+	case ShapeDraw:
+		switch shape := p.Shape.(type) {
+		case sprite.RectShape:
+			size = geom.Vector2{X: shape.Size.X * scale.X, Y: shape.Size.Y * scale.Y}
+		case sprite.CircleShape:
+			size = geom.Vector2{X: 2 * shape.Radii.X * scale.X, Y: 2 * shape.Radii.Y * scale.Y}
+		case sprite.LineShape:
+			bounds := geom.Segment{
+				Start: geom.Vector2{X: shape.From.X * scale.X, Y: shape.From.Y * scale.Y},
+				End:   geom.Vector2{X: shape.To.X * scale.X, Y: shape.To.Y * scale.Y},
+			}.BoundingBox()
+			offset, size = bounds.Center(), bounds.Size()
+		}
+		if _, line := p.Shape.(sprite.LineShape); p.Outline || line {
+			expand = p.StrokeWidth / 2
+		}
+	}
+	return offset, size, expand
+}
+
+func (c *Collector) stage(viewport geom.Rect, layer uint8, sortOrder int8, position, texSize geom.Vector2, item DrawItem) {
+	offset, size, expand := payloadBounds(item.payload, item.Scale, texSize)
+	half := geom.Vector2{
+		X: math.Abs(size.X)/2 + expand,
+		Y: math.Abs(size.Y)/2 + expand,
 	}
 	sin, cos := math.Sincos(item.Rotation)
 	extent := geom.Vector2{
@@ -479,25 +436,29 @@ func textureItem(style sprite.Style, rotation float64, scale geom.Vector2, textu
 		tint = *style.Color
 	}
 	return DrawItem{
-		Texture:  texture,
-		Rect:     region,
 		Rotation: rotation,
 		Scale:    scale,
-		FlipH:    style.FlipH,
-		FlipV:    style.FlipV,
 		Color:    tint,
+		payload: TextureDraw{
+			Texture: texture,
+			Rect:    region,
+			FlipH:   style.FlipH,
+			FlipV:   style.FlipV,
+		},
 	}
 }
 
 func shapeItem(style sprite.Style, rotation float64, scale geom.Vector2, shape sprite.DrawShape) DrawItem {
 	fill := styleTint(style.Color, color.Black)
 	return DrawItem{
-		Shape:       shape,
-		Rotation:    rotation,
-		Scale:       scale,
-		Color:       fill,
-		Outline:     style.Outline,
-		StrokeWidth: style.StrokeWidth,
+		Rotation: rotation,
+		Scale:    scale,
+		Color:    fill,
+		payload: ShapeDraw{
+			Shape:       shape,
+			Outline:     style.Outline,
+			StrokeWidth: style.StrokeWidth,
+		},
 	}
 }
 
