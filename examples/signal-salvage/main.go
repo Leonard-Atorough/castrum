@@ -511,8 +511,14 @@ func triggerCollider(radius float64, layer int, masks ...int) (collision.Collide
 	if err != nil {
 		return collision.Collider{}, err
 	}
-	collider.Layers = collision.Layers(layer)
-	collider.Mask = collision.Mask(masks...)
+	collider.Layers, err = collision.Layers(layer)
+	if err != nil {
+		return collision.Collider{}, err
+	}
+	collider.Mask, err = collision.Mask(masks...)
+	if err != nil {
+		return collision.Collider{}, err
+	}
 	collider.Trigger = true
 	return collider, nil
 }
