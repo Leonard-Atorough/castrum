@@ -31,7 +31,7 @@ func TestSpatialPlayback(t *testing.T) {
 		{name: "negative bias clamped", position: geom.Vector2{X: -50}, bias: -0.75, wantGain: 0.5, wantBalance: -1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			settings := Settings{Volume: 0.8, Spatial: true, Balance: tc.bias, Attenuation: tc.curve}
+			settings := Settings{Volume: 0.8, Bus: "sfx", Spatial: true, Balance: tc.bias, Attenuation: tc.curve}
 			h := newAudioHarness(t)
 			entity := h.spawn(Track("sound.wav"), settings)
 			if err := entity.AddComponent(h.world, core.Transform{Position: tc.position}); err != nil {

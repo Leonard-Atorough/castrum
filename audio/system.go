@@ -53,9 +53,13 @@ func fold(s Player, mixer *Mixer) Playback {
 	if s.Settings.Loop == LoopTrack {
 		loop = LoopTrack
 	}
+	volume := s.Settings.Volume * mixer.MasterVolume() * mixer.BusVolume(s.Settings.Bus)
+	if mixer.MasterMuted() || mixer.BusMuted(s.Settings.Bus) {
+		volume = 0
+	}
 	return Playback{
-		Playing: !s.Paused && (!mixer.AllPaused() || s.Settings.Pause == PauseContinues) && mixer.BusPaused(BusName(s.Settings.Bus)),
-		Volume:  s.Settings.Volume * mixer.MasterVolume() * mixer.BusVolume(BusName(s.Settings.Bus)),
+		Playing: !s.Paused && !mixer.busLocallyPaused(s.Settings.Bus) && (!mixer.AllPaused() || s.Settings.Pause == PauseContinues),
+		Volume:  volume,
 		Rate:    resolveMultiplier(s.Settings.PlaybackMultiplier),
 		Loop:    loop,
 		Load:    s.Settings.Load,
@@ -87,8 +91,9 @@ type Controller interface {
 	Sweep() error
 }
 
-// NewAudioSystem returns a system that reconciles players with the controller.
+// NewAudioSystem returns a system that advances mixer fades and reconciles players.
 // It validates each player's settings before applying them to the controller.
+// If controller is nil, the system advances fades without reconciling players.
 func NewAudioSystem(controller Controller, mixer *Mixer) core.SystemFunc {
 	s := &system{
 		controller: controller,
@@ -108,6 +113,12 @@ type system struct {
 }
 
 func (s *system) Update(ctx *core.Context) error {
+	if err := s.mixer.update(ctx.DeltaTime); err != nil {
+		return fmt.Errorf("audio system: advance mixer: %w", err)
+	}
+	if s.controller == nil {
+		return nil
+	}
 	if s.camera == nil {
 		s.camera = render.NewCameraResolver(ctx.World)
 	}

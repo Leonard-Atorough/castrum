@@ -73,6 +73,10 @@ func TestSystemMixAndPause(t *testing.T) {
 	if err := h.mixer.SetBusVolume(BusName("music"), 0.25); err != nil {
 		t.Fatal(err)
 	}
+	h.update()
+	if !h.lastSync(held.ID()).want.Playing || !h.lastSync(continues.ID()).want.Playing {
+		t.Fatal("unpaused players should play")
+	}
 	h.mixer.PauseAll()
 	h.update()
 	for _, tc := range []struct {
@@ -86,6 +90,44 @@ func TestSystemMixAndPause(t *testing.T) {
 		if got.Playing != tc.playing || got.Volume != 0.1 || got.Rate != 1 || got.Balance != 0.25 {
 			t.Errorf("playback for %d = %+v", tc.entity.ID(), got)
 		}
+	}
+	h.mixer.SetBusPaused("music", true)
+	h.update()
+	if h.lastSync(continues.ID()).want.Playing {
+		t.Fatal("a bus pause should hold players exempt from global pause")
+	}
+	h.mixer.ResumeAll()
+	h.update()
+	if h.lastSync(held.ID()).want.Playing || h.lastSync(continues.ID()).want.Playing {
+		t.Fatal("resuming globally should preserve the bus pause")
+	}
+}
+
+func TestSystemMixerMuteAndBusSelection(t *testing.T) {
+	h := newAudioHarness(t)
+	defaultPlayer := h.spawn(Track("default"), DefaultSettings())
+	music := h.spawn(Track("music"), Settings{Volume: 1, Bus: "music"})
+	if err := h.mixer.SetBusVolume("sfx", 0.25); err != nil {
+		t.Fatal(err)
+	}
+	h.mixer.SetBusMuted("music", true)
+	h.update()
+	if got := h.lastSync(defaultPlayer.ID()).want; !got.Playing || got.Volume != 1 {
+		t.Fatalf("default bus playback = %+v", got)
+	}
+	if got := h.lastSync(music.ID()).want; !got.Playing || got.Volume != 0 {
+		t.Fatalf("muted bus playback = %+v", got)
+	}
+	h.mixer.SetBusMuted("music", false)
+	h.mixer.ToggleMasterMuted()
+	h.update()
+	if h.lastSync(defaultPlayer.ID()).want.Volume != 0 || h.lastSync(music.ID()).want.Volume != 0 {
+		t.Fatal("master mute should silence both buses")
+	}
+	h.mixer.ToggleMasterMuted()
+	h.update()
+	if h.lastSync(music.ID()).want.Volume != 1 {
+		t.Fatal("unmuting should restore the bus volume")
 	}
 }
 

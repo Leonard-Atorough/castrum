@@ -85,7 +85,7 @@ func (s Source) Validate() error {
 
 // Settings controls how a [Player] plays its source.
 type Settings struct {
-	// Bus selects the mixer volume bus.
+	// Bus selects the mixer volume bus; the zero value selects the empty-named bus.
 	Bus BusName
 	// Volume is the finite per-player volume in (0, 1].
 	Volume float64

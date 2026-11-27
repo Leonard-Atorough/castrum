@@ -128,11 +128,12 @@ func (m *Mixer) SetBusPaused(name BusName, paused bool) {
 
 // BusPaused reports whether a bus is locally paused or the mixer is globally paused.
 func (m *Mixer) BusPaused(name BusName) bool {
+	return m.paused || m.busLocallyPaused(name)
+}
+
+func (m *Mixer) busLocallyPaused(name BusName) bool {
 	b, ok := m.buses[name]
-	if !ok {
-		return m.paused
-	}
-	return b.paused || m.paused
+	return ok && b.paused
 }
 
 // SetBusMuted sets a bus's mute state, creating the bus if needed.

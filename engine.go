@@ -157,11 +157,13 @@ func (g *Game) wireEngine(options *Options) error {
 	if err := g.world.InsertResource(backend); err != nil {
 		return fmt.Errorf("castrum: insert audio backend: %w", err)
 	}
-	var reconciler core.SystemFunc
+	reconciler := audio.NewAudioSystem(nil, mixer)
+	attached := false
 	// Capture before other frame systems so mid-phase attachments wait for the next pass.
 	if err := g.addEngineFirst(core.PhaseFrame, "engine.audio-prepare", func(*core.Context) error {
-		if controller := backend.Controller(); reconciler == nil && controller != nil {
+		if controller := backend.Controller(); !attached && controller != nil {
 			reconciler = audio.NewAudioSystem(controller, mixer)
+			attached = true
 		}
 		return nil
 	}); err != nil {
@@ -170,9 +172,6 @@ func (g *Game) wireEngine(options *Options) error {
 	if err := g.schedule(core.PhaseFrame).AddLast(runtime.Entry{
 		Name: audio.SystemName,
 		System: func(ctx *core.Context) error {
-			if reconciler == nil {
-				return nil
-			}
 			return reconciler(ctx)
 		},
 	}); err != nil {
