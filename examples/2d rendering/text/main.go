@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/Leonard-Atorough/castrum"
-	"github.com/Leonard-Atorough/castrum/asset"
 	"github.com/Leonard-Atorough/castrum/builtin"
 	"github.com/Leonard-Atorough/castrum/core"
 	"github.com/Leonard-Atorough/castrum/ebitrun"
@@ -31,8 +30,6 @@ const (
 
 	goFont = builtin.Font
 
-	// rowY places the three text rows; every row is a separate text
-	// sprite, centered on its own position.
 	titleY = 200
 	scoreY = 360
 	notesY = 520
@@ -48,9 +45,6 @@ func run() error {
 	g := castrum.New(
 		castrum.WithTitle("castrum - text"),
 	)
-	if err := builtin.Register(g.World().MustResource[*asset.Loader]()); err != nil {
-		return err
-	}
 
 	camera := g.MainCamera()
 	if err := camera.Update(g.World(), func(t *core.Transform) {
@@ -59,8 +53,6 @@ func run() error {
 		return err
 	}
 
-	// A static label: white text - the nil-color default - centered
-	// on the position like every other drawable.
 	if _, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: titleY}, Scale: geom.Vector2{X: 1, Y: 1}},
 		sprite.Text{Asset: goFont, Text: "hello, castrum", TextSize: 48},
@@ -68,18 +60,14 @@ func run() error {
 		return err
 	}
 
-	// A score display: the same sprite, its string rewritten each
-	// tick - text is plain component state, so updating it is an
-	// update closure, nothing else.
 	score, err := g.World().NewEntity(
 		core.Transform{Position: geom.Vector2{X: screenW / 2, Y: scoreY}, Scale: geom.Vector2{X: 1, Y: 1}},
+		sprite.Text{Asset: goFont, Text: "tick 0", TextSize: 32},
 	)
 	if err != nil {
 		return err
 	}
 
-	// Tinted, scaled text: the sprite color dyes the glyphs and the
-	// transform scale stretches them, both exactly as for a shape.
 	if _, err := g.World().NewEntity(
 		core.Transform{
 			Position: geom.Vector2{X: screenW / 2, Y: notesY},
@@ -87,7 +75,7 @@ func run() error {
 		},
 		sprite.Text{
 			Asset:    goFont,
-			Text:     "text culls, sorts, and fades like any drawable",
+			Text:     "text culls, sorts, and fades like a sprite",
 			TextSize: 24,
 			Style:    sprite.Style{Color: &color.RGBA{R: 120, G: 200, B: 255, A: 255}},
 		},
@@ -102,8 +90,6 @@ func run() error {
 		return err
 	}
 
-	// One fixed system rewrites the score's string every second; the
-	// engine re-measures and re-draws it without any other wiring.
 	elapsed := time.Duration(0)
 	if err := g.AddSystem(core.PhaseFixed, "score", func(ctx *core.Context) error {
 		elapsed += ctx.DeltaTime
@@ -114,10 +100,6 @@ func run() error {
 		return err
 	}
 
-	runner := ebitrun.New()
-
-	// g.Run is the canonical entry: the guard against a second run
-	// lives on the game, not the runner.
-	runner.Run(g)
+	ebitrun.New().Run(g)
 	return nil
 }

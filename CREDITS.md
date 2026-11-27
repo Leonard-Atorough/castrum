@@ -23,7 +23,14 @@ All sound effects, currently:
 ## [Pixel Poem](https://pixel-poem.itch.io)
 
 - `Dungeon_Character_2.png` (examples/wander)
-- `torch_light.png` (examples/animate)
+- `torch_light.png` (examples/2d rendering/animation)
+
+## [The Go gopher](https://go.dev/wiki/Gopher) by Renee French (CC BY 4.0)
+
+The gopher design is licensed under the [Creative Commons Attribution 4.0 International License](https://creativecommons.org/licenses/by/4.0/); see <https://go.dev/wiki/Gopher>.
+
+- `gopher.png` (examples/2d rendering/textures) from <https://go.dev/images/favicon-gopher.png>
+- `gopher_sheet.png` (examples/2d rendering/spritesheets) derived from the same image: four tinted copies with frame markers, generated for this repository
 
 ## [The Go Fonts](https://go.googlesource.com/image/+/refs/heads/master/font/gofont) (BSD-style license)
 
