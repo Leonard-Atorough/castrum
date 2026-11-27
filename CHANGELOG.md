@@ -81,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document the unreleased playlist API (#144)
 
 ### Fixed
+- Enhance iteration safety by validating structural changes during execution (#308)
 - Handle panic recovery in constructors and ensure entity ID rollback on failure (#307)
 - Handle race conditions by deallocating images and subimages on concurrent loads (#306)
 - Prevent panic for zero-value player and out-of-range sel… (#305)
