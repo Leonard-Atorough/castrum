@@ -92,8 +92,9 @@ type Controller interface {
 }
 
 // NewAudioSystem returns a system that advances mixer fades and reconciles players.
-// It validates each player's settings before applying them to the controller.
-// If controller is nil, the system advances fades without reconciling players.
+// It requires a *[Mixer] resource. With a non-nil controller, it also requires a
+// *[signal.Hub] resource and validates each player's settings before syncing.
+// A nil controller advances fade advancement but skips player reconciliation.
 func NewAudioSystem(controller Controller) core.SystemFunc {
 	s := &system{
 		controller: controller,
@@ -116,9 +117,18 @@ func (s *system) Update(ctx *core.Context) error {
 	if err != nil {
 		return fmt.Errorf("audio system: resolve *Mixer: %w", err)
 	}
+	if mixer == nil {
+		return fmt.Errorf("audio system: *Mixer resource not found")
+	}
+
+	if err := mixer.update(ctx.DeltaTime); err != nil {
+		return fmt.Errorf("audio system: advance mixer: %w", err)
+	}
+
 	if s.controller == nil {
 		return nil
 	}
+
 	if s.camera == nil {
 		s.camera = render.NewCameraResolver(ctx.World)
 	}
@@ -136,10 +146,6 @@ func (s *system) Update(ctx *core.Context) error {
 			return fmt.Errorf("audio system: resolve signal hub: %w; provide *signal.Hub to the world, typically signal.NewHub() through World.Provide, or construct the game with castrum.New", err)
 		}
 		s.hub = resolved
-	}
-
-	if err := mixer.update(ctx.DeltaTime); err != nil {
-		return fmt.Errorf("audio system: advance mixer: %w", err)
 	}
 
 	var done []core.Entity
