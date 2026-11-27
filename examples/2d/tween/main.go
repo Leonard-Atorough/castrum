@@ -142,7 +142,9 @@ func newGame() (*castrum.Game, *demo, error) {
 			{"double", 2},
 		} {
 			if actions.JustPressed(speed.action) {
-				g.SetTimeScale(speed.scale)
+				if err := g.SetTimeScale(speed.scale); err != nil {
+					return err
+				}
 				panel.Message(fmt.Sprintf("simulation: %.1fx", speed.scale))
 			}
 		}
