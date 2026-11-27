@@ -220,6 +220,37 @@ func TestCtorFailureNotCached(t *testing.T) {
 	}
 }
 
+func TestCtorPanicResetsState(t *testing.T) {
+	w := NewWorld()
+	ctors := 0
+	if err := w.Provide(func(w *World) (*atlas, error) {
+		ctors++
+		if ctors == 1 {
+			panic("ctor exploded")
+		}
+		return &atlas{name: "recovered"}, nil
+	}); err != nil {
+		t.Fatalf("Provide: %v", err)
+	}
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("panicking ctor should propagate its panic")
+			}
+		}()
+		_, _ = w.Resource[*atlas]()
+	}()
+
+	a, err := w.Resource[*atlas]()
+	if err != nil {
+		t.Fatalf("Resource after ctor panic = %v, want recovery (not a circular-dependency error)", err)
+	}
+	if a.name != "recovered" {
+		t.Errorf("instance = %q, want recovered construction", a.name)
+	}
+}
+
 func TestCircularDependencyDetected(t *testing.T) {
 	w := NewWorld()
 	if err := w.Provide(func(w *World) (*depA, error) {
@@ -457,6 +488,25 @@ func TestNewEntitiesRejectsNonPositiveCount(t *testing.T) {
 	}
 }
 
+func TestNewEntitiesRollsBackIDsOnFailure(t *testing.T) {
+	w := NewWorld()
+	if _, err := w.NewEntity(position{x: 0}); err != nil {
+		t.Fatalf("NewEntity: %v", err)
+	}
+	w.nextEntityID = 1
+
+	entities, err := w.NewEntities(2, position{x: 1})
+	if err == nil || entities != nil {
+		t.Fatalf("colliding batch = %v, %v; want an error and no entities", entities, err)
+	}
+	if w.nextEntityID != 1 {
+		t.Fatalf("nextEntityID after failed batch = %d, want 1 (rolled back)", w.nextEntityID)
+	}
+	if w.HasEntity(NewEntity(2)) {
+		t.Fatal("failed batch must not leave entities behind")
+	}
+}
+
 func TestDestroyEntityRemovesComponents(t *testing.T) {
 	w := NewWorld()
 	e, _ := w.NewEntity(position{})
@@ -631,6 +681,29 @@ func TestWorldCreationRejectsPointerComponents(t *testing.T) {
 				t.Fatalf("value component after failures = %v, %v; want ID 1", entity, err)
 			}
 		})
+	}
+}
+
+func TestNewEntityDoesNotWriteCallerBackingArray(t *testing.T) {
+	w := NewWorld()
+	comps := make([]any, 1, 4)
+	comps[0] = Transform{Position: geom.Vector2{X: 3, Y: 4}}
+
+	entity, err := w.NewEntity(comps...)
+	if err != nil {
+		t.Fatalf("NewEntity: %v", err)
+	}
+	if len(comps) != 1 {
+		t.Fatalf("caller slice grew to len %d", len(comps))
+	}
+	backing := comps[:cap(comps)]
+	for i := 1; i < len(backing); i++ {
+		if backing[i] != nil {
+			t.Fatalf("caller backing array[%d] = %v, want nil (append must not write into it)", i, backing[i])
+		}
+	}
+	if !entity.HasComponent[PrevTransform](w) {
+		t.Fatal("entity should still get its auto PrevTransform")
 	}
 }
 
