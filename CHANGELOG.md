@@ -81,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document the unreleased playlist API (#144)
 
 ### Fixed
+- Handle race conditions by deallocating images and subimages on concurrent loads (#306)
 - Prevent panic for zero-value player and out-of-range sel… (#305)
 - Ensure panic handling is correctly reported to waiters in concurrent loads (#304)
 - Reject recursive same-key loads instead of deadlocking (#302)
