@@ -434,6 +434,71 @@ func TestExecuteCancelInterplay(t *testing.T) {
 			t.Fatal("self-cancelled entry was re-registered")
 		}
 	})
+
+	t.Run("cancel and reschedule under the same name", func(t *testing.T) {
+		s, w := newScheduler()
+		var log []string
+		first := func(ctx *core.Context) error {
+			log = append(log, "first")
+			if err := s.Cancel("job"); err != nil {
+				return err
+			}
+			return s.Once("job", 0, record(&log, "replacement"))
+		}
+		// "first" is registered first, so at the same due tick it runs first.
+		if err := s.AtTick("first", 1, first); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		if err := s.Once("job", 1, record(&log, "original")); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		advance(w, 1)
+		if err := run(s, w); err != nil {
+			t.Fatalf("run tick 1: %v", err)
+		}
+		advance(w, 1)
+		if err := run(s, w); err != nil {
+			t.Fatalf("run tick 2: %v", err)
+		}
+		// The replacement scheduled under the same name must run; the old
+		// entry must not clobber or duplicate it.
+		want := []string{"first", "replacement"}
+		if !slices.Equal(log, want) {
+			t.Fatalf("execution log = %v, want %v", log, want)
+		}
+		if _, ok := s.NextDue("job"); ok {
+			t.Fatal("job still registered after running")
+		}
+	})
+
+	t.Run("error after self-cancel does not resurrect", func(t *testing.T) {
+		s, w := newScheduler()
+		var log []string
+		failing := func(ctx *core.Context) error {
+			log = append(log, "failing")
+			_ = s.Cancel("flaky")
+			return errors.New("boom")
+		}
+		if err := s.Once("flaky", 0, failing); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		advance(w, 1)
+		if err := run(s, w); err == nil {
+			t.Fatal("run should surface the action error")
+		}
+		advance(w, 1)
+		if err := run(s, w); err != nil {
+			t.Fatalf("second run: %v", err)
+		}
+		if len(log) != 1 {
+			t.Fatalf("cancelled entry ran %d times, want 1", len(log))
+		}
+		if _, ok := s.NextDue("flaky"); ok {
+			t.Fatal("cancelled entry was resurrected after its error")
+		}
+	})
 }
 
 func TestExecuteEveryOverflowDrops(t *testing.T) {
