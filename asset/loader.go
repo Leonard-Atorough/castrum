@@ -8,6 +8,8 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -129,6 +131,12 @@ func (l *Loader) Load[T any](fpath string, opts ...loadOption) (T, error) {
 
 	if value, ok := l.cache.get(key); ok {
 		return value.(codecValue[T]).value, nil
+	}
+	if owner, ok := l.cache.decodingOwner(key); ok && owner == goID() {
+		// A decoder on this goroutine is recursively loading its own key:
+		// waiting on the in-flight call would deadlock, because only this
+		// load can complete it. Fail fast instead.
+		return zero, &AssetError{Op: "Load", ID: ID(fpath), Err: fmt.Errorf("recursive load: the decoder for %q is loading its own asset", fpath)}
 	}
 
 	value, err := l.cache.deduplicate(key, func() (any, error) {
@@ -279,6 +287,10 @@ type cache struct {
 	mu      sync.RWMutex
 	entries map[loadKey]any
 	pending map[loadKey]*loadCall
+	// decoding records the goroutine ID of the owner currently decoding each
+	// key, so a recursive same-key Load on that goroutine can be detected and
+	// rejected instead of deadlocking on the in-flight call.
+	decoding map[loadKey]uint64
 }
 
 type loadCall struct {
@@ -288,9 +300,47 @@ type loadCall struct {
 
 func newCache() *cache {
 	return &cache{
-		entries: make(map[loadKey]any),
-		pending: make(map[loadKey]*loadCall),
+		entries:  make(map[loadKey]any),
+		pending:  make(map[loadKey]*loadCall),
+		decoding: make(map[loadKey]uint64),
 	}
+}
+
+// decodingOwner returns the goroutine ID of the owner currently decoding key.
+func (c *cache) decodingOwner(key loadKey) (uint64, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	id, ok := c.decoding[key]
+	return id, ok
+}
+
+// setDecoding records key's mid-decode owner; owner 0 means "unknown ID"
+// (parse failure), which still compares equal to itself on the same goroutine.
+func (c *cache) setDecoding(key loadKey, owner uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.decoding[key] = owner
+}
+
+// clearDecoding removes key's mid-decode owner.
+func (c *cache) clearDecoding(key loadKey) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.decoding, key)
+}
+
+func goID() uint64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	fields := strings.Fields(string(buf[:n]))
+	if len(fields) < 2 || fields[0] != "goroutine" {
+		return 0
+	}
+	id, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return id
 }
 
 func (c *cache) get(key loadKey) (any, bool) {
@@ -317,7 +367,12 @@ func (c *cache) deduplicate(key loadKey, load func() (any, error)) (any, error) 
 	call := &loadCall{done: make(chan struct{}), result: sync.OnceValues(load)}
 	c.pending[key] = call
 	c.mu.Unlock()
+	// Mark the key with the owner's goroutine before decoding, so a recursive
+	// same-key Load on this goroutine is rejected in Load instead of blocking
+	// on this call's done channel, which only this owner closes.
+	c.setDecoding(key, goID())
 	defer func() {
+		c.clearDecoding(key)
 		c.mu.Lock()
 		delete(c.pending, key)
 		close(call.done)
