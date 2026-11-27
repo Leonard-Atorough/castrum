@@ -1,5 +1,3 @@
-// Package castrum provides the game shell: a world, fixed-tick simulation,
-// and system schedules driven by a runner.
 package castrum
 
 import (
@@ -51,10 +49,7 @@ const (
 func (l lifecycle) has(flag lifecycle) bool { return l&flag != 0 }
 
 // New creates a [Game] with default options overridden by opts. It panics
-// if the resulting configuration is invalid.
-//
-// The asset loader resolves engine-shipped assets under "builtin/" alongside
-// the configured filesystem.
+// if the configuration is invalid or game initialization fails.
 func New(opts ...option) *Game {
 	g, err := newGame(opts...)
 	if err != nil {
@@ -116,7 +111,7 @@ func newGame(opts ...option) (*Game, error) {
 	return g, nil
 }
 
-// Options returns a copy of the game's configuration.
+// Options returns a shallow copy of the game's configuration.
 func (g *Game) Options() Options {
 	return g.opts
 }
@@ -168,15 +163,15 @@ func InGroup(group string) SystemOption {
 // previously registered user systems. [Before] and [After] change its
 // position, and [InGroup] assigns it to a group.
 //
-// AddSystem panics for an empty name or multiple position options. It
-// returns an error for an invalid phase, a duplicate name in the phase,
-// an invalid target, an invalid option, an empty group, or multiple group options.
-// It also returns an error for startup phases once [Game.Startup] begins.
+// AddSystem panics for an invalid phase, an empty name, an empty option
+// value, an invalid option, or multiple position or group options. It returns
+// an error for a name already registered in the phase, a target not yet
+// registered, or a startup phase once [Game.Startup] has begun.
 //
 // Systems added during a phase run are eligible on the next run of that phase.
 func (g *Game) AddSystem(phase core.Phase, name string, system core.SystemFunc, options ...SystemOption) error {
 	if phase < core.PhasePreStartup || phase > core.PhasePostFixed {
-		return fmt.Errorf("castrum: AddSystem: invalid phase %s", phase)
+		panic(fmt.Errorf("castrum: AddSystem: invalid phase %s", phase))
 	}
 	if phase <= core.PhasePostStartup && g.state.has(lifecycleStartupBegun) {
 		return fmt.Errorf("castrum: AddSystem: startup has already begun (phase %s)", phase)
@@ -194,19 +189,19 @@ func (g *Game) AddSystem(phase core.Phase, name string, system core.SystemFunc, 
 				panic(fmt.Errorf("castrum: AddSystem: multiple position options"))
 			}
 			if option.value == "" {
-				return fmt.Errorf("castrum: AddSystem: target must not be empty")
+				panic(fmt.Errorf("castrum: AddSystem: target must not be empty"))
 			}
 			position, target = option.kind, option.value
 		case systemOptionGroup:
 			if groupSet {
-				return fmt.Errorf("castrum: AddSystem: multiple group options")
+				panic(fmt.Errorf("castrum: AddSystem: multiple group options"))
 			}
 			if option.value == "" {
-				return fmt.Errorf("castrum: AddSystem: group must not be empty")
+				panic(fmt.Errorf("castrum: AddSystem: group must not be empty"))
 			}
 			group, groupSet = option.value, true
 		default:
-			return fmt.Errorf("castrum: AddSystem: invalid system option")
+			panic(fmt.Errorf("castrum: AddSystem: invalid system option"))
 		}
 	}
 	entry := runtime.Entry{Name: name, System: system, Group: group}
@@ -250,12 +245,13 @@ func (g *Game) addEngineFirst(phase core.Phase, name string, system core.SystemF
 }
 
 // SetGroupEnabled enables or disables a registered group across all phases.
-// The state also applies to systems registered in the group later. It returns
-// an error if group is empty or has no registered systems. A change affects
-// subsequent systems, including later systems in the current phase.
+// The state also applies to systems registered in the group later. It panics
+// for an empty group name and returns an error if the group has no
+// registered systems. A change affects subsequent systems, including later
+// systems in the current phase.
 func (g *Game) SetGroupEnabled(group string, enabled bool) error {
 	if group == "" {
-		return fmt.Errorf("castrum: SetGroupEnabled: group must not be empty")
+		panic(fmt.Errorf("castrum: SetGroupEnabled: group must not be empty"))
 	}
 	if _, registered := g.groupStates[group]; !registered {
 		return fmt.Errorf("castrum: SetGroupEnabled: group %q is not registered", group)
@@ -266,7 +262,8 @@ func (g *Game) SetGroupEnabled(group string, enabled bool) error {
 
 // Startup runs [core.PhasePreStartup], [core.PhaseStartup], and
 // [core.PhasePostStartup] once, after resolving eager resources. Runners call
-// it before entering the platform loop; a second call returns an error.
+// it before entering the platform loop. A second call returns an error, even
+// if the first call failed.
 func (g *Game) Startup() error {
 	if g.state.has(lifecycleStartupBegun) {
 		return errors.New("castrum: Startup already ran")
@@ -367,7 +364,7 @@ func (g *Game) Alpha() float64 {
 	return float64(g.acc) / float64(g.sim.Delta)
 }
 
-// Frame counts display frames since startup.
+// Frame returns the number of frames advanced by [Game.Advance].
 func (g *Game) Frame() uint64 {
 	return g.real.Frame
 }
