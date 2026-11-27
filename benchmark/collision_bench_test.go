@@ -31,8 +31,16 @@ func colliderWorld(b *testing.B, n int) (*core.World, []core.Entity) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		collider.Layers = collision.Layers(1)
-		collider.Mask = collision.Mask(1)
+		layers, err := collision.Layers(1)
+		if err != nil {
+			b.Fatal(err)
+		}
+		mask, err := collision.Mask(1)
+		if err != nil {
+			b.Fatal(err)
+		}
+		collider.Layers = layers
+		collider.Mask = mask
 		e, err := world.NewEntity(
 			core.Transform{Position: geom.Vector2{X: float64(i%64) * 24, Y: float64(i/64) * 24}},
 			collider,

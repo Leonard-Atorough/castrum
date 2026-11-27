@@ -142,7 +142,7 @@ func newGame() (*demo, error) {
 }
 
 func (d *demo) controls(ctx *core.Context) error {
-	actions, _ := ctx.World.Resource[input.Actions]()
+	actions := ctx.World.MustResource[input.Actions]()
 	// Give switching priority if both actions occur in the same frame.
 	if actions.JustPressed("travel") {
 		next := field

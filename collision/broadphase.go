@@ -64,11 +64,17 @@ func (b *broadphase) Sync(world *core.World, tick uint64) ([]core.EntityID, erro
 
 	for entry := range b.query.Execute() {
 		id := entry.ID()
-		collider, _ := entry.Component[Collider]()
+		collider, ok := entry.Component[Collider]()
+		if !ok {
+			continue
+		}
 		if !collider.Active {
 			continue
 		}
-		transform, _ := entry.Component[core.Transform]()
+		transform, ok := entry.Component[core.Transform]()
+		if !ok {
+			continue
+		}
 		b.seen[id] = struct{}{}
 
 		current := b.proxies[id]

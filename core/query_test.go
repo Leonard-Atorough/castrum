@@ -1,7 +1,9 @@
 package core
 
 import (
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -403,6 +405,88 @@ func TestQueryReentrantPanics(t *testing.T) {
 		for range q.Execute() {
 		}
 	}
+}
+
+func TestExecutePanicsOnStructuralChangeDuringPass(t *testing.T) {
+	for _, op := range []string{"destroy", "spawn", "add-component", "remove-component"} {
+		t.Run(op, func(t *testing.T) {
+			w := NewWorld()
+			a := mustQueryEntity(t, w, queryPos{X: 1})
+			b := mustQueryEntity(t, w, queryPos{X: 2}, queryVel{X: 9})
+			q := NewQuery(w).With(queryPos{})
+
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Fatal("structural change during a pass should panic")
+				}
+				if msg, ok := r.(string); !ok || !strings.Contains(msg, "invalidated") {
+					t.Fatalf("panic = %v, want an iteration-invalidated message", r)
+				}
+			}()
+			for e := range q.Execute() {
+				switch op {
+				case "destroy":
+					_ = w.DestroyEntity(b)
+				case "spawn":
+					_, _ = w.NewEntity(queryPos{X: 3})
+				case "add-component":
+					_ = a.AddComponent(w, queryVel{}) // not present on a: migrates archetypes
+				case "remove-component":
+					_ = b.RemoveComponent[queryVel](w)
+				}
+				_ = e
+			}
+		})
+	}
+}
+
+func TestEntryUsableAfterPassUntilStructuralChange(t *testing.T) {
+	w := NewWorld()
+	mustQueryEntity(t, w, queryPos{X: 1})
+	q := NewQuery(w).With(queryPos{})
+
+	entry, ok := q.First()
+	if !ok {
+		t.Fatal("First found no entry")
+	}
+	// No structural change since the pass: the entry still reads correctly.
+	if p, ok := entry.Component[queryPos](); !ok || p.X != 1 {
+		t.Fatalf("entry after pass = %+v, %v; want X=1", p, ok)
+	}
+
+	// A structural change invalidates retained entries loudly.
+	mustQueryEntity(t, w, queryPos{X: 2})
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("stale entry use should panic")
+		}
+		if msg, ok := r.(string); !ok || !strings.Contains(msg, "stale") {
+			t.Fatalf("panic = %v, want a stale-entry message", r)
+		}
+	}()
+	_, _ = entry.Component[queryPos]()
+}
+
+func TestEntryUpdateOutOfRangeMessage(t *testing.T) {
+	w := NewWorld()
+	mustQueryEntity(t, w, queryPos{X: 1})
+	stale := Entry{
+		index:   99,
+		columns: map[reflect.Type][]any{reflect.TypeFor[queryPos](): {queryPos{X: 1}}},
+		pass:    &queryPass{world: w, structVersion: w.archetypes.StructVersion()},
+	}
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("out-of-range row should panic")
+		}
+		if msg, ok := r.(string); !ok || !strings.Contains(msg, "out of range") {
+			t.Fatalf("panic = %v, want an out-of-range message (not 'not listed in With')", r)
+		}
+	}()
+	stale.Update(func(p *queryPos) { p.X = 2 })
 }
 
 func TestWithMarkerGuards(t *testing.T) {

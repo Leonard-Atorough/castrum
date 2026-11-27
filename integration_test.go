@@ -759,7 +759,9 @@ func TestTweenClocksFollowPauseAndTimeScale(t *testing.T) {
 					g.Resume()
 				}
 				if step.scale > 0 {
-					g.SetTimeScale(step.scale)
+					if err := g.SetTimeScale(step.scale); err != nil {
+						t.Fatalf("step %d: SetTimeScale(%v) error: %v", i, step.scale, err)
+					}
 				}
 				if err := g.Advance(step.delta); err != nil {
 					t.Fatalf("step %d: Advance() error: %v", i, err)

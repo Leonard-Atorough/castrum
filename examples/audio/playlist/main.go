@@ -24,7 +24,7 @@ type demonstration struct {
 }
 
 func (d *demonstration) controls(ctx *core.Context) error {
-	current, _ := ctx.World.Resource[*input.Snapshot]()
+	current := ctx.World.MustResource[*input.Snapshot]()
 	if current.KeyPressed(input.KeyN) || current.KeyPressed(input.KeyP) || current.KeyPressed(input.KeyR) {
 		if err := d.entity.Update(ctx.World, func(p *audio.Player) {
 			if current.KeyPressed(input.KeyN) {

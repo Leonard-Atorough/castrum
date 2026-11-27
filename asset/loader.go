@@ -8,6 +8,8 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -16,7 +18,7 @@ import (
 type ID string
 
 // Format identifies an asset's encoding and selects its decoder or encoder.
-// It defaults to the lowercased file extension.
+// Path loads and saves infer it from the lowercased file extension by default.
 type Format string
 
 // Format constants identify common asset encodings, not installed codecs.
@@ -63,8 +65,7 @@ func (p CachePolicy) validate() error {
 	return nil
 }
 
-// Loader loads assets from a filesystem, decodes them with registered
-// decoders, and caches the results.
+// Loader loads assets from a filesystem and decodes them with registered decoders.
 type Loader struct {
 	fs          fs.FS
 	codecs      *Codecs
@@ -74,9 +75,9 @@ type Loader struct {
 
 // LoaderOptions configures a loader at construction.
 type LoaderOptions struct {
-	// Codecs supplies shared registrations, read on each call. Nil selects the defaults.
+	// Codecs supplies shared registrations for decoding. Nil selects the defaults.
 	Codecs *Codecs
-	// CachePolicy is the default for path loads. Zero selects CacheReuse.
+	// CachePolicy is the default for path loads. Zero selects [CacheReuse].
 	CachePolicy CachePolicy
 }
 
@@ -130,6 +131,12 @@ func (l *Loader) Load[T any](fpath string, opts ...loadOption) (T, error) {
 	if value, ok := l.cache.get(key); ok {
 		return value.(codecValue[T]).value, nil
 	}
+	if owner, ok := l.cache.decodingOwner(key); ok && owner == goID() {
+		// A decoder on this goroutine is recursively loading its own key:
+		// waiting on the in-flight call would deadlock, because only this
+		// load can complete it. Fail fast instead.
+		return zero, &AssetError{Op: "Load", ID: ID(fpath), Err: fmt.Errorf("recursive load: the decoder for %q is loading its own asset", fpath)}
+	}
 
 	value, err := l.cache.deduplicate(key, func() (any, error) {
 		if value, ok := l.cache.get(key); ok {
@@ -174,7 +181,7 @@ func (l *Loader) read[T any](name string, format Format) (value T, err error) {
 	return value, nil
 }
 
-// Open opens the asset at name as a raw file and returns its inferred format.
+// Open opens the asset at fpath as a raw file and returns its inferred format.
 // Unlike [Loader.Load], it does not decode or cache the asset. The caller
 // owns the file and must close it.
 //
@@ -216,8 +223,8 @@ func (l *Loader) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 	return value, nil
 }
 
-// WithCachePolicy overrides the loader's default cache policy for one Load.
-// CacheBypass does not refresh or invalidate an existing cached value.
+// WithCachePolicy overrides the loader's default cache policy for one [Loader.Load].
+// [CacheBypass] does not refresh or invalidate an existing cached value.
 func WithCachePolicy(policy CachePolicy) loadOption {
 	return loadOptionFunc(func(opts *loadOptions) {
 		opts.cachePolicy = policy
@@ -276,21 +283,58 @@ type codecValue[T any] struct {
 }
 
 type cache struct {
-	mu      sync.RWMutex
-	entries map[loadKey]any
-	pending map[loadKey]*loadCall
+	mu       sync.RWMutex
+	entries  map[loadKey]any
+	pending  map[loadKey]*loadCall
+	decoding map[loadKey]uint64
 }
 
 type loadCall struct {
-	done   chan struct{}
-	result func() (any, error)
+	done  chan struct{}
+	value any
+	err   error
+	pan   any // non-nil when the owner's load panicked
 }
 
 func newCache() *cache {
 	return &cache{
-		entries: make(map[loadKey]any),
-		pending: make(map[loadKey]*loadCall),
+		entries:  make(map[loadKey]any),
+		pending:  make(map[loadKey]*loadCall),
+		decoding: make(map[loadKey]uint64),
 	}
+}
+
+func (c *cache) decodingOwner(key loadKey) (uint64, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	id, ok := c.decoding[key]
+	return id, ok
+}
+
+func (c *cache) setDecoding(key loadKey, owner uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.decoding[key] = owner
+}
+
+func (c *cache) clearDecoding(key loadKey) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.decoding, key)
+}
+
+func goID() uint64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	fields := strings.Fields(string(buf[:n]))
+	if len(fields) < 2 || fields[0] != "goroutine" {
+		return 0
+	}
+	id, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return id
 }
 
 func (c *cache) get(key loadKey) (any, bool) {
@@ -311,19 +355,39 @@ func (c *cache) deduplicate(key loadKey, load func() (any, error)) (any, error) 
 	if call, ok := c.pending[key]; ok {
 		c.mu.Unlock()
 		<-call.done
-		return call.result()
+		// A panic in the owner's load is reported to waiters as an error;
+		// only the owner re-panics.
+		if call.pan != nil {
+			if err, ok := call.pan.(error); ok {
+				return nil, fmt.Errorf("asset: shared load panicked: %w", err)
+			}
+			return nil, fmt.Errorf("asset: shared load panicked: %v", call.pan)
+		}
+		return call.value, call.err
 	}
-	// Only the owner executes load; OnceValues replays its result or panic.
-	call := &loadCall{done: make(chan struct{}), result: sync.OnceValues(load)}
+	// Only the owner executes load; waiters read the recorded outcome.
+	call := &loadCall{done: make(chan struct{})}
 	c.pending[key] = call
 	c.mu.Unlock()
+	// Mark the key with the owner's goroutine before decoding, so a recursive
+	// same-key Load on this goroutine is rejected in Load instead of blocking
+	// on this call's done channel, which only this owner closes.
+	c.setDecoding(key, goID())
 	defer func() {
+		c.clearDecoding(key)
 		c.mu.Lock()
 		delete(c.pending, key)
-		close(call.done)
 		c.mu.Unlock()
+		close(call.done)
 	}()
-	return call.result()
+	func() {
+		defer func() { call.pan = recover() }()
+		call.value, call.err = load()
+	}()
+	if call.pan != nil {
+		panic(call.pan)
+	}
+	return call.value, call.err
 }
 
 type loadOption interface {
@@ -358,8 +422,6 @@ func resolveLoad(name string, policy CachePolicy, opts ...loadOption) (loadOptio
 	return lo, nil
 }
 
-// normalizeAssetPath returns the canonical slash-separated, cleaned path
-// fs.FS expects.
 func normalizeAssetPath(name string) string {
 	return path.Clean(name)
 }

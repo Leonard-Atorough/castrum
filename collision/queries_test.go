@@ -8,6 +8,15 @@ import (
 	"github.com/Leonard-Atorough/castrum/geom"
 )
 
+func layers2(t *testing.T) uint32 {
+	t.Helper()
+	layers, err := Layers(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return layers
+}
+
 func TestQueriesRaycastUsesBroadphaseAndTargetLayers(t *testing.T) {
 	world := newCollisionWorld(t)
 	makeCollider := func(position geom.Vector2, layer int, mask uint32) core.Entity {
@@ -16,7 +25,11 @@ func TestQueriesRaycastUsesBroadphaseAndTargetLayers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		collider.Layers = Layers(layer)
+		layers, err := Layers(layer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		collider.Layers = layers
 		collider.Mask = mask
 		entity, err := world.NewEntity(core.Transform{Position: position}, collider)
 		if err != nil {
@@ -37,25 +50,33 @@ func TestQueriesRaycastUsesBroadphaseAndTargetLayers(t *testing.T) {
 	}
 
 	segment := geom.Segment{Start: geom.Vector2{X: -3}, End: geom.Vector2{X: 10}}
-	hit, ok := queries.Raycast(segment, RaycastFilter{Mask: Mask(2)})
+	mask2, err := Mask(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hit, ok := queries.Raycast(segment, RaycastFilter{Mask: mask2})
 	if !ok || hit.Entity != far || hit.Distance != 6 {
 		t.Fatalf("layer-filtered hit = %+v, %t; want entity %d at distance 6", hit, ok, far.ID())
 	}
-	if hit.Collider.Layers != Layers(2) || hit.Collider.Mask != math.MaxUint32 {
-		t.Fatalf("hit collider = %+v; want layers %08b and mask %08b", hit.Collider, Layers(2), uint32(math.MaxUint32))
+	if hit.Collider.Layers != layers2(t) || hit.Collider.Mask != math.MaxUint32 {
+		t.Fatalf("hit collider = %+v; want layers %08b and mask %08b", hit.Collider, layers2(t), uint32(math.MaxUint32))
 	}
 	shape, ok := hit.Collider.Shape.(Circle)
 	if !ok || shape.Radius != 1 {
 		t.Fatalf("hit collider shape = %#v; want Circle with radius 1", hit.Collider.Shape)
 	}
-	hit, ok = queries.Raycast(segment, RaycastFilter{Mask: Mask(1)})
+	mask1, err := Mask(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hit, ok = queries.Raycast(segment, RaycastFilter{Mask: mask1})
 	if !ok || hit.Entity != near {
 		t.Fatalf("raycast should hit layer-matched collider with empty Collider.Mask: %+v, %t", hit, ok)
 	}
 	if _, ok := queries.Raycast(segment, RaycastFilter{}); ok {
 		t.Fatal("raycast with empty mask should miss")
 	}
-	if _, ok := queries.Raycast(segment, RaycastFilter{Mask: Mask(2), Exclude: []core.Entity{far}}); ok {
+	if _, ok := queries.Raycast(segment, RaycastFilter{Mask: mask2, Exclude: []core.Entity{far}}); ok {
 		t.Fatal("raycast hit excluded collider")
 	}
 }

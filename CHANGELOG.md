@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spawn entities owned by scene instances (#132)
 
 ### Changed
+- DrawItem handling refactored to separate drawables (#301)
 - Update error handling to panic for invalid options and empty group names (#276)
 - Rename error messages to use ebitrun prefix (#275)
 - **breaking:** Redesign mixer resource to support custom buses and bus controls (#274)
@@ -80,6 +81,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document the unreleased playlist API (#144)
 
 ### Fixed
+- Replace panics with error returns in AddSystem and SetTimeScale methods (#312)
+- **breaking:** Improve error handling and validation for layers and masks (#311)
+- Enhance snapshot resolution error handling in NewFrameSystem (#310)
+- Check system scheduler liveliness by identity (#309)
+- Enhance iteration safety by validating structural changes during execution (#308)
+- Handle panic recovery in constructors and ensure entity ID rollback on failure (#307)
+- Handle race conditions by deallocating images and subimages on concurrent loads (#306)
+- Prevent panic for zero-value player and out-of-range sel… (#305)
+- Ensure panic handling is correctly reported to waiters in concurrent loads (#304)
+- Reject recursive same-key loads instead of deadlocking (#302)
 - **breaking:** Improve engine initialization by switching from errors to panics and reducing ceremony between game and runner (#261)
 - Clean up some godoc to read better and less like placeholders (#259)
 - Migrate fixtures off the removed sprite shape fields (#256)

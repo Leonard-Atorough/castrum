@@ -196,7 +196,14 @@ func (p Player) Source() Source { return p.source }
 func (p Player) Completed() bool { return p.completed }
 
 // Current returns the selected audio ID, whether or not it has been synced.
-func (p Player) Current() asset.ID { return p.source.At(p.current) }
+// It returns an empty ID for a player with no tracks or an out-of-range
+// selection instead of panicking.
+func (p Player) Current() asset.ID {
+	if p.current < 0 || p.current >= len(p.source.tracks) {
+		return ""
+	}
+	return p.source.At(p.current)
+}
 
 // Index returns the selected track's index in the source.
 func (p Player) Index() int { return p.current }
@@ -212,13 +219,21 @@ func (p *Player) Restart() {
 }
 
 // Next selects the next track, wrapping to the first, and requests a restart.
+// It does nothing for a player with no tracks.
 func (p *Player) Next() {
+	if len(p.source.tracks) == 0 {
+		return
+	}
 	p.current = (p.current + 1) % len(p.source.tracks)
 	p.selectionVersion++
 }
 
 // Prev selects the previous track, wrapping to the last, and requests a restart.
+// It does nothing for a player with no tracks.
 func (p *Player) Prev() {
+	if len(p.source.tracks) == 0 {
+		return
+	}
 	p.current = (p.current - 1 + len(p.source.tracks)) % len(p.source.tracks)
 	p.selectionVersion++
 }

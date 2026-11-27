@@ -150,7 +150,7 @@ func run() error {
 	// One fixed system reads all five timers and reacts to their
 	// state; it is the only gameplay logic in the program.
 	if err := g.AddSystem(core.PhaseFixed, "gametime.reactions", func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[input.Actions]()
+		actions := ctx.World.MustResource[input.Actions]()
 
 		if actions.Pressed("restart_one_shot") {
 			if err := oneShot.Update(ctx.World, func(t *gametime.Timer) { t.Restart() }); err != nil {

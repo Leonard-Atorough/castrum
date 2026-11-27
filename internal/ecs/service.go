@@ -41,6 +41,10 @@ type Service struct {
 	// tick is the current change tick, advanced by [Service.AdvanceTick]. Writes stamp
 	// tracked rows with it.
 	tick uint64
+	// structVersion increments on every structural mutation: entity creation
+	// or destruction and archetype migration. Iterators compare it to detect
+	// that stored row indices may have moved.
+	structVersion uint64
 	// removals holds per-type removal records for the current tick window,
 	// created lazily on the first tracked removal. Rotates on [Service.AdvanceTick].
 	removals map[reflect.Type][]Removal
@@ -60,6 +64,14 @@ func NewService() *Service {
 // Tick returns the current change tick.
 func (s *Service) Tick() uint64 {
 	return s.tick
+}
+
+// StructVersion returns the number of structural mutations since creation:
+// entity creation, destruction, and archetype migration. Component value
+// writes do not change it. Snapshot it and compare later to detect that
+// stored row indices may have moved.
+func (s *Service) StructVersion() uint64 {
+	return s.structVersion
 }
 
 // AdvanceTick advances the change tick by one and rotates the removal
@@ -131,6 +143,7 @@ func (s *Service) Create(entityID EntityID, types []reflect.Type, values []any) 
 		ArchetypeID: arch.ID(),
 		Index:       index,
 	}
+	s.structVersion++
 	return nil
 
 }
@@ -178,6 +191,7 @@ func (s *Service) CreateBatch(ids []EntityID, types []reflect.Type, values []any
 			Index:       start + i,
 		}
 	}
+	s.structVersion++
 	return nil
 }
 
@@ -211,6 +225,7 @@ func (s *Service) Destroy(entityID EntityID) Result {
 			Index:       loc.Index,
 		}
 	}
+	s.structVersion++
 	s.store.cleanupEmpty(arch)
 
 	return Result{
@@ -309,6 +324,7 @@ func (s *Service) AddComponents(entityID EntityID, types []reflect.Type, values 
 		ArchetypeID: to.ID(),
 		Index:       newIndex,
 	}
+	s.structVersion++
 
 	s.store.cleanupEmpty(from)
 
@@ -401,6 +417,7 @@ func (s *Service) RemoveComponents(entityID EntityID, types []reflect.Type) Resu
 		ArchetypeID: to.ID(),
 		Index:       newIndex,
 	}
+	s.structVersion++
 
 	s.store.cleanupEmpty(from)
 

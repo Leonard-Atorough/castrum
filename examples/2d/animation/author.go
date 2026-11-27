@@ -34,8 +34,7 @@ func authorSheets(dir string) (err error) {
 		}
 		saver, saverErr := asset.NewSaver(directory, asset.SaverOptions{})
 		if saverErr != nil {
-			directory.Close()
-			return saverErr
+			return errors.Join(saverErr, directory.Close())
 		}
 		saveErr := sheet.Save(saver, strip.sheet)
 		err = errors.Join(err, saveErr, directory.Close())

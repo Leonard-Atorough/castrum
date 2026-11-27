@@ -10,9 +10,10 @@ import (
 	"github.com/Leonard-Atorough/castrum/internal/ecs"
 )
 
-// Entry is a query result for one entity. Its component data is backed by
-// iteration storage and may refer to another row after iteration advances.
-// Retain [Entry.Entity] instead; the handle is safe to keep after the query pass.
+// Entry is a query result for one entity. Use its component methods while
+// visiting the entity, or on an entry returned by [Query.First] before the
+// query executes again. Structural changes invalidate component access and
+// may cause these methods to panic. Retain [Entry.Entity] instead for later use.
 type Entry struct {
 	entityID EntityID
 	index    int
@@ -20,11 +21,17 @@ type Entry struct {
 	pass     *queryPass
 }
 
-// queryPass carries the per-pass iteration context shared by all entries of
-// one Execute call.
 type queryPass struct {
-	arch *ecs.Archetype
-	tick uint64
+	world         *World
+	arch          *ecs.Archetype
+	tick          uint64
+	structVersion uint64
+}
+
+func (e Entry) checkLive() {
+	if e.pass == nil || e.pass.world.archetypes.StructVersion() != e.pass.structVersion {
+		panic("castrum: query entry is stale: the world changed structurally since its pass; retain Entry.Entity and re-read components through the entity instead")
+	}
 }
 
 // ID returns the identifier of the entity associated with this entry.
@@ -42,6 +49,7 @@ func (e Entry) Entity() Entity {
 // The write bypasses [Validatable]. If T implements [TrackChanges], it
 // stamps the row with the [World.Tick] captured at the start of the pass.
 func (e Entry) SetComponent[T any](value T) {
+	e.checkLive()
 	typ := reflect.TypeFor[T]()
 	column, ok := e.columns[typ]
 	if !ok {
@@ -56,12 +64,16 @@ func (e Entry) SetComponent[T any](value T) {
 // types cause a panic. Like [Entry.SetComponent], the write bypasses [Validatable]
 // and stamps the row's change tick when T implements [TrackChanges].
 func (e Entry) Update[T any](fn func(*T)) {
+	e.checkLive()
 	typ := reflect.TypeFor[T]()
 	column, ok := e.columns[typ]
 	var value T
 
-	if !ok || e.index >= len(column) {
+	if !ok {
 		panic(fmt.Sprintf("castrum: Entry.Update: type %v was not listed in With", typ))
+	}
+	if e.index >= len(column) {
+		panic(fmt.Sprintf("castrum: Entry.Update: row %d is out of range for type %v", e.index, typ))
 	}
 
 	value = column[e.index].(T)
@@ -76,6 +88,7 @@ func (e Entry) Update[T any](fn func(*T)) {
 // that does not implement [TrackChanges]. The ticks are comparable with
 // [World.Tick].
 func (e Entry) ChangedOn[T any]() (added, changed uint64) {
+	e.checkLive()
 	typ := reflect.TypeFor[T]()
 	if _, ok := e.columns[typ]; !ok {
 		panic(fmt.Sprintf("castrum: Entry.ChangedOn: type %v was not listed in With", typ))
@@ -90,6 +103,7 @@ func (e Entry) ChangedOn[T any]() (added, changed uint64) {
 // Component returns the visited entity's component of type T. It reports
 // false for types not listed in [Query.With], even if the entity has them.
 func (e Entry) Component[T any]() (T, bool) {
+	e.checkLive()
 	v, ok := e.columns[reflect.TypeFor[T]()]
 	if !ok || e.index >= len(v) {
 		var zero T
@@ -183,9 +197,8 @@ func (q *Query) Where(predicate func(e Entry) bool) *Query {
 // Added filters matches to entities whose component of one of the [Query.With]
 // types was added after the tick of this query's last [Query.Execute] pass.
 // At least one With type must implement [TrackChanges]; other With types are ignored by
-// the filter, and a With set with no tracked type causes a panic. A query
-// that has never executed admits every row through this filter on its first pass.
-// If Changed is also set, a row passes when either filter matches.
+// the filter, and a With set with no tracked type causes a panic.
+// If [Query.Changed] is also set, a row passes when either filter matches.
 func (q *Query) Added() *Query {
 	q.requireTrackedWith("Added")
 	q.added = true
@@ -196,14 +209,13 @@ func (q *Query) Added() *Query {
 // [Query.With] types was written after the tick of this query's last
 // [Query.Execute] pass; additions count as changes. At least one With type
 // must implement [TrackChanges]; other With types are ignored by the filter, and a With set
-// with no tracked type causes a panic. A query that has never executed
-// admits every row through this filter on its first pass.
+// with no tracked type causes a panic.
 //
 // Writes stamp at [World.Tick]. Within one tick a write is visible only to
 // queries whose last pass ran at an earlier tick, so run a change-detection
 // system after the systems that write the observed components. Multiple writes
-// to a component between passes are reported as one match. If Added is also
-// set, a row passes when either filter matches.
+// to a component between passes are reported as one match. See [Query.Added]
+// for combining change filters.
 func (q *Query) Changed() *Query {
 	q.requireTrackedWith("Changed")
 	q.changed = true
@@ -246,8 +258,9 @@ func (q *Query) matchesChange(a *ecs.Archetype, index int) bool {
 //
 // A query cannot be executed recursively; use a separate query for nested
 // iteration. Do not spawn or destroy entities, or add or remove components,
-// during a pass. Such changes invalidate the iteration. Updating component
-// values through an [Entry] is allowed.
+// during a pass: such a structural change invalidates the iteration and may
+// cause a panic. Collect entities during the pass and apply structural changes
+// after it ends. Updating component values through an [Entry] is allowed.
 func (q *Query) Execute() iter.Seq[Entry] {
 	return func(yield func(Entry) bool) {
 		// One active iteration per query: the prefetch scratch is shared.
@@ -267,6 +280,13 @@ func (q *Query) Execute() iter.Seq[Entry] {
 			q.generation = gen
 			q.matchValid = true
 		}
+		q.pass.world = q.world
+		q.pass.structVersion = q.world.archetypes.StructVersion()
+		checkStructural := func() {
+			if q.world.archetypes.StructVersion() != q.pass.structVersion {
+				panic("castrum: query iteration invalidated: an entity was created or destroyed, or a component was added or removed, during the pass; collect entities during the pass and apply structural changes after Execute returns")
+			}
+		}
 		stopped := false
 	rows:
 		for _, archetype := range q.matches {
@@ -282,12 +302,14 @@ func (q *Query) Execute() iter.Seq[Entry] {
 					return true
 				}
 				if q.where != nil && !q.where(entry) {
+					checkStructural()
 					return true
 				}
 				if !yield(entry) {
 					stopped = true
 					return false
 				}
+				checkStructural()
 				return true
 			})
 			if stopped {

@@ -183,6 +183,12 @@ func (w *World) resolve(key reflect.Type) error {
 	switch entry.state {
 	case stateRegistered:
 		entry.state = stateResolving
+		defer func() {
+			if r := recover(); r != nil {
+				entry.state = stateRegistered
+				panic(r)
+			}
+		}()
 		instance, err := entry.ctor(w)
 		if err != nil {
 			entry.state = stateRegistered
@@ -245,6 +251,7 @@ func (w *World) NewEntities(count int, components ...any) ([]Entity, error) {
 	types := componentTypes(components)
 	entities := make([]Entity, count)
 	ids := make([]EntityID, count)
+	oldNext := w.nextEntityID
 	for i := range entities {
 		id := w.nextEntityID
 		w.nextEntityID++
@@ -253,6 +260,7 @@ func (w *World) NewEntities(count int, components ...any) ([]Entity, error) {
 	}
 
 	if err := w.archetypes.CreateBatch(ids, types, components); err != nil {
+		w.nextEntityID = oldNext
 		return nil, err
 	}
 	return entities, nil
@@ -303,7 +311,9 @@ func createPreviousTransformComponents(components []any) []any {
 		}
 	}
 	if hasTransform && !hasPrev {
-		components = append(components, transform.snapshot())
+		grown := make([]any, len(components), len(components)+1)
+		copy(grown, components)
+		return append(grown, transform.snapshot())
 	}
 	return components
 }

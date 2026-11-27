@@ -163,21 +163,21 @@ func InGroup(group string) SystemOption {
 // previously registered user systems. [Before] and [After] change its
 // position, and [InGroup] assigns it to a group.
 //
-// AddSystem panics for an invalid phase, an empty name, an empty option
-// value, an invalid option, or multiple position or group options. It returns
-// an error for a name already registered in the phase, a target not yet
-// registered, or a startup phase once [Game.Startup] has begun.
+// AddSystem returns an error for an invalid phase, an empty name, an empty
+// option value, an invalid option, multiple position or group options, a name
+// already registered in the phase, a target not yet registered, or a startup
+// phase once [Game.Startup] has begun.
 //
 // Systems added during a phase run are eligible on the next run of that phase.
 func (g *Game) AddSystem(phase core.Phase, name string, system core.SystemFunc, options ...SystemOption) error {
 	if phase < core.PhasePreStartup || phase > core.PhasePostFixed {
-		panic(fmt.Errorf("castrum: AddSystem: invalid phase %s", phase))
+		return fmt.Errorf("castrum: AddSystem: invalid phase %s", phase)
 	}
 	if phase <= core.PhasePostStartup && g.state.has(lifecycleStartupBegun) {
 		return fmt.Errorf("castrum: AddSystem: startup has already begun (phase %s)", phase)
 	}
 	if name == "" {
-		panic(fmt.Errorf("castrum: AddSystem: system name must not be empty (phase %s)", phase))
+		return fmt.Errorf("castrum: AddSystem: system name must not be empty (phase %s)", phase)
 	}
 	var position systemOptionKind
 	var target, group string
@@ -186,22 +186,22 @@ func (g *Game) AddSystem(phase core.Phase, name string, system core.SystemFunc, 
 		switch option.kind {
 		case systemOptionBefore, systemOptionAfter:
 			if position != 0 {
-				panic(fmt.Errorf("castrum: AddSystem: multiple position options"))
+				return fmt.Errorf("castrum: AddSystem: multiple position options")
 			}
 			if option.value == "" {
-				panic(fmt.Errorf("castrum: AddSystem: target must not be empty"))
+				return fmt.Errorf("castrum: AddSystem: target must not be empty")
 			}
 			position, target = option.kind, option.value
 		case systemOptionGroup:
 			if groupSet {
-				panic(fmt.Errorf("castrum: AddSystem: multiple group options"))
+				return fmt.Errorf("castrum: AddSystem: multiple group options")
 			}
 			if option.value == "" {
-				panic(fmt.Errorf("castrum: AddSystem: group must not be empty"))
+				return fmt.Errorf("castrum: AddSystem: group must not be empty")
 			}
 			group, groupSet = option.value, true
 		default:
-			panic(fmt.Errorf("castrum: AddSystem: invalid system option"))
+			return fmt.Errorf("castrum: AddSystem: invalid system option")
 		}
 	}
 	entry := runtime.Entry{Name: name, System: system, Group: group}
@@ -396,12 +396,14 @@ func (g *Game) TimeScale() float64 {
 
 // SetTimeScale sets the multiplier for elapsed time added toward fixed ticks.
 //
-// It panics if scale is not positive and finite. Frame timing is unchanged.
+// It returns an error and leaves the scale unchanged if scale is not positive
+// and finite. Frame timing is unchanged.
 // See [Game.Advance] for when the change takes effect.
-func (g *Game) SetTimeScale(scale float64) {
+func (g *Game) SetTimeScale(scale float64) error {
 	if err := g.sim.SetScale(scale); err != nil {
-		panic(fmt.Errorf("castrum: %w", err))
+		return fmt.Errorf("castrum: %w", err)
 	}
+	return nil
 }
 
 // Context returns the live context. Runners use it when running their draw
