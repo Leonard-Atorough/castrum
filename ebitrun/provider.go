@@ -77,6 +77,7 @@ func (p *TextureProvider) SubImageRect(texturePath asset.ID, rect image.Rectangl
 	p.mu.Lock()
 	if existing, ok := p.subs[key]; ok {
 		p.mu.Unlock()
+		sub.Deallocate() // a concurrent load won the race; free the loser
 		return existing, nil
 	}
 	p.subs[key] = sub
@@ -122,6 +123,7 @@ func (p *TextureProvider) texture(path asset.ID) (*ebiten.Image, error) {
 	p.mu.Lock()
 	if existing, ok := p.images[path]; ok {
 		p.mu.Unlock()
+		image.Dispose() // a concurrent load won the race; free the loser
 		return existing, nil
 	}
 	p.images[path] = image
