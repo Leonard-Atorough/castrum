@@ -148,7 +148,7 @@ func run() error {
 	// Add the tutorial's looping background music as a streamed source.
 	music, err := audio.NewPlayer(audio.Track(AssetMusic), audio.Settings{
 		Volume: 0.5,
-		Group:  audio.GroupMusic,
+		Bus:    audio.BusName("music"),
 		Loop:   audio.LoopTrack,
 		Load:   audio.LoadStream,
 		Pause:  audio.PauseHolds,

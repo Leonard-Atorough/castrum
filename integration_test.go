@@ -338,6 +338,30 @@ func TestSpatialAudioFollowsFixedMovementDuringPause(t *testing.T) {
 	}
 }
 
+func TestAudioFadeAdvancesWithAndWithoutBackend(t *testing.T) {
+	g := newTestGame(t, WithMaxFrameTime(time.Second))
+	mixer := g.World().MustResource[*audio.Mixer]()
+	if err := mixer.FadeMaster(0, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	advanceTestGame(t, g, 250*time.Millisecond)
+	if mixer.MasterVolume() != 0.75 {
+		t.Fatalf("headless master volume = %v, want 0.75", mixer.MasterVolume())
+	}
+
+	newTestAudioEntity(t, g, audio.DefaultSettings())
+	newTestAudioEntity(t, g, audio.DefaultSettings())
+	controller := &integrationAudioController{}
+	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
+		t.Fatal(err)
+	}
+	advanceTestGame(t, g, 250*time.Millisecond)
+	if mixer.MasterVolume() != 0.5 || len(controller.playbacks) != 2 ||
+		controller.playbacks[0].Volume != 0.5 || controller.playbacks[1].Volume != 0.5 {
+		t.Fatalf("master volume = %v, playbacks = %+v; want 0.5 for both", mixer.MasterVolume(), controller.playbacks)
+	}
+}
+
 func TestAudioFinishedSignalReachesPostFrameOnly(t *testing.T) {
 	g := newTestGame(t)
 	controller := &integrationAudioController{finished: true}
@@ -347,7 +371,7 @@ func TestAudioFinishedSignalReachesPostFrameOnly(t *testing.T) {
 	fixed := hub.NewReader[audio.Finished]()
 	nextFrame := hub.NewReader[audio.Finished]()
 	addTestSystem(t, g, core.PhaseFrame, "configure", func(*core.Context) error {
-		return g.World().MustResource[*audio.Mixer]().SetMaster(0.5)
+		return g.World().MustResource[*audio.Mixer]().SetMasterVolume(0.5)
 	})
 	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
 		t.Fatal(err)

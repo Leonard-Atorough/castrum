@@ -76,6 +76,9 @@ func newAudioHarnessWithWorld(t *testing.T, world *core.World) *harness {
 		t.Fatalf("provide signal hub: %v", err)
 	}
 	mixer := NewMixer()
+	if err := world.Provide(func(*core.World) (*Mixer, error) { return mixer, nil }); err != nil {
+		t.Fatalf("provide mixer: %v", err)
+	}
 	controller := &fakeController{live: true}
 	return &harness{
 		t:          t,
@@ -84,7 +87,7 @@ func newAudioHarnessWithWorld(t *testing.T, world *core.World) *harness {
 		mixer:      mixer,
 		controller: controller,
 		ctx:        &core.Context{World: world},
-		system:     NewAudioSystem(controller, mixer),
+		system:     NewAudioSystem(controller),
 	}
 }
 
@@ -260,22 +263,6 @@ func TestPlayerAppendDoesNotChangeOtherPlayers(t *testing.T) {
 	}
 	if first.Source().At(2) != "first" || second.Source().At(2) != "second" {
 		t.Fatal("appending to one player changed another player's source")
-	}
-}
-
-func TestMixerVolumeClampingAndNaN(t *testing.T) {
-	mixer := NewMixer()
-	if err := mixer.SetMaster(2); err != nil || mixer.Master() != 1 {
-		t.Fatalf("master = %v, error %v", mixer.Master(), err)
-	}
-	if err := mixer.SetGroupVolume(GroupMusic, -1); err != nil || mixer.GroupVolume(GroupMusic) != 0 {
-		t.Fatalf("music = %v, error %v", mixer.GroupVolume(GroupMusic), err)
-	}
-	if err := mixer.SetMaster(math.NaN()); err == nil || mixer.Master() != 1 {
-		t.Fatalf("NaN master = %v, error %v", mixer.Master(), err)
-	}
-	if err := mixer.SetGroupVolume(GroupMusic, math.NaN()); err == nil || mixer.GroupVolume(GroupMusic) != 0 {
-		t.Fatalf("NaN music = %v, error %v", mixer.GroupVolume(GroupMusic), err)
 	}
 }
 

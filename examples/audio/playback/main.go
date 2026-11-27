@@ -38,7 +38,7 @@ func run() error {
 		return err
 	}
 	music, err := audio.NewPlayer(audio.Track(audioassets.Music), audio.Settings{
-		Volume: 1, Group: audio.GroupMusic, Load: audio.LoadStream, Loop: audio.LoopTrack,
+		Volume: 1, Bus: audio.BusName("music"), Load: audio.LoadStream, Loop: audio.LoopTrack,
 	})
 	if err != nil {
 		return err

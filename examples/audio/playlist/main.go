@@ -58,7 +58,7 @@ func newGame() (*castrum.Game, *demonstration, error) {
 		return nil, nil, err
 	}
 	player, err := audio.NewPlayer(audio.Tracks(audioassets.Magic, audioassets.Music), audio.Settings{
-		Volume: 1, Load: audio.LoadStream, Group: audio.GroupMusic,
+		Volume: 1, Load: audio.LoadStream, Bus: audio.BusName("music"),
 	})
 	if err != nil {
 		return nil, nil, err

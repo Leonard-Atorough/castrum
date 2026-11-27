@@ -90,8 +90,8 @@ func BenchmarkAdvanceIdleDeclarationDriven(b *testing.B) {
 		b.Fatal(err)
 	}
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+
+	for b.Loop() {
 		if err := g.Advance(time.Second / 60); err != nil {
 			b.Fatal(err)
 		}

@@ -86,7 +86,7 @@ func TestDisplayPreferencesPersistence(t *testing.T) {
 
 func TestRunnerPreferenceCodecsIncludeCoreTypes(t *testing.T) {
 	files := fstest.MapFS{
-		"audio.json": {Data: []byte(`{"master":0.5,"music":0.25,"sfx":0}`)},
+		"audio.json": {Data: []byte(`{"master":0.5,"buses":{"music":0.25,"sfx":0}}`)},
 		"input.json": {Data: []byte(`{"bindings":{},"deadzone":0.25}`)},
 	}
 	loader, err := asset.NewLoader(files, asset.LoaderOptions{Codecs: NewAssetCodecs()})
@@ -94,7 +94,7 @@ func TestRunnerPreferenceCodecsIncludeCoreTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	levels, err := loader.Load[audio.Preferences]("audio.json")
-	if err != nil || levels != (audio.Preferences{Master: 0.5, Music: 0.25}) {
+	if err != nil || !reflect.DeepEqual(levels, audio.Preferences{Master: 0.5, Buses: map[string]float64{"music": 0.25, "sfx": 0}}) {
 		t.Fatalf("core audio defaults unavailable: %+v, %v", levels, err)
 	}
 	controls, err := loader.Load[input.Preferences]("input.json")

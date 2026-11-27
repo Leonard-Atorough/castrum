@@ -14,19 +14,19 @@ import (
 )
 
 func TestGameAudioPreferenceCodecDefaults(t *testing.T) {
-	files := fstest.MapFS{"audio.json": {Data: []byte(`{"master":0.5,"music":0.25,"sfx":0}`)}}
+	files := fstest.MapFS{"audio.json": {Data: []byte(`{"master":0.5,"buses":{"music":0.25,"sfx":0}}`)}}
 	for _, codecs := range []*asset.Codecs{nil, NewAssetCodecs()} {
 		game := New(WithFilesystem(files), WithAssetCodecs(codecs))
 		levels, err := game.World().MustResource[*asset.Loader]().Load[audio.Preferences]("audio.json")
-		if err != nil || levels != (audio.Preferences{Master: 0.5, Music: 0.25}) {
+		if err != nil || !reflect.DeepEqual(levels, audio.Preferences{Master: 0.5, Buses: map[string]float64{"music": 0.25, "sfx": 0}}) {
 			t.Fatalf("audio preferences=%+v, error=%v", levels, err)
 		}
 	}
 }
 
 func TestAudioPreferencesPersistence(t *testing.T) {
-	want := audio.Preferences{Master: 0.5, Music: 0.25}
-	loaded := roundTripPreferences(t, want, `{"master":0.5,"music":0.25,"sfx":0}`)
+	want := audio.Preferences{Master: 0.5, Buses: map[string]float64{"music": 0.25, "sfx": 0}}
+	loaded := roundTripPreferences(t, want, `{"master":0.5,"buses":{"music":0.25,"sfx":0}}`)
 	prefs, err := audio.NewPreferences()
 	if err != nil {
 		t.Fatal(err)
@@ -37,10 +37,10 @@ func TestAudioPreferencesPersistence(t *testing.T) {
 }
 
 func TestPreferenceCodecOverridesReachBuiltGames(t *testing.T) {
-	files := fstest.MapFS{"audio.json": {Data: []byte(`{"master":0.5,"music":0.25,"sfx":0}`)}}
+	files := fstest.MapFS{"audio.json": {Data: []byte(`{"master":0.5,"buses":{"music":0.25,"sfx":0}}`)}}
 	codecs := NewAssetCodecs()
 	first := New(WithFilesystem(files), WithAssetCodecs(codecs))
-	override := audio.Preferences{Master: 0.75, Music: 0.5, SFX: 0.25}
+	override := audio.Preferences{Master: 0.75, Buses: map[string]float64{"music": 0.5, "sfx": 0.25}}
 	if err := codecs.SetDecoder(asset.FormatJSON, func(io.Reader) (audio.Preferences, error) {
 		return override, nil
 	}); err != nil {
@@ -54,10 +54,10 @@ func TestPreferenceCodecOverridesReachBuiltGames(t *testing.T) {
 	}{
 		{first, override},
 		{second, override},
-		{fresh, audio.Preferences{Master: 0.5, Music: 0.25}},
+		{fresh, audio.Preferences{Master: 0.5, Buses: map[string]float64{"music": 0.25, "sfx": 0}}},
 	} {
 		got, err := tt.game.World().MustResource[*asset.Loader]().Load[audio.Preferences]("audio.json")
-		if err != nil || got != tt.want {
+		if err != nil || !reflect.DeepEqual(got, tt.want) {
 			t.Fatalf("preferences=%+v, error=%v; want %+v", got, err, tt.want)
 		}
 	}
