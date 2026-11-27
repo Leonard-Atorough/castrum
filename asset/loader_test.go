@@ -414,8 +414,13 @@ func TestLoadDeduplicatesConcurrentLoads(t *testing.T) {
 
 				for i := range peers {
 					if failure == "panic" {
-						if panics[i] != wantErr {
-							t.Fatalf("peer %d panic = %v, want %v", i, panics[i], wantErr)
+						// Only the owner re-panics; waiters get an error.
+						if panics[i] != nil {
+							if panics[i] != wantErr {
+								t.Fatalf("owner panic = %v, want %v", panics[i], wantErr)
+							}
+						} else if errs[i] == nil || !errors.Is(errs[i], wantErr) {
+							t.Fatalf("waiter %d error = %v, want one wrapping %v", i, errs[i], wantErr)
 						}
 					} else if panics[i] != nil || (fail && !errors.Is(errs[i], wantErr)) || (!fail && errs[i] != nil) {
 						t.Fatalf("peer %d error = %v, panic = %v", i, errs[i], panics[i])
@@ -426,6 +431,17 @@ func TestLoadDeduplicatesConcurrentLoads(t *testing.T) {
 					}
 					if results[i] != want {
 						t.Fatalf("peer %d decoded %+v, want %+v", i, results[i], want)
+					}
+				}
+				if failure == "panic" {
+					panicked := 0
+					for i := range peers {
+						if panics[i] != nil {
+							panicked++
+						}
+					}
+					if panicked != 1 {
+						t.Fatalf("panics = %d, want exactly the owner (1)", panicked)
 					}
 				}
 				if decodes.Load() != 1 {
@@ -452,6 +468,69 @@ func TestLoadDeduplicatesConcurrentLoads(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestLoadPanicStaysWithOwner(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a := newTestLoader(t, newTestFS(map[string]string{"sprites/player.json": `{"name":"player"}`}), LoaderOptions{})
+		wantPanic := errors.New("decoder exploded")
+		var decodes atomic.Int32
+		gate := make(chan struct{})
+		if err := a.codecs.SetDecoder(FormatJSON, Decoder[spriteMeta](func(r io.Reader) (spriteMeta, error) {
+			if decodes.Add(1) == 1 {
+				<-gate // hold the in-flight load until every peer is waiting on it
+				panic(wantPanic)
+			}
+			return jsonDecoder[spriteMeta]()(r)
+		})); err != nil {
+			t.Fatalf("SetDecoder: %v", err)
+		}
+
+		const peers = 4
+		panics := make([]any, peers)
+		errs := make([]error, peers)
+		var wg sync.WaitGroup
+		for i := range peers {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				defer func() { panics[i] = recover() }()
+				_, errs[i] = a.Load[spriteMeta]("sprites/player.json")
+			}(i)
+		}
+		synctest.Wait()
+		if decodes.Load() != 1 {
+			t.Fatalf("in-flight decodes = %d, want 1", decodes.Load())
+		}
+		close(gate)
+		wg.Wait()
+
+		panicked := 0
+		for i := range peers {
+			if panics[i] != nil {
+				panicked++
+				if panics[i] != wantPanic {
+					t.Fatalf("owner panic = %v, want %v", panics[i], wantPanic)
+				}
+				continue
+			}
+			if errs[i] == nil || !errors.Is(errs[i], wantPanic) || !strings.Contains(errs[i].Error(), "panicked") {
+				t.Fatalf("waiter %d error = %v, want a panic-derived error wrapping %v", i, errs[i], wantPanic)
+			}
+		}
+		if panicked != 1 {
+			t.Fatalf("panics = %d, want exactly the owner (1)", panicked)
+		}
+
+		// The panic was not cached: a later load decodes again and succeeds.
+		got, err := a.Load[spriteMeta]("sprites/player.json")
+		if err != nil || got.Name != "player" {
+			t.Fatalf("reload after panic = %+v, %v", got, err)
+		}
+		if decodes.Load() != 2 {
+			t.Fatalf("decodes = %d, want 2", decodes.Load())
+		}
+	})
 }
 
 // synctest fails the bubble on a durable deadlock, so these need no timeout.

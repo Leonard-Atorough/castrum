@@ -18,7 +18,7 @@ import (
 type ID string
 
 // Format identifies an asset's encoding and selects its decoder or encoder.
-// It defaults to the lowercased file extension.
+// Path loads and saves infer it from the lowercased file extension by default.
 type Format string
 
 // Format constants identify common asset encodings, not installed codecs.
@@ -65,8 +65,7 @@ func (p CachePolicy) validate() error {
 	return nil
 }
 
-// Loader loads assets from a filesystem, decodes them with registered
-// decoders, and caches the results.
+// Loader loads assets from a filesystem and decodes them with registered decoders.
 type Loader struct {
 	fs          fs.FS
 	codecs      *Codecs
@@ -76,9 +75,9 @@ type Loader struct {
 
 // LoaderOptions configures a loader at construction.
 type LoaderOptions struct {
-	// Codecs supplies shared registrations, read on each call. Nil selects the defaults.
+	// Codecs supplies shared registrations for decoding. Nil selects the defaults.
 	Codecs *Codecs
-	// CachePolicy is the default for path loads. Zero selects CacheReuse.
+	// CachePolicy is the default for path loads. Zero selects [CacheReuse].
 	CachePolicy CachePolicy
 }
 
@@ -182,7 +181,7 @@ func (l *Loader) read[T any](name string, format Format) (value T, err error) {
 	return value, nil
 }
 
-// Open opens the asset at name as a raw file and returns its inferred format.
+// Open opens the asset at fpath as a raw file and returns its inferred format.
 // Unlike [Loader.Load], it does not decode or cache the asset. The caller
 // owns the file and must close it.
 //
@@ -224,8 +223,8 @@ func (l *Loader) LoadReader[T any](reader io.Reader, format Format) (T, error) {
 	return value, nil
 }
 
-// WithCachePolicy overrides the loader's default cache policy for one Load.
-// CacheBypass does not refresh or invalidate an existing cached value.
+// WithCachePolicy overrides the loader's default cache policy for one [Loader.Load].
+// [CacheBypass] does not refresh or invalidate an existing cached value.
 func WithCachePolicy(policy CachePolicy) loadOption {
 	return loadOptionFunc(func(opts *loadOptions) {
 		opts.cachePolicy = policy
@@ -294,8 +293,10 @@ type cache struct {
 }
 
 type loadCall struct {
-	done   chan struct{}
-	result func() (any, error)
+	done  chan struct{}
+	value any
+	err   error
+	pan   any // non-nil when the owner's load panicked
 }
 
 func newCache() *cache {
@@ -306,7 +307,6 @@ func newCache() *cache {
 	}
 }
 
-// decodingOwner returns the goroutine ID of the owner currently decoding key.
 func (c *cache) decodingOwner(key loadKey) (uint64, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -322,7 +322,6 @@ func (c *cache) setDecoding(key loadKey, owner uint64) {
 	c.decoding[key] = owner
 }
 
-// clearDecoding removes key's mid-decode owner.
 func (c *cache) clearDecoding(key loadKey) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -361,10 +360,18 @@ func (c *cache) deduplicate(key loadKey, load func() (any, error)) (any, error) 
 	if call, ok := c.pending[key]; ok {
 		c.mu.Unlock()
 		<-call.done
-		return call.result()
+		// A panic in the owner's load is reported to waiters as an error;
+		// only the owner re-panics.
+		if call.pan != nil {
+			if err, ok := call.pan.(error); ok {
+				return nil, fmt.Errorf("asset: shared load panicked: %w", err)
+			}
+			return nil, fmt.Errorf("asset: shared load panicked: %v", call.pan)
+		}
+		return call.value, call.err
 	}
-	// Only the owner executes load; OnceValues replays its result or panic.
-	call := &loadCall{done: make(chan struct{}), result: sync.OnceValues(load)}
+	// Only the owner executes load; waiters read the recorded outcome.
+	call := &loadCall{done: make(chan struct{})}
 	c.pending[key] = call
 	c.mu.Unlock()
 	// Mark the key with the owner's goroutine before decoding, so a recursive
@@ -375,10 +382,17 @@ func (c *cache) deduplicate(key loadKey, load func() (any, error)) (any, error) 
 		c.clearDecoding(key)
 		c.mu.Lock()
 		delete(c.pending, key)
-		close(call.done)
 		c.mu.Unlock()
+		close(call.done)
 	}()
-	return call.result()
+	func() {
+		defer func() { call.pan = recover() }()
+		call.value, call.err = load()
+	}()
+	if call.pan != nil {
+		panic(call.pan)
+	}
+	return call.value, call.err
 }
 
 type loadOption interface {
@@ -413,8 +427,6 @@ func resolveLoad(name string, policy CachePolicy, opts ...loadOption) (loadOptio
 	return lo, nil
 }
 
-// normalizeAssetPath returns the canonical slash-separated, cleaned path
-// fs.FS expects.
 func normalizeAssetPath(name string) string {
 	return path.Clean(name)
 }
