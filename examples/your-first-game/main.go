@@ -326,7 +326,7 @@ func over(stats core.Entity, ctx *core.Context) bool {
 
 func moveSystem(hull, stats core.Entity) core.SystemFunc {
 	return func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[input.Actions]()
+		actions := ctx.World.MustResource[input.Actions]()
 		if over(stats, ctx) {
 			return nil
 		}
@@ -351,7 +351,7 @@ func moveSystem(hull, stats core.Entity) core.SystemFunc {
 
 func turretSystem(turret, hull core.Entity) core.SystemFunc {
 	return func(ctx *core.Context) error {
-		current, _ := ctx.World.Resource[*input.Snapshot]()
+		current := ctx.World.MustResource[*input.Snapshot]()
 		hullTransform, _ := hull.Component[core.Transform](ctx.World)
 		view, err := ctx.World.Resource[*render.CameraView]()
 		if errors.Is(err, core.ErrResourceNotRegistered) {
@@ -419,7 +419,7 @@ func cameraSystem(camera, hull core.Entity) core.SystemFunc {
 // taps that occur between fixed ticks.
 func fireSystem(turret, stats core.Entity) core.SystemFunc {
 	return func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[input.Actions]()
+		actions := ctx.World.MustResource[input.Actions]()
 		if over(stats, ctx) {
 			return nil
 		}

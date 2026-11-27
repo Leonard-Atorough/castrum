@@ -192,7 +192,7 @@ func run() error {
 	// Collision detection runs before user fixed systems, so these contacts
 	// reflect positions before this tick's movement.
 	if err := g.AddSystem(core.PhaseFixed, "player", func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[input.Actions]()
+		actions := ctx.World.MustResource[input.Actions]()
 		stats, _ := player.Component[playerStats](ctx.World)
 		step := float64(stats.currentSpeed) * ctx.DeltaTime.Seconds()
 		delta := geom.Vector2{

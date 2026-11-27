@@ -58,7 +58,7 @@ func run() error {
 
 func mixingSystem(mixer *audio.Mixer, panel *debug.Panel) core.SystemFunc {
 	return func(ctx *core.Context) error {
-		current, _ := ctx.World.Resource[*input.Snapshot]()
+		current := ctx.World.MustResource[*input.Snapshot]()
 		panel.Status("mixer", fmt.Sprintf("master %3.0f%%   music %3.0f%%   sfx %3.0f%%   global pause: %t",
 			mixer.MasterVolume()*100, mixer.BusVolume("music")*100,
 			mixer.BusVolume("sfx")*100, mixer.AllPaused()))

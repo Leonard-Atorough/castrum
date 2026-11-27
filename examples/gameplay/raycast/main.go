@@ -103,7 +103,7 @@ func run() error {
 	panel.Status("aim", "Move the cursor to raycast from the yellow marker.")
 
 	if err := g.AddSystem(core.PhaseFixed, "raycast example", func(ctx *core.Context) error {
-		current, _ := ctx.World.Resource[*input.Snapshot]()
+		current := ctx.World.MustResource[*input.Snapshot]()
 		view, err := ctx.World.Resource[*render.CameraView]()
 		if errors.Is(err, core.ErrResourceNotRegistered) {
 			return nil

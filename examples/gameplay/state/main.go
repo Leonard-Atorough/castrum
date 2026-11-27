@@ -38,7 +38,7 @@ func (d *demonstration) record(event string) {
 }
 
 func (d *demonstration) controls(ctx *core.Context) error {
-	actions, _ := ctx.World.Resource[input.Actions]()
+	actions := ctx.World.MustResource[input.Actions]()
 	if actions.JustPressed("restart") {
 		return d.machine.Restart()
 	}

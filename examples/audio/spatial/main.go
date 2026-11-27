@@ -90,7 +90,7 @@ func run() error {
 
 func movementSystem(l *audio.Listener, p core.Entity) core.SystemFunc {
 	return func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[input.Actions]()
+		actions := ctx.World.MustResource[input.Actions]()
 		dir := geom.Vector2{
 			X: actions.Axis("move_x"),
 			Y: actions.Axis("move_y"),

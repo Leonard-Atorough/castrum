@@ -59,7 +59,7 @@ func run() error {
 
 func playbackSystem(music core.Entity, panel *debug.Panel) core.SystemFunc {
 	return func(ctx *core.Context) error {
-		current, _ := ctx.World.Resource[*input.Snapshot]()
+		current := ctx.World.MustResource[*input.Snapshot]()
 		if current.KeyPressed(input.KeySpace) {
 			if _, err := audio.OneShot(ctx.World, audio.Track(audioassets.Magic), audio.DefaultSettings()); err != nil {
 				return err
