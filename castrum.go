@@ -1,5 +1,3 @@
-// Package castrum provides the game shell: a world, fixed-tick simulation,
-// and system schedules driven by a runner.
 package castrum
 
 import (
@@ -51,10 +49,7 @@ const (
 func (l lifecycle) has(flag lifecycle) bool { return l&flag != 0 }
 
 // New creates a [Game] with default options overridden by opts. It panics
-// if the resulting configuration is invalid.
-//
-// The asset loader resolves engine-shipped assets under "builtin/" alongside
-// the configured filesystem.
+// if the configuration is invalid or game initialization fails.
 func New(opts ...option) *Game {
 	g, err := newGame(opts...)
 	if err != nil {
@@ -116,7 +111,7 @@ func newGame(opts ...option) (*Game, error) {
 	return g, nil
 }
 
-// Options returns a copy of the game's configuration.
+// Options returns a shallow copy of the game's configuration.
 func (g *Game) Options() Options {
 	return g.opts
 }
@@ -169,11 +164,9 @@ func InGroup(group string) SystemOption {
 // position, and [InGroup] assigns it to a group.
 //
 // AddSystem panics for an invalid phase, an empty name, an empty option
-// value, an invalid option, or multiple position or group options: the
-// call is wrong in every program state. It returns an error when validity
-// depends on program state: a name already registered in the phase, a
-// target not yet registered, or a startup phase once [Game.Startup] has
-// begun.
+// value, an invalid option, or multiple position or group options. It returns
+// an error for a name already registered in the phase, a target not yet
+// registered, or a startup phase once [Game.Startup] has begun.
 //
 // Systems added during a phase run are eligible on the next run of that phase.
 func (g *Game) AddSystem(phase core.Phase, name string, system core.SystemFunc, options ...SystemOption) error {
@@ -269,7 +262,8 @@ func (g *Game) SetGroupEnabled(group string, enabled bool) error {
 
 // Startup runs [core.PhasePreStartup], [core.PhaseStartup], and
 // [core.PhasePostStartup] once, after resolving eager resources. Runners call
-// it before entering the platform loop; a second call returns an error.
+// it before entering the platform loop. A second call returns an error, even
+// if the first call failed.
 func (g *Game) Startup() error {
 	if g.state.has(lifecycleStartupBegun) {
 		return errors.New("castrum: Startup already ran")
@@ -370,7 +364,7 @@ func (g *Game) Alpha() float64 {
 	return float64(g.acc) / float64(g.sim.Delta)
 }
 
-// Frame counts display frames since startup.
+// Frame returns the number of frames advanced by [Game.Advance].
 func (g *Game) Frame() uint64 {
 	return g.real.Frame
 }
