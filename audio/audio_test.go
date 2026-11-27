@@ -195,6 +195,25 @@ func TestPlayerSelection(t *testing.T) {
 	}
 }
 
+func TestZeroValuePlayerDoesNotPanic(t *testing.T) {
+	var p Player
+	if got := p.Current(); got != "" {
+		t.Fatalf("zero-value Current = %q, want empty", got)
+	}
+	p.Next()
+	p.Prev()
+	if p.Index() != 0 {
+		t.Fatalf("zero-value Next/Prev moved the selection to %d", p.Index())
+	}
+
+	// A player whose selection is out of range (e.g. hand-built) reads empty.
+	p.source = Source{}
+	p.current = 3
+	if got := p.Current(); got != "" {
+		t.Fatalf("out-of-range Current = %q, want empty", got)
+	}
+}
+
 func TestPlayerTrackEdits(t *testing.T) {
 	source := Tracks("a", "b", "c")
 	player, err := NewPlayer(source, DefaultSettings())
