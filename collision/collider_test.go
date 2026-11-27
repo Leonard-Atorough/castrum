@@ -134,35 +134,31 @@ func TestColliderValidationAtSpawn(t *testing.T) {
 // The layer-number helpers build the bitmasks beginners read, and
 // reject the indexes whose bits would silently shift out.
 func TestLayersAndMaskHelpers(t *testing.T) {
-	if got := Layers(); got != 0 {
-		t.Errorf("Layers() = %#x, want the empty bitmask", got)
+	if got, err := Layers(); err != nil || got != 0 {
+		t.Errorf("Layers() = %#x, %v; want the empty bitmask and no error", got, err)
 	}
-	if got := Mask(); got != 0 {
-		t.Errorf("Mask() = %#x, want the empty mask", got)
+	if got, err := Mask(); err != nil || got != 0 {
+		t.Errorf("Mask() = %#x, %v; want the empty mask and no error", got, err)
 	}
-	if got := Layers(0, 2, 2); got != 1<<0|1<<2 {
-		t.Errorf("Layers(0, 2, 2) = %#x, want layers 0 and 2", got)
+	if got, err := Layers(0, 2, 2); err != nil || got != 1<<0|1<<2 {
+		t.Errorf("Layers(0, 2, 2) = %#x, %v; want layers 0 and 2", got, err)
 	}
-	if got := Mask(0); got != 1<<0 {
-		t.Errorf("Mask(0) = %#x, want layer 0 alone", got)
+	if got, err := Mask(0); err != nil || got != 1<<0 {
+		t.Errorf("Mask(0) = %#x, %v; want layer 0 alone", got, err)
 	}
 
 	for name, layer := range map[string]int{"negative": -1, "over 31": 32} {
 		for _, helper := range []struct {
 			name string
-			call func(int) uint32
+			call func(int) (uint32, error)
 		}{
-			{"Layers", func(l int) uint32 { return Layers(l) }},
-			{"Mask", func(l int) uint32 { return Mask(l) }},
+			{"Layers", func(l int) (uint32, error) { return Layers(l) }},
+			{"Mask", func(l int) (uint32, error) { return Mask(l) }},
 		} {
-			func() {
-				defer func() {
-					if recover() == nil {
-						t.Errorf("%s with %s layer %d should panic", helper.name, name, layer)
-					}
-				}()
-				_ = helper.call(layer)
-			}()
+			got, err := helper.call(layer)
+			if err == nil || got != 0 {
+				t.Errorf("%s with %s layer %d = %#x, %v; want an error and zero", helper.name, name, layer, got, err)
+			}
 		}
 	}
 }
