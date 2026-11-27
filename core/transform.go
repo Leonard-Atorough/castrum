@@ -70,7 +70,10 @@ func NewPrevTransformCapture() SystemFunc {
 		}
 
 		for e := range update.Execute() {
-			t, _ := e.Component[Transform]()
+			t, ok := e.Component[Transform]()
+			if !ok {
+				continue
+			}
 			e.SetComponent(t.snapshot())
 		}
 		return nil
