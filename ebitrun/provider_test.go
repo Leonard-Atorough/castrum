@@ -117,8 +117,6 @@ func TestSubImageResolvesAndCaches(t *testing.T) {
 	}
 }
 
-// Texture is the whole-texture half of the blit: convert once per path,
-// repeat calls are the same image, misses error naming the path.
 func TestTextureResolvesAndCaches(t *testing.T) {
 	g := castrum.New(castrum.WithFilesystem(newAssetTestFS(t)))
 	mustRunner(t, g)
@@ -149,9 +147,6 @@ func TestTextureResolvesAndCaches(t *testing.T) {
 	}
 }
 
-// SubImageRect is the region half of the blit: one subimage per path
-// and rect, shared with the atlas-named path, with user-supplied rects
-// validated against the texture.
 func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 	g, _ := newSpriteGame(t)
 	provider, err := g.World().Resource[*TextureProvider]()
@@ -196,10 +191,14 @@ func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 		t.Fatalf("atlas collection = %+v, %v", list.Items, err)
 	}
 	item := list.Items[0]
-	if item.Texture != "tex.png" || item.Rect != player {
-		t.Fatalf("collector source = %q %v, want tex.png %v", item.Texture, item.Rect, player)
+	p, ok := item.Payload().(render.TextureDraw)
+	if !ok {
+		t.Fatalf("collector payload = %T, want render.TextureDraw", item.Payload())
 	}
-	collected, err := provider.SubImageRect(item.Texture, item.Rect)
+	if p.Texture != "tex.png" || p.Rect != player {
+		t.Fatalf("collector source = %q %v, want tex.png %v", p.Texture, p.Rect, player)
+	}
+	collected, err := provider.SubImageRect(p.Texture, p.Rect)
 	if err != nil || collected != named {
 		t.Fatalf("collector and direct lookup disagree: %v", err)
 	}
@@ -214,8 +213,6 @@ func TestSubImageRectResolvesCachesAndValidates(t *testing.T) {
 		t.Fatal("distinct rects must resolve to distinct subimages with their own bounds")
 	}
 
-	// User-supplied rects are validated: empty and out-of-bounds rect
-	// error instead of reaching the backend.
 	_, err = provider.SubImageRect("tex.png", image.Rect(1, 1, 1, 1))
 	if err == nil || !strings.Contains(err.Error(), "empty") {
 		t.Errorf("empty rect error = %v, want it to say empty", err)
@@ -284,9 +281,6 @@ func TestTextureProviderConcurrentMissesKeepTheLockAvailable(t *testing.T) {
 		close(done)
 	}()
 
-	// Regression for the duplicate-miss early returns: they once held the
-	// write lock after returning, so an overlapping miss would block here
-	// forever. The timeout turns a leaked lock into a test failure.
 	select {
 	case <-done:
 	case <-time.After(10 * time.Second):
