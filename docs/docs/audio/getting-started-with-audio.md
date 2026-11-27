@@ -62,7 +62,7 @@ music, err := audio.NewPlayer(
 	audio.Track("audio/music.mp3"),
 	audio.Settings{
 		Volume: 1,
-		Group:  audio.GroupMusic,
+		Bus:  audio.BusName("music"),
 		Load:   audio.LoadStream,
 		Loop:   audio.LoopTrack,
 	},
