@@ -1,16 +1,7 @@
-// Command animation demonstrates playback of a spritesheet clip.
-//
-// SPACE pauses or resumes playback, R restarts, 1 plays once, 2 loops, and 4
-// swaps to a reversed clip. The built-in fixed-phase animation system advances
-// the [animation.AnimatedSprite]; the readout reports completion and loop events.
-//
-// The clip uses the torch_light_N regions of torch_light.json, authored with
-// [spritesheet.Grid]. See the spritesheets example for authoring. Run with
-// -author <file> to regenerate the metadata without opening a window.
-//
-// Run from this directory:
-//
-//	go run .
+// Command animation loads embedded samurai spritesheets and demonstrates
+// desired-state animation: looping idle/run, one-shot attack/hurt that
+// transition back to idle. Run with go run .; -author regenerates the
+// spritesheet metadata without opening a window.
 package main
 
 import (
@@ -26,49 +17,38 @@ import (
 	"github.com/Leonard-Atorough/castrum/ebitrun"
 	"github.com/Leonard-Atorough/castrum/geom"
 	"github.com/Leonard-Atorough/castrum/input"
+	"github.com/Leonard-Atorough/castrum/signal"
 )
 
-//go:embed torch_light.png torch_light.json
+//go:embed ATTACK.png ATTACK.json HURT.png HURT.json IDLE.png IDLE.json RUN.png RUN.json
 var files embed.FS
 
 const (
-	texturePath = "torch_light.png"
-	sheetPath   = "torch_light.json"
-
-	torchFPS  = 10
-	torchLoop = animation.LoopAll
-
-	// scale enlarges the 16x28 cells to 64x112 so the frames read clearly.
-	scale = 4
-
-	screenW, screenH = 1280, 720
+	FPS   = 10
+	Scale = 2
 )
 
-var frames = []string{
-	"torch_light_0",
-	"torch_light_1",
-	"torch_light_2",
-	"torch_light_3",
-	"torch_light_4",
-	"torch_light_5",
-}
-
-func reversedFrames() []string {
-	out := make([]string, len(frames))
-	for i, name := range frames {
-		out[len(frames)-1-i] = name
-	}
-	return out
+// strips maps each spritesheet to its region prefix and frame count
+// (96x96 cells in a horizontal strip).
+var strips = []struct {
+	sheet  string
+	prefix string
+	frames int
+}{
+	{"IDLE.json", "idle", 10},
+	{"RUN.json", "run", 16},
+	{"ATTACK.json", "attack", 7},
+	{"HURT.json", "hurt", 4},
 }
 
 func main() {
-	output := flag.String("author", "", "write spritesheet metadata to this file without opening a window")
+	output := flag.String("author", "", "regenerate spritesheet metadata into this directory without opening a window")
 	flag.Parse()
 	if *output != "" {
-		if err := authorSheet(*output); err != nil {
+		if err := authorSheets(*output); err != nil {
 			panic(err)
 		}
-		fmt.Printf("Saved spritesheet to %s\n", *output)
+		fmt.Printf("Saved spritesheets to %s\n", *output)
 		return
 	}
 	if err := run(); err != nil {
@@ -85,95 +65,118 @@ func run() error {
 	return nil
 }
 
+// buildSets is a [castrum.WithResourceProvider] constructor. It runs after the engine
+// has provided the asset loader, so the strips can be loaded from it.
+func buildSets(w *core.World) (animation.Sets, error) {
+	loader, err := w.Resource[*asset.Loader]()
+	if err != nil {
+		return animation.Sets{}, err
+	}
+	tracks := make(map[string]animation.Track, len(strips))
+	for _, strip := range strips {
+		tr, err := track(loader, strip)
+		if err != nil {
+			return animation.Sets{}, err
+		}
+		tracks[strip.prefix] = tr
+	}
+	body := func(name string) []animation.Track { return []animation.Track{tracks[name]} }
+	return animation.NewSets(map[string]animation.Set{
+		"samurai": {
+			Name: "samurai",
+			States: map[string]animation.State{
+				"idle":   {Name: "idle", Loop: animation.Loop, Tracks: body("idle")},
+				"run":    {Name: "run", Loop: animation.Loop, Tracks: body("run")},
+				"attack": {Name: "attack", Next: "idle", Tracks: body("attack")},
+				"hurt":   {Name: "hurt", Next: "idle", EnterBlend: 0.1, Tracks: body("hurt")},
+			},
+		},
+	})
+}
+
+// track builds a track over strip's frames, validating every region against
+// the decoded sheet.
+func track(loader *asset.Loader, strip struct {
+	sheet  string
+	prefix string
+	frames int
+}) (animation.Track, error) {
+	sheet, err := asset.FileSheet(asset.ID(strip.sheet)).Resolve(loader)
+	if err != nil {
+		return animation.Track{}, err
+	}
+	texture, err := loader.Load[asset.TextureData](string(sheet.Texture))
+	if err != nil {
+		return animation.Track{}, err
+	}
+	if err := sheet.ValidateBounds(texture.Image.Bounds()); err != nil {
+		return animation.Track{}, err
+	}
+	frames := make([]string, 0, strip.frames)
+	for i := 0; i < strip.frames; i++ {
+		name := fmt.Sprintf("%s_%d", strip.prefix, i)
+		if _, err := sheet.Region(name); err != nil {
+			return animation.Track{}, err
+		}
+		frames = append(frames, name)
+	}
+	return animation.Track{Name: strip.prefix, Source: asset.ID(strip.sheet), Frames: frames, FPS: FPS}, nil
+}
+
 func newGame() (*castrum.Game, error) {
 	g := castrum.New(
 		castrum.WithTitle("castrum - animation"),
 		castrum.WithFilesystem(files),
 		castrum.WithBindings(input.Bindings{
-			"pause":   {input.KeyInput{Key: input.KeySpace}.Binding()},
-			"restart": {input.KeyInput{Key: input.KeyR}.Binding()},
-			"once":    {input.KeyInput{Key: input.Key1}.Binding()},
-			"loop":    {input.KeyInput{Key: input.Key2}.Binding()},
-			"swap":    {input.KeyInput{Key: input.Key4}.Binding()},
+			"pause":  {input.KeyInput{Key: input.KeySpace}.Binding()},
+			"attack": {input.KeyInput{Key: input.Key1}.Binding()},
+			"hurt":   {input.KeyInput{Key: input.Key2}.Binding()},
+			"run":    {input.KeyPairInput{Negative: input.KeyArrowLeft, Positive: input.KeyArrowRight}.Binding()},
 		}),
+		castrum.WithResourceProvider(buildSets),
 	)
 
-	// Resolve the sheet and validate every clip frame at setup, so a bad
-	// document or region name fails the launch, not the first frame.
-	loader := g.World().MustResource[*asset.Loader]()
-	source := asset.FileSheet(sheetPath)
-	sheet, err := source.Resolve(loader)
-	if err != nil {
-		return nil, err
-	}
-	texture, err := loader.Load[asset.TextureData](texturePath)
-	if err != nil {
-		return nil, err
-	}
-	if err := sheet.ValidateBounds(texture.Image.Bounds()); err != nil {
-		return nil, err
-	}
-	for _, name := range frames {
-		if _, err := sheet.Region(name); err != nil {
-			return nil, err
-		}
-	}
-
-	clip, err := animation.NewSpriteClip(source, frames, torchFPS)
-	if err != nil {
-		return nil, err
-	}
-	reversed, err := animation.NewSpriteClip(source, reversedFrames(), torchFPS)
+	sets, err := g.World().Resource[animation.Sets]()
 	if err != nil {
 		return nil, err
 	}
 
-	torch, err := animation.NewAnimatedSprite(clip)
+	animator, err := animation.NewAnimator("samurai", "idle")
 	if err != nil {
 		return nil, err
 	}
-	torch.Loop = torchLoop
 
-	// The engine camera frames the world from the screen's center, so
-	// world coordinates are screen coordinates at zoom 1.
-	camera := g.MainCamera()
-	if err := camera.Update(g.World(), func(t *core.Transform) {
-		t.Position = geom.Vector2{X: screenW / 2, Y: screenH / 2}
-	}); err != nil {
-		return nil, err
-	}
-
-	entity, err := g.World().NewEntity(
-		torch,
-		core.Transform{
-			Position: geom.Vector2{X: screenW / 2, Y: screenH / 2},
-			Scale:    geom.Vector2{X: scale, Y: scale},
-		},
+	samurai, err := g.World().NewEntity(
+		animator,
+		core.Transform{Scale: geom.Vector2{X: Scale, Y: Scale}},
 	)
 	if err != nil {
 		return nil, err
 	}
-
-	if err := g.AddSystem(core.PhaseFrame, "animation.controls", playbackSystem(entity, reversed)); err != nil {
+	if err := g.AddSystem(core.PhaseFrame, "animation.controls", playbackSystem(samurai)); err != nil {
 		return nil, err
 	}
 	panel := g.World().MustResource[*debug.Panel]()
-	panel.Status("controls", "SPACE: pause/resume   R: restart   1: play once   2: loop")
+	panel.Status("controls", "LEFT/RIGHT: run   SPACE: pause   1: attack   2: hurt   (idle is the default)")
+	completed := g.World().MustResource[*signal.Hub]().NewReader[animation.Completed]()
 	if err := g.AddSystem(core.PhaseFixed, "animation.readout", func(ctx *core.Context) error {
-		value, ok := entity.Component[animation.AnimatedSprite](ctx.World)
+		value, ok := samurai.Component[animation.Animator](ctx.World)
 		if !ok {
-			return fmt.Errorf("animated torch has no playback component")
+			return fmt.Errorf("samurai has no animator component")
 		}
-		_, region, _, err := value.CurrentFrame()
+		layers, err := value.Frames(sets)
 		if err != nil {
 			return err
 		}
-		panel.Status("playback", fmt.Sprintf("frame %s   paused: %t   completed: %t", region, value.Paused, value.HasCompleted()))
-		if value.JustCompleted(ctx.Tick) {
-			if value.HasCompleted() {
-				panel.Message("finished - R restarts playback")
-			} else {
-				panel.Message("loop completed")
+		region := ""
+		if len(layers) > 0 {
+			region = layers[len(layers)-1].Region
+		}
+		panel.Status("playback", fmt.Sprintf("state %s   frame %s   paused: %t   finished: %t",
+			value.Current(), region, value.Paused, value.Finished()))
+		for ev, ok := completed.Next(); ok; ev, ok = completed.Next() {
+			if ev.Tick == ctx.Tick {
+				panel.Message(fmt.Sprintf("%s completed a pass", ev.State))
 			}
 		}
 		return nil
@@ -183,39 +186,39 @@ func newGame() (*castrum.Game, error) {
 	return g, nil
 }
 
-func playbackSystem(entity core.Entity, reversed animation.SpriteClip) core.SystemFunc {
+func playbackSystem(samurai core.Entity) core.SystemFunc {
 	return func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[input.Actions]()
+		actions := ctx.World.MustResource[input.Actions]()
+		value, ok := samurai.Component[animation.Animator](ctx.World)
+		if !ok {
+			return fmt.Errorf("samurai has no animator component")
+		}
+		next := ""
+		flip := value.Style.FlipH
+		axis := actions.Axis("run")
+		if actions.JustPressed("attack") {
+			next = "attack"
+		} else if actions.JustPressed("hurt") {
+			next = "hurt"
+		} else if axis != 0 && (value.Current() == "idle" || value.Current() == "run") {
+			// Movement only interrupts idle/run, never a one-shot attack/hurt.
+			next, flip = "run", axis < 0
+		} else if value.Current() == "run" && axis == 0 {
+			next = "idle" // run key released
+		}
+
 		pause := actions.JustPressed("pause")
-		restart := actions.JustPressed("restart")
-		once := actions.JustPressed("once")
-		loop := actions.JustPressed("loop")
-		swap := actions.JustPressed("swap")
-		if !pause && !restart && !once && !loop && !swap {
+		if !pause && next == "" {
 			return nil
 		}
-		return entity.Update(ctx.World, func(value *animation.AnimatedSprite) {
+		return samurai.Update(ctx.World, func(value *animation.Animator) {
 			if pause {
 				value.Paused = !value.Paused
 			}
-			if restart {
-				value.Restart()
+			if next != "" {
+				value.State = next
 			}
-			if once {
-				value.Loop = animation.LoopNone
-				value.Restart()
-			}
-			if loop {
-				value.Loop = animation.LoopAll
-				value.Restart()
-			}
-			if swap {
-				// SetClip replaces the clip and resets completion; the
-				// reversed clip was validated in newGame.
-				if err := value.SetClip(reversed); err != nil {
-					panic(err)
-				}
-			}
+			value.Style.FlipH = flip
 		})
 	}
 }
