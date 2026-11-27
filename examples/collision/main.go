@@ -1,15 +1,9 @@
-// Command collision demonstrates the collision stack: circle and
-// rect colliders, layered masks, trigger pickups, a rotation-aware
-// narrow phase, and the Contacts lifecycle read as component state -
-// bar hits drain health and speed once per enter edge, pickups heal.
-// The engine registers the collision system in the fixed phase; this
-// program never registers it - it only spawns colliders and reads
-// Contacts.
+// Command collision demonstrates layered colliders, rotating bars, trigger
+// pickups, and contact enter events. Bar hits reduce health and speed;
+// pickups restore health.
 //
-// Detection only: nothing here is pushed out of a shape, because a
-// response is not the collision system's job. A game that wants the
-// player stopped reads the same Contacts state and moves the player
-// back itself.
+// The engine registers collision detection automatically. It reports overlaps
+// but does not stop or separate objects.
 //
 // Run from this directory:
 //
@@ -39,17 +33,11 @@ const (
 	minMoveSpeed = 200
 	maxHealth    = 100
 
-	// A bar hit costs hitHealthLoss health and hitSpeedLoss speed,
-	// once per enter edge; a pickup restores pickupHeal health,
-	// clamped by maxHealth.
 	hitHealthLoss = 5
 	hitSpeedLoss  = 5
 	pickupHeal    = 2
 
-	// Layer numbers: collision.Layers and collision.Mask turn these
-	// into the colliders' bitmasks. The hazard layer separates the
-	// bars from the walls - both are solid to the touch, but only
-	// the bars damage.
+	// The hazard layer distinguishes damaging bars from walls.
 	playerLayer = 0
 	pickupLayer = 1
 	hazardLayer = 2
@@ -64,24 +52,12 @@ const (
 	pickupRadius = 14
 	pickupCount  = 3
 
-	// margin keeps respawning pickups clear of the walls.
 	margin = 60
 )
 
-// rotation is an entity's spin speed in radians per fixed tick. The
-// bars each carry one drawn at random, so they sweep at different
-// rates; the spin system finds them by query, so nothing holds a
-// collection of bar handles.
+// rotation is measured in radians per fixed tick.
 type rotation float64
 
-// hazardLayers is the bars' layer bitmask, built from the layer
-// number; the hazard system matches contacts against it.
-var hazardLayers = collision.Layers(hazardLayer)
-
-// playerStats is the player's mutable state: health and speed that
-// bar hits drain and pickups restore. A value component, like every
-// other component: systems write it through Entity.Update, which
-// re-validates on the way in, and queries can match it by type.
 type playerStats struct {
 	maxHealth     int
 	currentHealth int
@@ -125,6 +101,11 @@ func run() error {
 		castrum.WithBindings(bindings),
 	)
 
+	hazardMask, err := collision.Layers(hazardLayer)
+	if err != nil {
+		return err
+	}
+
 	camera := g.MainCamera()
 	if err := camera.Update(g.World(), func(t *core.Transform) {
 		t.Position = geom.Vector2{X: screenW / 2, Y: screenH / 2}
@@ -132,9 +113,7 @@ func run() error {
 		return err
 	}
 
-	// The player: a circle collider on layer 0 with its mask open to
-	// every layer - collision.NewCollider's defaults. NewCollider
-	// validates immediately, so the shape is known good here.
+	// NewCollider defaults to layer 0 and listens to every layer.
 	playerCollider, err := collision.NewCollider(collision.Circle{Radius: playerRadius})
 	if err != nil {
 		return err
@@ -151,30 +130,20 @@ func run() error {
 		return err
 	}
 
-	// The walls listen only to the player's layer, and so do the bars
-	// and pickups below: wall-to-pickup and wall-to-bar pairs never
-	// even reach the narrow phase. The four walls themselves sit on
-	// the player's layer, so they pair with each other at the screen
-	// corners - same-layer objects test against each other unless a
-	// mask excludes them, which is the normal rule. Static walls
-	// never move, so those corner tests cost nothing.
+	// Walls, bars, and pickups listen only to the player's layer.
+	// Walls share that layer, so they can also contact each other.
 	for _, wall := range []struct{ position, min, max geom.Vector2 }{
 		{position: geom.Vector2{X: screenW / 2, Y: 0}, min: geom.Vector2{X: -screenW / 2, Y: 0}, max: geom.Vector2{X: screenW / 2, Y: wallThickness}},
 		{position: geom.Vector2{X: screenW / 2, Y: screenH}, min: geom.Vector2{X: -screenW / 2, Y: -wallThickness}, max: geom.Vector2{X: screenW / 2, Y: 0}},
 		{position: geom.Vector2{X: 0, Y: screenH / 2}, min: geom.Vector2{X: 0, Y: -screenH / 2}, max: geom.Vector2{X: wallThickness, Y: screenH / 2}},
 		{position: geom.Vector2{X: screenW, Y: screenH / 2}, min: geom.Vector2{X: -wallThickness, Y: -screenH / 2}, max: geom.Vector2{X: 0, Y: screenH / 2}},
 	} {
-		if _, err := spawnRect(g.World(), wall.position, wall.min, wall.max, wallColor, collision.Layers(playerLayer)); err != nil {
+		if _, err := spawnRect(g.World(), wall.position, wall.min, wall.max, wallColor, playerLayer); err != nil {
 			return err
 		}
 	}
 
-	// Three spinning bars spaced equally across the middle, on the
-	// hazard layers: solid to the touch like the walls, but a hit
-	// costs health and speed. The collider is defined in local space,
-	// so the narrow phase tests the rotated rectangle, not its fat
-	// axis-aligned bounds. Each bar's rotation component carries its
-	// own random speed.
+	// Local-space box colliders rotate with the bars.
 	for i := range 3 {
 		barX := screenW/2 + float64(i-1)*barSpacing
 		if _, err := spawnRect(g.World(),
@@ -182,24 +151,28 @@ func run() error {
 			geom.Vector2{X: -barHalfLength, Y: -barHalfWidth},
 			geom.Vector2{X: barHalfLength, Y: barHalfWidth},
 			barColor,
-			hazardLayers,
+			hazardLayer,
 			rotation(randomSpin()),
 		); err != nil {
 			return err
 		}
 	}
 
-	// Pickups live on their own layer, listening for the player, and
-	// carry the trigger flag - detection without any response
-	// implication.
+	// Pickups use triggers to distinguish their contacts from solid contacts.
 	pickups := make([]core.Entity, pickupCount)
 	for i := range pickups {
 		collider, err := collision.NewCollider(collision.Circle{Radius: pickupRadius})
 		if err != nil {
 			return err
 		}
-		collider.Layers = collision.Layers(pickupLayer)
-		collider.Mask = collision.Mask(playerLayer)
+		collider.Layers, err = collision.Layers(pickupLayer)
+		if err != nil {
+			return err
+		}
+		collider.Mask, err = collision.Layers(playerLayer)
+		if err != nil {
+			return err
+		}
 		collider.Trigger = true
 		pickups[i], err = g.World().NewEntity(
 			core.Transform{Position: randomPosition()},
@@ -216,10 +189,8 @@ func run() error {
 	panel := g.World().MustResource[*debug.Panel]()
 	panel.Message("WASD or arrows to move; the bars hit, the pickups heal")
 
-	// Move the player at its current speed and tint it by its
-	// contacts: red while touching a solid, yellow while touching a
-	// pickup. The contacts are already computed - the engine's
-	// collision system runs earlier in the same fixed phase.
+	// Collision detection runs before user fixed systems, so these contacts
+	// reflect positions before this tick's movement.
 	if err := g.AddSystem(core.PhaseFixed, "player", func(ctx *core.Context) error {
 		actions, _ := ctx.World.Resource[input.Actions]()
 		stats, _ := player.Component[playerStats](ctx.World)
@@ -250,19 +221,11 @@ func run() error {
 		return err
 	}
 
-	// Bar hits cost health and speed, applied once per enter edge -
-	// leaning into a spinning bar drains nothing further until the
-	// pair separates and re-enters, which a sweeping bar does on its
-	// own. The hit side is told from the wall by the other
-	// collider's layers: any overlap with the hazard mask counts.
-	if err := g.AddSystem(core.PhaseFixed, "hazard", hazardSystem(player, panel)); err != nil {
+	// Apply damage on hazard contact entry, not every overlapping tick.
+	if err := g.AddSystem(core.PhaseFixed, "hazard", hazardSystem(player, panel, hazardMask)); err != nil {
 		return err
 	}
 
-	// Spin every entity that carries a rotation component, at its own
-	// speed - the query finds the bars; no handle is held. The collider
-	// follows the rotation for free: the collision system transforms
-	// the shape by the transform every tick.
 	var spin *core.Query
 	if err := g.AddSystem(core.PhaseFixed, "bar", func(ctx *core.Context) error {
 		if spin == nil {
@@ -277,10 +240,7 @@ func run() error {
 		return err
 	}
 
-	// Collect pickups by deriving the enter edge from Contacts state:
-	// a contact in Current that was not in Previous. The trigger flag
-	// says which contacts are pickups; collecting one heals the
-	// player, clamped by max health.
+	// Collect and respawn pickups when a trigger appears in Current but not Previous.
 	if err := g.AddSystem(core.PhaseFixed, "pickups", pickupSystem(player, pickups, &score, panel)); err != nil {
 		return err
 	}
@@ -291,7 +251,7 @@ func run() error {
 	return nil
 }
 
-func hazardSystem(player core.Entity, panel *debug.Panel) core.SystemFunc {
+func hazardSystem(player core.Entity, panel *debug.Panel, hazardMask uint32) core.SystemFunc {
 	return func(ctx *core.Context) error {
 		contacts, ok := player.Component[collision.Contacts](ctx.World)
 		if !ok {
@@ -303,7 +263,7 @@ func hazardSystem(player core.Entity, panel *debug.Panel) core.SystemFunc {
 				continue
 			}
 			other, ok := hit.Other.Component[collision.Collider](ctx.World)
-			if ok && other.Layers&hazardLayers != 0 {
+			if ok && other.Layers&hazardMask != 0 {
 				hits++
 			}
 		}
@@ -350,17 +310,19 @@ func pickupSystem(player core.Entity, pickups []core.Entity, score *int, panel *
 	}
 }
 
-// spawnRect is a helper method to spawn a rectangular sprite and
-// matching collider on the given layer bitmask, used for walls and
-// spinning bars. The collider's mask admits only the player's layer.
-// extra attaches more components - the bars add their rotation.
-func spawnRect(world *core.World, position, min, max geom.Vector2, fill *color.RGBA, layers uint32, extra ...any) (core.Entity, error) {
+func spawnRect(world *core.World, position, min, max geom.Vector2, fill *color.RGBA, layer int, extra ...any) (core.Entity, error) {
 	collider, err := collision.NewCollider(collision.Box{Min: min, Max: max})
 	if err != nil {
 		return core.Entity{}, err
 	}
-	collider.Layers = layers
-	collider.Mask = collision.Mask(playerLayer)
+	collider.Layers, err = collision.Layers(layer)
+	if err != nil {
+		return core.Entity{}, err
+	}
+	collider.Mask, err = collision.Layers(playerLayer)
+	if err != nil {
+		return core.Entity{}, err
+	}
 	size := max.Sub(min)
 	return world.NewEntity(append([]any{
 		core.Transform{Position: position},
@@ -369,8 +331,6 @@ func spawnRect(world *core.World, position, min, max geom.Vector2, fill *color.R
 	}, extra...)...)
 }
 
-// entered compares the current contacts with contacts in the previous
-// tick and returns the new contacts that were not present before.
 func entered(contacts collision.Contacts) []collision.Contact {
 	var edges []collision.Contact
 	for _, hit := range contacts.Current {
@@ -402,7 +362,6 @@ func randomPosition() geom.Vector2 {
 	}
 }
 
-// randomSpin returns a random float64 value for the spin speed of a bar.
 func randomSpin() float64 {
 	speed := barSpeed * (0.5 + rand.Float64())
 	if rand.Intn(2) == 0 {

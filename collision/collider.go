@@ -105,31 +105,31 @@ func (c Collider) CanCollideWith(other Collider) bool {
 
 // Layers returns the bitmask for the given layer indexes for [Collider.Layers].
 // For example, Layers(0, 2) includes layers 0 and 2. With no arguments it
-// returns zero, so the collider belongs to no layer.
+// returns a zero bitmask, so the collider belongs to no layer.
 //
-// It panics on an index outside 0-31.
-func Layers(layers ...int) uint32 {
+// It returns an error for an index outside 0-31.
+func Layers(layers ...int) (uint32, error) {
 	return layersToMask("Layers", layers)
 }
 
 // Mask returns the bitmask for the given layer indexes for [Collider.Mask].
 // For example, Mask(0) listens only to layer 0. With no arguments it returns
-// zero, so the collider listens to no layers.
+// a zero bitmask, so the collider listens to no layers.
 //
-// It panics on an index outside 0-31.
-func Mask(layers ...int) uint32 {
+// It returns an error for an index outside 0-31.
+func Mask(layers ...int) (uint32, error) {
 	return layersToMask("Mask", layers)
 }
 
-func layersToMask(name string, layers []int) uint32 {
+func layersToMask(name string, layers []int) (uint32, error) {
 	var mask uint32
 	for _, layer := range layers {
 		if layer < 0 || layer > 31 {
-			panic(fmt.Sprintf("collision: %s: layer %d is outside 0-31", name, layer))
+			return 0, fmt.Errorf("collision: %s: layer %d is outside 0-31", name, layer)
 		}
 		mask |= 1 << layer
 	}
-	return mask
+	return mask, nil
 }
 
 // ColliderShape is local-space geometry accepted by a [Collider]. The package
