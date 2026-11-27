@@ -120,8 +120,12 @@ func run() error {
 
 		end := view.ScreenToWorld(current.Cursor(), vp.LogicalWidth, vp.LogicalHeight)
 		segment := geom.Segment{Start: origin, End: end}
+		mask, err := collision.Layers(0, 1)
+		if err != nil {
+			return err
+		}
 		hit, found := queries.Raycast(segment, collision.RaycastFilter{
-			Mask: collision.Layers(0, 1),
+			Mask: mask,
 		})
 
 		lineEnd := end.Sub(origin)
@@ -162,7 +166,10 @@ func addTarget(
 	if err != nil {
 		return err
 	}
-	collider.Layers = collision.Layers(layer)
+	collider.Layers, err = collision.Layers(layer)
+	if err != nil {
+		return err
+	}
 	_, err = world.NewEntity(
 		core.Transform{Position: position},
 		collider,
