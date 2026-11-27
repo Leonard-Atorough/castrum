@@ -74,10 +74,10 @@ func Run(g *castrum.Game, opts ...option) {
 func (r *Runner) bind(g *castrum.Game) error {
 	backend, err := g.World().Resource[*audio.Backend]()
 	if err != nil {
-		return fmt.Errorf("castrum/ebiten: resolve audio backend: %w", err)
+		return fmt.Errorf("ebitrun: resolve audio backend: %w", err)
 	}
 	if backend.Controller() != nil {
-		return fmt.Errorf("castrum/ebiten: audio controller already attached")
+		return fmt.Errorf("ebitrun: audio controller already attached")
 	}
 	loader := g.World().MustResource[*asset.Loader]()
 	codecs := g.World().MustResource[*asset.Codecs]()
@@ -93,7 +93,7 @@ func (r *Runner) bind(g *castrum.Game) error {
 	if err := g.World().ProvideEager(func(*core.World) (*TextureProvider, error) {
 		return provider, nil
 	}); err != nil {
-		return fmt.Errorf("castrum/ebiten: provide texture provider: %w", err)
+		return fmt.Errorf("ebitrun: provide texture provider: %w", err)
 	}
 	win := &window{
 		vp: render.Viewport{
@@ -114,7 +114,7 @@ func (r *Runner) bind(g *castrum.Game) error {
 	r.win = win
 	r.hub = g.World().MustResource[*signal.Hub]()
 	if err := g.World().ReplaceResource[render.Window](win); err != nil {
-		return fmt.Errorf("castrum/ebiten: set render window: %w", err)
+		return fmt.Errorf("ebitrun: set render window: %w", err)
 	}
 
 	collector := render.NewCollector(g.World())
@@ -122,7 +122,7 @@ func (r *Runner) bind(g *castrum.Game) error {
 	if err := g.World().ProvideEager(func(*core.World) (*FontProvider, error) {
 		return fonts, nil
 	}); err != nil {
-		return fmt.Errorf("castrum/ebiten: provide font provider: %w", err)
+		return fmt.Errorf("ebitrun: provide font provider: %w", err)
 	}
 
 	if r.opts.DebugOverlay {
@@ -130,7 +130,7 @@ func (r *Runner) bind(g *castrum.Game) error {
 		r.AddDraw(overlay.draw)
 	}
 	if err := backend.Attach(controller); err != nil {
-		return fmt.Errorf("castrum/ebiten: attach audio controller: %w", err)
+		return fmt.Errorf("ebitrun: attach audio controller: %w", err)
 	}
 	r.g = g
 	r.engine = newEngineDrawFunc(collector, provider, fonts)

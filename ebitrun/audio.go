@@ -105,7 +105,7 @@ func registerAudioCodecs(codecs *asset.Codecs, sampleRate int) error {
 			return drain(stream, sampleRate)
 		})
 		if err != nil {
-			return fmt.Errorf("castrum/ebiten: audio: register codec %s: %w", format, err)
+			return fmt.Errorf("ebitrun: audio: register codec %s: %w", format, err)
 		}
 	}
 	return nil
@@ -134,7 +134,7 @@ func drain(s audioStream, sampleRate int) (asset.AudioData, error) {
 // than 1 is an error. Errors name the audio source.
 func (a *audioProvider) Sync(entityID core.EntityID, source asset.ID, want audio.Playback) (live bool, err error) {
 	if want.Rate != 1 {
-		return false, fmt.Errorf("castrum/ebiten: audio: source %q: playback rate %v is not supported by this runner", source, want.Rate)
+		return false, fmt.Errorf("ebitrun: audio: source %q: playback rate %v is not supported by this runner", source, want.Rate)
 	}
 	s, exists := a.players[entityID]
 
@@ -145,7 +145,7 @@ func (a *audioProvider) Sync(entityID core.EntityID, source asset.ID, want audio
 
 	if exists && (want.Restart || want.Loop != s.loop || want.Load != s.load) {
 		if err := s.release(); err != nil {
-			return false, fmt.Errorf("castrum/ebiten: audio: release source %q: %w", source, err)
+			return false, fmt.Errorf("ebitrun: audio: release source %q: %w", source, err)
 		}
 		delete(a.players, entityID)
 		exists = false
@@ -170,7 +170,7 @@ func (a *audioProvider) Sync(entityID core.EntityID, source asset.ID, want audio
 	}
 
 	if err := s.balance.setBalance(want.Balance); err != nil {
-		return false, fmt.Errorf("castrum/ebiten: audio: source %q: %w", source, err)
+		return false, fmt.Errorf("ebitrun: audio: source %q: %w", source, err)
 	}
 
 	if !want.Playing {
@@ -189,7 +189,7 @@ func (a *audioProvider) Sync(entityID core.EntityID, source asset.ID, want audio
 
 	if !s.player.IsPlaying() {
 		if err := s.release(); err != nil {
-			return false, fmt.Errorf("castrum/ebiten: audio: complete source %q: %w", source, err)
+			return false, fmt.Errorf("ebitrun: audio: complete source %q: %w", source, err)
 		}
 		return false, nil
 	}
@@ -210,7 +210,7 @@ func (a *audioProvider) Sweep() error {
 			continue
 		}
 		if err := s.release(); err != nil {
-			return fmt.Errorf("castrum/ebiten: audio: sweep: release entity %d: %w", id, err)
+			return fmt.Errorf("ebitrun: audio: sweep: release entity %d: %w", id, err)
 		}
 		delete(a.players, id)
 	}
@@ -226,7 +226,7 @@ func (a *audioProvider) createPlayer(source asset.ID, want audio.Playback) (_ *a
 	defer func() {
 		if err != nil && session.source != nil {
 			if closeErr := session.source.Close(); closeErr != nil {
-				err = errors.Join(err, fmt.Errorf("castrum/ebiten: audio: close source %q: %w", source, closeErr))
+				err = errors.Join(err, fmt.Errorf("ebitrun: audio: close source %q: %w", source, closeErr))
 			}
 		}
 	}()
@@ -237,42 +237,42 @@ func (a *audioProvider) createPlayer(source asset.ID, want audio.Playback) (_ *a
 	case audio.LoadEager:
 		data, err := a.loader.Load[asset.AudioData](string(source))
 		if err != nil {
-			return nil, fmt.Errorf("castrum/ebiten: audio: load eager audio: %w", err)
+			return nil, fmt.Errorf("ebitrun: audio: load eager audio: %w", err)
 		}
 		reader = bytes.NewReader(data.PCM)
 		length = int64(len(data.PCM))
 	case audio.LoadStream:
 		file, format, err := a.loader.Open(string(source))
 		if err != nil {
-			return nil, fmt.Errorf("castrum/ebiten: audio: open stream source: %w", err)
+			return nil, fmt.Errorf("ebitrun: audio: open stream source: %w", err)
 		}
 		session.source = file
 		decode, ok := streamDecoders[format]
 		if !ok {
-			return nil, fmt.Errorf("castrum/ebiten: audio: no stream decoder for format %q", format)
+			return nil, fmt.Errorf("ebitrun: audio: no stream decoder for format %q", format)
 		}
 		if _, ok := file.(io.Seeker); !ok {
-			return nil, fmt.Errorf("castrum/ebiten: audio: stream source %q is not seekable", source)
+			return nil, fmt.Errorf("ebitrun: audio: stream source %q is not seekable", source)
 		}
 		decoded, err := decode(a.audioCtx.SampleRate(), file)
 		if err != nil {
-			return nil, fmt.Errorf("castrum/ebiten: audio: decode stream: %w", err)
+			return nil, fmt.Errorf("ebitrun: audio: decode stream: %w", err)
 		}
 		reader = decoded
 		length = decoded.Length()
 	default:
-		return nil, fmt.Errorf("castrum/ebiten: audio: invalid load mode %d for source %q", want.Load, source)
+		return nil, fmt.Errorf("ebitrun: audio: invalid load mode %d for source %q", want.Load, source)
 	}
 	if want.Loop == audio.LoopTrack {
 		reader = ebitaudio.NewInfiniteLoop(reader, length)
 	}
 	session.balance, err = newBalanceReader(reader, want.Balance)
 	if err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: audio: source %q: %w", source, err)
+		return nil, fmt.Errorf("ebitrun: audio: source %q: %w", source, err)
 	}
 	session.player, err = a.audioCtx.NewPlayer(session.balance)
 	if err != nil {
-		return nil, fmt.Errorf("castrum/ebiten: audio: create player for source %q: %w", source, err)
+		return nil, fmt.Errorf("ebitrun: audio: create player for source %q: %w", source, err)
 	}
 	session.player.SetVolume(want.Volume)
 	return session, nil

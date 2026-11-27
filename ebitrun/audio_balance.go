@@ -49,7 +49,7 @@ func newBalanceReader(source io.Reader, balance float64) (balanceStream, error) 
 
 func (r *balanceReader) setBalance(balance float64) error {
 	if math.IsNaN(balance) || balance < -1 || balance > 1 {
-		return fmt.Errorf("castrum/ebiten: audio: balance must be finite and in [-1, 1], got %v", balance)
+		return fmt.Errorf("ebitrun: audio: balance must be finite and in [-1, 1], got %v", balance)
 	}
 	r.balance.Store(math.Float64bits(balance))
 	return nil
@@ -86,7 +86,7 @@ func (r *balanceReader) Read(p []byte) (int, error) {
 		r.tail = total % stereoFrameBytes
 		r.err = err
 		if err == io.EOF && r.tail != 0 {
-			r.err = fmt.Errorf("castrum/ebiten: audio: incomplete stereo PCM frame: %w", io.ErrUnexpectedEOF)
+			r.err = fmt.Errorf("ebitrun: audio: incomplete stereo PCM frame: %w", io.ErrUnexpectedEOF)
 		}
 		if balance != 0 {
 			for i := 0; i < r.end; i += stereoFrameBytes {
@@ -119,7 +119,7 @@ func (r *seekableBalanceReader) Seek(offset int64, whence int) (int64, error) {
 	// scaling stays correct, then discard the prefix before the requested byte.
 	if prefix := position % stereoFrameBytes; prefix != 0 {
 		if _, err := r.seeker.Seek(-prefix, io.SeekCurrent); err != nil {
-			r.err = fmt.Errorf("castrum/ebiten: audio: align balance reader seek: %w", err)
+			r.err = fmt.Errorf("ebitrun: audio: align balance reader seek: %w", err)
 			return position, r.err
 		}
 		r.skip = int(prefix)

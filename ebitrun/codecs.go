@@ -19,7 +19,7 @@ import (
 func NewAssetCodecs() *asset.Codecs {
 	codecs := castrum.NewAssetCodecs()
 	if err := codecs.SetJSON[DisplayPreferences](); err != nil {
-		panic(fmt.Sprintf("castrum/ebiten: register display preferences: %v", err))
+		panic(fmt.Sprintf("ebitrun: register display preferences: %v", err))
 	}
 	return codecs
 }
