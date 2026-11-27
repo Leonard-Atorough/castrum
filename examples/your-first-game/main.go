@@ -177,8 +177,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	playerCollider.Layers = collision.Layers(playerLayer)
-	playerCollider.Mask = collision.Mask(enemyLayer)
+	playerCollider.Layers, err = collision.Layers(playerLayer)
+	if err != nil {
+		return err
+	}
+	playerCollider.Mask, err = collision.Mask(enemyLayer)
+	if err != nil {
+		return err
+	}
 	hull, err := g.World().NewEntity(
 		core.Transform{Position: SpawnPos},
 		sprite.Sprite{Asset: AssetHull},
@@ -447,8 +453,14 @@ func spawnBullet(world *core.World, at geom.Vector2, rotation float64) (core.Ent
 	if err != nil {
 		return core.Entity{}, err
 	}
-	collider.Layers = collision.Layers(bulletLayer)
-	collider.Mask = collision.Mask(enemyLayer)
+	collider.Layers, err = collision.Layers(bulletLayer)
+	if err != nil {
+		return core.Entity{}, err
+	}
+	collider.Mask, err = collision.Mask(enemyLayer)
+	if err != nil {
+		return core.Entity{}, err
+	}
 	return world.NewEntity(
 		core.Transform{Position: at, Rotation: rotation, Scale: geom.Vector2{X: 1, Y: 1}},
 		sprite.Primitive{
@@ -581,8 +593,14 @@ func spawnEnemy(world *core.World, at geom.Vector2) (core.Entity, error) {
 	if err != nil {
 		return core.Entity{}, err
 	}
-	collider.Layers = collision.Layers(enemyLayer)
-	collider.Mask = collision.Mask(bulletLayer, playerLayer)
+	collider.Layers, err = collision.Layers(enemyLayer)
+	if err != nil {
+		return core.Entity{}, err
+	}
+	collider.Mask, err = collision.Mask(bulletLayer, playerLayer)
+	if err != nil {
+		return core.Entity{}, err
+	}
 	return world.NewEntity(
 		core.Transform{Position: at, Scale: geom.Vector2{X: 1, Y: 1}},
 		sprite.Sprite{Asset: AssetEnemy},

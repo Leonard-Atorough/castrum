@@ -184,7 +184,9 @@ func timeControlSystem(g *castrum.Game, state core.Entity) core.SystemFunc {
 				change = -change
 			}
 			next := math.Max(scaleMin, math.Min(scaleMax, g.TimeScale()+change))
-			g.SetTimeScale(next)
+			if err := g.SetTimeScale(next); err != nil {
+				return err
+			}
 		}
 
 		word := "running"

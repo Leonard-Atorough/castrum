@@ -10,8 +10,6 @@ import (
 	"github.com/Leonard-Atorough/castrum/debug"
 )
 
-// The option is explicit and off by default: the runner registers no
-// draw callback without it and one with it.
 func TestDebugOverlayOption(t *testing.T) {
 	plain := castrum.New()
 	runner := mustRunner(t, plain)
@@ -26,8 +24,6 @@ func TestDebugOverlayOption(t *testing.T) {
 	}
 }
 
-// The status line shows pause and scale only when they depart from the
-// defaults; the rates always render.
 func TestDebugOverlayStatusShowsTimeControl(t *testing.T) {
 	g := castrum.New()
 	o := newDebugOverlay(g)
@@ -40,7 +36,9 @@ func TestDebugOverlayStatusShowsTimeControl(t *testing.T) {
 		t.Errorf("status %q, want no time-control fields at defaults", line)
 	}
 
-	g.SetTimeScale(0.5)
+	if err := g.SetTimeScale(0.5); err != nil {
+		t.Fatal(err)
+	}
 	if line = o.status(); !strings.Contains(line, "scale 0.5") {
 		t.Errorf("status %q, want the half-speed scale", line)
 	}
@@ -51,13 +49,14 @@ func TestDebugOverlayStatusShowsTimeControl(t *testing.T) {
 	}
 
 	g.Resume()
-	g.SetTimeScale(1)
+	if err := g.SetTimeScale(1); err != nil {
+		t.Fatal(err)
+	}
 	if line = o.status(); strings.Contains(line, "paused") || strings.Contains(line, "scale") {
 		t.Errorf("status %q, want time-control fields gone after reset", line)
 	}
 }
 
-// Rates stay zero until a full sample window has passed.
 func TestDebugOverlayWaitsForWindow(t *testing.T) {
 	o := newDebugOverlay(nil)
 	start := time.Now()
@@ -69,10 +68,6 @@ func TestDebugOverlayWaitsForWindow(t *testing.T) {
 	}
 }
 
-// The window measures display frames and engine ticks per second. A
-// frame every 60th of a second reads 60 fps; a tick per frame reads
-// 60 tps. The next window starts fresh, so slowing ticks to 20 per
-// second reads 20 while the frame rate holds.
 func TestDebugOverlayMeasuresRates(t *testing.T) {
 	o := newDebugOverlay(nil)
 	start := time.Now()
