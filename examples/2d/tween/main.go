@@ -122,7 +122,7 @@ func newGame() (*castrum.Game, *demo, error) {
 		return nil, nil, err
 	}
 	if err := g.AddSystem(core.PhaseFrame, "tween.presentation", func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[input.Actions]()
+		actions := ctx.World.MustResource[input.Actions]()
 		panel := g.World().MustResource[*debug.Panel]()
 		if actions.JustPressed("pause") {
 			if g.Paused() {

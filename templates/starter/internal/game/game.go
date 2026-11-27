@@ -41,7 +41,7 @@ func New() (*castrum.Game, error) {
 	}
 
 	if err := g.AddSystem(core.PhaseFixed, "player-movement", func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[input.Actions]()
+		actions := ctx.World.MustResource[input.Actions]()
 		moveX := actions.Axis("move_x")
 		moveY := actions.Axis("move_y")
 		length := math.Hypot(moveX, moveY)

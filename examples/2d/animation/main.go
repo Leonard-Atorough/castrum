@@ -188,7 +188,7 @@ func newGame() (*castrum.Game, error) {
 
 func playbackSystem(samurai core.Entity) core.SystemFunc {
 	return func(ctx *core.Context) error {
-		actions, _ := ctx.World.Resource[input.Actions]()
+		actions := ctx.World.MustResource[input.Actions]()
 		value, ok := samurai.Component[animation.Animator](ctx.World)
 		if !ok {
 			return fmt.Errorf("samurai has no animator component")
