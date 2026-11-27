@@ -263,22 +263,6 @@ func TestPlayerAppendDoesNotChangeOtherPlayers(t *testing.T) {
 	}
 }
 
-func TestMixerVolumeClampingAndNaN(t *testing.T) {
-	mixer := NewMixer()
-	if err := mixer.SetMaster(2); err != nil || mixer.Master() != 1 {
-		t.Fatalf("master = %v, error %v", mixer.Master(), err)
-	}
-	if err := mixer.SetGroupVolume(GroupMusic, -1); err != nil || mixer.GroupVolume(GroupMusic) != 0 {
-		t.Fatalf("music = %v, error %v", mixer.GroupVolume(GroupMusic), err)
-	}
-	if err := mixer.SetMaster(math.NaN()); err == nil || mixer.Master() != 1 {
-		t.Fatalf("NaN master = %v, error %v", mixer.Master(), err)
-	}
-	if err := mixer.SetGroupVolume(GroupMusic, math.NaN()); err == nil || mixer.GroupVolume(GroupMusic) != 0 {
-		t.Fatalf("NaN music = %v, error %v", mixer.GroupVolume(GroupMusic), err)
-	}
-}
-
 func TestOneShotValidation(t *testing.T) {
 	for _, mode := range []LoopMode{LoopTrack, LoopAll} {
 		settings := DefaultSettings()

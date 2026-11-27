@@ -347,7 +347,7 @@ func TestAudioFinishedSignalReachesPostFrameOnly(t *testing.T) {
 	fixed := hub.NewReader[audio.Finished]()
 	nextFrame := hub.NewReader[audio.Finished]()
 	addTestSystem(t, g, core.PhaseFrame, "configure", func(*core.Context) error {
-		return g.World().MustResource[*audio.Mixer]().SetMaster(0.5)
+		return g.World().MustResource[*audio.Mixer]().SetMasterVolume(0.5)
 	})
 	if err := g.World().MustResource[*audio.Backend]().Attach(controller); err != nil {
 		t.Fatal(err)

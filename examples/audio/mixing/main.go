@@ -38,7 +38,7 @@ func run() error {
 	}
 	p, err := audio.NewPlayer(
 		audio.Track(audioassets.Music),
-		audio.Settings{Load: audio.LoadStream, Loop: audio.LoopTrack, Group: audio.GroupMusic, Pause: audio.PauseHolds, Volume: 1},
+		audio.Settings{Load: audio.LoadStream, Loop: audio.LoopTrack, Bus: audio.BusName("music"), Pause: audio.PauseHolds, Volume: 1},
 	)
 	if err != nil {
 		return err
@@ -60,32 +60,32 @@ func mixingSystem(mixer *audio.Mixer, panel *debug.Panel) core.SystemFunc {
 	return func(ctx *core.Context) error {
 		current, _ := ctx.World.Resource[*input.Snapshot]()
 		panel.Status("mixer", fmt.Sprintf("master %3.0f%%   music %3.0f%%   sfx %3.0f%%   global pause: %t",
-			mixer.Master()*100, mixer.GroupVolume(audio.GroupMusic)*100,
-			mixer.GroupVolume(audio.GroupSFX)*100, mixer.Paused()))
+			mixer.MasterVolume()*100, mixer.BusVolume("music")*100,
+			mixer.BusVolume("sfx")*100, mixer.AllPaused()))
 
 		step := volumeSpeed * ctx.DeltaTime.Seconds()
 		if current.KeyHeld(input.KeyArrowUp) {
-			if err := mixer.SetMaster(mixer.Master() + step); err != nil {
+			if err := mixer.SetMasterVolume(mixer.MasterVolume() + step); err != nil {
 				return err
 			}
 		}
 		if current.KeyHeld(input.KeyArrowDown) {
-			if err := mixer.SetMaster(mixer.Master() - step); err != nil {
+			if err := mixer.SetMasterVolume(mixer.MasterVolume() - step); err != nil {
 				return err
 			}
 		}
 		if current.KeyHeld(input.KeyArrowRight) {
-			if err := mixer.SetGroupVolume(audio.GroupMusic, mixer.GroupVolume(audio.GroupMusic)+step); err != nil {
+			if err := mixer.SetBusVolume(audio.BusName("music"), mixer.BusVolume(audio.BusName("music"))+step); err != nil {
 				return err
 			}
 		}
 		if current.KeyHeld(input.KeyArrowLeft) {
-			if err := mixer.SetGroupVolume(audio.GroupMusic, mixer.GroupVolume(audio.GroupMusic)-step); err != nil {
+			if err := mixer.SetBusVolume(audio.BusName("music"), mixer.BusVolume(audio.BusName("music"))-step); err != nil {
 				return err
 			}
 		}
 		if current.KeyPressed(input.KeyEnter) {
-			mixer.TogglePause()
+			mixer.ToggleAllPaused()
 			panel.Message("global pause toggled - music holds, effects play through")
 		}
 		if current.KeyPressed(input.KeySpace) {

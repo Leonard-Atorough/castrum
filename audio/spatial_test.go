@@ -38,10 +38,10 @@ func TestSpatialPlayback(t *testing.T) {
 				t.Fatal(err)
 			}
 			*h.listener = Listener{Enabled: true, Mode: FixedPosition, Range: 100}
-			if err := h.mixer.SetMaster(0.5); err != nil {
+			if err := h.mixer.SetMasterVolume(0.5); err != nil {
 				t.Fatal(err)
 			}
-			if err := h.mixer.SetGroupVolume(GroupSFX, 0.5); err != nil {
+			if err := h.mixer.SetBusVolume(BusName("sfx"), 0.5); err != nil {
 				t.Fatal(err)
 			}
 			h.update()

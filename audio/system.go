@@ -54,8 +54,8 @@ func fold(s Player, mixer *Mixer) Playback {
 		loop = LoopTrack
 	}
 	return Playback{
-		Playing: !s.Paused && (!mixer.Paused() || s.Settings.Pause == PauseContinues),
-		Volume:  s.Settings.Volume * mixer.Master() * mixer.GroupVolume(s.Settings.Group),
+		Playing: !s.Paused && (!mixer.AllPaused() || s.Settings.Pause == PauseContinues) && mixer.BusPaused(BusName(s.Settings.Bus)),
+		Volume:  s.Settings.Volume * mixer.MasterVolume() * mixer.BusVolume(BusName(s.Settings.Bus)),
 		Rate:    resolveMultiplier(s.Settings.PlaybackMultiplier),
 		Loop:    loop,
 		Load:    s.Settings.Load,

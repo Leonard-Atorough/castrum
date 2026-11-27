@@ -63,14 +63,14 @@ func TestSystemTrackEditsPreserveOrRestartSelection(t *testing.T) {
 
 func TestSystemMixAndPause(t *testing.T) {
 	h := newAudioHarness(t)
-	settings := Settings{Volume: 0.8, Group: GroupMusic, Balance: 0.25}
+	settings := Settings{Volume: 0.8, Bus: BusName("music"), Balance: 0.25}
 	held := h.spawn(Track("held"), settings)
 	settings.Pause = PauseContinues
 	continues := h.spawn(Track("continues"), settings)
-	if err := h.mixer.SetMaster(0.5); err != nil {
+	if err := h.mixer.SetMasterVolume(0.5); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.mixer.SetGroupVolume(GroupMusic, 0.25); err != nil {
+	if err := h.mixer.SetBusVolume(BusName("music"), 0.25); err != nil {
 		t.Fatal(err)
 	}
 	h.mixer.PauseAll()
