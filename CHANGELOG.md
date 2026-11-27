@@ -81,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document the unreleased playlist API (#144)
 
 ### Fixed
+- Replace panics with error returns in AddSystem and SetTimeScale methods (#312)
 - **breaking:** Improve error handling and validation for layers and masks (#311)
 - Enhance snapshot resolution error handling in NewFrameSystem (#310)
 - Check system scheduler liveliness by identity (#309)
