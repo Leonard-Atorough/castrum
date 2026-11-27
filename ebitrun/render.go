@@ -1,6 +1,8 @@
 package ebitrun
 
 import (
+	"errors"
+	"fmt"
 	"image/color"
 	"math"
 
@@ -14,69 +16,81 @@ import (
 	"github.com/Leonard-Atorough/castrum/sprite"
 )
 
-// newEngineDrawFunc returns the world renderer. [Runner] draws it before user
-// [DrawFunc] callbacks so user content can appear over the world.
 func newEngineDrawFunc(collector *render.Collector, provider *TextureProvider, fonts *FontProvider) DrawFunc {
 	return DrawFunc(func(ctx *core.Context, screen *ebiten.Image, alpha float64) error {
 		list, err := collector.Collect(ctx, alpha)
 		if err != nil {
 			return err
 		}
-
-		camera := list.Camera
-		for _, item := range list.Items {
-			if item.Shape != nil {
-				drawShape(screen, item, camera)
-				continue
-			}
-			if item.Font != "" {
-				if err := drawText(screen, fonts, item, camera); err != nil {
-					return err
-				}
-				continue
-			}
-			var img *ebiten.Image
-			if item.Rect.Empty() {
-				img, err = provider.Texture(item.Texture)
-			} else {
-				img, err = provider.SubImageRect(item.Texture, item.Rect)
-			}
-			if err != nil {
-				return err
-			}
-
-			screenPos := camera.WorldToScreen(item.Position, screen.Bounds().Dx(), screen.Bounds().Dy())
-			scaleX := item.Scale.X * camera.Zoom
-			scaleY := item.Scale.Y * camera.Zoom
-			if item.FlipH {
-				scaleX = -scaleX
-			}
-			if item.FlipV {
-				scaleY = -scaleY
-			}
-
-			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(-float64(img.Bounds().Dx())/2, -float64(img.Bounds().Dy())/2)
-			op.GeoM.Scale(scaleX, scaleY)
-			op.GeoM.Rotate(item.Rotation - camera.Rotation)
-			op.GeoM.Translate(screenPos.X, screenPos.Y)
-
-			// ScaleWithColor applies tint and opacity together.
-			if item.Color != nil {
-				op.ColorScale.ScaleWithColor(item.Color)
-			}
-
-			screen.DrawImage(img, op)
-		}
-		return nil
+		return drawList(screen, list, provider, fonts)
 	})
 }
 
-func drawShape(screen *ebiten.Image, item render.DrawItem, camera render.CameraView) {
+func drawList(screen *ebiten.Image, list render.DrawList, provider *TextureProvider, fonts *FontProvider) error {
+	var errs []error
+	for _, item := range list.Items {
+		if err := drawItem(screen, list.Camera, item, provider, fonts); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func drawItem(screen *ebiten.Image, camera render.CameraView, item render.DrawItem, provider *TextureProvider, fonts *FontProvider) error {
+	switch p := item.Payload().(type) {
+	case render.TextureDraw:
+		return drawTexture(screen, camera, item, p, provider)
+	case render.TextDraw:
+		return drawText(screen, camera, item, p, fonts)
+	case render.ShapeDraw:
+		return drawShape(screen, camera, item, p)
+	default:
+		return fmt.Errorf("ebitrun: unknown draw item payload type: %T", p)
+	}
+}
+
+func drawTexture(screen *ebiten.Image, camera render.CameraView, item render.DrawItem, p render.TextureDraw, provider *TextureProvider) error {
+	var img *ebiten.Image
+	var err error
+	if p.Rect.Empty() {
+		img, err = provider.Texture(p.Texture)
+	} else {
+		img, err = provider.SubImageRect(p.Texture, p.Rect)
+	}
+	if err != nil {
+		return err
+	}
+
+	screenPos := camera.WorldToScreen(item.Position, screen.Bounds().Dx(), screen.Bounds().Dy())
+	scaleX := item.Scale.X * camera.Zoom
+	scaleY := item.Scale.Y * camera.Zoom
+	if p.FlipH {
+		scaleX = -scaleX
+	}
+	if p.FlipV {
+		scaleY = -scaleY
+	}
+
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(-float64(img.Bounds().Dx())/2, -float64(img.Bounds().Dy())/2)
+	op.GeoM.Scale(scaleX, scaleY)
+	op.GeoM.Rotate(item.Rotation - camera.Rotation)
+	op.GeoM.Translate(screenPos.X, screenPos.Y)
+
+	// ScaleWithColor applies tint and opacity together.
+	if item.Color != nil {
+		op.ColorScale.ScaleWithColor(item.Color)
+	}
+
+	screen.DrawImage(img, op)
+	return nil
+}
+
+func drawShape(screen *ebiten.Image, camera render.CameraView, item render.DrawItem, p render.ShapeDraw) error {
 	width, height := screen.Bounds().Dx(), screen.Bounds().Dy()
 	rotation := item.Rotation - camera.Rotation
 
-	switch shape := item.Shape.(type) {
+	switch shape := p.Shape.(type) {
 	case sprite.RectShape:
 		center := camera.WorldToScreen(item.Position, width, height)
 		corners := rectCorners(center, shape.Size, item.Scale, camera.Zoom, rotation)
@@ -86,7 +100,7 @@ func drawShape(screen *ebiten.Image, item render.DrawItem, camera render.CameraV
 			path.LineTo(float32(corner.X), float32(corner.Y))
 		}
 		path.Close()
-		fillOrStrokePath(screen, &path, item.Color, item, camera.Zoom)
+		fillOrStrokePath(screen, &path, item.Color, p, camera.Zoom)
 	case sprite.CircleShape:
 		center := camera.WorldToScreen(item.Position, width, height)
 		points := ellipsePoints(center, shape.Radii, item.Scale, camera.Zoom, rotation)
@@ -100,14 +114,17 @@ func drawShape(screen *ebiten.Image, item render.DrawItem, camera render.CameraV
 				float32(points[anchor].X), float32(points[anchor].Y))
 		}
 		path.Close()
-		fillOrStrokePath(screen, &path, item.Color, item, camera.Zoom)
+		fillOrStrokePath(screen, &path, item.Color, p, camera.Zoom)
 	case sprite.LineShape:
 		start := camera.WorldToScreen(item.Position, width, height)
 		from := offsetPoint(start, shape.From, item.Scale, camera.Zoom, rotation)
 		to := offsetPoint(start, shape.To, item.Scale, camera.Zoom, rotation)
 		vector.StrokeLine(screen, float32(from.X), float32(from.Y), float32(to.X), float32(to.Y),
-			float32(item.StrokeWidth*camera.Zoom), item.Color, true)
+			float32(p.StrokeWidth*camera.Zoom), item.Color, true)
+	default:
+		return fmt.Errorf("ebitrun: unknown shape type: %T", p.Shape)
 	}
+	return nil
 }
 
 func rectCorners(center, size, scale geom.Vector2, zoom, rotation float64) [4]geom.Vector2 {
@@ -154,14 +171,12 @@ func ellipsePoints(center, radii, scale geom.Vector2, zoom, rotation float64) [1
 	return points
 }
 
-// fillOrStrokePath applies the item's style to a path. ColorScale uses the
-// premultiplied channels returned by color.Color.RGBA.
-func fillOrStrokePath(screen *ebiten.Image, path *vector.Path, clr color.Color, item render.DrawItem, zoom float64) {
+func fillOrStrokePath(screen *ebiten.Image, path *vector.Path, clr color.Color, p render.ShapeDraw, zoom float64) {
 	opts := &vector.DrawPathOptions{AntiAlias: true}
 	opts.ColorScale.ScaleWithColor(clr)
-	if item.Outline {
+	if p.Outline {
 		vector.StrokePath(screen, path,
-			&vector.StrokeOptions{Width: float32(item.StrokeWidth * zoom)}, opts)
+			&vector.StrokeOptions{Width: float32(p.StrokeWidth * zoom)}, opts)
 		return
 	}
 	vector.FillPath(screen, path, &vector.FillOptions{}, opts)
@@ -175,10 +190,9 @@ func offsetPoint(start, offset, scale geom.Vector2, zoom, rotation float64) geom
 	return start.Add(scaled.Rotate(rotation))
 }
 
-// drawText uses the bounds computed during collection so rendered text stays
-// aligned with its measured and culled bounds.
-func drawText(screen *ebiten.Image, fonts *FontProvider, item render.DrawItem, camera render.CameraView) error {
-	face, err := fonts.Face(item.Font, item.TextSize)
+func drawText(screen *ebiten.Image, camera render.CameraView, item render.DrawItem, p render.TextDraw, fonts *FontProvider) error {
+
+	face, err := fonts.Face(p.Font, p.Size)
 	if err != nil {
 		return err
 	}
@@ -188,11 +202,11 @@ func drawText(screen *ebiten.Image, fonts *FontProvider, item render.DrawItem, c
 	scaleY := item.Scale.Y * camera.Zoom
 
 	op := &text.DrawOptions{}
-	op.GeoM.Translate(-item.TextWidth/2, -item.TextHeight/2)
+	op.GeoM.Translate(-p.Bounds.X/2, -p.Bounds.Y/2)
 	op.GeoM.Scale(scaleX, scaleY)
 	op.GeoM.Rotate(item.Rotation - camera.Rotation)
 	op.GeoM.Translate(screenPos.X, screenPos.Y)
 	op.ColorScale.ScaleWithColor(item.Color)
-	text.Draw(screen, item.Text, face, op)
+	text.Draw(screen, p.Text, face, op)
 	return nil
 }
