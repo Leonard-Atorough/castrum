@@ -28,7 +28,7 @@ func NewDisplayPreferences() (*settings.Group[DisplayPreferences], error) {
 // Validate reports an error if the window size is not positive.
 func (p DisplayPreferences) Validate() error {
 	if p.Window.Width <= 0 || p.Window.Height <= 0 {
-		return fmt.Errorf("castrum/ebiten: window size %dx%d is not positive", p.Window.Width, p.Window.Height)
+		return fmt.Errorf("ebitrun: window size %dx%d is not positive", p.Window.Width, p.Window.Height)
 	}
 	return nil
 }
