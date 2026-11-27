@@ -76,6 +76,9 @@ func newAudioHarnessWithWorld(t *testing.T, world *core.World) *harness {
 		t.Fatalf("provide signal hub: %v", err)
 	}
 	mixer := NewMixer()
+	if err := world.Provide(func(*core.World) (*Mixer, error) { return mixer, nil }); err != nil {
+		t.Fatalf("provide mixer: %v", err)
+	}
 	controller := &fakeController{live: true}
 	return &harness{
 		t:          t,
@@ -84,7 +87,7 @@ func newAudioHarnessWithWorld(t *testing.T, world *core.World) *harness {
 		mixer:      mixer,
 		controller: controller,
 		ctx:        &core.Context{World: world},
-		system:     NewAudioSystem(controller, mixer),
+		system:     NewAudioSystem(controller),
 	}
 }
 

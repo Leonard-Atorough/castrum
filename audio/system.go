@@ -94,17 +94,15 @@ type Controller interface {
 // NewAudioSystem returns a system that advances mixer fades and reconciles players.
 // It validates each player's settings before applying them to the controller.
 // If controller is nil, the system advances fades without reconciling players.
-func NewAudioSystem(controller Controller, mixer *Mixer) core.SystemFunc {
+func NewAudioSystem(controller Controller) core.SystemFunc {
 	s := &system{
 		controller: controller,
-		mixer:      mixer,
 	}
 	return s.Update
 }
 
 type system struct {
 	controller Controller
-	mixer      *Mixer
 
 	players  *core.Query
 	oneshots *core.Query
@@ -113,8 +111,10 @@ type system struct {
 }
 
 func (s *system) Update(ctx *core.Context) error {
-	if err := s.mixer.update(ctx.DeltaTime); err != nil {
-		return fmt.Errorf("audio system: advance mixer: %w", err)
+
+	mixer, err := ctx.World.Resource[*Mixer]()
+	if err != nil {
+		return fmt.Errorf("audio system: resolve *Mixer: %w", err)
 	}
 	if s.controller == nil {
 		return nil
@@ -138,8 +138,11 @@ func (s *system) Update(ctx *core.Context) error {
 		s.hub = resolved
 	}
 
-	var done []core.Entity
+	if err := mixer.update(ctx.DeltaTime); err != nil {
+		return fmt.Errorf("audio system: advance mixer: %w", err)
+	}
 
+	var done []core.Entity
 	for e := range s.players.Execute() {
 		p, _ := e.Component[Player]()
 		if err := p.Settings.Validate(); err != nil {
@@ -154,7 +157,7 @@ func (s *system) Update(ctx *core.Context) error {
 			p.syncedSelection != p.selectionVersion ||
 			p.syncedAudio != audio
 
-		want := fold(p, s.mixer)
+		want := fold(p, mixer)
 		if err := spatial.apply(e.Entity(), p.Settings, &want); err != nil {
 			if spatialErr == nil {
 				spatialErr = err
