@@ -1,6 +1,8 @@
 package input
 
 import (
+	"fmt"
+
 	"github.com/Leonard-Atorough/castrum/core"
 )
 
@@ -9,10 +11,13 @@ import (
 // [ActionMap.Update]. castrum.New registers it first in the pre-frame
 // schedule so user systems in that phase see fresh actions.
 //
-// A missing snapshot resource reads as one frame with no input.
+// It returns an error if the snapshot resource is not registered.
 func NewFrameSystem(am *ActionMap) core.SystemFunc {
 	return func(ctx *core.Context) error {
-		snapshot, _ := ctx.World.Resource[*Snapshot]()
+		snapshot, err := ctx.World.Resource[*Snapshot]()
+		if err != nil {
+			return fmt.Errorf("input: frame system: resolve snapshot: %w", err)
+		}
 		am.Update(snapshot, ctx.DeltaTime.Seconds())
 		return nil
 	}

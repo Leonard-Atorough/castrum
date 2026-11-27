@@ -1,6 +1,7 @@
 package input
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestFrameSystemResolvesSnapshotResource(t *testing.T) {
 	}
 }
 
-func TestFrameSystemToleratesMissingSnapshot(t *testing.T) {
+func TestFrameSystemMissingSnapshotErrors(t *testing.T) {
 	am, err := New(Bindings{
 		"jump": {KeyInput{Key: KeySpace}.Binding()},
 	}, 0)
@@ -39,11 +40,12 @@ func TestFrameSystemToleratesMissingSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := &core.Context{World: core.NewWorld(), DeltaTime: time.Second}
-	if err := NewFrameSystem(am)(ctx); err != nil {
-		t.Fatalf("missing snapshot resource: %v", err)
+	err = NewFrameSystem(am)(ctx)
+	if err == nil || !strings.Contains(err.Error(), "snapshot") {
+		t.Fatalf("missing snapshot resource: err = %v, want a snapshot resolution error", err)
 	}
 	if am.Held("jump") {
-		t.Fatal("missing snapshot read as input")
+		t.Fatal("failed frame must not read as input")
 	}
 }
 
