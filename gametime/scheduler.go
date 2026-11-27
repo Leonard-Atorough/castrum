@@ -186,27 +186,33 @@ func (s *Scheduler) System() core.SystemFunc {
 		}
 		var errs []error
 		for _, e := range due {
-			if _, ok := s.byName[e.name]; !ok {
+			if s.byName[e.name] != e {
 				continue
 			}
 			if err := e.action(ctx); err != nil {
 
 				errs = append(errs, fmt.Errorf("gametime: scheduler system: failed to execute entry %q: %w", e.name, err))
-				heap.Push(s.entries, e)
+				if s.byName[e.name] == e {
+					heap.Push(s.entries, e)
+				}
 				continue
 			}
-			if _, ok := s.byName[e.name]; !ok {
+			if s.byName[e.name] != e {
 				continue
 			}
 			if e.interval > 0 {
 				if e.dueTick > math.MaxUint64-e.interval {
-					delete(s.byName, e.name)
+					if s.byName[e.name] == e {
+						delete(s.byName, e.name)
+					}
 					continue
 				}
 				e.dueTick += e.interval
 				heap.Push(s.entries, e)
 			} else {
-				delete(s.byName, e.name)
+				if s.byName[e.name] == e {
+					delete(s.byName, e.name)
+				}
 			}
 		}
 		return errors.Join(errs...)
